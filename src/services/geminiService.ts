@@ -155,18 +155,40 @@ export const generateStudyPlan = async (request: string): Promise<any[]> => {
 
   try {
     const today = new Date().toISOString().split('T')[0];
-    const prompt = `Generate a realistic study schedule based on the student's request: "${request}". 
+    const prompt = `Generate a realistic study schedule based on the student's request: "${request}".
     Today's date is ${today}.
-    
-    Create a list of study events. For "Exam" or "Test" mentions, verify if the user provided a date, otherwise assume a logical preparation timeline.
-    Distribute "Revision" sessions logically before exams.
-    `;
+
+    IMPORTANT: You must respond with ONLY a valid JSON array. Do not include any text before or after the JSON.
+
+    Return the response as a JSON array of study events with this exact format:
+    [
+      {
+        "title": "Study session title",
+        "subject": "Subject name",
+        "date": "YYYY-MM-DD",
+        "type": "Exam" | "Revision" | "Assignment",
+        "notes": "Brief description or focus area"
+      }
+    ]
+
+    Create realistic study events distributed logically before deadlines. For "Exam" or "Test" mentions, verify if the user provided a date, otherwise assume a logical preparation timeline (usually 1-2 weeks before). Include revision sessions, practice exams, and focused study time.
+
+    Response must be valid JSON only - no markdown, no explanations, no additional text.`;
 
     const model = ai.getGenerativeModel({ model: MODEL_NAME });
 
     const response = await model.generateContent(prompt);
 
-    return safeJsonParse(response.response.text() || "[]", []);
+    const result = safeJsonParse(response.response.text() || "[]", []);
+    // Ensure we return an array and validate the structure
+    return Array.isArray(result) ? result.filter((item: any) =>
+      item &&
+      typeof item === 'object' &&
+      item.title &&
+      item.subject &&
+      item.date &&
+      item.type
+    ) : [];
   } catch (error) {
     console.error("Gemini Planner Error:", error);
     return [];
