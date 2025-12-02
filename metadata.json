@@ -1,0 +1,7 @@
+{
+  "name": "SmartStudy",
+  "description": "A modern E-Library and AI Tutor platform for Grade 9-12 students, featuring document access, smart Q&A, and study tools.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
