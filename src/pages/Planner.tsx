@@ -7,13 +7,14 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { StudyEvent } from '../types';
-import { generateStudyPlan } from '../services/geminiService';
+import { aiTutorAPI, plannerAPI } from '../services/api';
 import CustomSelect from '../components/CustomSelect';
 import DatePicker from '../components/DatePicker';
 import { SUBJECTS } from '../constants';
+import { PlannerEventSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 
 const Planner: React.FC = () => {
-  const { studyEvents, addEvent, toggleEvent, deleteEvent } = useData();
+  const { studyEvents, fetchStudyEvents, createStudyEvent, updateStudyEvent, deleteStudyEvent, loading } = useData();
   const { user, gainXP } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -27,8 +28,10 @@ const Planner: React.FC = () => {
 
   useEffect(() => {
     setMounted(true);
+    // Fetch study events on mount
+    fetchStudyEvents();
     return () => setMounted(false);
-  }, []);
+  }, [fetchStudyEvents]);
 
   // Manual Form State
   const [title, setTitle] = useState('');
@@ -58,33 +61,46 @@ const Planner: React.FC = () => {
     groupedEvents[event.date].push(event);
   });
 
-  const handleTaskToggle = (id: string, isCompleted: boolean) => {
-    toggleEvent(id);
-    if (!isCompleted) { // If marking as complete
-      const { leveledUp, newLevel } = gainXP(50);
-      addToast("+50 XP Task Completed!", "success");
-      if (leveledUp) {
-        setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+  const handleTaskToggle = async (id: string, isCompleted: boolean) => {
+    try {
+      await updateStudyEvent(id, { isCompleted: !isCompleted });
+      if (!isCompleted) { // If marking as complete
+        const { leveledUp, newLevel } = await gainXP(50);
+        addToast("+50 XP Task Completed!", "success");
+        if (leveledUp) {
+          setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+        }
       }
+    } catch (error) {
+      console.error('Failed to toggle task:', error);
+      addToast("Failed to update task status", "error");
     }
   };
 
-  const handleAddManual = (e: React.FormEvent) => {
+  const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
 
-    const newEvent: StudyEvent = {
-      id: Date.now().toString(),
-      title,
-      subject,
-      date,
-      type,
-      isCompleted: false
-    };
+    try {
+      await createStudyEvent({
+        title,
+        subject,
+        date,
+        type,
+        isCompleted: false,
+        notes: ''
+      });
 
-    addEvent(newEvent);
-    setIsManualModalOpen(false);
-    resetManualForm();
+      // Refresh the study events to ensure they're displayed
+      await fetchStudyEvents();
+
+      setIsManualModalOpen(false);
+      resetManualForm();
+      addToast("Study event added successfully!", "success");
+    } catch (error) {
+      console.error('Failed to add study event:', error);
+      addToast("Failed to add study event", "error");
+    }
   };
 
   const handleSmartScheduleClick = () => {
@@ -104,23 +120,38 @@ const Planner: React.FC = () => {
     if (!aiPrompt.trim()) return;
 
     setIsGenerating(true);
-    const plan = await generateStudyPlan(aiPrompt);
-    
-    plan.forEach(item => {
-      addEvent({
-        id: Math.random().toString(36).substr(2, 9),
-        title: item.title,
-        subject: item.subject,
-        date: item.date,
-        type: item.type as any,
-        isCompleted: false,
-        notes: item.notes
-      });
-    });
+    try {
+      const response = await aiTutorAPI.generateStudyPlan(aiPrompt, 10);
 
-    setIsGenerating(false);
-    setIsAIModalOpen(false);
-    setAiPrompt('');
+      // The response already contains parsed JSON
+      const plan = response.plan;
+
+      // Create events from the plan
+      for (const item of plan) {
+        if (item.title && item.subject && item.date && item.type) {
+          await createStudyEvent({
+            title: item.title,
+            subject: item.subject,
+            date: item.date,
+            type: item.type,
+            isCompleted: false,
+            notes: item.notes || ''
+          });
+        }
+      }
+
+      // Refresh the study events to ensure they're displayed
+      await fetchStudyEvents();
+
+      addToast("Study plan generated successfully!", "success");
+    } catch (error) {
+      console.error('AI generation error:', error);
+      addToast("Failed to generate study plan. Please try again.", "error");
+    } finally {
+      setIsGenerating(false);
+      setIsAIModalOpen(false);
+      setAiPrompt('');
+    }
   };
 
   const resetManualForm = () => {
@@ -139,6 +170,11 @@ const Planner: React.FC = () => {
   };
 
   const subjectOptions = SUBJECTS.map(s => ({ label: s, value: s }));
+  const typeOptions = [
+    { label: 'Revision', value: 'Revision' },
+    { label: 'Assignment', value: 'Assignment' },
+    { label: 'Exam', value: 'Exam' }
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -171,7 +207,13 @@ const Planner: React.FC = () => {
               <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2">
                 <Clock size={18} className="text-zinc-600" /> Up Next
               </h3>
-              {upcomingEvents.length > 0 ? (
+              {loading.studyEvents ? (
+                <div className="space-y-4">
+                  <TaskItemSkeleton />
+                  <TaskItemSkeleton />
+                  <TaskItemSkeleton />
+                </div>
+              ) : upcomingEvents.length > 0 ? (
                 <div className="space-y-4">
                   {upcomingEvents.slice(0, 3).map(event => (
                     <div key={event.id} className="p-3 bg-zinc-50 rounded-lg border border-zinc-100">
@@ -261,7 +303,20 @@ const Planner: React.FC = () => {
              </button>
            </div>
 
-           {Object.keys(groupedEvents).length > 0 ? (
+           {loading.studyEvents ? (
+             <div className="space-y-6">
+               {[1, 2, 3].map((i) => (
+                 <div key={i} className="animate-pulse">
+                   <div className="h-6 bg-zinc-200 rounded w-48 mb-3"></div>
+                   <div className="space-y-3">
+                     <PlannerEventSkeleton />
+                     <PlannerEventSkeleton />
+                     <PlannerEventSkeleton />
+                   </div>
+                 </div>
+               ))}
+             </div>
+           ) : Object.keys(groupedEvents).length > 0 ? (
              Object.keys(groupedEvents).sort().map(dateKey => (
                <div key={dateKey} className="animate-slide-up">
                   <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 sticky top-0 bg-zinc-50/95 py-2 backdrop-blur-sm z-10 flex items-center justify-between">
@@ -303,12 +358,20 @@ const Planner: React.FC = () => {
                             </p>
                          </div>
 
-                         <button 
-                           onClick={() => deleteEvent(event.id)}
-                           className="p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                         >
-                           <Trash2 size={18} />
-                         </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await deleteStudyEvent(event.id);
+                              addToast("Study event deleted", "success");
+                            } catch (error) {
+                              console.error('Failed to delete event:', error);
+                              addToast("Failed to delete event", "error");
+                            }
+                          }}
+                          className="p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -371,15 +434,11 @@ const Planner: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Type</label>
-                    <select 
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 appearance-none"
+                    <CustomSelect
+                      options={typeOptions}
                       value={type}
-                      onChange={(e) => setType(e.target.value as any)}
-                    >
-                       <option value="Revision">Revision</option>
-                       <option value="Assignment">Assignment</option>
-                       <option value="Exam">Exam</option>
-                    </select>
+                      onChange={(value) => setType(value as 'Revision' | 'Exam' | 'Assignment')}
+                    />
                   </div>
                </div>
                <div>

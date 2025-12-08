@@ -265,7 +265,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     {user.avatar ? (
                       <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                     ) : (
-                      user.name.charAt(0).toUpperCase()
+                      user?.name ? user.name.charAt(0).toUpperCase() : 'U'
                     )}
                   </div>
                   {!isCollapsed && (

@@ -83,8 +83,8 @@ const App: React.FC = () => {
           <Route path="/careers" element={<Careers />} />
 
           {/* Auth Routes */}
-          <Route path="/login" element={<Auth type="login" onLogin={login} />} />
-          <Route path="/register" element={<Auth type="register" onLogin={login} />} />
+          <Route path="/login" element={<Auth type="login" />} />
+          <Route path="/register" element={<Auth type="register" />} />
           
           {/* Protected Routes */}
           <Route 
@@ -97,7 +97,7 @@ const App: React.FC = () => {
           />
           <Route 
             path="/profile" 
-            element={user ? <Profile user={user} onUpdateUser={updateUser} /> : <Navigate to="/login" />} 
+            element={user ? <Profile /> : <Navigate to="/login" />} 
           />
           
           {/* 404 Page */}

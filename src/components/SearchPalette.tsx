@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, PlayCircle, MessageSquare, ArrowRight, LayoutDashboard, CalendarDays, Sparkles, BrainCircuit, Users, User, Command, Crown } from 'lucide-react';
+import { Search, FileText, PlayCircle, MessageSquare, ArrowRight, LayoutDashboard, CalendarDays, Sparkles, BrainCircuit, Users, User, Command, Crown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import { searchAPI } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 interface SearchPaletteProps {
   isOpen: boolean;
@@ -25,9 +27,13 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const { documents, videos, forumPosts } = useData();
   const navigate = useNavigate();
+  const { addToast } = useToast();
 
   useEffect(() => {
     setMounted(true);
@@ -50,36 +56,53 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
-  // Aggregate and filter results
-  const results = React.useMemo(() => {
-    if (!searchTerm.trim()) return [];
-    
-    const lowerTerm = searchTerm.toLowerCase();
-    
-    // Filter Navigation Pages
-    const pages = STATIC_PAGES.filter(p => 
-      p.title.toLowerCase().includes(lowerTerm) || 
-      p.keywords.some(k => k.includes(lowerTerm))
-    ).map(p => ({ ...p, type: 'navigation' as const }));
+  // Search effect
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        setSuggestions([]);
+        return;
+      }
 
-    // Filter Content
-    const docs = documents
-      .filter(d => d.title.toLowerCase().includes(lowerTerm) || d.subject.toLowerCase().includes(lowerTerm))
-      .slice(0, 3)
-      .map(d => ({ ...d, type: 'document' as const, url: `/document/${d.id}` }));
-      
-    const vids = videos
-      .filter(v => v.title.toLowerCase().includes(lowerTerm) || v.subject.toLowerCase().includes(lowerTerm))
-      .slice(0, 3)
-      .map(v => ({ ...v, type: 'video' as const, url: `/video/${v.id}` }));
-      
-    const posts = forumPosts
-      .filter(p => p.title.toLowerCase().includes(lowerTerm))
-      .slice(0, 2)
-      .map(p => ({ ...p, type: 'post' as const, url: `/community/${p.id}` }));
-      
-    return [...pages, ...docs, ...vids, ...posts];
-  }, [searchTerm, documents, videos, forumPosts]);
+      setIsSearching(true);
+      try {
+        // Get search suggestions for autocomplete
+        const suggestionResult = await searchAPI.suggestions(searchTerm, 5);
+        setSuggestions(suggestionResult.suggestions);
+
+        // Perform main search
+        const searchResult = await searchAPI.basic({
+          q: searchTerm,
+          limit: 8
+        });
+
+        // Filter Navigation Pages (client-side for now)
+        const lowerTerm = searchTerm.toLowerCase();
+        const pages = STATIC_PAGES.filter(p =>
+          p.title.toLowerCase().includes(lowerTerm) ||
+          p.keywords.some(k => k.includes(lowerTerm))
+        ).map(p => ({ ...p, type: 'navigation' as const }));
+
+        // Combine backend results with navigation pages
+        setSearchResults([...pages, ...searchResult.results]);
+
+      } catch (error) {
+        console.error('Search error:', error);
+        addToast('Search failed. Please try again.', 'error');
+        setSearchResults([]);
+        setSuggestions([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(performSearch, 300); // Debounce search
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm, addToast]);
+
+  // Use searchResults instead of computed results
+  const results = searchResults;
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -105,7 +128,7 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, results, selectedIndex, navigate, onClose]);
+  }, [isOpen, results, selectedIndex, navigate, onClose, isSearching]);
 
   if (!isOpen || !mounted) return null;
 
@@ -138,9 +161,15 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
         </div>
         
         <div className="overflow-y-auto flex-1 p-2">
-          {results.length > 0 ? (
+          {isSearching ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-zinc-400" />
+            </div>
+          ) : results.length > 0 ? (
             <div className="space-y-1">
-              <p className="px-3 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Results</p>
+              <p className="px-3 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                Results {results.length > 0 && <span className="text-zinc-500">({results.length})</span>}
+              </p>
               {results.map((result, index) => (
                 <div
                   key={`${result.type}-${(result as any).id || result.title}`}
@@ -167,13 +196,26 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
                   
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-zinc-900 truncate">{result.title}</h4>
-                    {result.type !== 'navigation' && (
-                      <p className="text-xs text-zinc-500 truncate">
-                        {result.type === 'post' ? 'Community Discussion' : `${(result as any).subject} • Grade ${(result as any).grade}`}
-                      </p>
-                    )}
                     {result.type === 'navigation' && (
                       <p className="text-xs text-zinc-500 truncate">Go to page</p>
+                    )}
+                    {result.type === 'document' && (
+                      <p className="text-xs text-zinc-500 truncate">
+                        Document • {result.subject} • Grade {result.grade}
+                        {result.isPremium && <span className="ml-1 text-amber-600">★</span>}
+                      </p>
+                    )}
+                    {result.type === 'video' && (
+                      <p className="text-xs text-zinc-500 truncate">
+                        Video • {result.subject} • Grade {result.grade}
+                        {result.isPremium && <span className="ml-1 text-amber-600">★</span>}
+                      </p>
+                    )}
+                    {result.type === 'post' && (
+                      <p className="text-xs text-zinc-500 truncate">
+                        Discussion • {result.subject} • Grade {result.grade}
+                        {result.commentCount !== undefined && ` • ${result.commentCount} replies`}
+                      </p>
                     )}
                   </div>
                   

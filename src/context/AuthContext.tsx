@@ -1,14 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Notification } from '../types';
+import { authAPI, usersAPI } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
-  login: (userData: User) => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
-  updateUser: (data: Partial<User>) => void;
-  toggleBookmark: (itemId: string) => void;
-  gainXP: (amount: number) => { leveledUp: boolean; newLevel: number };
-  markNotificationsAsRead: () => void;
+  updateUser: (data: Partial<User>) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
+  toggleBookmark: (itemId: string, itemType?: 'document' | 'video') => Promise<void>;
+  gainXP: (amount: number) => Promise<{ leveledUp: boolean; newLevel: number }>;
+  markNotificationsAsRead: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -19,164 +23,193 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Check authentication on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('smartstudy_user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        // Ensure structure consistency for older data
-        if (!parsedUser.bookmarks) parsedUser.bookmarks = [];
-        if (parsedUser.xp === undefined) parsedUser.xp = 0;
-        if (parsedUser.level === undefined) parsedUser.level = 1;
-        if (parsedUser.streak === undefined) parsedUser.streak = 0;
-        if (!parsedUser.lastActiveDate) parsedUser.lastActiveDate = new Date().toISOString().split('T')[0];
-        if (!parsedUser.unlockedBadges) parsedUser.unlockedBadges = ['b1'];
-        if (parsedUser.practiceAttempts === undefined) parsedUser.practiceAttempts = 0;
-        
-        // Add default notifications if missing
-        if (!parsedUser.notifications) {
-            parsedUser.notifications = [
-                {
-                    id: 'n1',
-                    title: 'Welcome to SmartStudy!',
-                    message: 'Complete your profile to earn your first badge.',
-                    type: 'info',
-                    isRead: false,
-                    date: new Date().toISOString()
-                }
-            ];
+    const checkAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        try {
+          const response = await authAPI.verify();
+          // Transform snake_case fields to camelCase to match User interface
+          const transformedUser = {
+            ...response.user,
+            isPremium: (response.user as any).is_premium,
+            is_premium: undefined
+          };
+          setUser(transformedUser);
+          // Load full profile including bookmarks
+          await refreshUser();
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          localStorage.removeItem('auth_token');
         }
-
-        // Check Streak Logic on Load
-        const today = new Date().toISOString().split('T')[0];
-        if (parsedUser.lastActiveDate !== today) {
-          const lastActive = new Date(parsedUser.lastActiveDate);
-          const diffTime = Math.abs(new Date(today).getTime() - lastActive.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-          
-          if (diffDays === 1) {
-             // Consecutive day
-             parsedUser.streak += 1;
-          } else if (diffDays > 1) {
-             // Streak broken
-             parsedUser.streak = 1;
-          }
-          // If diffDays is 0 (same day), do nothing
-          
-          parsedUser.lastActiveDate = today;
-          localStorage.setItem('smartstudy_user', JSON.stringify(parsedUser));
-        }
-        
-        setUser(parsedUser);
-      } catch (e) {
-        console.error("Failed to parse user data", e);
-        localStorage.removeItem('smartstudy_user');
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
-  const login = (userData: User) => {
-    // Ensure all gamification fields exist
-    const userWithDefaults: User = { 
-      ...userData, 
-      bookmarks: userData.bookmarks || [],
-      xp: userData.xp || 0,
-      level: userData.level || 1,
-      streak: userData.streak || 1,
-      lastActiveDate: new Date().toISOString().split('T')[0],
-      unlockedBadges: userData.unlockedBadges || ['b1'],
-      practiceAttempts: userData.practiceAttempts || 0,
-      notifications: userData.notifications || [
-         {
-            id: 'n1',
-            title: 'Welcome to SmartStudy!',
-            message: 'We are glad to have you here. Start learning!',
-            type: 'success',
-            isRead: false,
-            date: new Date().toISOString()
-         }
-      ]
-    };
-    setUser(userWithDefaults);
-    localStorage.setItem('smartstudy_user', JSON.stringify(userWithDefaults));
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await authAPI.login(email, password);
+      localStorage.setItem('auth_token', response.token);
+      // Transform snake_case fields to camelCase to match User interface
+      const transformedUser = {
+        ...response.user,
+        isPremium: (response.user as any).is_premium,
+        is_premium: undefined
+      };
+      setUser(transformedUser);
+      // Load full profile including bookmarks
+      await refreshUser();
+    } catch (error) {
+      throw error;
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('smartstudy_user');
+  const register = async (name: string, email: string, password: string) => {
+    try {
+      const response = await authAPI.register(name, email, password);
+      localStorage.setItem('auth_token', response.token);
+      // Transform snake_case fields to camelCase to match User interface
+      const transformedUser = {
+        ...response.user,
+        isPremium: (response.user as any).is_premium,
+        is_premium: undefined
+      };
+      setUser(transformedUser);
+      // Load full profile including bookmarks
+      await refreshUser();
+    } catch (error) {
+      throw error;
+    }
   };
 
-  const updateUser = (data: Partial<User>) => {
-    setUser((prev: User | null) => {
-      if (!prev) return null;
-      const updated = { ...prev, ...data };
-      localStorage.setItem('smartstudy_user', JSON.stringify(updated));
-      return updated;
-    });
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('auth_token');
+      setUser(null);
+    }
   };
 
-  const toggleBookmark = (itemId: string) => {
+  const updateUser = async (data: Partial<User>) => {
+    if (!user) return;
+
+    try {
+      const updatedUser = await usersAPI.updateProfile(data);
+      setUser(updatedUser);
+    } catch (error) {
+      console.error('Update user error:', error);
+      throw error;
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+    try {
+      await usersAPI.changePassword(currentPassword, newPassword, confirmPassword);
+    } catch (error) {
+      console.error('Change password error:', error);
+      throw error;
+    }
+  };
+
+  const toggleBookmark = async (itemId: string, itemType: 'document' | 'video' = 'document') => {
     if (!user) return;
 
     const bookmarks = user.bookmarks || [];
     const isBookmarked = bookmarks.includes(itemId);
-    
-    let newBookmarks;
-    if (isBookmarked) {
-      newBookmarks = bookmarks.filter((id: string) => id !== itemId);
-    } else {
-      newBookmarks = [...bookmarks, itemId];
-    }
 
-    updateUser({ bookmarks: newBookmarks });
+    // Optimistic update
+    const newBookmarks = isBookmarked
+      ? bookmarks.filter(id => id !== itemId)
+      : [...bookmarks, itemId];
+
+    setUser(prev => prev ? { ...prev, bookmarks: newBookmarks } : null);
+
+    try {
+      if (isBookmarked) {
+        await usersAPI.removeBookmark(itemId, itemType);
+      } else {
+        await usersAPI.addBookmark(itemId, itemType);
+      }
+
+      // No need to refresh user data for bookmarks since we use optimistic updates
+      // The bookmarks will be correct on next page load
+    } catch (error) {
+      console.error('Toggle bookmark error:', error);
+      // Revert optimistic update on error
+      setUser(prev => prev ? { ...prev, bookmarks: bookmarks } : null);
+      throw error;
+    }
   };
 
-  const gainXP = (amount: number) => {
+  const gainXP = async (amount: number): Promise<{ leveledUp: boolean; newLevel: number }> => {
     if (!user) return { leveledUp: false, newLevel: 1 };
-    
-    const newXP = user.xp + amount;
-    const newLevel = Math.floor(newXP / 1000) + 1;
-    const leveledUp = newLevel > user.level;
 
-    let updatedNotifications = [...user.notifications];
-    
-    if (leveledUp) {
-        updatedNotifications.unshift({
-            id: 'lvl-' + Date.now(),
-            title: 'Level Up!',
-            message: `Congratulations! You reached Level ${newLevel}.`,
-            type: 'success',
-            isRead: false,
-            date: new Date().toISOString()
-        });
+    try {
+      const result = await usersAPI.gainXP(amount);
+      await refreshUser(); // Refresh user data
+      // Ensure consistent return type
+      return {
+        leveledUp: result.leveledUp,
+        newLevel: result.level || 1
+      };
+    } catch (error) {
+      console.error('Gain XP error:', error);
+      throw error;
     }
-
-    updateUser({ 
-        xp: newXP, 
-        level: newLevel,
-        notifications: updatedNotifications
-    });
-    
-    return { leveledUp, newLevel };
   };
 
-  const markNotificationsAsRead = () => {
+  const markNotificationsAsRead = async () => {
     if (!user) return;
-    const updated = user.notifications.map(n => ({ ...n, isRead: true }));
-    updateUser({ notifications: updated });
+
+    try {
+      await usersAPI.markNotificationsRead();
+      await refreshUser(); // Refresh user data
+    } catch (error) {
+      console.error('Mark notifications read error:', error);
+      throw error;
+    }
   };
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await usersAPI.getProfile();
+      // Transform snake_case fields to camelCase to match User interface
+      const transformedUser = {
+        ...response,
+        isPremium: (response as any).is_premium,
+        // Remove the snake_case field to avoid confusion
+        is_premium: undefined
+      };
+      setUser(transformedUser);
+    } catch (error) {
+      console.error('Refresh user error:', error);
+      // If refresh fails, user might be logged out
+      if ((error as any).message?.includes('401') || (error as any).message?.includes('403')) {
+        localStorage.removeItem('auth_token');
+        setUser(null);
+      }
+    }
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      updateUser, 
+    <AuthContext.Provider value={{
+      user,
+      login,
+      logout,
+      register,
+      updateUser,
+      changePassword,
       toggleBookmark,
       gainXP,
       markNotificationsAsRead,
+      refreshUser,
       isAuthenticated: !!user,
       isLoading
     }}>

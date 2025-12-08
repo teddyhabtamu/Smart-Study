@@ -1,30 +1,268 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Upload, FileText, Trash2, Edit2, Search, CheckCircle, UserPlus, Mail, Shield, X, Save, Film, Youtube, PlaySquare, BarChart3, Users, MessageSquare, AlertTriangle, MoreVertical, Crown, Ban } from 'lucide-react';
+import { Upload, FileText, Trash2, Edit2, Search, CheckCircle, UserPlus, Mail, Shield, X, Save, Film, Youtube, PlaySquare, BarChart3, Users, MessageSquare, AlertTriangle, MoreVertical, Crown, Ban, Loader2 } from 'lucide-react';
 import { GRADES, SUBJECTS } from '../constants';
-import { FileType, Document, VideoLesson, UserRole } from '../types';
+import { FileType, Document, VideoLesson, UserRole, User } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
+import { adminAPI } from '../services/api';
 
-// Mock Data for Admins
-const MOCK_ADMINS = [
-  { id: '1', name: 'System Admin', email: 'admin@smartstudy.com', role: 'Super Admin', status: 'Active', dateAdded: '2023-01-15' },
-  { id: '2', name: 'Ms. Almaz', email: 'almaz.content@smartstudy.com', role: 'Content Manager', status: 'Active', dateAdded: '2023-03-10' },
-];
+// Enhanced Skeleton Components with better styling and animations
+const StatsCardSkeleton: React.FC = () => (
+  <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
+    <div className="flex justify-between items-start mb-4">
+      <div className="w-10 h-10 bg-zinc-200 rounded-lg"></div>
+      <div className="w-12 h-4 bg-zinc-200 rounded"></div>
+    </div>
+    <div className="w-20 h-9 bg-zinc-200 rounded mb-2"></div>
+    <div className="w-32 h-4 bg-zinc-200 rounded"></div>
+  </div>
+);
+
+const RecentActivitySkeleton: React.FC = () => (
+  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+    <div className="w-48 h-6 bg-zinc-200 rounded mb-6 animate-pulse"></div>
+    <div className="space-y-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex items-center justify-between py-3 border-b border-zinc-50 last:border-0 animate-pulse">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="w-2 h-2 bg-zinc-200 rounded-full"></div>
+            <div className="flex-1 space-y-2">
+              <div className="w-48 h-4 bg-zinc-200 rounded"></div>
+              <div className="w-64 h-3 bg-zinc-200 rounded"></div>
+            </div>
+          </div>
+          <div className="w-20 h-3 bg-zinc-200 rounded"></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const StudentsTableSkeleton: React.FC = () => (
+  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+          <tr>
+            <th className="px-6 py-3"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-12 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-20 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3 text-right"><div className="w-20 h-4 bg-zinc-200 rounded animate-pulse ml-auto"></div></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-50">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <tr key={i} className="animate-pulse">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-zinc-200 rounded-full"></div>
+                  <div className="space-y-2">
+                    <div className="w-32 h-4 bg-zinc-200 rounded"></div>
+                    <div className="w-48 h-3 bg-zinc-200 rounded"></div>
+                  </div>
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="w-20 h-6 bg-zinc-200 rounded-full"></div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="w-16 h-6 bg-zinc-200 rounded"></div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="w-24 h-4 bg-zinc-200 rounded"></div>
+              </td>
+              <td className="px-6 py-4 text-right">
+                <div className="flex justify-end gap-2">
+                  <div className="w-20 h-8 bg-zinc-200 rounded"></div>
+                  <div className="w-8 h-8 bg-zinc-200 rounded"></div>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+const ContentTableSkeleton: React.FC = () => (
+  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+          <tr>
+            <th className="px-6 py-3"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-20 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3 text-right"><div className="w-20 h-4 bg-zinc-200 rounded animate-pulse ml-auto"></div></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-50">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <tr key={i} className="animate-pulse">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-zinc-200 rounded-lg"></div>
+                  <div className="space-y-2">
+                    <div className="w-56 h-4 bg-zinc-200 rounded"></div>
+                    <div className="w-72 h-3 bg-zinc-200 rounded"></div>
+                  </div>
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="space-y-2">
+                  <div className="w-24 h-3 bg-zinc-200 rounded"></div>
+                  <div className="w-16 h-3 bg-zinc-200 rounded"></div>
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-12 h-5 bg-zinc-200 rounded-full"></div>
+                  <div className="w-16 h-5 bg-zinc-200 rounded"></div>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-right">
+                <div className="flex justify-end gap-2">
+                  <div className="w-8 h-8 bg-zinc-200 rounded"></div>
+                  <div className="w-8 h-8 bg-zinc-200 rounded"></div>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+const CommunityPostsSkeleton: React.FC = () => (
+  <div className="grid gap-4">
+    {[1, 2, 3, 4].map((i) => (
+      <div key={i} className="bg-white p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-4 animate-pulse">
+        <div className="flex flex-col items-center gap-1 pt-1">
+          <div className="w-5 h-5 bg-zinc-200 rounded"></div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start mb-3">
+            <div className="w-64 h-5 bg-zinc-200 rounded"></div>
+            <div className="w-24 h-6 bg-zinc-200 rounded"></div>
+          </div>
+          <div className="mb-3 bg-zinc-50 p-3 rounded-lg border border-zinc-100">
+            <div className="w-full h-4 bg-zinc-200 rounded mb-2"></div>
+            <div className="w-5/6 h-4 bg-zinc-200 rounded"></div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-32 h-3 bg-zinc-200 rounded"></div>
+            <div className="w-20 h-3 bg-zinc-200 rounded"></div>
+            <div className="w-24 h-3 bg-zinc-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const AdminTeamSkeleton: React.FC = () => (
+  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+          <tr>
+            <th className="px-6 py-3"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-12 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3"><div className="w-20 h-4 bg-zinc-200 rounded animate-pulse"></div></th>
+            <th className="px-6 py-3 text-right"><div className="w-16 h-4 bg-zinc-200 rounded animate-pulse ml-auto"></div></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-50">
+          {[1, 2, 3].map((i) => (
+            <tr key={i} className="animate-pulse">
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-zinc-200"></div>
+                  <div className="space-y-2">
+                    <div className="w-32 h-4 bg-zinc-200 rounded"></div>
+                    <div className="w-48 h-3 bg-zinc-200 rounded"></div>
+                  </div>
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="w-24 h-4 bg-zinc-200 rounded"></div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="w-20 h-6 bg-zinc-200 rounded-full"></div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="w-24 h-4 bg-zinc-200 rounded"></div>
+              </td>
+              <td className="px-6 py-4 text-right">
+                <div className="w-8 h-8 bg-zinc-200 rounded ml-auto"></div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+// Admin component state will be managed with real backend data
 
 const Admin: React.FC = () => {
-  const { documents, videos, forumPosts, allUsers, addDocument, updateDocument, deleteDocument, addVideo, updateVideo, deleteVideo, deleteForumPost, updateUserStatus } = useData();
+  const { documents, videos, forumPosts, allUsers, createDocument, updateDocument, deleteDocument, createVideo, updateVideo, deleteVideo, deleteForumPost, updateUserStatus, fetchUsers, fetchDocuments, fetchVideos, fetchForumPosts, loading } = useData();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team'>('overview');
   const [contentCategory, setContentCategory] = useState<'documents' | 'videos'>('documents');
   const [mounted, setMounted] = useState(false);
+  const [admins, setAdmins] = useState<User[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminStats, setAdminStats] = useState<any>(null);
+
+  // Fetch admin team members
+  const fetchAdmins = useCallback(async () => {
+    try {
+      setAdminLoading(true);
+      const adminData = await adminAPI.getAdmins();
+      setAdmins(adminData);
+    } catch (error: any) {
+      console.error('Failed to fetch admins:', error);
+      addToast('Failed to load admin team', 'error');
+    } finally {
+      setAdminLoading(false);
+    }
+  }, [addToast]);
+
+  // Fetch admin stats
+  const fetchAdminStats = useCallback(async () => {
+    try {
+      const stats = await adminAPI.getAdminStats();
+      setAdminStats(stats);
+    } catch (error: any) {
+      console.error('Failed to fetch admin stats:', error);
+    }
+  }, []);
 
   useEffect(() => {
     setMounted(true);
+
+    // Set admin loading to true before fetching
+    setAdminLoading(true);
+
+    // Fetch initial data (fetch functions handle their own loading states)
+    fetchDocuments();
+    fetchVideos();
+    fetchForumPosts();
+    fetchUsers();
+    fetchAdmins();
+    fetchAdminStats();
+
     return () => setMounted(false);
-  }, []);
+  }, [fetchDocuments, fetchVideos, fetchForumPosts, fetchUsers, fetchAdmins, fetchAdminStats]);
   
   // Content Management State
   const [file, setFile] = useState<File | null>(null);
@@ -44,15 +282,15 @@ const Admin: React.FC = () => {
   // Document Specific State
   const [docAuthor, setDocAuthor] = useState('');
   const [docFileType, setDocFileType] = useState(FileType.PDF);
+  const [docFileUrl, setDocFileUrl] = useState('');
+  const [docThumbnailUrl, setDocThumbnailUrl] = useState('');
 
   // Video Specific State
-  const [videoUrl, setVideoUrl] = useState('');
-  const [videoDuration, setVideoDuration] = useState('');
+  const [videoUrl, setVideoUrl] = useState(''); // Note: variable name stays camelCase for UI state
   const [videoInstructor, setVideoInstructor] = useState('');
   const [videoThumbnail, setVideoThumbnail] = useState('');
 
   // Team Management State
-  const [admins, setAdmins] = useState(MOCK_ADMINS);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
@@ -61,7 +299,7 @@ const Admin: React.FC = () => {
   // Options
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
   const subjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
-  const fileTypeOptions: Option[] = Object.values(FileType).map(t => ({ label: t, value: t }));
+  const fileTypeOptions: Option[] = ['PDF', 'DOCX', 'PPT'].map(t => ({ label: t, value: t }));
   const roleOptions: Option[] = [
     { label: 'Content Manager (Can upload & edit)', value: 'Content Manager' },
     { label: 'Super Admin (Full access)', value: 'Super Admin' },
@@ -80,16 +318,24 @@ const Admin: React.FC = () => {
     // Doc reset
     setDocAuthor('');
     setDocFileType(FileType.PDF);
+    setDocFileUrl('');
+    setDocThumbnailUrl('');
     setFile(null);
 
     // Video reset
     setVideoUrl('');
-    setVideoDuration('');
     setVideoInstructor('');
     setVideoThumbnail('');
   };
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const formSectionRef = useRef<HTMLElement>(null);
+  
+  const scrollToForm = () => {
+    if (formSectionRef.current) {
+      formSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // --- Handlers ---
 
@@ -100,10 +346,15 @@ const Admin: React.FC = () => {
     setDescription(doc.description);
     setGrade(doc.grade.toString());
     setSubject(doc.subject);
-    setIsPremium(doc.isPremium);
+    setIsPremium(doc.is_premium);
     setDocAuthor(doc.author || '');
-    setDocFileType(doc.fileType);
-    scrollToTop();
+    setDocFileType(doc.file_type);
+    setDocFileUrl(doc.file_url || '');
+    setDocThumbnailUrl(doc.preview_image || '');
+    // Use setTimeout to ensure state updates are applied before scrolling
+    setTimeout(() => {
+      scrollToForm();
+    }, 100);
   };
 
   const handleEditVideo = (video: VideoLesson) => {
@@ -114,77 +365,124 @@ const Admin: React.FC = () => {
     setGrade(video.grade.toString());
     setSubject(video.subject);
     setIsPremium(video.isPremium);
-    setVideoUrl(video.videoUrl);
-    setVideoDuration(video.duration);
+    setVideoUrl(video.video_url);
     setVideoInstructor(video.instructor);
     setVideoThumbnail(video.thumbnail);
-    scrollToTop();
+    // Use setTimeout to ensure state updates are applied before scrolling
+    setTimeout(() => {
+      scrollToForm();
+    }, 100);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (contentCategory === 'documents' && !editingId && (!docFileUrl || !docFileUrl.trim())) {
+      addToast('Document URL is required to create a document.', 'error');
+      return;
+    }
+
     setIsUploading(true);
-    
-    setTimeout(() => {
-      setIsUploading(false);
-      
+
+    try {
       if (contentCategory === 'documents') {
         if (editingId) {
           // Update Document
-          updateDocument(editingId, {
+          const updateData: any = {
             title, description, subject, isPremium,
             grade: parseInt(grade),
-            fileType: docFileType,
+            file_type: docFileType,
             author: docAuthor
-          });
+          };
+
+          // Only include file_url if it's not empty
+          if (docFileUrl && docFileUrl.trim()) {
+            updateData.file_url = docFileUrl.trim();
+          }
+
+          // Include thumbnail_url if provided
+          if (docThumbnailUrl && docThumbnailUrl.trim()) {
+            updateData.preview_image = docThumbnailUrl.trim();
+          }
+
+          await updateDocument(editingId, updateData);
           addToast('Document updated successfully!', 'success');
         } else {
           // Create Document
-          const newDoc: Document = {
-            id: Math.random().toString(),
+          const documentData: any = {
             title: title || (file ? file.name.split('.')[0] : "New Document"),
             description: description || "New uploaded material.",
-            subject, grade: parseInt(grade),
-            fileType: docFileType, isPremium,
-            uploadedAt: new Date().toISOString().split('T')[0],
-            downloads: 0,
-            previewImage: "https://picsum.photos/400/300?random=" + Math.floor(Math.random() * 100),
-            tags: [],
-            author: docAuthor || "Admin"
+            subject,
+            grade: parseInt(grade),
+            file_type: docFileType,
+            isPremium,
+            author: docAuthor || "Admin",
+            tags: []
           };
-          addDocument(newDoc);
+
+          // Include file_url (validated above)
+          if (docFileUrl && docFileUrl.trim()) {
+            documentData.file_url = docFileUrl.trim();
+          }
+
+          // Include thumbnail_url if provided
+          if (docThumbnailUrl && docThumbnailUrl.trim()) {
+            documentData.preview_image = docThumbnailUrl.trim();
+          }
+
+          await createDocument(documentData);
           addToast('Document published successfully!', 'success');
         }
       } else {
         if (editingId) {
           // Update Video
-          updateVideo(editingId, {
+          const updateData: any = {
             title, description, subject, isPremium,
             grade: parseInt(grade),
-            videoUrl, duration: videoDuration, instructor: videoInstructor, thumbnail: videoThumbnail || "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80"
-          });
+            instructor: videoInstructor
+          };
+
+          // Only include video_url if it's not empty
+          if (videoUrl && videoUrl.trim()) {
+            updateData.video_url = videoUrl.trim();
+          }
+
+          // Only include thumbnail if it's not empty
+          if (videoThumbnail && videoThumbnail.trim()) {
+            updateData.thumbnail = videoThumbnail.trim();
+          }
+
+          await updateVideo(editingId, updateData);
           addToast('Video lesson updated successfully!', 'success');
         } else {
           // Create Video
-          const newVideo: VideoLesson = {
-            id: 'v-' + Math.random().toString(),
+          await createVideo({
             title: title || "New Video Lesson",
             description: description || "Video description.",
-            subject, grade: parseInt(grade),
+            subject,
+            grade: parseInt(grade),
             isPremium,
-            videoUrl, duration: videoDuration, instructor: videoInstructor,
+            video_url: videoUrl,
+            instructor: videoInstructor,
             thumbnail: videoThumbnail || "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80",
             views: 0,
-            likes: 0,
-            uploadedAt: new Date().toLocaleDateString()
-          };
-          addVideo(newVideo);
+            likes: 0
+          });
           addToast('Video lesson published successfully!', 'success');
         }
       }
-      
+
+      // Refresh data to ensure consistency
+      fetchDocuments();
+      fetchVideos();
       resetForm();
-    }, 1000);
+    } catch (error: any) {
+      console.error('Error submitting content:', error);
+      addToast(error.message || 'Failed to save content', 'error');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -208,53 +506,81 @@ const Admin: React.FC = () => {
   };
 
   // --- Student Handlers ---
-  const toggleStudentStatus = (id: string, currentStatus: string) => {
+  const toggleStudentStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Active' ? 'Banned' : 'Active';
-    updateUserStatus(id, { status: newStatus });
-    addToast(`User marked as ${newStatus}`, newStatus === 'Active' ? 'success' : 'warning');
+    try {
+      await adminAPI.updateUserStatus(id, newStatus);
+      // Refresh user data
+      await fetchUsers();
+      addToast(`User marked as ${newStatus}`, newStatus === 'Active' ? 'success' : 'warning');
+    } catch (error: any) {
+      addToast(error.message || 'Failed to update user status', 'error');
+    }
   };
 
-  const toggleStudentPremium = (id: string, isPremium: boolean) => {
-    updateUserStatus(id, { isPremium: !isPremium });
-    addToast(
-      !isPremium ? 'User upgraded to Premium Plan' : 'User downgraded to Free Plan', 
-      'success'
-    );
+  const toggleStudentPremium = async (id: string, isPremium: boolean) => {
+    try {
+      await adminAPI.updateUserPremium(id, !isPremium);
+      // Refresh user data
+      await fetchUsers();
+      addToast(
+        !isPremium ? 'User upgraded to Premium Plan' : 'User downgraded to Free Plan',
+        'success'
+      );
+    } catch (error: any) {
+      addToast(error.message || 'Failed to update user premium status', 'error');
+    }
   };
 
   // --- Team Handlers ---
-  const handleInvite = (e: React.FormEvent) => {
+  const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail || !inviteName) return;
-    setAdmins([...admins, {
-      id: Math.random().toString(),
-      name: inviteName, email: inviteEmail, role: inviteRole,
-      status: 'Invited', dateAdded: new Date().toISOString().split('T')[0]
-    }]);
-    setIsInviteOpen(false);
-    setInviteName('');
-    setInviteEmail('');
-    addToast(`Invitation sent to ${inviteEmail}`, 'success');
+
+    try {
+      await adminAPI.inviteAdmin({
+        email: inviteEmail,
+        name: inviteName,
+        role: inviteRole === 'Super Admin' ? 'ADMIN' : 'MODERATOR'
+      });
+      setIsInviteOpen(false);
+      setInviteName('');
+      setInviteEmail('');
+      addToast(`Invitation sent to ${inviteEmail}`, 'success');
+    } catch (error: any) {
+      addToast(error.message || 'Failed to send invitation', 'error');
+    }
   };
 
-  const handleRemoveAdmin = (id: string) => {
+  const handleRemoveAdmin = async (id: string) => {
     if (window.confirm("Remove this user from the admin team?")) {
-      setAdmins(admins.filter(a => a.id !== id));
-      addToast('Team member removed', 'info');
+      try {
+        await adminAPI.removeAdmin(id);
+        await fetchAdmins(); // Refresh admin list
+        addToast('Team member removed', 'info');
+      } catch (error: any) {
+        addToast(error.message || 'Failed to remove admin', 'error');
+      }
     }
   };
 
   // Filtering
-  const filteredItems = contentCategory === 'documents' 
-    ? documents.filter(d => d.title.toLowerCase().includes(searchTerm.toLowerCase()) || d.subject.toLowerCase().includes(searchTerm.toLowerCase()))
-    : videos.filter(v => v.title.toLowerCase().includes(searchTerm.toLowerCase()) || v.subject.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredItems = contentCategory === 'documents'
+    ? documents.filter(d => (d.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (d.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()))
+    : videos.filter(v => (v.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (v.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
 
-  const filteredStudents = allUsers.filter(s => s.role === UserRole.STUDENT && (s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.email.toLowerCase().includes(searchTerm.toLowerCase())));
+  const filteredStudents = allUsers.filter(s => s.role === UserRole.STUDENT && ((s.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (s.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())));
 
   // Stats
-  const stats = {
-    totalUsers: allUsers.length + 2450, // Mock addition for realism
-    premiumUsers: allUsers.filter(s => s.isPremium).length + 120,
+  const stats = adminStats ? {
+    totalUsers: adminStats.total_users,
+    premiumUsers: adminStats.premium_users,
+    totalDocuments: adminStats.total_documents,
+    totalVideos: adminStats.total_videos,
+    totalPosts: adminStats.total_forum_posts
+  } : {
+    totalUsers: allUsers.length,
+    premiumUsers: allUsers.filter(s => s.isPremium).length,
     totalDocuments: documents.length,
     totalVideos: videos.length,
     totalPosts: forumPosts.length
@@ -302,64 +628,92 @@ const Admin: React.FC = () => {
       {/* --- OVERVIEW TAB --- */}
       {activeTab === 'overview' && (
         <div className="space-y-8 animate-fade-in">
-          {/* Stats Cards */}
+              {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-               <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Users size={20} /></div>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12%</span>
-               </div>
-               <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalUsers.toLocaleString()}</div>
-               <div className="text-sm text-zinc-500 mt-1">Total Students</div>
-            </div>
-            <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-               <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Crown size={20} /></div>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+5%</span>
-               </div>
-               <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
-               <div className="text-sm text-zinc-500 mt-1">Premium Subscribers</div>
-            </div>
-            <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-               <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><FileText size={20} /></div>
-                  <span className="text-xs font-bold text-zinc-400 bg-zinc-50 px-2 py-1 rounded-full">New</span>
-               </div>
-               <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
-               <div className="text-sm text-zinc-500 mt-1">Learning Resources</div>
-            </div>
-            <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-               <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><MessageSquare size={20} /></div>
-               </div>
-               <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalPosts}</div>
-               <div className="text-sm text-zinc-500 mt-1">Community Posts</div>
-            </div>
+            {adminLoading || !adminStats ? (
+              <>
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+              </>
+            ) : (
+              <>
+                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Users size={20} /></div>
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12%</span>
+                   </div>
+                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalUsers.toLocaleString()}</div>
+                   <div className="text-sm text-zinc-500 mt-1">Total Students</div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Crown size={20} /></div>
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+5%</span>
+                   </div>
+                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
+                   <div className="text-sm text-zinc-500 mt-1">Premium Subscribers</div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><FileText size={20} /></div>
+                      <span className="text-xs font-bold text-zinc-400 bg-zinc-50 px-2 py-1 rounded-full">New</span>
+                   </div>
+                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
+                   <div className="text-sm text-zinc-500 mt-1">Learning Resources</div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><MessageSquare size={20} /></div>
+                   </div>
+                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalPosts}</div>
+                   <div className="text-sm text-zinc-500 mt-1">Community Posts</div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-            <h3 className="font-bold text-zinc-900 mb-4">Recent System Activity</h3>
-            <div className="space-y-4">
-               {[
-                 { action: 'New User Registration', detail: 'Student "Abebe K." joined', time: '5 mins ago' },
-                 { action: 'Premium Subscription', detail: 'User "Sara M." upgraded to Pro', time: '12 mins ago' },
-                 { action: 'Content Upload', detail: 'Video "Physics Ch.3" added by Admin', time: '1 hour ago' },
-                 { action: 'Forum Report', detail: 'Post #492 flagged for review', time: '2 hours ago' },
-               ].map((item, i) => (
-                 <div key={i} className="flex items-center justify-between py-3 border-b border-zinc-50 last:border-0 hover:bg-zinc-50 transition-colors px-2 -mx-2 rounded-lg">
-                    <div className="flex items-center gap-3">
-                       <div className="w-2 h-2 rounded-full bg-zinc-300"></div>
-                       <div>
-                          <p className="text-sm font-medium text-zinc-900">{item.action}</p>
-                          <p className="text-xs text-zinc-500">{item.detail}</p>
-                       </div>
-                    </div>
-                    <span className="text-xs text-zinc-400">{item.time}</span>
-                 </div>
-               ))}
+          {adminLoading || !adminStats ? (
+            <RecentActivitySkeleton />
+          ) : (
+            <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+              <h3 className="font-bold text-zinc-900 mb-4">Recent System Activity</h3>
+              <div className="space-y-4">
+                 {adminStats?.recent_activity && adminStats.recent_activity.length > 0 ? (
+                   adminStats.recent_activity.map((item: any, i: number) => (
+                     <div key={i} className="flex items-center justify-between py-3 border-b border-zinc-50 last:border-0 hover:bg-zinc-50 transition-colors px-2 -mx-2 rounded-lg">
+                        <div className="flex items-center gap-3">
+                           <div className={`w-2 h-2 rounded-full ${
+                             item.type === 'user_registration' ? 'bg-blue-400' :
+                             item.type === 'premium_subscription' ? 'bg-purple-400' :
+                             item.type === 'content_upload' ? 'bg-green-400' :
+                             'bg-zinc-300'
+                           }`}></div>
+                           <div>
+                              <p className="text-sm font-medium text-zinc-900">
+                                {item.type === 'user_registration' ? 'New User Registration' :
+                                 item.type === 'premium_subscription' ? 'Premium Subscription' :
+                                 item.type === 'content_upload' ? 'Content Upload' :
+                                 'System Activity'}
+                              </p>
+                              <p className="text-xs text-zinc-500">{item.message}</p>
+                           </div>
+                        </div>
+                        <span className="text-xs text-zinc-400">
+                          {new Date(item.timestamp).toLocaleDateString()}
+                        </span>
+                     </div>
+                   ))
+                 ) : (
+                   <div className="text-center py-8 text-zinc-500">
+                     <p className="text-sm">No recent activity to display</p>
+                   </div>
+                 )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -392,7 +746,7 @@ const Admin: React.FC = () => {
           </div>
 
           {/* Form Section */}
-          <section className={`bg-white p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
+          <section ref={formSectionRef} className={`bg-white p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
                 {editingId ? <Edit2 size={20} className="text-zinc-900" /> : <Upload size={20} className="text-zinc-400" />}
@@ -488,28 +842,56 @@ const Admin: React.FC = () => {
                 </div>
 
                 {contentCategory === 'documents' ? (
-                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">File Type</label>
-                        <CustomSelect 
-                          options={fileTypeOptions}
-                          value={docFileType}
-                          onChange={(v) => setDocFileType(v as FileType)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Upload File</label>
-                        <div className="relative border-2 border-dashed border-zinc-300 rounded-lg p-4 text-center hover:bg-zinc-50 transition-colors cursor-pointer group">
-                           <input 
-                             type="file" 
-                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                             onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+                   <div className="md:col-span-2 space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div>
+                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">File Type</label>
+                           <CustomSelect
+                             options={fileTypeOptions}
+                             value={docFileType}
+                             onChange={(v) => setDocFileType(v as FileType)}
                            />
-                           <Upload size={24} className="mx-auto text-zinc-400 group-hover:text-zinc-600 mb-2" />
-                           <p className="text-xs text-zinc-500 group-hover:text-zinc-700 truncate">
-                             {file ? file.name : "Drag & drop or click to upload"}
+                         </div>
+                         <div>
+                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                             Document URL <span className="text-red-500">*</span>
+                           </label>
+                           <input
+                             type="url"
+                             required
+                             className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                             placeholder="https://example.com/document.pdf"
+                             value={docFileUrl}
+                             onChange={(e) => setDocFileUrl(e.target.value)}
+                           />
+                           <p className="text-xs text-zinc-400 mt-1">Required: Enter the URL where the document file is hosted (PDF, DOCX, etc.)</p>
+                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div>
+                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Document Author</label>
+                           <input
+                             type="text"
+                             className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                             placeholder="e.g. John Smith"
+                             value={docAuthor}
+                             onChange={(e) => setDocAuthor(e.target.value)}
+                           />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Thumbnail URL</label>
+                           <input
+                             type="url"
+                             className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                             placeholder="https://example.com/thumbnail.jpg"
+                             value={docThumbnailUrl}
+                             onChange={(e) => setDocThumbnailUrl(e.target.value)}
+                           />
+                           <p className="text-xs text-zinc-400 mt-1">
+                             Optional: URL of a thumbnail image (JPG, PNG). For Google Drive: convert sharing links using <code>https://drive.google.com/uc?export=view&id=FILE_ID</code>
                            </p>
-                        </div>
+                         </div>
                       </div>
                    </div>
                 ) : (
@@ -527,21 +909,11 @@ const Admin: React.FC = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Duration</label>
-                            <input 
-                              type="text" 
-                              className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
-                              placeholder="e.g. 10:30"
-                              value={videoDuration}
-                              onChange={(e) => setVideoDuration(e.target.value)}
-                            />
-                         </div>
+                      <div className="grid grid-cols-1 gap-4">
                          <div>
                             <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Thumbnail URL</label>
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                               placeholder="https://..."
                               value={videoThumbnail}
@@ -563,10 +935,10 @@ const Admin: React.FC = () => {
                      Cancel
                    </button>
                  )}
-                 <button 
-                   type="submit" 
-                   disabled={isUploading}
-                   className="px-8 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2"
+                 <button
+                   type="submit"
+                   disabled={isUploading || (contentCategory === 'documents' && !editingId && (!docFileUrl || !docFileUrl.trim()))}
+                   className="px-8 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isUploading ? (
                      <>Saving...</>
@@ -601,17 +973,20 @@ const Admin: React.FC = () => {
              </div>
              
              <div className="overflow-x-auto">
-               <table className="w-full text-sm text-left">
-                 <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
-                   <tr>
-                     <th className="px-6 py-3 font-semibold">Title</th>
-                     <th className="px-6 py-3 font-semibold">Details</th>
-                     <th className="px-6 py-3 font-semibold">Type</th>
-                     <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-zinc-50">
-                   {filteredItems.map((item) => (
+               {loading.documents || loading.videos ? (
+                 <ContentTableSkeleton />
+               ) : (
+                 <table className="w-full text-sm text-left">
+                   <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                     <tr>
+                       <th className="px-6 py-3 font-semibold">Title</th>
+                       <th className="px-6 py-3 font-semibold">Details</th>
+                       <th className="px-6 py-3 font-semibold">Type</th>
+                       <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-zinc-50">
+                     {filteredItems.map((item) => (
                      <tr key={item.id} className="hover:bg-zinc-50/80 transition-colors group">
                        <td className="px-6 py-4 font-medium text-zinc-900">
                           <div className="flex items-center gap-3">
@@ -632,11 +1007,11 @@ const Admin: React.FC = () => {
                        </td>
                        <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            {item.isPremium && (
+                            {((item as any).isPremium || (item as any).is_premium) && (
                               <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
                             )}
                             <span className="bg-zinc-100 text-zinc-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
-                              {contentCategory === 'documents' ? (item as Document).fileType : 'Video'}
+                              {contentCategory === 'documents' ? (item as Document).file_type : 'Video'}
                             </span>
                           </div>
                        </td>
@@ -667,6 +1042,7 @@ const Admin: React.FC = () => {
                    )}
                  </tbody>
                </table>
+               )}
              </div>
           </section>
         </div>
@@ -689,20 +1065,23 @@ const Admin: React.FC = () => {
               </div>
            </div>
 
-           <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
-                    <tr>
-                      <th className="px-6 py-3 font-semibold">Name</th>
-                      <th className="px-6 py-3 font-semibold">Status</th>
-                      <th className="px-6 py-3 font-semibold">Plan</th>
-                      <th className="px-6 py-3 font-semibold">Joined</th>
-                      <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-50">
-                    {filteredStudents.map((student) => (
+           {loading.users ? (
+             <StudentsTableSkeleton />
+           ) : (
+             <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                      <tr>
+                        <th className="px-6 py-3 font-semibold">Name</th>
+                        <th className="px-6 py-3 font-semibold">Status</th>
+                        <th className="px-6 py-3 font-semibold">Plan</th>
+                        <th className="px-6 py-3 font-semibold">Joined</th>
+                        <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-50">
+                      {filteredStudents.map((student) => (
                       <tr key={student.id} className="hover:bg-zinc-50/50 transition-colors">
                         <td className="px-6 py-4">
                            <div>
@@ -712,10 +1091,10 @@ const Admin: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                             student.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
+                             student.status === 'Active' || !student.status ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${student.status === 'Active' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                              {student.status}
+                              <span className={`w-1.5 h-1.5 rounded-full ${student.status === 'Active' || !student.status ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                              {student.status || 'Active'}
                            </span>
                         </td>
                         <td className="px-6 py-4">
@@ -728,7 +1107,7 @@ const Admin: React.FC = () => {
                            )}
                         </td>
                         <td className="px-6 py-4 text-zinc-500 text-xs">
-                           {student.joinedDate}
+                           {new Date(student.joinedDate || '').toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-right">
                            <div className="flex justify-end items-center gap-2">
@@ -740,7 +1119,7 @@ const Admin: React.FC = () => {
                               </button>
                               <div className="h-4 w-px bg-zinc-200"></div>
                               <button 
-                                onClick={() => toggleStudentStatus(student.id, student.status)}
+                                onClick={() => toggleStudentStatus(student.id, student.status || 'Active')}
                                 className={`p-1.5 rounded-lg transition-colors ${
                                   student.status === 'Active' ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
                                 }`}
@@ -756,6 +1135,7 @@ const Admin: React.FC = () => {
                 </table>
               </div>
            </div>
+           )}
         </div>
       )}
 
@@ -767,37 +1147,41 @@ const Admin: React.FC = () => {
               <p className="text-sm text-zinc-500">Review flagged posts and manage discussions.</p>
             </div>
 
-            <div className="grid gap-4">
-               {forumPosts.map(post => (
-                 <div key={post.id} className="bg-white p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-4">
-                    <div className="flex flex-col items-center gap-1 text-zinc-400 pt-1">
-                       <AlertTriangle size={20} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                       <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-bold text-zinc-900 text-sm">{post.title}</h3>
-                          <button 
-                            onClick={() => handleDeletePost(post.id)}
-                            className="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors"
-                          >
-                            Delete Post
-                          </button>
-                       </div>
-                       <p className="text-sm text-zinc-600 line-clamp-2 mb-3 bg-zinc-50 p-3 rounded-lg border border-zinc-100 italic">
-                          "{post.content}"
-                       </p>
-                       <div className="flex items-center gap-4 text-xs text-zinc-400">
-                          <span>Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
-                          <span>• {post.createdAt}</span>
-                          <span>• {post.comments.length} comments</span>
-                       </div>
-                    </div>
-                 </div>
-               ))}
-               {forumPosts.length === 0 && (
-                 <div className="text-center py-12 text-zinc-400">No community posts to moderate.</div>
-               )}
-            </div>
+            {loading.forumPosts ? (
+              <CommunityPostsSkeleton />
+            ) : (
+              <div className="grid gap-4">
+                 {forumPosts.map(post => (
+                   <div key={post.id} className="bg-white p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-4">
+                      <div className="flex flex-col items-center gap-1 text-zinc-400 pt-1">
+                         <AlertTriangle size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                         <div className="flex justify-between items-start mb-2">
+                            <h3 className="font-bold text-zinc-900 text-sm">{post.title}</h3>
+                            <button
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                            >
+                              Delete Post
+                            </button>
+                         </div>
+                         <p className="text-sm text-zinc-600 line-clamp-2 mb-3 bg-zinc-50 p-3 rounded-lg border border-zinc-100 italic">
+                            "{post.content}"
+                         </p>
+                         <div className="flex items-center gap-4 text-xs text-zinc-400">
+                            <span>Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
+                            <span>• {post.createdAt}</span>
+                            <span>• {post.comment_count} comments</span>
+                         </div>
+                      </div>
+                   </div>
+                 ))}
+                 {forumPosts.length === 0 && (
+                   <div className="text-center py-12 text-zinc-400">No community posts to moderate.</div>
+                 )}
+              </div>
+            )}
          </div>
       )}
 
@@ -817,59 +1201,61 @@ const Admin: React.FC = () => {
               </button>
            </div>
 
-           <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
-                    <tr>
-                      <th className="px-6 py-3 font-semibold">User</th>
-                      <th className="px-6 py-3 font-semibold">Role</th>
-                      <th className="px-6 py-3 font-semibold">Status</th>
-                      <th className="px-6 py-3 font-semibold">Added</th>
-                      <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-50">
-                    {admins.map((admin) => (
-                      <tr key={admin.id} className="hover:bg-zinc-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                           <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
-                                 {admin.name.charAt(0)}
-                              </div>
-                              <div>
-                                <p className="font-medium text-zinc-900">{admin.name}</p>
-                                <p className="text-xs text-zinc-500">{admin.email}</p>
-                              </div>
-                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-zinc-600">
-                           {admin.role}
-                        </td>
-                        <td className="px-6 py-4">
-                           <span className={`text-xs px-2 py-1 rounded-full border ${
-                             admin.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'
-                           }`}>
-                             {admin.status}
-                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-zinc-500 text-xs">
-                           {admin.dateAdded}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                           <button 
-                             onClick={() => handleRemoveAdmin(admin.id)}
-                             className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                           >
-                             <Trash2 size={16} />
-                           </button>
-                        </td>
+           {adminLoading ? (
+             <AdminTeamSkeleton />
+           ) : (
+             <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                      <tr>
+                        <th className="px-6 py-3 font-semibold">User</th>
+                        <th className="px-6 py-3 font-semibold">Role</th>
+                        <th className="px-6 py-3 font-semibold">Status</th>
+                        <th className="px-6 py-3 font-semibold">Added</th>
+                        <th className="px-6 py-3 font-semibold text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-           </div>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-50">
+                      {admins.map((admin) => (
+                        <tr key={admin.id} className="hover:bg-zinc-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                             <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
+                                   {admin.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-zinc-900">{admin.name}</p>
+                                  <p className="text-xs text-zinc-500">{admin.email}</p>
+                                </div>
+                             </div>
+                          </td>
+                          <td className="px-6 py-4 text-zinc-600">
+                             {admin.role === 'ADMIN' ? 'Super Admin' : admin.role}
+                          </td>
+                          <td className="px-6 py-4">
+                             <span className={`text-xs px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100`}>
+                               Active
+                             </span>
+                          </td>
+                          <td className="px-6 py-4 text-zinc-500 text-xs">
+                             {new Date((admin as any).created_at || (admin as any).joinedDate || '').toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                             <button
+                               onClick={() => handleRemoveAdmin(admin.id)}
+                               className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                             >
+                               <Trash2 size={16} />
+                             </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+             </div>
+           )}
 
            {/* Invite Modal */}
            {isInviteOpen && mounted && createPortal(

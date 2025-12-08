@@ -8,7 +8,9 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
-import { generateTutorResponse } from '../services/geminiService';
+import { forumAPI } from '../services/api';
+import { ForumPost } from '../types';
+import { CommunityPostDetailSkeleton } from '../components/Skeletons';
 
 const CommunityPost: React.FC = () => {
   const { id } = useParams();
@@ -17,13 +19,15 @@ const CommunityPost: React.FC = () => {
   const { user, isLoading } = useAuth();
   const { addToast } = useToast();
   
-  const post = forumPosts.find(p => p.id === id);
+  const [fullPost, setFullPost] = useState<(ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[]; userVote?: number; userCommentVotes?: { [commentId: string]: number } }) | null>(null);
+  const [loadingPost, setLoadingPost] = useState(true);
+
+  const post = fullPost || forumPosts.find(p => p.id === id);
   // Find related posts (same subject, excluding current)
   const relatedPosts = forumPosts.filter(p => p.subject === post?.subject && p.id !== post?.id).slice(0, 3);
-  
+
   // Local interaction state
   const [replyContent, setReplyContent] = useState('');
-  const [hasVoted, setHasVoted] = useState(false);
 
   // Edit State (Post)
   const [isEditing, setIsEditing] = useState(false);
@@ -40,12 +44,40 @@ const CommunityPost: React.FC = () => {
   // AI Answer State
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
+  // Action loading states
+  const [isSavingPost, setIsSavingPost] = useState(false);
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [isVotingPost, setIsVotingPost] = useState(false);
+  const [isVotingComment, setIsVotingComment] = useState(false);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
+  const [isSavingComment, setIsSavingComment] = useState(false);
+  const [isMarkingSolution, setIsMarkingSolution] = useState(false);
+
   useEffect(() => {
     // Wait for auth loading to finish before checking user
     if (!isLoading && !user) {
-      navigate('/login');
+      navigate('/login', { state: { from: window.location.pathname } });
     }
   }, [isLoading, user, navigate]);
+
+  useEffect(() => {
+    // Fetch full post with comments when component mounts
+    if (id) {
+      setLoadingPost(true);
+      forumAPI.getPost(id)
+        .then(post => {
+          setFullPost(post);
+        })
+        .catch(error => {
+          console.error('Failed to fetch post:', error);
+          addToast('Failed to load post details', 'error');
+        })
+        .finally(() => {
+          setLoadingPost(false);
+        });
+    }
+  }, [id, addToast]);
 
   useEffect(() => {
     if (post) {
@@ -54,12 +86,8 @@ const CommunityPost: React.FC = () => {
     }
   }, [post]);
 
-  if (isLoading || !user) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <div className="w-8 h-8 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+  if (isLoading || !user || loadingPost) {
+    return <CommunityPostDetailSkeleton />;
   }
 
   if (!post) {
@@ -74,11 +102,44 @@ const CommunityPost: React.FC = () => {
     );
   }
 
-  const handleVote = () => {
-    if (!post) return;
-    const newVotes = hasVoted ? post.votes - 1 : post.votes + 1;
-    setHasVoted(!hasVoted);
-    updateForumPost(post.id, { votes: newVotes });
+  const handleVote = async () => {
+    if (!fullPost) return;
+
+    setIsVotingPost(true);
+    try {
+      // Determine the vote value based on current state
+      const currentVote = fullPost.userVote || 0;
+      let voteValue: 1 | -1;
+
+      if (currentVote === 1) {
+        // Currently upvoted, clicking will remove vote
+        voteValue = -1;
+      } else {
+        // Not upvoted or downvoted, clicking will upvote
+        voteValue = 1;
+      }
+
+      const response = await forumAPI.votePost(post.id, voteValue);
+
+      // Update the local post state with new vote count and user vote
+      if (fullPost) {
+        setFullPost({
+          ...fullPost,
+          votes: response.data?.votes || fullPost.votes,
+          userVote: currentVote === 1 ? undefined : 1 // Toggle between voted and not voted
+        });
+      }
+
+      // Refresh the post data to ensure consistency
+      const refreshedPost = await forumAPI.getPost(post.id);
+      setFullPost(refreshedPost);
+
+    } catch (error) {
+      console.error('Failed to vote on post:', error);
+      addToast("Failed to vote. Please try again.", "error");
+    } finally {
+      setIsVotingPost(false);
+    }
   };
 
   const handleShare = () => {
@@ -86,11 +147,55 @@ const CommunityPost: React.FC = () => {
     addToast("Discussion link copied!", "success");
   };
 
-  const handleCommentVote = (commentId: string) => {
-    const updatedComments = post.comments.map(c => 
-      c.id === commentId ? { ...c, votes: c.votes + 1 } : c
-    );
-    updateForumPost(post.id, { comments: updatedComments });
+  const handleCommentVote = async (commentId: string) => {
+    if (!fullPost) return;
+
+    setIsVotingComment(true);
+    try {
+      const currentVote = fullPost?.userCommentVotes?.[commentId] || 0;
+      let voteValue: 1 | -1;
+
+      if (currentVote === 1) {
+        // Currently upvoted, clicking will remove vote
+        voteValue = -1;
+      } else {
+        // Not upvoted, clicking will upvote
+        voteValue = 1;
+      }
+
+      const response = await forumAPI.voteComment(commentId, voteValue);
+
+      // Update the local post state
+      if (fullPost) {
+        const updatedCommentVotes = { ...fullPost.userCommentVotes };
+        const comment = fullPost.comments.find(c => c.id === commentId);
+        if (comment) {
+          comment.votes = response.data?.votes || comment.votes;
+        }
+
+        // Update user vote state
+        if (currentVote === 1) {
+          delete updatedCommentVotes[commentId];
+        } else {
+          updatedCommentVotes[commentId] = 1;
+        }
+
+        setFullPost({
+          ...fullPost,
+          userCommentVotes: updatedCommentVotes
+        });
+      }
+
+      // Refresh the post data to ensure consistency
+      const refreshedPost = await forumAPI.getPost(post.id);
+      setFullPost(refreshedPost);
+
+    } catch (error) {
+      console.error('Failed to vote on comment:', error);
+      addToast("Failed to vote on comment. Please try again.", "error");
+    } finally {
+      setIsVotingComment(false);
+    }
   };
 
   // --- AI Answer Logic ---
@@ -102,11 +207,18 @@ const CommunityPost: React.FC = () => {
 
     setIsGeneratingAI(true);
     try {
-      const prompt = `Question Title: ${post.title}\nQuestion Details: ${post.content}\n\nAct as an expert tutor. Please provide a clear, step-by-step, verified answer to this student's question. Explain the concepts simply and provide an example if relevant.`;
-      const response = await generateTutorResponse([], prompt, { subject: post.subject, deepThinking: true });
-      updateForumPost(post.id, { aiAnswer: response });
+      const result = await forumAPI.generateAIAnswer(post.id);
+      // Update the local post state with the AI answer
+      if (fullPost) {
+        setFullPost({ ...fullPost, aiAnswer: result.aiAnswer });
+      } else {
+        // Fallback: refetch the post
+        const refreshedPost = await forumAPI.getPost(post.id);
+        setFullPost(refreshedPost);
+      }
       addToast("AI Answer generated!", "success");
     } catch (e) {
+      console.error('Failed to generate AI answer:', e);
       addToast("Failed to generate answer. Try again.", "error");
     } finally {
       setIsGeneratingAI(false);
@@ -124,20 +236,29 @@ const CommunityPost: React.FC = () => {
     setEditCommentContent('');
   };
 
-  const handleSaveCommentEdit = (commentId: string) => {
+  const handleSaveCommentEdit = async (commentId: string) => {
     if (!editCommentContent.trim()) {
       addToast("Comment cannot be empty.", "error");
       return;
     }
-    
-    const updatedComments = post.comments.map(c => 
-      c.id === commentId ? { ...c, content: editCommentContent, isEdited: true } : c
-    );
-    
-    updateForumPost(post.id, { comments: updatedComments });
-    setEditingCommentId(null);
-    setEditCommentContent('');
-    addToast("Comment updated successfully.", "success");
+
+    setIsSavingComment(true);
+    try {
+      await forumAPI.updateComment(commentId, editCommentContent.trim());
+
+      // Refresh the post data to get the updated comments
+      const refreshedPost = await forumAPI.getPost(post.id);
+      setFullPost(refreshedPost);
+
+      setEditingCommentId(null);
+      setEditCommentContent('');
+      addToast("Comment updated successfully.", "success");
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      addToast("Failed to update comment. Please try again.", "error");
+    } finally {
+      setIsSavingComment(false);
+    }
   };
 
   const handleDeleteComment = (e: React.MouseEvent, commentId: string) => {
@@ -154,37 +275,76 @@ const CommunityPost: React.FC = () => {
     setDeleteTarget({ type: 'post', id: post.id });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget || !post) return;
 
-    if (deleteTarget.type === 'post') {
-      if (deleteForumPost) {
-        deleteForumPost(deleteTarget.id);
-        addToast("Discussion deleted.", "info");
-        navigate('/community', { replace: true });
-      } else {
-        console.error("deleteForumPost function missing");
+    try {
+      if (deleteTarget.type === 'post') {
+        setIsDeletingPost(true);
+        if (deleteForumPost) {
+          console.log('Deleting post:', deleteTarget.id);
+          await deleteForumPost(deleteTarget.id);
+          console.log('Post deleted successfully');
+          addToast("Discussion deleted.", "info");
+          // Add a small delay to ensure state update completes before navigation
+          setTimeout(() => {
+            navigate('/community', { replace: true });
+          }, 100);
+        } else {
+          console.error("deleteForumPost function missing");
+        }
+      } else if (deleteTarget.type === 'comment') {
+        setIsDeletingComment(true);
+        await forumAPI.deleteComment(deleteTarget.id);
+
+        // Refresh the post data to get the updated comments
+        const refreshedPost = await forumAPI.getPost(post.id);
+        setFullPost(refreshedPost);
+
+        addToast("Comment deleted.", "info");
       }
-    } else if (deleteTarget.type === 'comment') {
-      const updatedComments = post.comments.filter(c => c.id !== deleteTarget.id);
-      updateForumPost(post.id, { comments: updatedComments });
-      addToast("Comment deleted.", "info");
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      addToast(`Failed to delete ${deleteTarget.type}. Please try again.`, "error");
+    } finally {
+      setIsDeletingPost(false);
+      setIsDeletingComment(false);
+      setDeleteTarget(null);
     }
-    setDeleteTarget(null);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editTitle.trim() || !editContent.trim()) {
       addToast("Title and content cannot be empty", "error");
       return;
     }
-    updateForumPost(post.id, {
-      title: editTitle,
-      content: editContent,
-      isEdited: true
-    });
-    setIsEditing(false);
-    addToast("Discussion updated successfully", "success");
+
+    setIsSavingPost(true);
+    try {
+      await updateForumPost(post.id, {
+        title: editTitle,
+        content: editContent,
+        isEdited: true
+      });
+
+      // Update the local fullPost state to reflect changes immediately
+      if (fullPost) {
+        setFullPost({
+          ...fullPost,
+          title: editTitle,
+          content: editContent,
+          isEdited: true
+        });
+      }
+
+      setIsEditing(false);
+      addToast("Discussion updated successfully", "success");
+    } catch (error) {
+      console.error('Failed to update post:', error);
+      addToast("Failed to update discussion. Please try again.", "error");
+    } finally {
+      setIsSavingPost(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -193,40 +353,66 @@ const CommunityPost: React.FC = () => {
     setIsEditing(false);
   };
 
-  const handleAcceptSolution = (commentId: string) => {
+  const handleAcceptSolution = async (commentId: string) => {
     // Only author can mark solution
     if (user.name !== post.author) return;
 
-    const updatedComments = post.comments.map(c => 
-      c.id === commentId 
-        ? { ...c, isAccepted: !c.isAccepted } 
-        : { ...c, isAccepted: false } // Unmark others if single solution enforcement
-    );
-    
-    // Check if any solution is now accepted to update parent 'isSolved' status
-    const isSolved = updatedComments.some(c => c.isAccepted);
-    updateForumPost(post.id, { comments: updatedComments, isSolved });
-    if (isSolved) addToast("Marked as solved!", "success");
+    setIsMarkingSolution(true);
+    try {
+      // Find the comment to check if it's currently accepted
+      const comment = post.comments?.find(c => c.id === commentId);
+      if (!comment) return;
+
+      // If accepting, unmark other solutions first
+      if (!comment.isAccepted) {
+        // This is a simplified approach - in a real app, you'd want to handle this on the backend
+        const otherComments = post.comments?.filter(c => c.id !== commentId) || [];
+        for (const otherComment of otherComments) {
+          if (otherComment.isAccepted) {
+            // Note: This is a limitation - the backend doesn't have an endpoint to unmark solutions
+            // For now, we'll just mark the new solution and let the backend handle conflicts
+          }
+        }
+      }
+
+      // This should ideally be a separate API call to accept/unaccept a solution
+      // For now, we'll update the post's solved status
+      const isSolved = !comment.isAccepted; // Toggle based on current state
+      await forumAPI.markSolved(post.id, isSolved);
+
+      // Refresh the post data
+      const refreshedPost = await forumAPI.getPost(post.id);
+      setFullPost(refreshedPost);
+
+      addToast(isSolved ? "Marked as solved!" : "Solution unmarked", "success");
+    } catch (error) {
+      console.error('Failed to update solution status:', error);
+      addToast("Failed to update solution. Please try again.", "error");
+    } finally {
+      setIsMarkingSolution(false);
+    }
   };
 
-  const handleSubmitReply = (e: React.FormEvent) => {
+  const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyContent.trim() || !post || !user) return;
 
-    const newComment: ForumComment = {
-      id: 'c-' + Date.now(),
-      author: user.name,
-      role: user.role,
-      content: replyContent,
-      createdAt: 'Just now',
-      votes: 0,
-      isAccepted: false
-    };
+    setIsPostingComment(true);
+    try {
+      await forumAPI.addComment(post.id, replyContent.trim());
 
-    const updatedComments = [...(post.comments || []), newComment];
-    updateForumPost(post.id, { comments: updatedComments });
-    setReplyContent('');
-    addToast("Reply posted successfully", "success");
+      // Refresh the post data to get the updated comments
+      const refreshedPost = await forumAPI.getPost(post.id);
+      setFullPost(refreshedPost);
+
+      setReplyContent('');
+      addToast("Reply posted successfully", "success");
+    } catch (error) {
+      console.error('Failed to post reply:', error);
+      addToast("Failed to post reply. Please try again.", "error");
+    } finally {
+      setIsPostingComment(false);
+    }
   };
 
   const isAuthor = user.name === post.author;
@@ -276,12 +462,14 @@ const CommunityPost: React.FC = () => {
                >
                  <Edit2 size={14} /> Edit
                </button>
-               <button 
+               <button
                  onClick={handleDeletePost}
-                 className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 transition-colors flex items-center gap-2"
+                 disabled={isDeletingPost}
+                 className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                  title="Delete Discussion"
                >
-                 <Trash2 size={14} /> Delete
+                 {isDeletingPost ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                 {isDeletingPost ? 'Deleting...' : 'Delete'}
                </button>
              </>
            )}
@@ -294,11 +482,13 @@ const CommunityPost: React.FC = () => {
                >
                  <X size={14} /> Cancel
                </button>
-               <button 
+               <button
                  onClick={handleSaveEdit}
-                 className="px-3 py-1.5 text-sm font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                 disabled={isSavingPost}
+                 className="px-3 py-1.5 text-sm font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                >
-                 <Save size={14} /> Save
+                 {isSavingPost ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                 {isSavingPost ? 'Saving...' : 'Save'}
                </button>
              </>
            )}
@@ -316,13 +506,14 @@ const CommunityPost: React.FC = () => {
                    <div className="flex gap-6">
                       {/* Vote Column */}
                       <div className="flex flex-col items-center gap-1 pt-1">
-                         <button 
+                         <button
                            onClick={handleVote}
-                           className={`p-2 rounded-lg transition-colors ${hasVoted ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'}`}
+                           disabled={isVotingPost}
+                           className={`p-2 rounded-lg transition-colors ${(fullPost?.userVote === 1) ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
                          >
-                           <ThumbsUp size={24} className={hasVoted ? 'fill-current' : ''} />
+                            {isVotingPost ? <Loader2 size={24} className="animate-spin" /> : <ThumbsUp size={24} className={fullPost?.userVote === 1 ? 'fill-current' : ''} />}
                          </button>
-                         <span className={`font-bold text-xl ${hasVoted ? 'text-zinc-900' : 'text-zinc-700'}`}>{post.votes}</span>
+                          <span className={`font-bold text-xl ${fullPost?.userVote === 1 ? 'text-zinc-900' : 'text-zinc-700'}`}>{fullPost?.votes || post?.votes || 0}</span>
                       </div>
 
                       {/* Content */}
@@ -379,38 +570,38 @@ const CommunityPost: React.FC = () => {
                 </div>
 
                 {/* AI Smart Answer Section */}
-                <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 p-6 relative overflow-hidden shadow-sm">
+                <div className="bg-zinc-50/50 rounded-xl border border-zinc-200 p-6 relative overflow-hidden shadow-sm">
                    <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                      <Sparkles size={100} className="text-indigo-500" />
+                      <Sparkles size={100} className="text-zinc-500" />
                    </div>
-                   
+
                    <div className="flex items-center gap-3 mb-4 relative z-10">
-                      <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-sm">
+                      <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center text-white shadow-sm">
                          <Bot size={18} />
                       </div>
-                      <h3 className="font-bold text-indigo-950">AI Smart Analysis</h3>
-                      {post.aiAnswer && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-200">VERIFIED</span>}
+                      <h3 className="font-bold text-zinc-900">AI Smart Analysis</h3>
+                      {post.aiAnswer && <span className="text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-bold border border-zinc-300">VERIFIED</span>}
                    </div>
 
                    {post.aiAnswer ? (
                       <div className="relative z-10">
-                         <div className="prose prose-sm prose-indigo text-indigo-900/80 mb-2">
+                         <div className="prose prose-sm prose-zinc text-zinc-800 mb-2">
                             <MarkdownRenderer content={post.aiAnswer} />
                          </div>
-                         <div className="flex justify-end pt-2 border-t border-indigo-100/50">
-                            <TTSButton text={post.aiAnswer} size={16} quality="high" className="text-indigo-400 hover:text-indigo-700 bg-white shadow-sm" />
+                         <div className="flex justify-end pt-2 border-t border-zinc-200/50">
+                            <TTSButton text={post.aiAnswer} size={16} quality="high" className="text-zinc-400 hover:text-zinc-900 bg-white shadow-sm" />
                          </div>
                       </div>
                    ) : (
                       <div className="relative z-10">
-                         <p className="text-sm text-indigo-800 mb-4 max-w-xl">
-                            Get an instant, AI-verified explanation for this question. 
+                         <p className="text-sm text-zinc-700 mb-4 max-w-xl">
+                            Get an instant, AI-verified explanation for this question.
                             Our Smart Tutor can break down the problem and show you the steps.
                          </p>
-                         <button 
+                         <button
                             onClick={handleGenerateAIAnswer}
                             disabled={isGeneratingAI}
-                            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
+                            className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
                          >
                             {isGeneratingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                             {user.isPremium ? "Generate Verified Answer" : "Unlock Verified Answer"}
@@ -422,12 +613,12 @@ const CommunityPost: React.FC = () => {
                 {/* Answers Count */}
                 <div className="flex items-center gap-2 text-base font-bold text-zinc-900 px-1 pt-2 border-t border-zinc-200">
                   <MessageSquare size={18} />
-                  {post.comments.length} Answers
+                  {(post.comments?.length || (post as any).comment_count || 0)} Answers
                 </div>
 
                 {/* Answers List */}
                 <div className="space-y-4">
-                   {post.comments.map((comment) => (
+                   {(post.comments || []).map((comment) => (
                       <div key={comment.id} className={`bg-white rounded-xl border p-8 shadow-sm ${comment.isAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
                          <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
@@ -465,7 +656,14 @@ const CommunityPost: React.FC = () => {
                                rows={4}
                              />
                              <div className="flex gap-2">
-                               <button onClick={() => handleSaveCommentEdit(comment.id)} className="px-3 py-1.5 bg-zinc-900 text-white text-xs rounded-md">Save</button>
+                               <button
+                                 onClick={() => handleSaveCommentEdit(comment.id)}
+                                 disabled={isSavingComment}
+                                 className="px-3 py-1.5 bg-zinc-900 text-white text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                               >
+                                 {isSavingComment ? <Loader2 size={12} className="animate-spin" /> : null}
+                                 {isSavingComment ? 'Saving...' : 'Save'}
+                               </button>
                                <button onClick={handleCancelCommentEdit} className="px-3 py-1.5 bg-white border border-zinc-200 text-zinc-600 text-xs rounded-md">Cancel</button>
                              </div>
                            </div>
@@ -477,11 +675,15 @@ const CommunityPost: React.FC = () => {
 
                          <div className="flex items-center justify-between border-t border-zinc-50 pt-4">
                             <div className="flex items-center gap-4">
-                               <button 
+                               <button
                                  onClick={() => handleCommentVote(comment.id)}
-                                 className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 transition-colors"
+                                 disabled={isVotingComment}
+                                className={`flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  fullPost?.userCommentVotes?.[comment.id] === 1 ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-900'
+                                }`}
                                >
-                                 <ThumbsUp size={14} /> {comment.votes} Helpful
+                                 {isVotingComment ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
+                                 {comment.votes} Helpful
                                </button>
                                {(user.name === comment.author || isAdmin) && (
                                  <>
@@ -491,22 +693,26 @@ const CommunityPost: React.FC = () => {
                                    >
                                      Edit
                                    </button>
-                                   <button 
+                                   <button
                                      onClick={(e) => handleDeleteComment(e, comment.id)}
-                                     className="text-xs font-medium text-zinc-400 hover:text-red-600 transition-colors"
+                                     disabled={isDeletingComment}
+                                     className="text-xs font-medium text-zinc-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
                                    >
-                                     Delete
+                                     {isDeletingComment ? <Loader2 size={12} className="animate-spin" /> : null}
+                                     {isDeletingComment ? 'Deleting...' : 'Delete'}
                                    </button>
                                  </>
                                )}
                             </div>
 
                             {isAuthor && !comment.isAccepted && (
-                              <button 
+                              <button
                                 onClick={() => handleAcceptSolution(comment.id)}
-                                className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-emerald-600 transition-colors"
+                                disabled={isMarkingSolution}
+                                className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                               >
-                                <CheckCircle size={14} /> Mark as Solution
+                                {isMarkingSolution ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                {isMarkingSolution ? 'Marking...' : 'Mark as Solution'}
                               </button>
                             )}
                          </div>
@@ -526,12 +732,13 @@ const CommunityPost: React.FC = () => {
                         rows={4}
                       ></textarea>
                       <div className="flex justify-end">
-                         <button 
+                         <button
                            type="submit"
-                           disabled={!replyContent.trim()}
+                           disabled={!replyContent.trim() || isPostingComment}
                            className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2"
                          >
-                           <Send size={16} /> Post Answer
+                           {isPostingComment ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                           {isPostingComment ? 'Posting...' : 'Post Answer'}
                          </button>
                       </div>
                    </form>
@@ -556,7 +763,7 @@ const CommunityPost: React.FC = () => {
                        <div className="flex items-center gap-2 text-[10px] text-zinc-400">
                           <span>{rp.votes} votes</span>
                           <span>•</span>
-                          <span>{rp.comments.length} answers</span>
+                          <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
                        </div>
                     </Link>
                  )) : (

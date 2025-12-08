@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, BookOpen, Lock, Filter, ArrowUpDown, Bookmark } from 'lucide-react';
 import { SUBJECTS, GRADES } from '../constants';
@@ -7,9 +7,10 @@ import { Document } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { DocumentCardSkeleton } from '../components/Skeletons';
 
 const Library: React.FC = () => {
-  const { documents } = useData();
+  const { documents, fetchDocuments, loading, errors } = useData();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
@@ -17,24 +18,21 @@ const Library: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [showSavedOnly, setShowSavedOnly] = useState(false);
 
-  const filteredDocs = useMemo(() => {
-    let docs = documents.filter(doc => {
-      const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            doc.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesSubject = selectedSubject === 'All' || doc.subject === selectedSubject;
-      const matchesGrade = selectedGrade === 'All' || doc.grade.toString() === selectedGrade;
-      const matchesSaved = !showSavedOnly || (user?.bookmarks?.includes(doc.id));
-      return matchesSearch && matchesSubject && matchesGrade && matchesSaved;
-    });
+  // Fetch documents on mount and when filters change
+  useEffect(() => {
+    const params: any = {};
 
-    // Sorting Logic
-    return docs.sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
-      if (sortBy === 'popular') return b.downloads - a.downloads;
-      if (sortBy === 'title') return a.title.localeCompare(b.title);
-      return 0;
-    });
-  }, [documents, searchTerm, selectedSubject, selectedGrade, sortBy, showSavedOnly, user]);
+    if (selectedSubject !== 'All') params.subject = selectedSubject;
+    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (searchTerm.trim()) params.search = searchTerm;
+    if (showSavedOnly) params.bookmarked = true;
+    if (sortBy !== 'newest') params.sort = sortBy;
+
+    fetchDocuments(params);
+  }, [fetchDocuments, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
+
+  // Use documents directly since filtering is now done on the backend
+  const filteredDocs = documents;
 
   const subjectOptions: Option[] = SUBJECTS.map(s => ({ label: s === 'All' ? 'All Subjects' : s, value: s }));
   const gradeOptions: Option[] = GRADES.map(g => ({ label: g === 'All' ? 'All Grades' : `Grade ${g}`, value: g }));
@@ -120,12 +118,34 @@ const Library: React.FC = () => {
         </div>
       </div>
 
+      {/* Error State */}
+      {errors.documents && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-800 font-medium">Failed to load documents</p>
+          <p className="text-red-600 text-sm mt-1">{errors.documents}</p>
+          <button
+            onClick={() => fetchDocuments()}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredDocs.map((doc) => (
-          <DocumentCard key={doc.id} doc={doc} />
-        ))}
-      </div>
+      {loading.documents ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <DocumentCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : !errors.documents && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredDocs.map((doc) => (
+            <DocumentCard key={doc.id} doc={doc} />
+          ))}
+        </div>
+      )}
 
       {filteredDocs.length === 0 && (
         <div className="py-20 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
@@ -148,25 +168,62 @@ const Library: React.FC = () => {
   );
 };
 
-const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => (
-  <Link to={`/document/${doc.id}`} className="group bg-white rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full">
-    <div className="relative h-40 bg-zinc-100 overflow-hidden">
-      <img src={doc.previewImage} alt={doc.title} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500" />
-      
-      {doc.isPremium && (
-        <div className="absolute top-3 right-3 bg-zinc-900/90 text-white px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
-          <Lock size={10} /> Premium
-        </div>
+const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
+  const { user, toggleBookmark } = useAuth();
+  const isBookmarked = user?.bookmarks?.includes(doc.id);
+
+  const handleBookmarkClick = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation
+    e.stopPropagation(); // Prevent event bubbling
+    if (user) {
+      try {
+        await toggleBookmark(doc.id, 'document');
+      } catch (error) {
+        console.error('Failed to toggle bookmark:', error);
+      }
+    }
+  };
+
+  return (
+    <div className="group bg-white rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full relative">
+      {/* Bookmark Button - Positioned absolutely */}
+      {user && (
+        <button
+          onClick={handleBookmarkClick}
+          className={`absolute top-3 right-12 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            isBookmarked
+              ? 'bg-amber-500 text-white shadow-lg hover:bg-amber-600'
+              : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow-md'
+          }`}
+        >
+          <Bookmark size={14} className={isBookmarked ? "fill-current text-white" : ""} />
+        </button>
       )}
-      <div className="absolute bottom-3 left-3 flex gap-2">
-         <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
-           {doc.subject}
-         </span>
-         <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
-           Grade {doc.grade}
-         </span>
-      </div>
-    </div>
+
+      <Link to={`/document/${doc.id}`} className="flex flex-col h-full">
+        <div className="relative h-40 bg-zinc-100 overflow-hidden">
+          {doc.preview_image ? (
+            <img src={doc.preview_image} alt={doc.title} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200">
+              <BookOpen size={48} className="text-zinc-400 opacity-60" />
+            </div>
+          )}
+
+          {doc.is_premium && (
+            <div className="absolute top-3 right-3 bg-zinc-900/90 text-white px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+              <Lock size={10} /> Premium
+            </div>
+          )}
+          <div className="absolute bottom-3 left-3 flex gap-2">
+             <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
+               {doc.subject}
+             </span>
+             <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
+               Grade {doc.grade}
+             </span>
+          </div>
+        </div>
     
     <div className="p-5 flex-1 flex flex-col">
       <h3 className="font-semibold text-zinc-900 leading-snug mb-2 line-clamp-2 group-hover:text-zinc-600 transition-colors">{doc.title}</h3>
@@ -174,16 +231,18 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => (
         {doc.description}
       </p>
       
-      <div className="flex items-center justify-between pt-4 border-t border-zinc-50 mt-auto">
-        <span className="text-[11px] text-zinc-400 font-medium uppercase tracking-wider flex items-center gap-1">
-          {doc.fileType} • {doc.downloads} Downloads
-        </span>
-        <span className="text-xs font-medium text-zinc-900 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0">
-          View Document <BookOpen size={14} />
-        </span>
+        <div className="flex items-center justify-between pt-4 border-t border-zinc-50 mt-auto">
+          <span className="text-[11px] text-zinc-400 font-medium uppercase tracking-wider flex items-center gap-1">
+            {doc.file_type} • {doc.downloads} Downloads
+          </span>
+          <span className="text-xs font-medium text-zinc-900 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0">
+            View Document <BookOpen size={14} />
+          </span>
+        </div>
       </div>
-    </div>
-  </Link>
-);
+    </Link>
+  </div>
+  );
+};
 
 export default Library;

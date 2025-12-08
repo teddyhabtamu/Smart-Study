@@ -10,6 +10,7 @@ import { ChatSession } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
+import { aiTutorAPI, usersAPI } from '../services/api';
 
 const DEFAULT_WELCOME_MSG = {
   role: 'model',
@@ -40,6 +41,7 @@ const AITutor: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [subjectFocus, setSubjectFocus] = useState('General');
   const [deepThinking, setDeepThinking] = useState(false);
+  const [userGrade, setUserGrade] = useState<number>(10); // Default to 10, will be updated from user profile
 
   // Guest usage tracking
   const [guestPromptCount, setGuestPromptCount] = useState(0);
@@ -49,21 +51,69 @@ const AITutor: React.FC = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true); // open by default on desktop
 
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    sessionId: string | null;
+    sessionTitle: string;
+  }>({ isOpen: false, sessionId: null, sessionTitle: '' });
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const hasProcessedInitialPrompt = useRef(false);
 
-  // Load history from localStorage (for users) and usage count (for guests)
+  // Load chat sessions from backend (for users) and usage count (for guests)
   useEffect(() => {
-    if (user) {
-      const savedSessions = localStorage.getItem(`chat_history_${user.id}`);
-      if (savedSessions) setSessions(JSON.parse(savedSessions));
-    } else {
-      // Load guest usage count
-      const savedCount = localStorage.getItem('smartstudy_guest_prompts');
-      if (savedCount) setGuestPromptCount(parseInt(savedCount, 10));
-    }
+    const loadData = async () => {
+      if (user) {
+        try {
+          const chatSessions = await aiTutorAPI.getChatSessions();
+          setSessions(chatSessions);
+        } catch (error) {
+          console.error('Failed to load chat sessions:', error);
+          // Fallback to localStorage if backend fails
+          const savedSessions = localStorage.getItem(`chat_history_${user.id}`);
+          if (savedSessions) setSessions(JSON.parse(savedSessions));
+        }
+      } else {
+        // Load guest usage count
+        const savedCount = localStorage.getItem('smartstudy_guest_prompts');
+        if (savedCount) setGuestPromptCount(parseInt(savedCount, 10));
+      }
+    };
+
+    loadData();
+  }, [user]);
+
+  // Load user's grade level based on their level
+  useEffect(() => {
+    const loadUserGrade = async () => {
+      if (user) {
+        try {
+          const userProfile = await usersAPI.getProfile();
+          // Calculate grade based on user level:
+          // Level 1-3: Grade 8-9, Level 4-6: Grade 10-11, Level 7+: Grade 12
+          const userLevel = userProfile.level || 1;
+          let calculatedGrade = 10; // default
+
+          if (userLevel <= 3) {
+            calculatedGrade = 8 + (userLevel - 1); // Level 1 = Grade 8, Level 2 = Grade 9, Level 3 = Grade 9
+          } else if (userLevel <= 6) {
+            calculatedGrade = 10 + Math.floor((userLevel - 4) / 2); // Level 4-5 = Grade 10, Level 6 = Grade 11
+          } else {
+            calculatedGrade = 12; // Level 7+ = Grade 12
+          }
+
+          setUserGrade(calculatedGrade);
+        } catch (error) {
+          console.error('Failed to load user grade:', error);
+          // Keep default grade of 10
+        }
+      }
+    };
+
+    loadUserGrade();
   }, [user]);
 
   // Handle Initial Prompt from Dashboard
@@ -106,12 +156,6 @@ const AITutor: React.FC = () => {
     }
   }, []);
 
-  // Save history whenever sessions change
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem(`chat_history_${user.id}`, JSON.stringify(sessions));
-    }
-  }, [sessions, user]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -146,47 +190,58 @@ const AITutor: React.FC = () => {
 
   // Select existing session
   const handleSelectSession = (session: ChatSession) => {
-    setMessages(session.messages);
+    setMessages(session.messages || []);
     setActiveSessionId(session.id);
     if (window.innerWidth < 768) setIsHistoryOpen(false);
   };
 
-  // Delete session
+  // Show delete confirmation
   const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    if (window.confirm("Delete this chat history?")) {
-      const newSessions = sessions.filter(s => s.id !== sessionId);
-      setSessions(newSessions);
-      if (activeSessionId === sessionId) handleNewChat();
-      localStorage.setItem(`chat_history_${user?.id}`, JSON.stringify(newSessions));
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setDeleteConfirmation({
+        isOpen: true,
+        sessionId,
+        sessionTitle: session.title
+      });
     }
   };
 
-  // Save or update session
-  const saveSession = (newMessages: { role: string; text: string }[]) => {
+  // Confirm delete session
+  const confirmDeleteSession = async () => {
+    if (!deleteConfirmation.sessionId) return;
+
+    try {
+      await aiTutorAPI.deleteChatSession(deleteConfirmation.sessionId);
+      const newSessions = sessions.filter(s => s.id !== deleteConfirmation.sessionId);
+      setSessions(newSessions);
+      if (activeSessionId === deleteConfirmation.sessionId) handleNewChat();
+      addToast('Chat session deleted successfully', 'success');
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+      // Fallback: remove from local state
+      const newSessions = sessions.filter(s => s.id !== deleteConfirmation.sessionId);
+      setSessions(newSessions);
+      if (activeSessionId === deleteConfirmation.sessionId) handleNewChat();
+      addToast('Failed to delete chat session', 'error');
+    } finally {
+      setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' });
+    }
+  };
+
+  // Save or update session (now simplified since backend handles this)
+  const saveSession = async (newMessages: { role: string; text: string }[]) => {
+    // The backend now handles session creation and message saving automatically
+    // This function is kept for potential future use or fallback scenarios
     if (!user) return;
 
-    if (activeSessionId) {
-      // Update existing session
-      setSessions(prev => prev.map(s =>
-        s.id === activeSessionId ? { ...s, messages: newMessages } : s
-      ));
-    } else {
-      // Create new session (after first user message)
-      if (newMessages.length === 2 && newMessages[1].role === 'user') {
-        const firstUserMsg = newMessages[1].text;
-        const title = firstUserMsg.length > 30 ? firstUserMsg.substring(0, 30) + '...' : firstUserMsg;
-
-        const newSession: ChatSession = {
-          id: Date.now().toString(),
-          title: title,
-          date: new Date().toISOString(),
-          messages: newMessages
-        };
-
-        setSessions(prev => [newSession, ...prev]);
-        setActiveSessionId(newSession.id);
-      }
+    try {
+      // Just refresh the sessions list to ensure UI is up to date
+      const chatSessions = await aiTutorAPI.getChatSessions();
+      setSessions(chatSessions);
+    } catch (error) {
+      console.error('Failed to refresh sessions:', error);
     }
   };
 
@@ -196,7 +251,7 @@ const AITutor: React.FC = () => {
 
     // Check limit for non-authenticated users
     if (!user && guestPromptCount >= MAX_FREE_PROMPTS) {
-      return; 
+      return;
     }
 
     const userMsg = text;
@@ -218,21 +273,34 @@ const AITutor: React.FC = () => {
     setMessages(newHistory);
     setIsLoading(true);
 
-    // Save session optimistically
-    saveSession(newHistory);
+    try {
+      // Call AI service with corrected parameters
+      const aiResponse = await generateTutorResponse(activeSessionId || undefined, userMsg, subjectFocus, userGrade);
 
-    // Call AI service with options
-    const response = await generateTutorResponse(messages, userMsg, {
-      subject: subjectFocus,
-      deepThinking: deepThinking
-    });
+      // If no active session, the backend created one and returned its ID
+      // Update activeSessionId if it was null
+      if (!activeSessionId && aiResponse.sessionId) {
+        setActiveSessionId(aiResponse.sessionId);
+      }
 
-    const finalHistory = [...newHistory, { role: 'model', text: response }];
-    setMessages(finalHistory);
-    setIsLoading(false);
+      const finalHistory = [...newHistory, { role: 'model', text: aiResponse.response }];
+      setMessages(finalHistory);
 
-    // Save final response
-    saveSession(finalHistory);
+      // Refresh sessions list to show the new session
+      if (user && (!activeSessionId || aiResponse.sessionId)) {
+        try {
+          const chatSessions = await aiTutorAPI.getChatSessions();
+          setSessions(chatSessions);
+        } catch (error) {
+          console.error('Failed to refresh sessions:', error);
+        }
+      }
+    } catch (error) {
+      console.error('AI response error:', error);
+      addToast('Failed to get AI response. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleExportChat = () => {
@@ -570,6 +638,37 @@ const AITutor: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-scale-in">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={24} className="text-red-600" />
+              </div>
+              <h3 className="font-bold text-lg text-zinc-900 mb-2">Delete Chat Session</h3>
+              <p className="text-sm text-zinc-600 mb-6">
+                Are you sure you want to delete "{deleteConfirmation.sessionTitle}"? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' })}
+                  className="flex-1 px-4 py-2.5 text-zinc-700 font-medium rounded-lg border border-zinc-200 hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteSession}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

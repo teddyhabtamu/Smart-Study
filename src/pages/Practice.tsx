@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BrainCircuit, Check, X, Trophy, ArrowRight, Loader2, RotateCcw, AlertCircle, Crown, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { aiTutorAPI, plannerAPI } from '../services/api';
 import { generatePracticeQuiz } from '../services/geminiService';
 import CustomSelect from '../components/CustomSelect';
 import { SUBJECTS, GRADES } from '../constants';
@@ -108,25 +109,32 @@ const Practice: React.FC = () => {
     setView('loading');
     
     try {
-      const quizData = await generatePracticeQuiz(subject, grade, difficulty, parseInt(qCount));
-      
+      const { questions: quizData, xpGained } = await generatePracticeQuiz(subject, grade, difficulty, parseInt(qCount));
+
       if (quizData && quizData.length > 0) {
         // Increment usage for free users
         if (!user.isPremium) {
           updateUser({ practiceAttempts: (user.practiceAttempts || 0) + 1 });
         }
 
+        // Award XP for generating questions (handled by backend)
+        if (gainXP && xpGained > 0) {
+          gainXP(xpGained);
+        }
+
         setQuestions(quizData);
         setView('quiz');
         setAnswers({});
         setCurrentQIndex(0);
+
+        addToast(`Generated ${quizData.length} practice questions! (+${xpGained} XP)`, "success");
       } else {
         addToast("Failed to generate quiz. Please try again.", "error");
         setView('config');
       }
     } catch (e) {
       console.error(e);
-      addToast("An error occurred.", "error");
+      addToast("An error occurred while generating questions.", "error");
       setView('config');
     }
   };
@@ -143,7 +151,7 @@ const Practice: React.FC = () => {
     }
   };
 
-  const calculateResults = () => {
+  const calculateResults = async () => {
     let correctCount = 0;
     questions.forEach((q, idx) => {
       if (answers[idx] === q.correctAnswer) {
@@ -155,7 +163,7 @@ const Practice: React.FC = () => {
     // Award XP
     const xpEarned = correctCount * 10;
     if (xpEarned > 0) {
-      const { leveledUp, newLevel } = gainXP(xpEarned);
+      const { leveledUp, newLevel } = await gainXP(xpEarned);
       if (leveledUp) {
         setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "success"), 1000);
       }

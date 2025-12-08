@@ -1,24 +1,93 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, ExternalLink, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { videosAPI, aiTutorAPI } from '../services/api';
+import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { generateTutorResponse, generateQuiz } from '../services/geminiService';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import TTSButton from '../components/TTSButton';
+import { VideoWatchSkeleton } from '../components/Skeletons';
 
 const VideoWatch: React.FC = () => {
   const { user, toggleBookmark, gainXP } = useAuth();
   const { id } = useParams();
   const location = useLocation();
-  const { videos, updateVideo } = useData();
   const { addToast } = useToast();
-  
-  const video = videos.find(v => v.id === id);
-  const relatedVideos = videos.filter(v => v.id !== id && v.subject === video?.subject).slice(0, 3);
 
+  const [video, setVideo] = useState<Video | null>(null);
+  const [relatedVideos, setRelatedVideos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [hasLiked, setHasLiked] = useState(false);
+
+  // Fetch video and related videos on mount
+  useEffect(() => {
+    const fetchVideoData = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch the main video
+        const videoData = await videosAPI.getById(id);
+        setVideo(videoData);
+        setHasLiked(videoData.user_has_liked || false);
+        setIsCompleted(videoData.user_has_completed || false);
+
+        // Record view if user is authenticated
+        if (user) {
+          try {
+            await videosAPI.recordView(id);
+            // Update local video state with incremented views
+            setVideo((prev: any) => ({ ...prev, views: (prev?.views || 0) + 1 }));
+          } catch (err) {
+            console.error('Failed to record view:', err);
+            // Don't show error to user, just log it
+          }
+        }
+
+        // Fetch related videos (same subject, limit 3)
+        const relatedResponse = await videosAPI.getAll({
+          subject: videoData.subject,
+          limit: 4 // Get 4 to filter out the current one
+        });
+
+        const filteredRelated = relatedResponse.videos.filter(v => v.id !== id).slice(0, 3);
+        setRelatedVideos(filteredRelated);
+
+      } catch (err: any) {
+        console.error('Failed to fetch video:', err);
+        setError(err.message || 'Failed to load video');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideoData();
+  }, [id]);
+
+  // Update completion/like status when user changes
+  useEffect(() => {
+    if (user && video && id) {
+      // Re-fetch just the user-specific data for this video
+      const updateUserData = async () => {
+        try {
+          const videoData = await videosAPI.getById(id);
+          setHasLiked(videoData.user_has_liked || false);
+          setIsCompleted(videoData.user_has_completed || false);
+        } catch (error) {
+          console.error('Failed to update user data:', error);
+        }
+      };
+      updateUserData();
+    } else if (!user) {
+      // Reset user-specific data when logged out
+      setHasLiked(false);
+      setIsCompleted(false);
+    }
+  }, [user?.id, id]);
   const [activeTab, setActiveTab] = useState<'upNext' | 'notes' | 'chat' | 'quiz'>('upNext');
   const [notes, setNotes] = useState('');
   const [isRestricted, setIsRestricted] = useState(false);
@@ -46,7 +115,6 @@ const VideoWatch: React.FC = () => {
   }, [user, id]);
 
   useEffect(() => {
-    setIsCompleted(false);
     setQuizContent(null);
     if (id) {
       const savedNotes = localStorage.getItem(`video_notes_${id}`);
@@ -94,24 +162,61 @@ const VideoWatch: React.FC = () => {
     setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsChatLoading(true);
 
-    const context = `Video Lesson: ${video.title}\nSubject: ${video.subject}\nGrade: ${video.grade}\nDescription: ${video.description}`;
-    
-    const aiRes = await generateTutorResponse(chatHistory, userMsg, { 
-      context,
-      subject: video.subject 
-    });
+    try {
+      const context = `About this video lesson: "${video.title}" - ${video.description} (Grade ${video.grade}, Subject: ${video.subject}).`;
+      const fullPrompt = `${context}\n\nQuestion: ${userMsg}`;
+      console.log('Sending AI chat request (VideoWatch):', { message: fullPrompt, subject: video.subject, grade: video.grade });
 
-    setChatHistory(prev => [...prev, { role: 'model', text: aiRes }]);
-    setIsChatLoading(false);
+      const response = await aiTutorAPI.chat(fullPrompt, video.subject, video.grade);
+      console.log('AI chat response (VideoWatch):', response);
+      setChatHistory(prev => [...prev, { role: 'model', text: response.response }]);
+    } catch (error: any) {
+      console.error('AI chat error in VideoWatch:', error);
+      setChatHistory(prev => [...prev, { role: 'model', text: `Error: ${error.message || 'Sorry, I encountered an error. Please try again.'}` }]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   const handleGenerateQuiz = async () => {
     if (!video) return;
     setIsQuizLoading(true);
-    const quiz = await generateQuiz(video.title, video.description);
-    setQuizContent(quiz);
-    setIsQuizLoading(false);
+
+    try {
+      const prompt = `Generate a 5-question quiz based on this video lesson: "${video.title}" - ${video.description}. Include multiple choice questions with answers.`;
+      console.log('Generating quiz for video:', { title: video.title, subject: video.subject, grade: video.grade });
+      const response = await aiTutorAPI.chat(prompt, video.subject, video.grade);
+      console.log('Quiz generation response (VideoWatch):', response);
+      setQuizContent(response.response);
+    } catch (error: any) {
+      console.error('Quiz generation error in VideoWatch:', error);
+      setQuizContent(`Could not generate quiz: ${error.message || 'Please try again.'}`);
+    } finally {
+      setIsQuizLoading(false);
+    }
   };
+
+  // Loading state
+  if (loading) {
+    return <VideoWatchSkeleton />;
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!video) return <div className="p-12 text-center text-zinc-500">Video not found.</div>;
 
@@ -150,7 +255,7 @@ const VideoWatch: React.FC = () => {
     );
   }
 
-  const canWatch = !video.isPremium || (user && user.isPremium);
+  const canWatch = !video.is_premium || (user && user.isPremium);
   const isBookmarked = user?.bookmarks?.includes(video.id);
 
   const getVideoId = (url: string) => {
@@ -160,19 +265,36 @@ const VideoWatch: React.FC = () => {
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
-  const videoId = getVideoId(video.videoUrl);
+  const videoId = getVideoId(video.video_url);
   
   const embedUrl = videoId 
     ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&origin=${window.location.origin}`
     : '';
 
-  const handleLike = () => {
-    if (hasLiked) {
-      updateVideo(video.id, { likes: Math.max(0, video.likes - 1) });
-    } else {
-      updateVideo(video.id, { likes: video.likes + 1 });
+  const handleLike = async () => {
+    if (!user) {
+      addToast('Please sign in to like videos', 'error');
+      return;
     }
-    setHasLiked(!hasLiked);
+
+    try {
+      const newLikedState = !hasLiked;
+      const response = await videosAPI.like(video.id, newLikedState);
+
+      // Update local state with server response
+      if (response) {
+        setVideo((prev: any) => ({
+          ...prev,
+          likes: response.likes,
+          user_has_liked: newLikedState
+        }));
+        setHasLiked(newLikedState);
+        addToast(newLikedState ? 'Video liked!' : 'Video unliked', 'success');
+      }
+    } catch (error: any) {
+      console.error('Failed to like video:', error);
+      addToast(error.message || 'Failed to like video', 'error');
+    }
   };
 
   const handleShare = () => {
@@ -180,13 +302,37 @@ const VideoWatch: React.FC = () => {
     addToast("Link copied to clipboard!", "success");
   };
   
-  const handleCompleteLesson = () => {
-    if (!user || isCompleted) return;
-    setIsCompleted(true);
-    const { leveledUp, newLevel } = gainXP(100);
-    addToast("+100 XP Lesson Completed!", "success");
-    if (leveledUp) {
-      setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+  const handleCompleteLesson = async () => {
+    if (!user) {
+      addToast('Please sign in to complete lessons', 'error');
+      return;
+    }
+
+    if (isCompleted) return;
+
+    try {
+      console.log('Completing lesson for video:', video.id);
+      const response = await videosAPI.complete(video.id, true);
+      console.log('Lesson completion API call successful', response);
+
+      if (response) {
+        // Update video state with server response
+        setVideo((prev: Video | null) => prev ? { ...prev, user_has_completed: response.user_has_completed } : null);
+        setIsCompleted(response.user_has_completed || false);
+        console.log('isCompleted set to:', response.user_has_completed);
+      } else {
+        setIsCompleted(true);
+      }
+
+      // Only award XP if we successfully marked as complete
+      const { leveledUp, newLevel } = await gainXP(100);
+      addToast("+100 XP Lesson Completed!", "success");
+      if (leveledUp) {
+        setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+      }
+    } catch (error: any) {
+      console.error('Failed to complete lesson:', error);
+      addToast(error.message || 'Failed to complete lesson', 'error');
     }
   };
 
@@ -290,16 +436,16 @@ const VideoWatch: React.FC = () => {
                          {isCompleted ? 'Completed' : 'Complete Lesson'}
                        </button>
                      )}
-                     <button 
-                       onClick={() => user && toggleBookmark(video.id)}
+                     <button
+                       onClick={() => user && toggleBookmark(video.id, 'video')}
                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 flex-shrink-0 ${
-                         isBookmarked 
-                           ? 'bg-zinc-100 text-zinc-900 border border-zinc-200' 
+                         isBookmarked
+                           ? 'bg-amber-100 text-amber-800 border border-amber-200'
                            : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'
                        }`}
                        disabled={!user}
                      >
-                       <Bookmark size={16} className={isBookmarked ? "fill-current" : ""} />
+                       <Bookmark size={16} className={isBookmarked ? "fill-current text-amber-600" : ""} />
                        {isBookmarked ? 'Saved' : 'Save'}
                      </button>
                    </div>
@@ -307,18 +453,18 @@ const VideoWatch: React.FC = () => {
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
                    <div className="flex items-center gap-4 text-sm text-zinc-500">
-                      <span>{video.views.toLocaleString()} views</span>
+                      <span>{(video.views || 0).toLocaleString()} views</span>
                       <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
-                      <span>{video.uploadedAt}</span>
+                      <span>{video.uploadedAt || 'Unknown date'}</span>
                    </div>
                    <div className="flex items-center gap-2 relative">
-                      <button 
+                      <button
                         onClick={handleLike}
                         className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                          hasLiked ? 'bg-zinc-200 text-zinc-900' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                          hasLiked ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
                         }`}
                       >
-                         <ThumbsUp size={16} className={hasLiked ? "fill-current" : ""} /> 
+                         <ThumbsUp size={16} className={hasLiked ? "fill-current text-blue-600" : ""} />
                          {video.likes}
                       </button>
                       <button 
@@ -336,7 +482,7 @@ const VideoWatch: React.FC = () => {
 
                 <div className="pt-6 flex gap-4">
                    <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-900 font-bold text-lg flex-shrink-0">
-                      {video.instructor.charAt(0)}
+                      {video.instructor?.charAt(0) || '?'}
                    </div>
                    <div>
                       <h3 className="font-bold text-zinc-900">{video.instructor}</h3>
@@ -381,9 +527,6 @@ const VideoWatch: React.FC = () => {
                            <Link key={rv.id} to={`/video/${rv.id}`} className="flex gap-3 group">
                               <div className="relative w-28 aspect-video bg-zinc-200 rounded-lg overflow-hidden flex-shrink-0">
                                  <img src={rv.thumbnail} alt={rv.title} className="w-full h-full object-cover" />
-                                 <span className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] px-1 rounded">
-                                    {rv.duration}
-                                 </span>
                               </div>
                               <div className="flex flex-col min-w-0">
                                  <h4 className="text-xs font-semibold text-zinc-900 line-clamp-2 leading-snug group-hover:text-zinc-700 transition-colors">

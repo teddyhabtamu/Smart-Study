@@ -7,13 +7,29 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
+import { StudyEvent } from '../types';
+import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { documents, videos, studyEvents } = useData();
+  const { dashboardData, fetchDashboard, loading, errors } = useData();
+
+  // Use dashboard user data if available, otherwise fall back to auth user
+  const displayUser = dashboardData?.user || user;
   const navigate = useNavigate();
+  const location = useLocation();
   const [greeting, setGreeting] = useState('');
   const [quickQuestion, setQuickQuestion] = useState('');
+
+  // Fetch dashboard data on mount and when user changes
+  useEffect(() => {
+    if (user) {
+      fetchDashboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
 
   // Set greeting based on time
   useEffect(() => {
@@ -25,25 +41,14 @@ const Dashboard: React.FC = () => {
 
   if (!user) return null;
 
-  // --- Derived Data ---
-
-  // 1. Study Progress (Today)
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaysTasks = studyEvents.filter(e => e.date === todayStr);
-  const completedToday = todaysTasks.filter(e => e.isCompleted).length;
-  const totalToday = todaysTasks.length;
-  const progressPercentage = totalToday === 0 ? 0 : Math.round((completedToday / totalToday) * 100);
-
-  // 2. Saved Resources (Bookmarks)
-  const savedDocs = documents.filter(d => user.bookmarks?.includes(d.id));
-  const savedVideos = videos.filter(v => user.bookmarks?.includes(v.id));
-  const allSaved = [...savedVideos.map(v => ({ ...v, type: 'video' })), ...savedDocs.map(d => ({ ...d, type: 'document' }))];
-  const recentSaved = allSaved.slice(0, 3);
-
-  // 3. Level Progress Calculation
-  const currentLevelXP = (user.level - 1) * 1000;
-  const nextLevelXP = user.level * 1000;
-  const progressToNextLevel = Math.min(100, Math.round(((user.xp - currentLevelXP) / 1000) * 100));
+  // Use dashboard data if available, otherwise fall back to user data
+  const todaysTasks = dashboardData?.todaysEvents || [];
+  const completedToday = dashboardData?.progress.todayCompleted || 0;
+  const totalToday = dashboardData?.progress.todayTotal || 0;
+  const progressPercentage = dashboardData?.progress.todayPercentage || 0;
+  const recentSaved = dashboardData?.recentBookmarks.slice(0, 3) || [];
+  const progressToNextLevel = dashboardData?.progress.levelProgress || Math.min(100, Math.round(((user.xp - (user.level - 1) * 1000) / 1000) * 100));
+  const xpToNextLevel = dashboardData?.progress.xpToNextLevel || (user.level * 1000 - user.xp);
 
   const handleQuickAsk = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +64,7 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
          <div>
            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 mb-1">
-             {greeting}, {user.name.split(' ')[0]}!
+             {greeting}, {displayUser?.name?.split(' ')[0] || 'Student'}!
            </h1>
            <p className="text-zinc-500">
              Ready to make some progress? You have <span className="font-semibold text-zinc-900">{totalToday - completedToday} tasks</span> remaining today.
@@ -67,10 +72,10 @@ const Dashboard: React.FC = () => {
          </div>
          <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-zinc-200 shadow-sm">
             <div className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-lg flex items-center gap-2 font-bold text-sm" title="Daily Streak">
-               <Flame size={16} className={`fill-current ${user.streak > 0 ? 'text-orange-500' : 'text-zinc-400'}`} /> {user.streak} Day Streak
+                <Flame size={16} className={`fill-current ${(displayUser?.streak || 0) > 0 ? 'text-orange-500' : 'text-zinc-400'}`} /> {displayUser?.streak || 0} Day Streak
             </div>
             <div className="px-3 py-1.5 bg-zinc-900 text-white rounded-lg flex items-center gap-2 font-bold text-sm" title="Total XP">
-               <Trophy size={16} className="fill-current" /> {user.xp} XP
+                <Trophy size={16} className="fill-current" /> {displayUser?.xp || 0} XP
             </div>
          </div>
       </div>
@@ -114,7 +119,7 @@ const Dashboard: React.FC = () => {
           <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm flex items-center gap-6">
              <div className="relative flex-shrink-0">
                <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center border-4 border-zinc-50">
-                  <span className="text-xl font-black text-zinc-900">{user.level}</span>
+                   <span className="text-xl font-black text-zinc-900">{displayUser?.level || 1}</span>
                </div>
                <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
                   LEVEL
@@ -125,7 +130,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex justify-between items-end mb-2">
                    <div>
                       <h3 className="font-bold text-zinc-900">Level Progress</h3>
-                      <p className="text-xs text-zinc-500">{nextLevelXP - user.xp} XP to Level {user.level + 1}</p>
+                       <p className="text-xs text-zinc-500">{xpToNextLevel} XP to Level {(displayUser?.level || 1) + 1}</p>
                    </div>
                    <span className="font-bold text-zinc-900 text-sm">{progressToNextLevel}%</span>
                 </div>
@@ -150,7 +155,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {recentSaved.length > 0 ? (
+               {loading.dashboard ? (
+                 <>
+                   <BookmarkCardSkeleton />
+                   <BookmarkCardSkeleton />
+                   <BookmarkCardSkeleton />
+                 </>
+               ) : recentSaved.length > 0 ? (
                  recentSaved.map((item) => (
                    <Link 
                      key={item.id} 
@@ -241,7 +252,14 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                 {todaysTasks.length > 0 ? (
+                 {loading.dashboard ? (
+                   <>
+                     <TaskItemSkeleton />
+                     <TaskItemSkeleton />
+                     <TaskItemSkeleton />
+                     <TaskItemSkeleton />
+                   </>
+                 ) : todaysTasks.length > 0 ? (
                    todaysTasks.map(task => (
                      <div key={task.id} className="flex gap-3 items-start p-3 rounded-xl bg-zinc-50 border border-zinc-100">
                         <div className={`mt-1 flex-shrink-0 ${task.isCompleted ? 'text-emerald-500' : 'text-zinc-300'}`}>
@@ -275,7 +293,7 @@ const Dashboard: React.FC = () => {
            </div>
 
            {/* Pro Banner (if free) */}
-           {!user.isPremium && (
+            {!displayUser?.isPremium && (
              <div className="bg-zinc-900 rounded-2xl p-6 text-white relative overflow-hidden">
                 <div className="relative z-10">
                    <h3 className="font-bold text-lg mb-1">Upgrade to Pro</h3>

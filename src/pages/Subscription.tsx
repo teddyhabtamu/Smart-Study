@@ -4,13 +4,16 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Check, X, ShieldCheck, Loader2, Crown, Calendar, CreditCard, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usersAPI } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 interface SubscriptionProps {
   onUpgrade?: () => void;
 }
 
 const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,20 +30,36 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
   // Retrieve the previous path or default to dashboard
   const from = (location.state as any)?.from || '/dashboard';
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsVerifying(true);
-    
-    // Simulate API verification
-    setTimeout(() => {
+
+    try {
+      // Call the real API to upgrade to premium
+      await usersAPI.upgradePremium();
+
+      // Wait a moment for the backend to process
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Refresh user data to get updated premium status
+      await refreshUser();
+
+      // Show success toast
+      addToast('Successfully upgraded to Student Pro!', 'success');
+
       setIsVerifying(false);
       setPaymentStep('success');
-      
-      // Update global user state
-      if (onUpgrade) {
-        onUpgrade();
-      }
-    }, 2000);
+
+      // Navigate to profile page to see the changes
+      setTimeout(() => {
+        navigate('/profile');
+      }, 1000);
+
+    } catch (error: any) {
+      console.error('Premium upgrade error:', error);
+      setIsVerifying(false);
+      addToast('Failed to process premium upgrade. Please try again.', 'error');
+    }
   };
 
   const closeModal = () => {

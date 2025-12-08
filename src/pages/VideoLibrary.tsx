@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, PlayCircle, Clock, Lock, ArrowUpDown, Bookmark } from 'lucide-react';
 import { SUBJECTS, GRADES } from '../constants';
@@ -7,9 +7,10 @@ import { VideoLesson } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { VideoCardSkeleton } from '../components/Skeletons';
 
 const VideoLibrary: React.FC = () => {
-  const { videos } = useData();
+  const { videos, fetchVideos, loading, errors } = useData();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
@@ -17,24 +18,21 @@ const VideoLibrary: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [showSavedOnly, setShowSavedOnly] = useState(false);
 
-  const filteredVideos = useMemo(() => {
-    let vids = videos.filter(video => {
-      const matchesSearch = video.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            video.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesSubject = selectedSubject === 'All' || video.subject === selectedSubject;
-      const matchesGrade = selectedGrade === 'All' || video.grade.toString() === selectedGrade;
-      const matchesSaved = !showSavedOnly || (user?.bookmarks?.includes(video.id));
-      return matchesSearch && matchesSubject && matchesGrade && matchesSaved;
-    });
+  // Fetch videos on mount and when filters change
+  useEffect(() => {
+    const params: any = {};
 
-    // Sorting Logic
-    return vids.sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
-      if (sortBy === 'popular') return b.views - a.views;
-      if (sortBy === 'title') return a.title.localeCompare(b.title);
-      return 0;
-    });
-  }, [videos, searchTerm, selectedSubject, selectedGrade, sortBy, showSavedOnly, user]);
+    if (selectedSubject !== 'All') params.subject = selectedSubject;
+    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (searchTerm.trim()) params.search = searchTerm;
+    if (showSavedOnly) params.bookmarked = true;
+    if (sortBy !== 'newest') params.sort = sortBy;
+
+    fetchVideos(params);
+  }, [fetchVideos, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
+
+  // Use videos directly since filtering is now done on the backend
+  const filteredVideos = videos;
 
   const subjectOptions: Option[] = SUBJECTS.map(s => ({ label: s === 'All' ? 'All Subjects' : s, value: s }));
   const gradeOptions: Option[] = GRADES.map(g => ({ label: g === 'All' ? 'All Grades' : `Grade ${g}`, value: g }));
@@ -120,14 +118,36 @@ const VideoLibrary: React.FC = () => {
         </div>
       </div>
 
-      {/* Video Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredVideos.map((video) => (
-          <VideoCard key={video.id} video={video} />
-        ))}
-      </div>
+      {/* Error State */}
+      {errors.videos && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-800 font-medium">Failed to load videos</p>
+          <p className="text-red-600 text-sm mt-1">{errors.videos}</p>
+          <button
+            onClick={() => fetchVideos()}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
 
-      {filteredVideos.length === 0 && (
+      {/* Video Grid */}
+      {loading.videos ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <VideoCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : !errors.videos && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredVideos.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+
+          {filteredVideos.length === 0 && (
         <div className="py-20 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
           <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center mx-auto mb-3 text-zinc-400">
              <PlayCircle size={20} />
@@ -144,38 +164,67 @@ const VideoLibrary: React.FC = () => {
           </button>
         </div>
       )}
+        </>
+      )}
     </div>
   );
 };
 
-const VideoCard: React.FC<{ video: VideoLesson }> = ({ video }) => (
-  <Link to={`/video/${video.id}`} className="group bg-white rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full">
-    {/* Thumbnail Container */}
-    <div className="relative aspect-video bg-zinc-900 overflow-hidden">
-      <img 
-        src={video.thumbnail} 
-        alt={video.title} 
-        className="w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-80 transition-all duration-500" 
-      />
-      
-      {/* Play Overlay */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-         <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50">
-            <PlayCircle size={24} className="text-white fill-current" />
-         </div>
-      </div>
+const VideoCard: React.FC<{ video: VideoLesson }> = ({ video }) => {
+  const { user, toggleBookmark } = useAuth();
+  const isBookmarked = user?.bookmarks?.includes(video.id);
 
-      {/* Badges */}
-      <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide flex items-center gap-1 backdrop-blur-sm">
-         {video.duration}
-      </div>
-      
-      {video.isPremium && (
-        <div className="absolute top-2 right-2 bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
-          <Lock size={10} /> Pro
-        </div>
+  const handleBookmarkClick = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation
+    e.stopPropagation(); // Prevent event bubbling
+    if (user) {
+      try {
+        await toggleBookmark(video.id, 'video');
+      } catch (error) {
+        console.error('Failed to toggle bookmark:', error);
+      }
+    }
+  };
+
+  return (
+    <div className="group bg-white rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full relative">
+      {/* Bookmark Button - Positioned absolutely */}
+      {user && (
+        <button
+          onClick={handleBookmarkClick}
+          className={`absolute top-3 left-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            isBookmarked
+              ? 'bg-amber-500 text-white shadow-lg hover:bg-amber-600'
+              : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow-md'
+          }`}
+        >
+          <Bookmark size={14} className={isBookmarked ? "fill-current text-white" : ""} />
+        </button>
       )}
-    </div>
+
+      <Link to={`/video/${video.id}`} className="flex flex-col h-full">
+        {/* Thumbnail Container */}
+        <div className="relative aspect-video bg-zinc-900 overflow-hidden">
+          <img
+            src={video.thumbnail}
+            alt={video.title}
+            className="w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-80 transition-all duration-500"
+          />
+
+          {/* Play Overlay */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+             <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50">
+                <PlayCircle size={24} className="text-white fill-current" />
+             </div>
+          </div>
+
+          {/* Badges */}
+          {video.isPremium && (
+            <div className="absolute top-2 right-2 bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
+              <Lock size={10} /> Pro
+            </div>
+          )}
+        </div>
     
     <div className="p-4 flex-1 flex flex-col">
       <div className="flex justify-between items-start mb-2">
@@ -192,20 +241,22 @@ const VideoCard: React.FC<{ video: VideoLesson }> = ({ video }) => (
         {video.description}
       </p>
       
-      <div className="mt-auto pt-3 border-t border-zinc-50 flex items-center justify-between text-xs text-zinc-400">
-         <div className="flex items-center gap-1.5">
-           <div className="w-5 h-5 bg-zinc-100 rounded-full flex items-center justify-center text-[9px] font-bold text-zinc-600">
-              {video.instructor.charAt(0)}
+        <div className="mt-auto pt-3 border-t border-zinc-50 flex items-center justify-between text-xs text-zinc-400">
+           <div className="flex items-center gap-1.5">
+             <div className="w-5 h-5 bg-zinc-100 rounded-full flex items-center justify-center text-[9px] font-bold text-zinc-600">
+                {video.instructor?.charAt(0) || '?'}
+             </div>
+             <span className="text-zinc-500">{video.instructor || 'Unknown'}</span>
            </div>
-           <span className="text-zinc-500">{video.instructor}</span>
-         </div>
-         <div className="flex items-center gap-1">
-            <Clock size={12} />
-            <span>{video.uploadedAt}</span>
-         </div>
+           <div className="flex items-center gap-1">
+              <Clock size={12} />
+              <span>{video.uploadedAt}</span>
+           </div>
+        </div>
       </div>
-    </div>
-  </Link>
-);
+    </Link>
+  </div>
+  );
+};
 
 export default VideoLibrary;

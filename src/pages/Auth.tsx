@@ -4,15 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import { GraduationCap, Info, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 interface AuthProps {
-  onLogin: (user: any) => void;
   type: 'login' | 'register';
 }
 
-const Auth: React.FC<AuthProps> = ({ onLogin, type: initialType }) => {
+const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { login, register } = useAuth();
   
   // Local state to handle 'forgot' view without changing URL necessarily
   const [view, setView] = useState<'login' | 'register' | 'forgot'>(initialType);
@@ -30,98 +31,46 @@ const Auth: React.FC<AuthProps> = ({ onLogin, type: initialType }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
       // FORGOT PASSWORD FLOW
       if (view === 'forgot') {
-        setIsLoading(false);
-        addToast("Password reset link sent to your email.", "success");
+        // TODO: Implement forgot password API call
+        addToast("Password reset functionality not implemented yet.", "info");
         setView('login');
         return;
       }
 
-      // LOGIN / REGISTER FLOW
-      let role = UserRole.STUDENT;
-      if (email.toLowerCase().includes('admin')) {
-        role = UserRole.ADMIN;
-      }
-
-      const mockUser = {
-        id: '123',
-        name: name || (role === UserRole.ADMIN ? 'Admin User' : 'Student User'),
-        email,
-        role: role,
-        isPremium: role === UserRole.ADMIN,
-        bookmarks: [],
-        avatar: undefined,
-        preferences: { emailNotifications: true, studyReminders: true },
-        xp: 0,
-        level: 1,
-        streak: 1,
-        lastActiveDate: new Date().toISOString().split('T')[0],
-        unlockedBadges: ['b1'],
-        notifications: [
-             {
-                id: 'n1',
-                title: 'Welcome to SmartStudy!',
-                message: 'We are glad to have you here. Start learning!',
-                type: 'success',
-                isRead: false,
-                date: new Date().toISOString()
-             }
-        ]
-      };
-      
-      onLogin(mockUser);
-      setIsLoading(false);
-      
-      // Redirect based on role
-      if (role === UserRole.ADMIN) {
-        navigate('/admin');
-      } else {
+      // LOGIN FLOW
+      if (view === 'login') {
+        await login(email, password);
+        addToast("Login successful!", "success");
         navigate('/dashboard');
       }
-    }, 1000);
+
+      // REGISTER FLOW
+      else if (view === 'register') {
+        await register(name, email, password);
+        addToast("Registration successful! Welcome to SmartStudy!", "success");
+        navigate('/dashboard');
+      }
+
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      addToast(error.message || "Authentication failed. Please try again.", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
     setIsGoogleLoading(true);
-    // Simulate Google Auth Delay
-    setTimeout(() => {
-      const mockGoogleUser = {
-        id: 'g_' + Math.random().toString(36).substr(2, 9),
-        name: 'Google User',
-        email: 'google_user@gmail.com',
-        role: UserRole.STUDENT,
-        isPremium: false,
-        bookmarks: [],
-        avatar: undefined,
-        preferences: { emailNotifications: true, studyReminders: true },
-        xp: 500, // Bonus for social login demo
-        level: 1,
-        streak: 1,
-        lastActiveDate: new Date().toISOString().split('T')[0],
-        unlockedBadges: ['b1'],
-        notifications: [
-             {
-                id: 'n1',
-                title: 'Welcome to SmartStudy!',
-                message: 'We are glad to have you here. Start learning!',
-                type: 'success',
-                isRead: false,
-                date: new Date().toISOString()
-             }
-        ]
-      };
-      
-      onLogin(mockGoogleUser);
-      setIsGoogleLoading(false);
-      navigate('/dashboard');
-    }, 1500);
+    // TODO: Implement Google OAuth
+    addToast("Google login not implemented yet.", "info");
+    setIsGoogleLoading(false);
   };
 
   return (

@@ -35,17 +35,21 @@ export interface User {
   bookmarks: string[]; // Array of Document or Video IDs
   avatar?: string; // Base64 Data URL
   preferences?: UserPreferences;
-  
+
+  // Status and dates
+  status?: 'Active' | 'Banned' | 'Inactive';
+  joinedDate?: string; // ISO date string
+
   // Gamification
   xp: number;
   level: number;
   streak: number;
   lastActiveDate: string; // YYYY-MM-DD
   unlockedBadges: string[];
-  
+
   // Usage Tracking
   practiceAttempts?: number;
-  
+
   // Notifications
   notifications: Notification[];
 }
@@ -63,13 +67,34 @@ export interface Document {
   description: string;
   subject: string;
   grade: number; // 9, 10, 11, 12
-  fileType: FileType;
-  isPremium: boolean;
+  file_type: FileType;
+  file_url?: string; // URL to the actual document file
+  is_premium: boolean;
   uploadedAt: string;
   downloads: number;
-  previewImage: string;
+  preview_image: string;
   tags: string[];
   author?: string;
+}
+
+export interface Video {
+  id: string;
+  title: string;
+  description?: string;
+  subject: string;
+  grade: number;
+  thumbnail?: string;
+  video_url: string;
+  instructor?: string;
+  views: number;
+  likes: number;
+  is_premium: boolean;
+  uploaded_by?: string;
+  uploadedAt?: string;
+  created_at: string;
+  updated_at: string;
+  user_has_liked?: boolean;
+  user_has_completed?: boolean;
 }
 
 export interface VideoLesson {
@@ -79,8 +104,7 @@ export interface VideoLesson {
   subject: string;
   grade: number;
   thumbnail: string;
-  videoUrl: string; // YouTube ID or URL
-  duration: string;
+  video_url: string; // YouTube ID or URL
   instructor: string;
   views: number;
   likes: number;

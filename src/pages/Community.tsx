@@ -1,42 +1,103 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Lock, Trophy } from 'lucide-react';
+import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Lock, Trophy, Loader2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { SUBJECTS, GRADES } from '../constants';
 import { ForumPost, UserRole } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useToast } from '../context/ToastContext';
+import { usersAPI, forumAPI } from '../services/api';
+import { ForumPostSkeleton, LeaderboardItemSkeleton } from '../components/Skeletons';
 
 const Community: React.FC = () => {
   const { user } = useAuth();
-  const { forumPosts, addForumPost } = useData();
+  const { forumPosts, fetchForumPosts, createForumPost, loading, errors } = useData();
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [mounted, setMounted] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number; isUser?: boolean }[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newSubject, setNewSubject] = useState('Mathematics');
   const [newGrade, setNewGrade] = useState('9');
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [votingPosts, setVotingPosts] = useState<Set<string>>(new Set()); // Track which posts are being voted on
 
   useEffect(() => {
     setMounted(true);
+    fetchForumPosts(); // Fetch forum posts on mount
+    fetchLeaderboard(); // Fetch leaderboard data
     return () => setMounted(false);
-  }, []);
+  }, [fetchForumPosts]);
 
-  // Mock Leaderboard Data
-  const TOP_LEARNERS = [
-    { name: 'Sara Alemu', xp: 12500, level: 13, initial: 'S' },
-    { name: 'Dawit B.', xp: 9800, level: 10, initial: 'D' },
-    { name: 'Hana M.', xp: 8450, level: 9, initial: 'H' },
-    { name: 'Kirubel T.', xp: 7200, level: 8, initial: 'K' },
-    { name: 'You', xp: user?.xp || 0, level: user?.level || 1, initial: user?.name.charAt(0) || 'U', isUser: true },
-  ].sort((a, b) => b.xp - a.xp);
+  // Refresh posts when navigating back to this page
+  useEffect(() => {
+    fetchForumPosts();
+  }, [location.pathname, fetchForumPosts]);
+
+  const fetchLeaderboard = async () => {
+    try {
+      setLeaderboardLoading(true);
+      const data = await usersAPI.getLeaderboard(5); // Get top 5 learners
+
+      let processedLeaderboard = data;
+
+      // If user is logged in, check if they're in the top 5
+      if (user) {
+        const currentUserInLeaderboard = data.find(learner => learner.id === user.id);
+
+        if (currentUserInLeaderboard) {
+          // Mark current user in the list
+          processedLeaderboard = processedLeaderboard.map(learner =>
+            learner.id === user.id ? { ...learner, isUser: true } : learner
+          );
+        } else {
+          // User is not in top 5, add them at the end
+          const currentUserEntry = {
+            id: user.id,
+            name: user.name,
+            xp: user.xp,
+            level: user.level,
+            initial: user.name.charAt(0).toUpperCase(),
+            avatar: user.avatar,
+            rank: 0, // We'll show this differently
+            isUser: true
+          };
+          processedLeaderboard.push(currentUserEntry);
+        }
+      }
+
+      setLeaderboard(processedLeaderboard);
+    } catch (error) {
+      console.error('Failed to fetch leaderboard:', error);
+      // Fallback: show current user if logged in
+      if (user) {
+        setLeaderboard([{
+          id: user.id,
+          name: user.name,
+          xp: user.xp,
+          level: user.level,
+          initial: user.name.charAt(0).toUpperCase(),
+          avatar: user.avatar,
+          rank: 1,
+          isUser: true
+        }]);
+      } else {
+        setLeaderboard([]);
+      }
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
 
   const filteredPosts = forumPosts.filter(post => {
     const matchesSearch =
@@ -46,35 +107,78 @@ const Community: React.FC = () => {
     return matchesSearch && matchesSubject;
   });
 
-  const handleCreatePost = (e: React.FormEvent) => {
+  const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       navigate('/login');
       return;
     }
 
-    const newPost: ForumPost = {
-      id: 'f-' + Date.now(),
-      title: newTitle,
-      content: newContent,
-      author: user.name,
-      authorRole: user.role,
-      subject: newSubject,
-      grade: parseInt(newGrade),
-      createdAt: 'Just now',
-      votes: 0,
-      views: 0,
-      comments: [],
-      tags: [],
-      isSolved: false
-    };
+    setIsCreatingPost(true);
+    try {
+      await createForumPost({
+        title: newTitle,
+        content: newContent,
+        subject: newSubject,
+        grade: parseInt(newGrade),
+        tags: []
+      });
 
-    addForumPost(newPost);
-    setIsModalOpen(false);
-    setNewTitle('');
-    setNewContent('');
-    setNewSubject('Mathematics');
-    setNewGrade('9');
+      setIsModalOpen(false);
+      setNewTitle('');
+      setNewContent('');
+      setNewSubject('Mathematics');
+      setNewGrade('9');
+
+      // Refresh the posts list to show the new post
+      fetchForumPosts();
+    } catch (error) {
+      console.error('Failed to create forum post:', error);
+      // TODO: Show error toast
+    } finally {
+      setIsCreatingPost(false);
+    }
+  };
+
+  const handleVote = async (postId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    // Prevent multiple votes on the same post
+    if (votingPosts.has(postId)) return;
+
+    setVotingPosts(prev => new Set(prev).add(postId));
+
+    try {
+      await forumAPI.votePost(postId, 1); // Always upvote from list view
+
+      // Refresh the forum posts to get updated vote counts
+      await fetchForumPosts();
+
+      addToast('Post upvoted!', 'success');
+    } catch (error) {
+      console.error('Failed to vote on post:', error);
+      addToast('Failed to vote. Please try again.', 'error');
+    } finally {
+      setVotingPosts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
+    }
+  };
+
+  const handlePostClick = (postId: string) => {
+    if (!user) {
+      navigate('/login', { state: { from: `/community/${postId}` } });
+      return;
+    }
+    navigate(`/community/${postId}`);
   };
 
   const handleAskQuestion = () => {
@@ -160,47 +264,88 @@ const Community: React.FC = () => {
               <Trophy size={16} className="text-amber-500" /> Top Learners
             </h3>
             <div className="space-y-3">
-               {TOP_LEARNERS.map((learner, idx) => (
-                 <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${learner.isUser ? 'bg-zinc-50 border border-zinc-100' : ''}`}>
-                    <div className="flex items-center gap-3">
-                       <div className="w-5 text-center text-xs font-bold text-zinc-400">
-                          {idx + 1}
-                       </div>
-                       <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600 border border-zinc-200">
-                          {learner.initial}
-                       </div>
-                       <div>
-                          <p className={`text-xs font-bold ${learner.isUser ? 'text-zinc-900' : 'text-zinc-700'}`}>
-                             {learner.name}
-                          </p>
-                          <p className="text-[10px] text-zinc-400">Level {learner.level}</p>
-                       </div>
-                    </div>
-                    <div className="text-xs font-mono font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                       {learner.xp.toLocaleString()} XP
-                    </div>
+               {leaderboardLoading ? (
+                 <>
+                   <LeaderboardItemSkeleton />
+                   <LeaderboardItemSkeleton />
+                   <LeaderboardItemSkeleton />
+                   <LeaderboardItemSkeleton />
+                   <LeaderboardItemSkeleton />
+                 </>
+               ) : leaderboard.length > 0 ? (
+                 leaderboard.map((learner) => (
+                   <div key={learner.id} className={`flex items-center justify-between p-2 rounded-lg ${learner.isUser ? 'bg-zinc-50 border border-zinc-100' : ''}`}>
+                      <div className="flex items-center gap-3">
+                         <div className="w-5 text-center text-xs font-bold text-zinc-400">
+                            {learner.rank === 0 ? '-' : learner.rank}
+                         </div>
+                         <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600 border border-zinc-200">
+                            {learner.initial}
+                         </div>
+                         <div>
+                            <p className={`text-xs font-bold ${learner.isUser ? 'text-zinc-900' : 'text-zinc-700'}`}>
+                               {learner.name}
+                            </p>
+                            <p className="text-[10px] text-zinc-400">Level {learner.level}</p>
+                         </div>
+                      </div>
+                      <div className="text-xs font-mono font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                         {learner.xp.toLocaleString()} XP
+                      </div>
+                   </div>
+                 ))
+               ) : (
+                 <div className="text-center py-4 text-zinc-500 text-sm">
+                   No learners found
                  </div>
-               ))}
+               )}
             </div>
           </div>
         </div>
 
         {/* Posts List */}
         <div className="lg:col-span-3 space-y-4">
-          {filteredPosts.map(post => (
-            <Link
+          {/* Error State */}
+          {errors.forumPosts && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+              <p className="text-red-800 font-medium">Failed to load forum posts</p>
+              <p className="text-red-600 text-sm mt-1">{errors.forumPosts}</p>
+              <button
+                onClick={() => fetchForumPosts()}
+                className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading.forumPosts ? (
+            <>
+              <ForumPostSkeleton />
+              <ForumPostSkeleton />
+              <ForumPostSkeleton />
+              <ForumPostSkeleton />
+            </>
+          ) : !errors.forumPosts && filteredPosts.map(post => (
+            <div
               key={post.id}
-              to={`/community/${post.id}`}
-              className="block bg-white p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group"
+              onClick={() => handlePostClick(post.id)}
+              className="block bg-white p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group cursor-pointer"
             >
               <div className="flex items-start gap-4">
                 {/* Vote Section */}
                 <div className="flex flex-col items-center gap-1 min-w-[3rem]">
                   <button
-                    onClick={(e) => e.preventDefault()} // ← Prevents navigation when clicking vote
-                    className="text-zinc-400 hover:text-zinc-900 transition-colors"
+                    onClick={(e) => handleVote(post.id, e)}
+                    disabled={votingPosts.has(post.id)}
+                    className="text-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                   >
-                    <ThumbsUp size={18} />
+                    {votingPosts.has(post.id) ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <ThumbsUp size={18} />
+                    )}
                   </button>
                   <span className="font-bold text-zinc-900">{post.votes}</span>
                 </div>
@@ -249,15 +394,15 @@ const Community: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-1 text-xs text-zinc-500">
-                      <MessageSquare size={14} /> {post.comments.length} comments
+                      <MessageSquare size={14} /> {post.comment_count || 0} comments
                     </div>
                   </div>
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
 
-          {filteredPosts.length === 0 && (
+          {!loading.forumPosts && !errors.forumPosts && filteredPosts.length === 0 && (
             <div className="text-center py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl">
               <p className="text-zinc-500">No discussions found matching your filters.</p>
             </div>
@@ -316,9 +461,11 @@ const Community: React.FC = () => {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/10"
+                    disabled={isCreatingPost}
+                    className="w-full py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center justify-center gap-2"
                   >
-                    Post Question
+                    {isCreatingPost ? <Loader2 size={16} className="animate-spin" /> : null}
+                    {isCreatingPost ? 'Posting...' : 'Post Question'}
                   </button>
                 </div>
               </form>

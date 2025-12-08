@@ -6,11 +6,6 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BADGES } from '../constants';
 
-interface ProfileProps {
-  user: UserType;
-  onUpdateUser: (data: Partial<UserType>) => void;
-}
-
 type Tab = 'general' | 'security' | 'notifications' | 'achievements';
 
 // Map icon string names to components
@@ -18,12 +13,18 @@ const IconMap: { [key: string]: any } = {
   Footprints, BookOpen, GraduationCap, Flame, Users, Trophy
 };
 
-const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
-  const { logout } = useAuth();
+const Profile: React.FC = () => {
+  const { user, logout, changePassword, updateUser } = useAuth();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>('general');
-  const [name, setName] = useState(user.name);
-  const [avatar, setAvatar] = useState<string | undefined>(user.avatar);
+  const [name, setName] = useState(user?.name || '');
+  const [avatar, setAvatar] = useState<string | undefined>(user?.avatar);
+
+
+  // Guard against null user (shouldn't happen due to route protection)
+  if (!user) {
+    return <div>Loading...</div>;
+  }
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   
@@ -36,6 +37,14 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
+
+  // Update local state when user data changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setAvatar(user.avatar);
+    }
+  }, [user]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,52 +87,68 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     }
   };
 
-  const handleGeneralSubmit = (e: React.FormEvent) => {
+  const handleGeneralSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
-      onUpdateUser({ name, avatar });
-      setIsSaving(false);
+
+    try {
+      await updateUser({ name, avatar });
       setShowSuccess(true);
       addToast("Profile updated successfully.", "success");
       setTimeout(() => setShowSuccess(false), 3000);
-    }, 1000);
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      addToast(error.message || "Failed to update profile.", "error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       addToast("New passwords do not match.", "error");
       return;
     }
-    
+
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+
+    try {
+      await changePassword(currentPassword, newPassword, confirmPassword);
       setShowSuccess(true);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       addToast("Password updated successfully.", "success");
       setTimeout(() => setShowSuccess(false), 3000);
-    }, 1500);
+    } catch (error: any) {
+      console.error('Password change error:', error);
+      addToast(error.message || "Failed to update password.", "error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleNotificationSubmit = (e: React.FormEvent) => {
+  const handleNotificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
-      onUpdateUser({
+
+    try {
+      await updateUser({
         preferences: {
           emailNotifications: emailNotifs,
           studyReminders: studyReminders
         }
       });
-      setIsSaving(false);
       setShowSuccess(true);
       addToast("Notification preferences saved.", "success");
       setTimeout(() => setShowSuccess(false), 3000);
-    }, 800);
+    } catch (error: any) {
+      console.error('Notification update error:', error);
+      addToast(error.message || "Failed to update preferences.", "error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -142,9 +167,9 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         <div className="relative group mx-auto md:mx-0 w-fit">
           <div className="w-28 h-28 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-4xl border-4 border-white shadow-lg overflow-hidden relative ring-1 ring-zinc-200/50">
             {avatar ? (
-              <img src={avatar} alt={name} className="w-full h-full object-cover" />
+              <img src={avatar} alt={name || 'User'} className="w-full h-full object-cover" />
             ) : (
-              name.charAt(0).toUpperCase()
+              (name || 'U').charAt(0).toUpperCase()
             )}
             
             {/* Upload Overlay */}

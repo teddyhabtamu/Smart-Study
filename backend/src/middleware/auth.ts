@@ -1,0 +1,165 @@
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { validationResult } from 'express-validator';
+import { query } from '../database/config';
+import { config } from '../config';
+import { JWTPayload, User } from '../types';
+
+// Extend Express Request interface to include user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}
+
+export const authenticateToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        message: 'Access token required'
+      });
+      return;
+    }
+
+    const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+
+    // Fetch user from database to ensure they still exist and get latest data
+    const result = await query(
+      'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(401).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
+    }
+
+    req.user = result.rows[0];
+    return next();
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(403).json({
+        success: false,
+        message: 'Invalid token'
+      });
+      return;
+    }
+
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({
+        success: false,
+        message: 'Token expired'
+      });
+      return;
+    }
+
+    console.error('Authentication error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Authentication failed'
+    });
+  }
+};
+
+export const requireRole = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+      return;
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions'
+      });
+      return;
+    }
+
+    next();
+  };
+};
+
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (token) {
+      const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+
+      // Fetch user from database to ensure they still exist and get latest data
+      const result = await query(
+        'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+        [decoded.userId]
+      );
+
+      if (result.rows.length > 0) {
+        req.user = result.rows[0];
+      }
+    }
+  } catch (error) {
+    // Ignore authentication errors for optional auth
+    console.log('Optional auth failed, continuing without user');
+  }
+
+  return next();
+};
+
+export const requirePremium = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+    return;
+  }
+
+  if (!req.user.is_premium) {
+    res.status(403).json({
+      success: false,
+      message: 'Premium subscription required'
+    });
+    return;
+  }
+
+  next();
+};
+
+// Validation middleware
+export const validateRequest = (req: Request, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({
+      success: false,
+      errors: errors.array()
+    });
+    return;
+  }
+  next();
+};
+
+// Generate JWT token
+export const generateToken = (user: User): string => {
+  const payload: JWTPayload = {
+    userId: user.id,
+    email: user.email,
+    role: user.role
+  };
+
+  return (jwt.sign as any)(payload, config.jwt.secret, {
+    expiresIn: config.jwt.expire
+  });
+};
