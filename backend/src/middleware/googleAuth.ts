@@ -48,13 +48,26 @@ passport.use(new GoogleStrategy({
       // Note: google_id column should exist in schema, but handle gracefully if not
       userData.google_id = id;
 
-      const { data: newUser, error: createError } = await supabase
+      let { data: newUser, error: createError } = await supabase
         .from('users')
         .insert(userData)
         .select()
         .single();
 
-      if (createError) throw createError;
+      // If google_id column doesn't exist in schema cache, retry without it
+      if (createError && (createError.message?.includes('google_id') || createError.code === '42703')) {
+        delete userData.google_id;
+        const retryResult = await supabase
+          .from('users')
+          .insert(userData)
+          .select()
+          .single();
+        
+        if (retryResult.error) throw retryResult.error;
+        newUser = retryResult.data;
+      } else if (createError) {
+        throw createError;
+      }
 
       user = newUser;
       user.bookmarks = [];
