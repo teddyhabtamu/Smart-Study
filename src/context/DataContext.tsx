@@ -330,18 +330,41 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const createStudyEvent = async (event: Omit<StudyEvent, 'id' | 'created_at' | 'updated_at'>): Promise<StudyEvent> => {
     const createdEvent = await plannerAPI.createEvent(event);
     setStudyEvents(prev => [...prev, createdEvent]);
+    
+    // Refresh dashboard if the event is for today
+    const today = new Date().toISOString().split('T')[0];
+    if (event.date === today) {
+      await fetchDashboard();
+    }
+    
     return createdEvent;
   };
 
   const updateStudyEvent = async (id: string, updates: Partial<StudyEvent>): Promise<StudyEvent> => {
     const updatedEvent = await plannerAPI.updateEvent(id, updates);
     setStudyEvents(prev => prev.map(event => event.id === id ? updatedEvent : event));
+    
+    // Refresh dashboard if completion status changed (affects today's progress)
+    if (updates.isCompleted !== undefined) {
+      await fetchDashboard();
+    }
+    
     return updatedEvent;
   };
 
   const deleteStudyEvent = async (id: string): Promise<void> => {
+    // Check if the event being deleted is for today before deleting
+    const eventToDelete = studyEvents.find(e => e.id === id);
+    const today = new Date().toISOString().split('T')[0];
+    const isTodaysEvent = eventToDelete?.date === today;
+    
     await plannerAPI.deleteEvent(id);
     setStudyEvents(prev => prev.filter(event => event.id !== id));
+    
+    // Refresh dashboard if the deleted event was for today
+    if (isTodaysEvent) {
+      await fetchDashboard();
+    }
   };
 
   const updateUserStatus = async (id: string, updates: Partial<User>): Promise<void> => {

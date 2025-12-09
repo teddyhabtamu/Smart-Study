@@ -7,7 +7,7 @@ const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 export const generateStudyPlan = async (
   userRequest: string,
-  grade: number = 10
+  grade?: number
 ): Promise<any[]> => {
   console.log("Study Plan AI called with request:", userRequest.substring(0, 100) + "...");
 
@@ -72,17 +72,182 @@ export const generateStudyPlan = async (
     });
   }
 
-  // If no specific tasks found, create a general study plan
+  // Parse dates intelligently
+  const parseDate = (text: string): Date => {
+    const result = new Date(today);
+    if (text.includes('tomorrow')) {
+      result.setDate(today.getDate() + 1);
+    } else if (text.includes('next week') || text.includes('in 7 days')) {
+      result.setDate(today.getDate() + 7);
+    } else if (text.includes('after 2 weeks') || text.includes('in 2 weeks') || text.includes('in 14 days')) {
+      result.setDate(today.getDate() + 14);
+    } else if (text.includes('after 2 days') || text.includes('in 2 days')) {
+      result.setDate(today.getDate() + 2);
+    } else if (text.includes('after 3 days') || text.includes('in 3 days')) {
+      result.setDate(today.getDate() + 3);
+    } else {
+      result.setDate(today.getDate() + 1);
+    }
+    return result;
+  };
+
+  // Extract math exam (improved pattern matching) - start from today
+  if (request.includes('math') && request.includes('exam')) {
+    const examDate = parseDate(request);
+    const daysUntilExam = Math.ceil((examDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Create study sessions starting from today, distributed over the period
+    if (daysUntilExam >= 7) {
+      // If exam is a week or more away, create sessions throughout
+      const session1 = new Date(today);
+      const session2 = new Date(today);
+      session2.setDate(today.getDate() + Math.floor(daysUntilExam / 3));
+      const session3 = new Date(today);
+      session3.setDate(today.getDate() + Math.floor(daysUntilExam * 2 / 3));
+      const finalReview = new Date(examDate);
+      finalReview.setDate(examDate.getDate() - 1);
+
+      studyPlan.push({
+        title: "Mathematics Study Session 1",
+        subject: "Mathematics",
+        date: session1.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Start reviewing key concepts and formulas"
+      });
+
+      studyPlan.push({
+        title: "Mathematics Study Session 2",
+        subject: "Mathematics",
+        date: session2.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Practice problems and review difficult topics"
+      });
+
+      studyPlan.push({
+        title: "Mathematics Study Session 3",
+        subject: "Mathematics",
+        date: session3.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Continue practice and review"
+      });
+
+      studyPlan.push({
+        title: "Mathematics Final Review",
+        subject: "Mathematics",
+        date: finalReview.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Final review and practice exam questions"
+      });
+    } else {
+      // If exam is less than a week away, create daily sessions
+      for (let i = 0; i < daysUntilExam - 1; i++) {
+        const sessionDate = new Date(today);
+        sessionDate.setDate(today.getDate() + i);
+        studyPlan.push({
+          title: `Mathematics Study Session ${i + 1}`,
+          subject: "Mathematics",
+          date: sessionDate.toISOString().split('T')[0],
+          type: "Revision",
+          notes: i === daysUntilExam - 2 ? "Final review before exam" : "Review and practice problems"
+        });
+      }
+    }
+
+    studyPlan.push({
+      title: "Mathematics Exam",
+      subject: "Mathematics",
+      date: examDate.toISOString().split('T')[0],
+      type: "Exam",
+      notes: "Mathematics exam"
+    });
+  }
+
+  // Extract physics assignment (improved pattern matching) - start from today
+  if (request.includes('physics') && request.includes('assignment')) {
+    const assignmentDate = parseDate(request);
+    const daysUntilAssignment = Math.ceil((assignmentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Create study sessions starting from today
+    if (daysUntilAssignment >= 7) {
+      // If assignment is a week or more away, create sessions throughout
+      const session1 = new Date(today);
+      const session2 = new Date(today);
+      session2.setDate(today.getDate() + Math.floor(daysUntilAssignment / 2));
+      const prepDate = new Date(assignmentDate);
+      prepDate.setDate(assignmentDate.getDate() - 1);
+
+      studyPlan.push({
+        title: "Physics Assignment Research",
+        subject: "Physics",
+        date: session1.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Start researching and gathering materials"
+      });
+
+      studyPlan.push({
+        title: "Physics Assignment Progress Check",
+        subject: "Physics",
+        date: session2.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Review progress and continue research"
+      });
+
+      studyPlan.push({
+        title: "Physics Assignment Final Preparation",
+        subject: "Physics",
+        date: prepDate.toISOString().split('T')[0],
+        type: "Revision",
+        notes: "Finalize research and prepare to write"
+      });
+    } else {
+      // If assignment is less than a week away, create sessions leading up to it
+      for (let i = 0; i < daysUntilAssignment - 1; i++) {
+        const sessionDate = new Date(today);
+        sessionDate.setDate(today.getDate() + i);
+        studyPlan.push({
+          title: `Physics Assignment Work ${i + 1}`,
+          subject: "Physics",
+          date: sessionDate.toISOString().split('T')[0],
+          type: "Revision",
+          notes: i === daysUntilAssignment - 2 ? "Finalize assignment" : "Research and work on assignment"
+        });
+      }
+    }
+
+    studyPlan.push({
+      title: "Complete Physics Assignment",
+      subject: "Physics",
+      date: assignmentDate.toISOString().split('T')[0],
+      type: "Assignment",
+      notes: "Complete and submit physics assignment"
+    });
+  }
+
+  // If no specific tasks found, try to extract subject from request and create a study plan
   if (studyPlan.length === 0) {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
+    // Try to extract subject from the request
+    let subject = 'Mathematics'; // Default to Mathematics
+    if (request.includes('physics')) subject = 'Physics';
+    else if (request.includes('chemistry')) subject = 'Chemistry';
+    else if (request.includes('biology')) subject = 'Biology';
+    else if (request.includes('english')) subject = 'English';
+    else if (request.includes('history')) subject = 'History';
+    else if (request.includes('math') || request.includes('mathematics')) subject = 'Mathematics';
+
+    // Determine event type
+    let eventType = 'Revision';
+    if (request.includes('exam') || request.includes('test')) eventType = 'Exam';
+    else if (request.includes('assignment') || request.includes('homework')) eventType = 'Assignment';
+
     studyPlan.push({
-      title: "General Study Session",
-      subject: "General",
+      title: `${subject} Study Session`,
+      subject: subject,
       date: tomorrow.toISOString().split('T')[0],
-      type: "Revision",
-      notes: "Review study materials and complete assignments"
+      type: eventType,
+      notes: "Review study materials"
     });
   }
 

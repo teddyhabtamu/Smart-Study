@@ -5,6 +5,7 @@ import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BADGES } from '../constants';
+import { usersAPI } from '../services/api';
 
 type Tab = 'general' | 'security' | 'notifications' | 'achievements';
 
@@ -58,15 +59,6 @@ const Profile: React.FC = () => {
   const [studyReminders, setStudyReminders] = useState(user.preferences?.studyReminders ?? true);
 
   // --- Helpers ---
-  const convertToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
@@ -75,14 +67,32 @@ const Profile: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-          addToast("File size too large. Please choose an image under 2MB.", "error");
-          return;
+        addToast("File size too large. Please choose an image under 2MB.", "error");
+        return;
       }
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        addToast("Please select an image file.", "error");
+        return;
+      }
+
+      setIsSaving(true);
       try {
-        const base64 = await convertToBase64(file);
-        setAvatar(base64);
-      } catch (err) {
-        addToast("Error processing image.", "error");
+        const result = await usersAPI.uploadAvatar(file);
+        setAvatar(result.avatar);
+        // Update user context with new avatar
+        await updateUser({ avatar: result.avatar });
+        addToast("Avatar uploaded successfully.", "success");
+      } catch (err: any) {
+        console.error('Avatar upload error:', err);
+        addToast(err.message || "Error uploading avatar.", "error");
+      } finally {
+        setIsSaving(false);
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
     }
   };

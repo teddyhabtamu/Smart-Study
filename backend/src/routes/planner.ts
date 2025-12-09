@@ -6,6 +6,28 @@ import { ApiResponse, StudyEvent, User } from '../types';
 
 const router = express.Router();
 
+// Subject normalization map - maps common variations to allowed subjects
+const normalizeSubject = (subject: string): string | null => {
+  if (!subject) return null;
+  
+  const normalized = subject.trim();
+  const subjectMap: Record<string, string> = {
+    'mathematics': 'Mathematics',
+    'math': 'Mathematics',
+    'maths': 'Mathematics',
+    'english': 'English',
+    'history': 'History',
+    'chemistry': 'Chemistry',
+    'physics': 'Physics',
+    'biology': 'Biology',
+    'general': 'Mathematics', // Default to Mathematics for "General"
+    'other': 'Mathematics'
+  };
+
+  const lowerSubject = normalized.toLowerCase();
+  return subjectMap[lowerSubject] || (['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology'].includes(normalized) ? normalized : null);
+};
+
 // Get user's study events
 router.get('/events', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
@@ -49,22 +71,80 @@ router.get('/events', authenticateToken, async (req: express.Request, res: expre
 router.post('/events', [
   authenticateToken,
   body('title').trim().isLength({ min: 1, max: 200 }).withMessage('Title is required'),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
-  body('event_date').isString().isLength({ min: 10, max: 10 }).withMessage('Valid date required'),
+  body('subject').notEmpty().withMessage('Subject is required'),
+  body('event_date').notEmpty().withMessage('Date is required'),
   body('event_type').isIn(['Exam', 'Revision', 'Assignment']).withMessage('Valid event type required')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { title, subject, event_date, event_type, notes } = req.body;
+    let { title, subject, event_date, event_type, notes } = req.body;
+
+    // Normalize subject
+    const normalizedSubject = normalizeSubject(subject);
+    if (!normalizedSubject) {
+      console.error('Invalid subject received:', subject);
+      res.status(400).json({
+        success: false,
+        message: `Invalid subject: "${subject}". Must be one of: Mathematics, English, History, Chemistry, Physics, Biology`,
+        errors: [{ field: 'subject', message: 'Invalid subject value' }]
+      } as ApiResponse);
+      return;
+    }
+
+    // Normalize and validate date format (YYYY-MM-DD)
+    if (typeof event_date === 'string') {
+      event_date = event_date.trim();
+      // Check if it's a valid date format
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(event_date)) {
+        console.error('Invalid date format received:', event_date);
+        res.status(400).json({
+          success: false,
+          message: `Invalid date format: "${event_date}". Must be in YYYY-MM-DD format`,
+          errors: [{ field: 'event_date', message: 'Date must be in YYYY-MM-DD format' }]
+        } as ApiResponse);
+        return;
+      }
+      
+      // Validate it's a valid date
+      const dateObj = new Date(event_date);
+      if (isNaN(dateObj.getTime())) {
+        console.error('Invalid date value received:', event_date);
+        res.status(400).json({
+          success: false,
+          message: `Invalid date value: "${event_date}"`,
+          errors: [{ field: 'event_date', message: 'Invalid date value' }]
+        } as ApiResponse);
+        return;
+      }
+    } else {
+      console.error('Date is not a string:', event_date);
+      res.status(400).json({
+        success: false,
+        message: 'Date must be a string in YYYY-MM-DD format',
+        errors: [{ field: 'event_date', message: 'Date must be a string' }]
+      } as ApiResponse);
+      return;
+    }
+
+    // Log the incoming data for debugging
+    console.log('Creating study event:', {
+      userId,
+      title,
+      subject: normalizedSubject,
+      event_date,
+      event_type,
+      notes: notes || ''
+    });
 
     const eventData = {
       user_id: userId,
-      title,
-      subject,
+      title: title.trim(),
+      subject: normalizedSubject,
       event_date,
       event_type,
       is_completed: false,
-      notes: notes || ''
+      notes: (notes || '').trim()
     };
 
     const inserted = await dbAdmin.insert('study_events', eventData);
@@ -78,7 +158,8 @@ router.post('/events', [
     console.error('Create study event error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create study event'
+      message: 'Failed to create study event',
+      error: error instanceof Error ? error.message : 'Unknown error'
     } as ApiResponse);
   }
 });

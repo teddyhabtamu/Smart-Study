@@ -30,6 +30,36 @@ const Dashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Refresh dashboard when page becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user) {
+        fetchDashboard();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Refresh dashboard when bookmarks change
+  useEffect(() => {
+    const handleBookmarksChanged = () => {
+      if (user) {
+        fetchDashboard();
+      }
+    };
+
+    window.addEventListener('bookmarksChanged', handleBookmarksChanged);
+    return () => {
+      window.removeEventListener('bookmarksChanged', handleBookmarksChanged);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
 
   // Set greeting based on time
   useEffect(() => {

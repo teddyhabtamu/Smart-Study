@@ -214,29 +214,45 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
 
     if (sql.includes('update users')) {
       const updates: any = {};
-      const id = params[params.length - 1];
 
       // Parse SET clause
       const setMatch = sql.match(/set\s+(.*?)\s+where/i);
       if (setMatch && setMatch[1]) {
         const assignments = setMatch[1].split(',').map(a => a.trim());
-        assignments.forEach((assignment, index) => {
-          const [column] = assignment.split('=').map(s => s.trim());
-          if (column && params[index] !== undefined) {
-            updates[column] = params[index];
+        assignments.forEach((assignment) => {
+          const [column, value] = assignment.split('=').map(s => s.trim());
+          if (column) {
+            // Check if this is a parameter placeholder (e.g., $1, $2)
+            if (value && value.match(/^\$\d+$/)) {
+              const placeholderIndex = parseInt(value.substring(1)) - 1;
+              if (params[placeholderIndex] !== undefined) {
+                updates[column] = params[placeholderIndex];
+              }
+            } else if (value === 'CURRENT_TIMESTAMP') {
+              // Handle SQL functions
+              updates[column] = new Date().toISOString();
+            }
           }
         });
       }
 
-      const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+      // Find the WHERE id parameter - it's the last parameter that hasn't been used for SET
+      // Extract the parameter number from WHERE id = $X
+      const whereMatch = sql.match(/where\s+id\s*=\s*\$(\d+)/i);
+      if (whereMatch && whereMatch[1]) {
+        const whereParamIndex = parseInt(whereMatch[1]) - 1;
+        const id = params[whereParamIndex];
 
-      if (error) throw error;
-      return { rows: data ? [data] : [], rowCount: data ? 1 : 0 };
+        const { data, error } = await supabase
+          .from('users')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return { rows: data ? [data] : [], rowCount: data ? 1 : 0 };
+      }
     }
 
     // Handle notifications queries

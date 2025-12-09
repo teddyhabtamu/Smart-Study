@@ -114,6 +114,28 @@ export const usersAPI = {
       body: JSON.stringify(data),
     }),
 
+  uploadAvatar: (file: File): Promise<{ avatar: string }> => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    
+    const token = getAuthToken();
+    const url = `${API_BASE_URL}/users/avatar`;
+    
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: formData,
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to upload avatar');
+      }
+      return data.data;
+    });
+  },
+
   getBookmarks: (): Promise<{ id: string; item_id: string; item_type: 'document' | 'video'; created_at: string; item: Document | Video }[]> =>
     apiRequest('/users/bookmarks'),
 
@@ -367,7 +389,7 @@ export const aiTutorAPI = {
   generateStudyPlan: (prompt: string, grade?: number): Promise<{ plan: any[]; xpGained: number }> =>
     apiRequest('/ai-tutor/generate-study-plan', {
       method: 'POST',
-      body: JSON.stringify({ prompt, grade }),
+      body: JSON.stringify({ prompt, ...(grade !== undefined ? { grade } : {}) }),
     }),
 
   generatePracticeQuiz: (subject: string, grade: string, difficulty: string, count: number): Promise<{ data: any[]; xpGained: number }> => {

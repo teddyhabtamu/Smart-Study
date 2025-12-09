@@ -10,11 +10,11 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
   try {
     const userId = req.user!.id;
 
-    // Get today's date in YYYY-MM-DD format (UTC to avoid timezone issues)
+    // Get today's date in YYYY-MM-DD format (use local date to match event dates)
     const today = new Date();
-    const todayStr = today.getUTCFullYear() + '-' +
-      String(today.getUTCMonth() + 1).padStart(2, '0') + '-' +
-      String(today.getUTCDate()).padStart(2, '0');
+    const todayStr = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
 
     // Get user profile with bookmarks
     const userResult = await query(`
@@ -38,7 +38,7 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 
     // Get today's study events
     const todaysEventsResult = await query(`
-      SELECT id, title, subject, event_type as type, is_completed as "isCompleted", notes, event_date
+      SELECT id, title, subject, event_type as type, is_completed, notes, event_date
       FROM study_events
       WHERE user_id = $1 AND event_date = $2
       ORDER BY created_at ASC
@@ -46,53 +46,66 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 
 
 
-    // Get recent bookmarks with item details (documents and videos)
-    const bookmarksResult = await query(`
-      SELECT
-        b.item_id,
-        b.item_type,
-        CASE
-          WHEN b.item_type = 'document' THEN
-            json_build_object(
-              'id', d.id,
-              'title', d.title,
-              'subject', d.subject,
-              'grade', d.grade,
-              'previewImage', d.preview_image,
-              'isPremium', d.is_premium
-            )
-          WHEN b.item_type = 'video' THEN
-            json_build_object(
-              'id', v.id,
-              'title', v.title,
-              'subject', v.subject,
-              'grade', v.grade,
-              'thumbnail', v.thumbnail,
-              'isPremium', v.is_premium
-            )
-        END as item
-      FROM bookmarks b
-      LEFT JOIN documents d ON b.item_type = 'document' AND b.item_id = d.id::text
-      LEFT JOIN videos v ON b.item_type = 'video' AND b.item_id = v.id::text
-      WHERE b.user_id = $1
-      ORDER BY b.created_at DESC
-      LIMIT 6
-    `, [userId]);
+    // Use bookmarks from user profile and get details
+    const recentBookmarks = [];
+    if (user.bookmarks && user.bookmarks.length > 0) {
+      // For each bookmark, try to find it as a document first, then as a video
+      for (const bookmarkId of user.bookmarks.slice(0, 6)) {
+        let itemResult = null;
+        let itemType = null;
 
-    // Transform bookmarks data
-    const recentBookmarks = bookmarksResult.rows.map(row => ({
-      id: row.item_id,
-      type: row.item_type,
-      title: row.item?.title,
-      subject: row.item?.subject,
-      grade: row.item?.grade,
-      previewImage: row.item_type === 'document' ? row.item?.previewImage : row.item?.thumbnail,
-      isPremium: row.item?.isPremium
-    })).filter(item => item.title); // Filter out any null items
+        // Try to find as document first
+        const docResult = await query(`
+          SELECT id, title, subject, grade, preview_image as "previewImage", is_premium as "isPremium"
+          FROM documents
+          WHERE id = $1
+        `, [bookmarkId]);
+
+        if (docResult.rows.length > 0) {
+          itemResult = docResult;
+          itemType = 'document';
+        } else {
+          // Try to find as video
+          const videoResult = await query(`
+            SELECT id, title, subject, grade, thumbnail as "previewImage", is_premium as "isPremium"
+            FROM videos
+            WHERE id = $1
+          `, [bookmarkId]);
+
+          if (videoResult.rows.length > 0) {
+            itemResult = videoResult;
+            itemType = 'video';
+          }
+        }
+
+        if (itemResult && itemType) {
+          const item = itemResult.rows[0];
+          recentBookmarks.push({
+            id: bookmarkId,
+            type: itemType,
+            title: item.title,
+            subject: item.subject,
+            grade: item.grade,
+            previewImage: item.previewImage,
+            isPremium: item.isPremium
+          });
+        }
+      }
+    }
 
     // Calculate today's progress
-    const todaysEvents = todaysEventsResult.rows;
-    const completedToday = todaysEvents.filter((e: any) => e.isCompleted).length;
+    // Transform events to match frontend format (is_completed -> isCompleted)
+    const todaysEvents = todaysEventsResult.rows.map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      subject: e.subject,
+      type: e.type || e.event_type,
+      isCompleted: e.is_completed === true || e.is_completed === 'true',
+      notes: e.notes,
+      date: e.event_date
+    }));
+    
+    const completedToday = todaysEvents.filter((e: any) => e.isCompleted === true).length;
     const totalToday = todaysEvents.length;
     const progressPercentage = totalToday === 0 ? 0 : Math.round((completedToday / totalToday) * 100);
 

@@ -234,14 +234,15 @@ router.delete('/sessions/:id', authenticateToken, async (req: express.Request, r
 // Generate Study Plan using AI
 router.post('/generate-study-plan', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const { prompt, grade } = req.body;
+    const { prompt } = req.body;
+    // Grade is optional and not currently used
     const userId = req.user!.id;
 
     // Import the specialized study plan generator
     const { generateStudyPlan } = await import('../services/geminiService');
 
     // Generate structured study plan
-    const studyPlan = await generateStudyPlan(prompt, grade);
+    const studyPlan = await generateStudyPlan(prompt);
 
     // Award XP for using AI planner
     const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);

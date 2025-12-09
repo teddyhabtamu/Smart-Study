@@ -200,8 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await usersAPI.addBookmark(itemId, itemType);
       }
 
-      // No need to refresh user data for bookmarks since we use optimistic updates
-      // The bookmarks will be correct on next page load
+      // Dispatch custom event to notify other components (like Dashboard) to refresh
+      window.dispatchEvent(new CustomEvent('bookmarksChanged'));
     } catch (error) {
       console.error('Toggle bookmark error:', error);
       // Revert optimistic update on error

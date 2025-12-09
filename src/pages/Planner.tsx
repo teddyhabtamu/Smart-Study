@@ -121,7 +121,7 @@ const Planner: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      const response = await aiTutorAPI.generateStudyPlan(aiPrompt, 10);
+      const response = await aiTutorAPI.generateStudyPlan(aiPrompt);
 
       // The response already contains parsed JSON
       const plan = response.plan;

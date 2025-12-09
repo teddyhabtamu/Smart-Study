@@ -95,9 +95,20 @@ passport.use(new GoogleStrategy({
       if (!user.google_id) {
         try {
           const updateData: any = {
-            avatar: avatar || user.avatar,
             updated_at: new Date().toISOString()
           };
+
+          // Only update avatar if user doesn't have a custom one
+          // Check if avatar is null, empty, or is a Google avatar URL (contains googleusercontent.com)
+          const hasCustomAvatar = user.avatar && 
+                                  user.avatar.trim() !== '' && 
+                                  !user.avatar.includes('googleusercontent.com') &&
+                                  !user.avatar.includes('googleapis.com');
+          
+          // Only set Google avatar if user doesn't have a custom avatar
+          if (!hasCustomAvatar && avatar) {
+            updateData.avatar = avatar;
+          }
 
           // Only add google_id if the user object doesn't already have it
           // This handles cases where the column might not exist in schema cache
@@ -113,27 +124,58 @@ passport.use(new GoogleStrategy({
           if (updateError) {
             // If google_id column doesn't exist, try without it
             if (updateError.message?.includes('google_id') || updateError.code === '42703') {
-              console.warn('google_id column not available, updating avatar only');
+              console.warn('google_id column not available, updating without it');
+              const fallbackUpdate: any = {
+                updated_at: new Date().toISOString()
+              };
+              
+              // Only update avatar if user doesn't have a custom one
+              if (!hasCustomAvatar && avatar) {
+                fallbackUpdate.avatar = avatar;
+              }
+              
               const { error: avatarUpdateError } = await supabase
                 .from('users')
-                .update({
-                  avatar: avatar || user.avatar,
-                  updated_at: new Date().toISOString()
-                })
+                .update(fallbackUpdate)
                 .eq('id', user.id);
 
-              if (avatarUpdateError) console.warn('Failed to update avatar:', avatarUpdateError);
-              else if (avatar) user.avatar = avatar;
+              if (avatarUpdateError) console.warn('Failed to update user:', avatarUpdateError);
+              else if (!hasCustomAvatar && avatar) user.avatar = avatar;
             } else {
               throw updateError;
             }
           } else {
             user.google_id = id;
-            if (avatar) user.avatar = avatar;
+            if (!hasCustomAvatar && avatar) user.avatar = avatar;
           }
         } catch (updateError: any) {
           console.error('Error updating user with Google info:', updateError);
           // Continue with authentication even if update fails
+        }
+      } else {
+        // User already has google_id, but check if we should update avatar
+        // Only update if user doesn't have a custom avatar
+        const hasCustomAvatar = user.avatar && 
+                                user.avatar.trim() !== '' && 
+                                !user.avatar.includes('googleusercontent.com') &&
+                                !user.avatar.includes('googleapis.com');
+        
+        if (!hasCustomAvatar && avatar && user.avatar !== avatar) {
+          try {
+            const { error: avatarUpdateError } = await supabase
+              .from('users')
+              .update({
+                avatar: avatar,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
+
+            if (!avatarUpdateError) {
+              user.avatar = avatar;
+            }
+          } catch (avatarError) {
+            console.warn('Failed to update Google avatar:', avatarError);
+          }
         }
       }
 

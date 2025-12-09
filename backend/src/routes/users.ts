@@ -1,11 +1,29 @@
 import express from 'express';
 import { body } from 'express-validator';
 import bcrypt from 'bcryptjs';
-import { query, dbAdmin } from '../database/config';
+import multer from 'multer';
+import { query, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
+
+// Configure multer for memory storage (we'll upload directly to Supabase)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 // Get top learners leaderboard (public endpoint) - only students, exclude admins
 router.get('/leaderboard', async (req: express.Request, res: express.Response): Promise<void> => {
@@ -174,6 +192,172 @@ router.put('/profile', [
     res.status(500).json({
       success: false,
       message: 'Failed to update profile'
+    } as ApiResponse);
+  }
+});
+
+// Upload avatar image
+router.post('/avatar', authenticateToken, upload.single('avatar'), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const file = req.file;
+
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      } as ApiResponse);
+      return;
+    }
+
+    // Generate unique filename
+    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    const fileName = `${userId}/${uuidv4()}.${fileExt}`;
+
+    // Ensure the avatars bucket exists and check if it's public
+    const { data: buckets, error: bucketsError } = await supabaseAdmin
+      .storage
+      .listBuckets();
+
+    let isBucketPublic = false;
+    if (!bucketsError && buckets) {
+      const avatarsBucket = buckets.find(b => b.name === 'avatars');
+      if (!avatarsBucket) {
+        // Try to create the bucket as public (may fail if no permissions, but that's ok)
+        const { error: createError } = await supabaseAdmin.storage.createBucket('avatars', {
+          public: true,
+          fileSizeLimit: 2097152, // 2MB
+          allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+        });
+        if (!createError) {
+          isBucketPublic = true;
+        }
+      } else {
+        isBucketPublic = avatarsBucket.public === true;
+      }
+    }
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabaseAdmin
+      .storage
+      .from('avatars')
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false, // Don't overwrite existing files
+      });
+
+    if (uploadError) {
+      console.error('Supabase storage upload error:', uploadError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload avatar'
+      } as ApiResponse);
+      return;
+    }
+
+    if (!uploadData || !uploadData.path) {
+      console.error('Upload succeeded but no path returned:', uploadData);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload avatar: no path returned'
+      } as ApiResponse);
+      return;
+    }
+
+    // Use the actual path from the upload response (Supabase may normalize it)
+    const filePath = uploadData.path;
+
+    // Verify the file exists by trying to download it with admin client
+    const { data: verifyData, error: verifyError } = await supabaseAdmin
+      .storage
+      .from('avatars')
+      .download(filePath);
+
+    if (verifyError || !verifyData) {
+      console.error('File verification failed after upload:', verifyError);
+      res.status(500).json({
+        success: false,
+        message: 'File uploaded but verification failed'
+      } as ApiResponse);
+      return;
+    }
+
+    // Generate URL based on bucket public status
+    let avatarUrl: string;
+
+    if (isBucketPublic) {
+      // Use public URL if bucket is public
+      const { data: urlData } = supabaseAdmin
+        .storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      if (urlData && urlData.publicUrl) {
+        avatarUrl = urlData.publicUrl;
+      } else {
+        // Fallback to signed URL if public URL generation fails
+        const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin
+          .storage
+          .from('avatars')
+          .createSignedUrl(filePath, 31536000); // 1 year expiry
+
+        if (signedUrlError || !signedUrlData?.signedUrl) {
+          console.error('Failed to generate URL:', signedUrlError);
+          res.status(500).json({
+            success: false,
+            message: 'Failed to generate avatar URL'
+          } as ApiResponse);
+          return;
+        }
+
+        avatarUrl = signedUrlData.signedUrl;
+      }
+    } else {
+      // Use signed URL if bucket is not public
+      const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin
+        .storage
+        .from('avatars')
+        .createSignedUrl(filePath, 31536000); // 1 year expiry
+
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        console.error('Failed to generate signed URL:', signedUrlError);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to generate avatar URL. Please ensure the avatars bucket exists and is accessible.'
+        } as ApiResponse);
+        return;
+      }
+
+      avatarUrl = signedUrlData.signedUrl;
+      console.warn('Bucket is not public. Using signed URL. To use public URLs, make the avatars bucket public in Supabase dashboard.');
+    }
+
+    // Log for debugging
+    console.log('Avatar uploaded successfully:', {
+      originalFileName: fileName,
+      actualPath: filePath,
+      avatarUrl,
+      isSignedUrl: avatarUrl.includes('token=')
+    });
+
+    // Update user's avatar in database
+    const result = await query(
+      'UPDATE users SET avatar = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING avatar',
+      [avatarUrl, userId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        avatar: avatarUrl
+      },
+      message: 'Avatar uploaded successfully'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload avatar'
     } as ApiResponse);
   }
 });
