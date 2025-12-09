@@ -5,10 +5,10 @@ import { query } from '../database/config';
 
 // Configure Google OAuth Strategy
 passport.use(new GoogleStrategy({
-  clientID: config.google.clientId,
-  clientSecret: config.google.clientSecret,
+  clientID: config.google.clientId!,
+  clientSecret: config.google.clientSecret!,
   callbackURL: `${config.server.frontendUrl}/api/auth/google/callback`
-}, async (accessToken, refreshToken, profile, done) => {
+}, async (accessToken: string, refreshToken: string, profile: any, done: any) => {
   try {
     const { id, displayName, emails, photos } = profile;
     const email = emails?.[0]?.value;
@@ -55,7 +55,7 @@ passport.use(new GoogleStrategy({
     }
 
     // Update last active date and streak
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0]!;
     const todayDate = new Date(today);
     if (user.last_active_date !== today) {
       const lastActive = user.last_active_date ? new Date(user.last_active_date) : todayDate;

@@ -1,7 +1,7 @@
 import express from 'express';
 import { query } from '../database/config';
 import { authenticateToken } from '../middleware/auth';
-import { ApiResponse } from '../types';
+import { ApiResponse, User } from '../types';
 
 const router = express.Router();
 

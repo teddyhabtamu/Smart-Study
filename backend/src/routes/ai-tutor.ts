@@ -1,7 +1,7 @@
 import express from 'express';
 import { dbAdmin } from '../database/config';
 import { authenticateToken } from '../middleware/auth';
-import { ApiResponse, ChatSession } from '../types';
+import { ApiResponse, ChatSession, User } from '../types';
 
 const router = express.Router();
 

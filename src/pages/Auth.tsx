@@ -68,9 +68,14 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
   const handleGoogleLogin = () => {
     setIsGoogleLoading(true);
-    // TODO: Implement Google OAuth
-    addToast("Google login not implemented yet.", "info");
-    setIsGoogleLoading(false);
+    try {
+      // Redirect to Google OAuth
+      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
+    } catch (error) {
+      console.error('Google login error:', error);
+      addToast("Failed to initiate Google login. Please try again.", "error");
+      setIsGoogleLoading(false);
+    }
   };
 
   return (

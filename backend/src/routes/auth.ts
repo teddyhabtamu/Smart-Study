@@ -4,7 +4,7 @@ import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
 import { authenticateToken, generateToken, validateRequest } from '../middleware/auth';
 import passport from '../middleware/googleAuth';
-import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse } from '../types';
+import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 
 const router = express.Router();
 
@@ -185,7 +185,7 @@ router.get('/google/callback',
   (req: express.Request, res: express.Response): void => {
     // Generate JWT token for the authenticated user
     // req.user is guaranteed to exist here due to successful authentication
-    const token = generateToken(req.user as any);
+    const token = generateToken(req.user as User);
 
     // Redirect to frontend with token
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';

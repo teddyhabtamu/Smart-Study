@@ -2,7 +2,7 @@ import express from 'express';
 import { body, query } from 'express-validator';
 import { query as dbQuery, db } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
-import { ApiResponse, Document } from '../types';
+import { ApiResponse, Document, User } from '../types';
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {

@@ -2,7 +2,7 @@ import express from 'express';
 import { body, query as queryValidator } from 'express-validator';
 import { db, dbAdmin, query } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
-import { ApiResponse, ForumPost, ForumComment } from '../types';
+import { ApiResponse, ForumPost, ForumComment, User } from '../types';
 
 const router = express.Router();
 

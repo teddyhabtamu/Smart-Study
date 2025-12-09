@@ -5,15 +5,6 @@ import { query } from '../database/config';
 import { config } from '../config';
 import { JWTPayload, User } from '../types';
 
-// Extend Express Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User;
-    }
-  }
-}
-
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
@@ -27,7 +18,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return;
     }
 
-    const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+    const decoded = jwt.verify(token, config.jwt.secret!) as unknown as JWTPayload;
 
     // Fetch user from database to ensure they still exist and get latest data
     const result = await query(
@@ -43,7 +34,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return;
     }
 
-    req.user = result.rows[0];
+    req.user = result.rows[0] as User;
     return next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
@@ -98,7 +89,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (token) {
-      const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+      const decoded = jwt.verify(token, config.jwt.secret!) as unknown as JWTPayload;
 
       // Fetch user from database to ensure they still exist and get latest data
       const result = await query(
@@ -107,7 +98,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
       );
 
       if (result.rows.length > 0) {
-        req.user = result.rows[0];
+        req.user = result.rows[0] as User;
       }
     }
   } catch (error) {
