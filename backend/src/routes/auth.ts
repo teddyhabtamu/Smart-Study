@@ -47,8 +47,14 @@ router.post('/register', [
     // Create welcome notification
     await query(`
       INSERT INTO notifications (user_id, title, message, type, is_read)
-      VALUES ($1, 'Welcome to SmartStudy!', 'Complete your profile to earn your first badge.', 'INFO', false)
-    `, [user.id]);
+      VALUES ($1, $2, $3, $4, $5)
+    `, [
+      user.id,
+      'Welcome to SmartStudy!',
+      'Complete your profile to earn your first badge.',
+      'INFO',
+      false
+    ]);
 
     res.status(201).json({
       success: true,
