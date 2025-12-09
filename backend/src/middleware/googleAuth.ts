@@ -24,21 +24,26 @@ passport.use(new GoogleStrategy({
 
     let user;
     if (result.rows.length === 0) {
-      // Create new user
+      // Create new user (use placeholder password_hash for OAuth users)
       const createResult = await query(`
-        INSERT INTO users (name, email, google_id, avatar, role, preferences, unlocked_badges, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], NOW(), NOW())
+        INSERT INTO users (name, email, password_hash, google_id, avatar, role, preferences, unlocked_badges, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], NOW(), NOW())
         RETURNING id, name, email, google_id, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
-      `, [name, email, id, avatar]);
+      `, [name, email, 'oauth_user_no_password', id, avatar]);
 
       user = createResult.rows[0];
       user.bookmarks = [];
 
       // Create welcome notification
-      await query(`
-        INSERT INTO notifications (user_id, title, message, type, is_read)
-        VALUES ($1, 'Welcome to SmartStudy!', 'Complete your profile to earn your first badge.', 'INFO', false)
-      `, [user.id]);
+      try {
+        await query(`
+          INSERT INTO notifications (user_id, title, message, type, is_read)
+          VALUES ($1, 'Welcome to SmartStudy!', 'Complete your profile to earn your first badge.', 'INFO', false)
+        `, [user.id]);
+      } catch (notificationError) {
+        console.error('Failed to create welcome notification:', notificationError);
+        // Continue with authentication even if notification creation fails
+      }
     } else {
       // User exists, update Google info if needed
       user = result.rows[0];
