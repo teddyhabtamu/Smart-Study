@@ -21,7 +21,7 @@ const AuthCallback: React.FC = () => {
           localStorage.setItem('auth_token', token);
 
           // Verify the token by calling the API
-          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/verify`, {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }

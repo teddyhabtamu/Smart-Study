@@ -70,7 +70,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
     setIsGoogleLoading(true);
     try {
       // Redirect to Google OAuth
-      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`;
+      window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
     } catch (error) {
       console.error('Google login error:', error);
       addToast("Failed to initiate Google login. Please try again.", "error");

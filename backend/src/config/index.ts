@@ -3,6 +3,22 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// Validate required environment variables
+const requiredEnvVars = [
+  'SUPABASE_URL',
+  'SUPABASE_ANON_KEY',
+  'JWT_SECRET',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'FRONTEND_URL',
+  'BACKEND_URL'
+];
+
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+if (missingVars.length > 0) {
+  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+}
+
 // Environment configuration
 export const config = {
   database: {
@@ -24,8 +40,8 @@ export const config = {
   server: {
     port: parseInt(process.env.PORT || '5000'),
     nodeEnv: process.env.NODE_ENV || 'development',
-    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-    backendUrl: process.env.BACKEND_URL || 'http://localhost:5000'
+    frontendUrl: process.env.FRONTEND_URL,
+    backendUrl: process.env.BACKEND_URL
   },
   fileUpload: {
     maxSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB
