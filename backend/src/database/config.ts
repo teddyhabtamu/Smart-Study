@@ -164,7 +164,7 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
     }
 
     if (sql.includes('insert into users')) {
-      const userData = {
+      const userData: any = {
         name: params[0],
         email: params[1],
         password_hash: params[2],
@@ -177,6 +177,10 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
         streak: 0,
         practice_attempts: 0
       };
+
+      // Handle OAuth registration with additional fields
+      if (params[3]) userData.google_id = params[3]; // google_id
+      if (params[4]) userData.avatar = params[4]; // avatar
 
       const { data, error } = await supabase
         .from('users')

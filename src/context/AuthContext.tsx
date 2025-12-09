@@ -4,7 +4,7 @@ import { authAPI, usersAPI } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (emailOrUser: string | User, password?: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<User>) => Promise<void>;
@@ -27,21 +27,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('auth_token');
+      const savedUser = localStorage.getItem('smartstudy_user');
+
       if (token) {
         try {
           const response = await authAPI.verify();
+          const userData = response.user as any; // Backend user format
           // Transform snake_case fields to camelCase to match User interface
-          const transformedUser = {
-            ...response.user,
-            isPremium: (response.user as any).is_premium,
-            is_premium: undefined
+          const transformedUser: User = {
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            isPremium: userData.is_premium || userData.isPremium || false,
+            bookmarks: userData.bookmarks || [],
+            avatar: userData.avatar,
+            preferences: userData.preferences,
+            status: userData.status || 'Active',
+            joinedDate: userData.created_at || userData.joinedDate,
+            xp: userData.xp || 0,
+            level: userData.level || 1,
+            streak: userData.streak || 0,
+            lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
+            unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
+            practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+            notifications: userData.notifications || []
           };
           setUser(transformedUser);
+          // Save to localStorage for persistence
+          localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
           // Load full profile including bookmarks
           await refreshUser();
         } catch (error) {
           console.error('Token verification failed:', error);
           localStorage.removeItem('auth_token');
+          localStorage.removeItem('smartstudy_user');
+          setUser(null);
+        }
+      } else if (savedUser) {
+        // Try to use saved user data if no token (shouldn't happen in normal flow)
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          // Try to refresh to ensure data is current
+          await refreshUser();
+        } catch (error) {
+          console.error('Failed to parse saved user:', error);
+          localStorage.removeItem('smartstudy_user');
+          setUser(null);
         }
       }
       setIsLoading(false);
@@ -50,9 +83,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (emailOrUser: string | User, password?: string) => {
+    // Handle OAuth login (User object passed directly)
+    if (typeof emailOrUser === 'object' && emailOrUser.id) {
+      const userData = emailOrUser as any; // Backend user format
+      // Transform snake_case fields to camelCase to match User interface
+      const transformedUser: User = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        isPremium: userData.is_premium || userData.isPremium || false,
+        bookmarks: userData.bookmarks || [],
+        avatar: userData.avatar,
+        preferences: userData.preferences,
+        status: userData.status || 'Active',
+        joinedDate: userData.created_at || userData.joinedDate,
+        xp: userData.xp || 0,
+        level: userData.level || 1,
+        streak: userData.streak || 0,
+        lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
+        unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
+        practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        notifications: userData.notifications || []
+      };
+      setUser(transformedUser);
+      // Save to localStorage for persistence
+      localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
+      return;
+    }
+
+    // Handle regular email/password login
+    const email = emailOrUser as string;
     try {
-      const response = await authAPI.login(email, password);
+      const response = await authAPI.login(email, password!);
       localStorage.setItem('auth_token', response.token);
       // Transform snake_case fields to camelCase to match User interface
       const transformedUser = {

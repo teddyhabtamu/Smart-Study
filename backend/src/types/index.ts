@@ -11,6 +11,8 @@ export interface User {
     emailNotifications: boolean;
     studyReminders: boolean;
   };
+  // Added for convenience in middleware/verify responses
+  bookmarks?: string[];
   xp: number;
   level: number;
   streak: number;

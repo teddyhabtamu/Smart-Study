@@ -34,7 +34,17 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return;
     }
 
-    req.user = result.rows[0] as User;
+    const user = result.rows[0] as User;
+
+    // Get bookmarks for this user (same as login does)
+    const bookmarksResult = await query(
+      'SELECT item_id FROM bookmarks WHERE user_id = $1',
+      [user.id]
+    );
+
+    user.bookmarks = bookmarksResult.rows.map(row => row.item_id);
+
+    req.user = user;
     return next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {

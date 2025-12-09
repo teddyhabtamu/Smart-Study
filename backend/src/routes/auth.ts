@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
+import { config } from '../config';
 import { authenticateToken, generateToken, validateRequest } from '../middleware/auth';
 import passport from '../middleware/googleAuth';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
@@ -181,15 +182,16 @@ router.get('/google',
 );
 
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req: express.Request, res: express.Response): void => {
     // Generate JWT token for the authenticated user
     // req.user is guaranteed to exist here due to successful authentication
     const token = generateToken(req.user as User);
 
-    // Redirect to frontend with token
-    const frontendUrl = process.env.FRONTEND_URL;
-    res.redirect(`${frontendUrl}/auth/callback?token=${token}&success=true`);
+    // Redirect to frontend auth callback with token
+    const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+    const redirectUrl = `${frontendUrl}/#/auth/callback?token=${token}&success=true`;
+    res.redirect(redirectUrl);
   }
 );
 

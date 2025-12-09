@@ -7,6 +7,7 @@ import Library from './pages/Library';
 import DocumentView from './pages/DocumentView';
 import Dashboard from './pages/Dashboard';
 import Auth from './pages/Auth';
+import AuthCallback from './pages/AuthCallback';
 import Subscription from './pages/Subscription';
 import Admin from './pages/Admin';
 import AITutor from './pages/AITutor';
@@ -85,6 +86,7 @@ const App: React.FC = () => {
           {/* Auth Routes */}
           <Route path="/login" element={<Auth type="login" />} />
           <Route path="/register" element={<Auth type="register" />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           
           {/* Protected Routes */}
           <Route 

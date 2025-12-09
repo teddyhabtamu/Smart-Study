@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    google_id TEXT,
     role user_role DEFAULT 'STUDENT',
     is_premium BOOLEAN DEFAULT FALSE,
     avatar TEXT,

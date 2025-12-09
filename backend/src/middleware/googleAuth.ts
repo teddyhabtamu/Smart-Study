@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { config } from '../config';
-import { query } from '../database/config';
+import { supabase } from '../database/config';
 
 // Configure Google OAuth Strategy
 passport.use(new GoogleStrategy({
@@ -20,47 +20,124 @@ passport.use(new GoogleStrategy({
     }
 
     // Check if user exists
-    let result = await query('SELECT * FROM users WHERE email = $1', [email]);
+    const { data: existingUser, error: selectError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
 
     let user;
-    if (result.rows.length === 0) {
+    if (selectError?.code === 'PGRST116' || !existingUser) {
       // Create new user (use placeholder password_hash for OAuth users)
-      const createResult = await query(`
-        INSERT INTO users (name, email, password_hash, google_id, avatar, role, preferences, unlocked_badges, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], NOW(), NOW())
-        RETURNING id, name, email, google_id, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
-      `, [name, email, 'oauth_user_no_password', id, avatar]);
+      const userData: any = {
+        name,
+        email,
+        password_hash: 'oauth_user_no_password',
+        avatar: avatar || null,
+        role: 'STUDENT',
+        preferences: { emailNotifications: true, studyReminders: true },
+        unlocked_badges: ['b1'],
+        is_premium: false,
+        xp: 0,
+        level: 1,
+        streak: 0,
+        practice_attempts: 0
+      };
 
-      user = createResult.rows[0];
+      // Try to add google_id, but don't fail if column doesn't exist yet
+      // Note: google_id column should exist in schema, but handle gracefully if not
+      userData.google_id = id;
+
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert(userData)
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      user = newUser;
       user.bookmarks = [];
 
       // Create welcome notification
       try {
-        await query(`
-          INSERT INTO notifications (user_id, title, message, type, is_read)
-          VALUES ($1, 'Welcome to SmartStudy!', 'Complete your profile to earn your first badge.', 'INFO', false)
-        `, [user.id]);
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: user.id,
+            title: 'Welcome to SmartStudy!',
+            message: 'Complete your profile to earn your first badge.',
+            type: 'INFO',
+            is_read: false
+          });
       } catch (notificationError) {
         console.error('Failed to create welcome notification:', notificationError);
         // Continue with authentication even if notification creation fails
       }
     } else {
       // User exists, update Google info if needed
-      user = result.rows[0];
+      user = existingUser;
 
+      // Try to update google_id if user doesn't have it
       if (!user.google_id) {
-        await query('UPDATE users SET google_id = $1, avatar = COALESCE($2, avatar), updated_at = NOW() WHERE id = $3', [id, avatar, user.id]);
-        user.google_id = id;
-        if (avatar) user.avatar = avatar;
+        try {
+          const updateData: any = {
+            avatar: avatar || user.avatar,
+            updated_at: new Date().toISOString()
+          };
+
+          // Only add google_id if the user object doesn't already have it
+          // This handles cases where the column might not exist in schema cache
+          if (!user.google_id) {
+            updateData.google_id = id;
+          }
+
+          const { error: updateError } = await supabase
+            .from('users')
+            .update(updateData)
+            .eq('id', user.id);
+
+          if (updateError) {
+            // If google_id column doesn't exist, try without it
+            if (updateError.message?.includes('google_id') || updateError.code === '42703') {
+              console.warn('google_id column not available, updating avatar only');
+              const { error: avatarUpdateError } = await supabase
+                .from('users')
+                .update({
+                  avatar: avatar || user.avatar,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+
+              if (avatarUpdateError) console.warn('Failed to update avatar:', avatarUpdateError);
+              else if (avatar) user.avatar = avatar;
+            } else {
+              throw updateError;
+            }
+          } else {
+            user.google_id = id;
+            if (avatar) user.avatar = avatar;
+          }
+        } catch (updateError: any) {
+          console.error('Error updating user with Google info:', updateError);
+          // Continue with authentication even if update fails
+        }
       }
 
       // Get bookmarks
-      const bookmarksResult = await query('SELECT item_id FROM bookmarks WHERE user_id = $1', [user.id]);
-      user.bookmarks = bookmarksResult.rows.map(row => row.item_id);
+      const { data: bookmarks, error: bookmarksError } = await supabase
+        .from('bookmarks')
+        .select('item_id')
+        .eq('user_id', user.id);
+
+      if (bookmarksError) throw bookmarksError;
+
+      user.bookmarks = bookmarks.map(row => row.item_id);
     }
 
     // Update last active date and streak
-    const today = new Date().toISOString().split('T')[0]!;
+    const todayISO = new Date().toISOString();
+    const today = todayISO.split('T')[0] || todayISO.substring(0, 10);
     const todayDate = new Date(today);
     if (user.last_active_date !== today) {
       const lastActive = user.last_active_date ? new Date(user.last_active_date) : todayDate;
@@ -74,7 +151,16 @@ passport.use(new GoogleStrategy({
         newStreak = 1; // Streak broken
       }
 
-      await query('UPDATE users SET last_active_date = $1, streak = $2, updated_at = NOW() WHERE id = $3', [today, newStreak, user.id]);
+      const { error: streakError } = await supabase
+        .from('users')
+        .update({
+          last_active_date: today,
+          streak: newStreak,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (streakError) throw streakError;
       user.streak = newStreak;
       user.last_active_date = today;
     }
@@ -94,14 +180,25 @@ passport.serializeUser((user: any, done) => {
 // Deserialize user from session
 passport.deserializeUser(async (id: string, done) => {
   try {
-    const result = await query('SELECT * FROM users WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (userError?.code === 'PGRST116' || !user) {
       return done(null, false);
     }
-    const user = result.rows[0];
+
     // Get bookmarks
-    const bookmarksResult = await query('SELECT item_id FROM bookmarks WHERE user_id = $1', [user.id]);
-    user.bookmarks = bookmarksResult.rows.map(row => row.item_id);
+    const { data: bookmarks, error: bookmarksError } = await supabase
+      .from('bookmarks')
+      .select('item_id')
+      .eq('user_id', user.id);
+
+    if (bookmarksError) throw bookmarksError;
+
+    user.bookmarks = bookmarks.map(row => row.item_id);
     done(null, user);
   } catch (error) {
     done(error, null);
