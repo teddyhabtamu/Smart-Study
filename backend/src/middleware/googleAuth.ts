@@ -7,7 +7,7 @@ import { query } from '../database/config';
 passport.use(new GoogleStrategy({
   clientID: config.google.clientId!,
   clientSecret: config.google.clientSecret!,
-  callbackURL: `${config.server.frontendUrl}/api/auth/google/callback`
+  callbackURL: `${config.server.backendUrl}/api/auth/google/callback`
 }, async (accessToken: string, refreshToken: string, profile: any, done: any) => {
   try {
     const { id, displayName, emails, photos } = profile;
