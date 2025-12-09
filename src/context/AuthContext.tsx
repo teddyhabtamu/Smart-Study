@@ -65,12 +65,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
         }
       } else if (savedUser) {
-        // Try to use saved user data if no token (shouldn't happen in normal flow)
+        // If there's no token but a cached user, hydrate from cache without remote calls
         try {
           const parsedUser = JSON.parse(savedUser);
           setUser(parsedUser);
-          // Try to refresh to ensure data is current
-          await refreshUser();
         } catch (error) {
           console.error('Failed to parse saved user:', error);
           localStorage.removeItem('smartstudy_user');
@@ -242,6 +240,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUser = useCallback(async () => {
+    // Do nothing if there's no auth token
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      return;
+    }
+
     try {
       const response = await usersAPI.getProfile();
       // Transform snake_case fields to camelCase to match User interface

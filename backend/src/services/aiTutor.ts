@@ -1,5 +1,6 @@
 // AI Tutor service using Groq with Llama 3.1
 import Groq from "groq-sdk";
+import type { ChatCompletionMessageParam } from "groq-sdk/resources/chat/completions";
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -24,9 +25,19 @@ You must:
 Always provide direct, helpful answers to questions in ENGLISH only. Do not give generic educational support messages. Respond in English regardless of the student's question language.
 `;
 
-  const messages = [
+  // Map history roles to valid Groq roles ('system' | 'user' | 'assistant')
+  const normalizeRole = (role: string) => {
+    if (role === 'user') return 'user';
+    if (role === 'system') return 'system';
+    return 'assistant'; // treat anything else (e.g., 'model') as assistant
+  };
+
+  const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
-    ...history.map((m: any) => ({ role: m.role, content: m.text })),
+    ...history.map((m: any) => ({
+      role: normalizeRole(m.role) as "system" | "user" | "assistant",
+      content: String(m.text ?? "")
+    })),
     { role: "user", content: `Subject: ${subject}, Grade: ${grade}\nQuestion: ${message}` }
   ];
 

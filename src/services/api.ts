@@ -362,7 +362,7 @@ export const aiTutorAPI = {
     apiRequest('/ai-tutor/chat', {
       method: 'POST',
       body: JSON.stringify({ message, subject, grade, sessionId }),
-    }, false),
+    }),
 
   generateStudyPlan: (prompt: string, grade?: number): Promise<{ plan: any[]; xpGained: number }> =>
     apiRequest('/ai-tutor/generate-study-plan', {

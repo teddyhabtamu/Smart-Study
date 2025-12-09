@@ -2,7 +2,6 @@
 // src/pages/AITutor.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
-import { generateTutorResponse } from '../services/geminiService';
 import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -274,20 +273,27 @@ const AITutor: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Call AI service with corrected parameters
-      const aiResponse = await generateTutorResponse(activeSessionId || undefined, userMsg, subjectFocus, userGrade);
+      // Call backend AI tutor so sessions and messages are persisted
+      const aiResponse = await aiTutorAPI.chat(
+        userMsg,
+        subjectFocus,
+        userGrade,
+        activeSessionId || undefined
+      );
 
-      // If no active session, the backend created one and returned its ID
-      // Update activeSessionId if it was null
-      if (!activeSessionId && aiResponse.sessionId) {
-        setActiveSessionId(aiResponse.sessionId);
+      // Set/refresh active session id from backend response
+      const newSessionId = aiResponse.sessionId || activeSessionId || null;
+      if (newSessionId) {
+        setActiveSessionId(newSessionId);
       }
 
       const finalHistory = [...newHistory, { role: 'model', text: aiResponse.response }];
+      // Response received — stop loader before updating UI to avoid lingering dots
+      setIsLoading(false);
       setMessages(finalHistory);
 
-      // Refresh sessions list to show the new session
-      if (user && (!activeSessionId || aiResponse.sessionId)) {
+      // Refresh sessions list to show saved chat history
+      if (user && newSessionId) {
         try {
           const chatSessions = await aiTutorAPI.getChatSessions();
           setSessions(chatSessions);
@@ -295,6 +301,7 @@ const AITutor: React.FC = () => {
           console.error('Failed to refresh sessions:', error);
         }
       }
+      return;
     } catch (error) {
       console.error('AI response error:', error);
       addToast('Failed to get AI response. Please try again.', 'error');

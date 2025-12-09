@@ -1,6 +1,6 @@
 import express from 'express';
 import { dbAdmin } from '../database/config';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 
 const router = express.Router();
@@ -271,7 +271,8 @@ router.post('/generate-study-plan', authenticateToken, async (req: express.Reque
 });
 
 // AI Chat endpoint using Groq with Llama 3.1
-router.post('/chat', async (req: express.Request, res: express.Response): Promise<void> => {
+// Use optionalAuth so authenticated users get sessions saved; guests still allowed
+router.post('/chat', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { message, subject, grade, sessionId } = req.body;
     const userId = req.user?.id;
@@ -322,7 +323,7 @@ router.post('/chat', async (req: express.Request, res: express.Response): Promis
       if (session) {
         const messages = session.messages || [];
         messages.push({ role: 'user', text: message, timestamp: new Date().toISOString() });
-        messages.push({ role: 'model', text: reply, timestamp: new Date().toISOString() });
+        messages.push({ role: 'assistant', text: reply, timestamp: new Date().toISOString() });
 
         await dbAdmin.update('chat_sessions', currentSessionId, {
           messages,
