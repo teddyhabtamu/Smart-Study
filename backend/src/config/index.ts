@@ -17,6 +17,10 @@ export const config = {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
     expire: process.env.JWT_EXPIRE || '7d'
   },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '1050426230784-r8scpdosdqijqfoeov1tp2vgu60qkkma.apps.googleusercontent.com',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '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'
+  },
   server: {
     port: parseInt(process.env.PORT || '5000'),
     nodeEnv: process.env.NODE_ENV || 'development',

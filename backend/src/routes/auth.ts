@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
 import { authenticateToken, generateToken, validateRequest } from '../middleware/auth';
+import passport from '../middleware/googleAuth';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse } from '../types';
 
 const router = express.Router();
@@ -173,5 +174,23 @@ router.post('/logout', (req: express.Request, res: express.Response): void => {
     message: 'Logged out successfully'
   } as ApiResponse);
 });
+
+// Google OAuth routes
+router.get('/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+router.get('/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req: express.Request, res: express.Response): void => {
+    // Generate JWT token for the authenticated user
+    // req.user is guaranteed to exist here due to successful authentication
+    const token = generateToken(req.user as any);
+
+    // Redirect to frontend with token
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}&success=true`);
+  }
+);
 
 export default router;

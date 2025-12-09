@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import passport from './middleware/googleAuth';
 import { config } from './config';
 
 const app = express();
@@ -38,6 +39,9 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Passport middleware
+app.use(passport.initialize());
 
 // Rate limiting (disabled in development)
 if (config.server.nodeEnv === 'production') {
