@@ -3,6 +3,7 @@ import { body, query as queryValidator } from 'express-validator';
 import { db, dbAdmin, query } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, ForumPost, ForumComment, User } from '../types';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -609,6 +610,26 @@ router.post('/posts/:postId/comments', authenticateToken, async (req: express.Re
     const inserted = await dbAdmin.insert('forum_comments', commentData);
     console.log('Comment created:', { id: inserted.id, postId, author_id });
 
+    // Send notification to post author (if not commenting on own post)
+    if (post.author_id !== author_id) {
+      try {
+        // Get comment author's name for the notification
+        const users = await dbAdmin.get('users');
+        const commenter = users.find(u => u.id === author_id);
+
+        if (commenter) {
+          await NotificationService.createForumReplyNotification(
+            post.author_id,
+            post.title,
+            commenter.name
+          );
+        }
+      } catch (notificationError) {
+        console.error('Failed to create forum reply notification:', notificationError);
+        // Don't fail the comment creation for notification errors
+      }
+    }
+
     res.status(201).json({
       success: true,
       data: inserted,
@@ -791,10 +812,30 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
     );
 
     // Then accept this comment
-    await query(
-      'UPDATE forum_comments SET is_accepted = true WHERE id = $1',
+    const commentUpdateResult = await query(
+      'UPDATE forum_comments SET is_accepted = true WHERE id = $1 RETURNING author_id',
       [id]
     );
+
+    // Send notification to comment author
+    if (commentUpdateResult.rows.length > 0) {
+      const commentAuthorId = commentUpdateResult.rows[0].author_id;
+
+      try {
+        // Get post title for the notification
+        const postResult = await query('SELECT title FROM forum_posts WHERE id = $1', [post_id]);
+        if (postResult.rows.length > 0) {
+          const postTitle = postResult.rows[0].title;
+          await NotificationService.createForumAnswerAcceptedNotification(
+            commentAuthorId,
+            postTitle
+          );
+        }
+      } catch (notificationError) {
+        console.error('Failed to create answer accepted notification:', notificationError);
+        // Don't fail the acceptance for notification errors
+      }
+    }
 
     res.json({
       success: true,

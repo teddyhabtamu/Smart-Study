@@ -54,9 +54,15 @@ class SupabaseDB {
   }
 
   async update(table: string, id: any, updates: any): Promise<any | null> {
+    // Only add updated_at if the table has that column
+    const tablesWithUpdatedAt = ['users', 'documents', 'videos', 'forum_posts', 'forum_comments', 'study_events', 'practice_sessions', 'ai_tutor_sessions'];
+    const updateData = tablesWithUpdatedAt.includes(table) 
+      ? { ...updates, updated_at: new Date().toISOString() }
+      : updates;
+
     const { data, error } = await this.supabaseClient
       .from(table)
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
@@ -121,10 +127,29 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
 
         if (bookmarksError) throw bookmarksError;
 
+        // Get notifications for all users
+        const { data: notifications, error: notificationsError } = await supabaseAdmin
+          .from('notifications')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (notificationsError) throw notificationsError;
+
         const selectedUsers = users.map(u => {
           const userBookmarks = bookmarks
             .filter(b => b.user_id === u.id)
             .map(b => b.item_id);
+
+          const userNotifications = notifications
+            .filter(n => n.user_id === u.id)
+            .map(n => ({
+              id: n.id,
+              title: n.title,
+              message: n.message,
+              type: n.type,
+              isRead: n.is_read,
+              date: n.created_at
+            }));
 
           return {
             id: u.id,
@@ -144,7 +169,7 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
             created_at: u.created_at,
             updated_at: u.updated_at,
             bookmarks: userBookmarks,
-            notifications: []
+            notifications: userNotifications
           };
         });
 

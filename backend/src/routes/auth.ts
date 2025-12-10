@@ -6,6 +6,7 @@ import { config } from '../config';
 import { authenticateToken, generateToken, validateRequest } from '../middleware/auth';
 import passport from '../middleware/googleAuth';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -45,16 +46,7 @@ router.post('/register', [
     const token = generateToken(user);
 
     // Create welcome notification
-    await query(`
-      INSERT INTO notifications (user_id, title, message, type, is_read)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      user.id,
-      'Welcome to SmartStudy!',
-      'Complete your profile to earn your first badge.',
-      'INFO',
-      false
-    ]);
+    await NotificationService.createWelcomeNotification(user.id);
 
     res.status(201).json({
       success: true,

@@ -5,6 +5,7 @@ import multer from 'multer';
 import { query, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
+import { NotificationService } from '../services/notificationService';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -508,13 +509,7 @@ router.post('/gain-xp', [
 
     // Create level up notification if leveled up
     if (leveledUp) {
-      await dbAdmin.insert('notifications', {
-        user_id: userId,
-        title: 'Level Up!',
-        message: `Congratulations! You reached Level ${newLevel}.`,
-        type: 'SUCCESS',
-        is_read: false
-      });
+      await NotificationService.createLevelUpNotification(userId, newLevel);
     }
 
     res.json({
@@ -532,24 +527,72 @@ router.post('/gain-xp', [
 });
 
 // Mark notifications as read
-router.put('/notifications/read', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.put('/notifications/read', [
+  authenticateToken,
+  body('notificationIds').optional().isArray().withMessage('notificationIds must be an array'),
+  body('notificationIds.*').optional().isUUID().withMessage('Each notification ID must be a valid UUID')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
+    const { notificationIds } = req.body;
 
-    await query(
-      'UPDATE notifications SET is_read = true WHERE user_id = $1',
-      [userId]
-    );
-
-    res.json({
-      success: true,
-      message: 'All notifications marked as read'
-    } as ApiResponse);
+    if (notificationIds && Array.isArray(notificationIds) && notificationIds.length > 0) {
+      // Mark specific notifications as read
+      await NotificationService.markAsRead(userId, notificationIds);
+      res.json({
+        success: true,
+        message: 'Notifications marked as read'
+      } as ApiResponse);
+    } else {
+      // Mark all notifications as read
+      await NotificationService.markAsRead(userId);
+      res.json({
+        success: true,
+        message: 'All notifications marked as read'
+      } as ApiResponse);
+    }
   } catch (error) {
     console.error('Mark notifications read error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to mark notifications as read'
+    } as ApiResponse);
+  }
+});
+
+// Delete a specific notification
+router.delete('/notifications/:id', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const notificationId = req.params.id;
+
+    if (!notificationId) {
+      res.status(400).json({
+        success: false,
+        message: 'Notification ID is required'
+      } as ApiResponse);
+      return;
+    }
+
+    const deleted = await NotificationService.delete(notificationId, userId);
+
+    if (!deleted) {
+      res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      } as ApiResponse);
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Notification deleted successfully'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Delete notification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete notification'
     } as ApiResponse);
   }
 });
@@ -592,6 +635,25 @@ router.put('/:userId/premium', [
         message: 'User not found'
       } as ApiResponse);
       return;
+    }
+
+    // Create notification for the user
+    if (userId) {
+      try {
+        await NotificationService.create({
+          user_id: userId,
+          title: isPremium ? 'Premium Activated!' : 'Premium Deactivated',
+          message: isPremium
+            ? 'Your premium subscription has been activated. Enjoy unlimited access!'
+            : 'Your premium subscription has been deactivated.',
+          type: isPremium ? 'SUCCESS' : 'INFO',
+          is_read: false
+        });
+        console.log(`✅ Created notification for user ${userId}: Premium ${isPremium ? 'activated' : 'deactivated'}`);
+      } catch (notificationError) {
+        console.error('Failed to create notification:', notificationError);
+        // Don't fail the whole request for notification error
+      }
     }
 
     res.json({
@@ -644,18 +706,10 @@ router.post('/upgrade-premium', authenticateToken, async (req: express.Request, 
       return;
     }
 
-    // Create success notification using Supabase directly
-    const { error: notificationError } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: userId,
-        title: 'Welcome to Student Pro!',
-        message: 'Congratulations! You now have access to premium features including unlimited AI tutoring and exclusive content.',
-        type: 'SUCCESS',
-        is_read: false
-      });
-
-    if (notificationError) {
+    // Create premium upgrade notification
+    try {
+      await NotificationService.createPremiumUpgradeNotification(userId);
+    } catch (notificationError) {
       console.error('Notification creation error:', notificationError);
       // Don't fail the whole request for notification error
     }

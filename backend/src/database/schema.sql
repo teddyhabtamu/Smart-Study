@@ -160,7 +160,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     message TEXT,
     type notification_type DEFAULT 'INFO',
     is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Study plans table (for planner feature)

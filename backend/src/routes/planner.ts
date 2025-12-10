@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { dbAdmin } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, StudyEvent, User } from '../types';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -204,12 +205,7 @@ router.put('/events/:id', [
         dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
 
         // Create notification
-        dbAdmin.insert('notifications', {
-          user_id: userId,
-          title: 'Study Goal Completed!',
-          message: `Congratulations on completing: ${event.title}. You earned ${xpGain} XP!`,
-          type: 'SUCCESS'
-        });
+        await NotificationService.createStudyGoalCompletedNotification(userId, event.title, xpGain);
       }
     }
 
@@ -337,12 +333,7 @@ router.post('/practice', [
 
       // Create notification for milestone
       if (newAttempts % 10 === 0) {
-        dbAdmin.insert('notifications', {
-          user_id: userId,
-          title: 'Practice Milestone!',
-          message: `You've completed ${newAttempts} practice sessions! Keep up the great work!`,
-          type: 'SUCCESS'
-        });
+        await NotificationService.createPracticeMilestoneNotification(userId, newAttempts);
       }
     }
 

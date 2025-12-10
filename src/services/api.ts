@@ -156,9 +156,15 @@ export const usersAPI = {
       body: JSON.stringify({ amount }),
     }),
 
-  markNotificationsRead: (): Promise<void> =>
+  markNotificationsRead: (notificationIds?: string[]): Promise<void> =>
     apiRequest('/users/notifications/read', {
       method: 'PUT',
+      body: notificationIds ? JSON.stringify({ notificationIds }) : JSON.stringify({}),
+    }),
+
+  deleteNotification: (notificationId: string): Promise<void> =>
+    apiRequest(`/users/notifications/${notificationId}`, {
+      method: 'DELETE',
     }),
 
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> =>

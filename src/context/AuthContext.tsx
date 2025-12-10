@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, Notification } from '../types';
+import { User, NotificationItem } from '../types';
 import { authAPI, usersAPI } from '../services/api';
 
 interface AuthContextType {
@@ -11,7 +11,8 @@ interface AuthContextType {
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   toggleBookmark: (itemId: string, itemType?: 'document' | 'video') => Promise<void>;
   gainXP: (amount: number) => Promise<{ leveledUp: boolean; newLevel: number }>;
-  markNotificationsAsRead: () => Promise<void>;
+  markNotificationsAsRead: (notificationIds?: string[]) => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
   refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastNotificationCheck, setLastNotificationCheck] = useState<Date>(new Date());
 
   // Check authentication on mount
   useEffect(() => {
@@ -80,6 +82,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     checkAuth();
   }, []);
+
+  // Poll for notification updates when user is logged in
+  useEffect(() => {
+    if (!user) return;
+
+    let isPolling = false;
+    let pollTimeout: NodeJS.Timeout;
+    const shownNotifications = new Set<string>(); // Track notifications that have been shown
+
+    const pollNotifications = async () => {
+      // Prevent concurrent polls
+      if (isPolling) return;
+      isPolling = true;
+
+      try {
+        const response = await usersAPI.getProfile();
+        const currentNotifications = user.notifications || [];
+        const newNotifications = response.notifications || [];
+
+        // Get current notification IDs for comparison
+        const currentIds = new Set(currentNotifications.map(n => n.id));
+        const newIds = new Set(newNotifications.map(n => n.id));
+        
+        // Find truly new notifications (not just updated) AND not already shown
+        const trulyNewNotifications = newNotifications.filter(n => 
+          !currentIds.has(n.id) && !shownNotifications.has(n.id)
+        );
+        
+        // Find newly read notifications (for better UX)
+        const newlyReadNotifications = currentNotifications
+          .filter(cn => !cn.isRead)
+          .map(cn => {
+            const updated = newNotifications.find(nn => nn.id === cn.id);
+            return updated && updated.isRead ? updated : null;
+          })
+          .filter(Boolean);
+
+        // Update user with new notifications
+        if (trulyNewNotifications.length > 0 || newlyReadNotifications.length > 0) {
+          setUser(prev => prev ? { ...prev, notifications: newNotifications } : null);
+          setLastNotificationCheck(new Date());
+
+          // Show browser notification for new unread notifications
+          if (trulyNewNotifications.length > 0) {
+            const unreadNew = trulyNewNotifications.filter(n => !n.isRead);
+            
+            if (unreadNew.length > 0 && 'Notification' in window) {
+              // Mark these notifications as shown
+              unreadNew.forEach(n => shownNotifications.add(n.id));
+
+              // Request permission if not granted
+              if ((window as any).Notification.permission === 'default') {
+                (window as any).Notification.requestPermission().then((permission: string) => {
+                  if (permission === 'granted' && unreadNew.length > 0) {
+                    showBrowserNotification(unreadNew[0], unreadNew.length);
+                  }
+                });
+              } else if ((window as any).Notification.permission === 'granted') {
+                showBrowserNotification(unreadNew[0], unreadNew.length);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error polling notifications:', error);
+        // On error, increase polling interval to avoid spamming
+        pollTimeout = setTimeout(pollNotifications, 60000); // 1 minute on error
+        isPolling = false;
+        return;
+      }
+
+      isPolling = false;
+      
+      // Poll every 20 seconds (reduced from 30 for better responsiveness)
+      pollTimeout = setTimeout(pollNotifications, 20000);
+    };
+
+    // Helper function to show browser notification
+    const showBrowserNotification = (notification: any, count: number) => {
+      try {
+        const title = count > 1 ? `SmartStudy (${count} new)` : 'SmartStudy';
+        const notif = new (window as any).Notification(title, {
+          body: notification.message,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: `smartstudy-${notification.id}`, // Unique tag per notification
+          requireInteraction: false,
+          silent: false // Allow sound
+        });
+
+        // Auto-close after 5 seconds
+        setTimeout(() => notif.close(), 5000);
+
+        // Click handler to focus window
+        notif.onclick = () => {
+          window.focus();
+          notif.close();
+        };
+      } catch (error) {
+        console.error('Failed to show browser notification:', error);
+      }
+    };
+
+    // Initial poll
+    pollNotifications();
+
+    return () => {
+      clearTimeout(pollTimeout);
+    };
+  }, [user?.id]); // Only depend on user ID to avoid unnecessary re-runs
 
   const login = async (emailOrUser: string | User, password?: string) => {
     // Handle OAuth login (User object passed directly)
@@ -227,14 +339,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const markNotificationsAsRead = async () => {
+  const markNotificationsAsRead = async (notificationIds?: string[]) => {
     if (!user) return;
 
     try {
-      await usersAPI.markNotificationsRead();
+      await usersAPI.markNotificationsRead(notificationIds);
       await refreshUser(); // Refresh user data
     } catch (error) {
       console.error('Mark notifications read error:', error);
+      throw error;
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    if (!user) return;
+
+    try {
+      await usersAPI.deleteNotification(notificationId);
+      await refreshUser(); // Refresh user data
+    } catch (error) {
+      console.error('Delete notification error:', error);
       throw error;
     }
   };
@@ -277,6 +401,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toggleBookmark,
       gainXP,
       markNotificationsAsRead,
+      deleteNotification,
       refreshUser,
       isAuthenticated: !!user,
       isLoading

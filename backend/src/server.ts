@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import passport from './middleware/googleAuth';
 import { config } from './config';
+import { SchedulerService } from './services/schedulerService';
 
 const app = express();
 
@@ -129,6 +130,9 @@ app.use((req, res) => {
 app.listen(config.server.port, () => {
   console.log(`🚀 SmartStudy API server running on port ${config.server.port}`);
   console.log(`📊 Environment: ${config.server.nodeEnv}`);
+
+  // Start the notification scheduler
+  SchedulerService.start();
 });
 
 export default app;

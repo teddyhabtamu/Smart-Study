@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BADGES } from '../constants';
 import { usersAPI } from '../services/api';
+import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
 
 type Tab = 'general' | 'security' | 'notifications' | 'achievements';
+type NotificationView = 'preferences' | 'history';
 
 // Map icon string names to components
 const IconMap: { [key: string]: any } = {
@@ -15,8 +18,9 @@ const IconMap: { [key: string]: any } = {
 };
 
 const Profile: React.FC = () => {
-  const { user, logout, changePassword, updateUser } = useAuth();
+  const { user, logout, changePassword, updateUser, markNotificationsAsRead, deleteNotification } = useAuth();
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [name, setName] = useState(user?.name || '');
   const [avatar, setAvatar] = useState<string | undefined>(user?.avatar);
@@ -99,6 +103,8 @@ const Profile: React.FC = () => {
   // Notification State
   const [emailNotifs, setEmailNotifs] = useState(user.preferences?.emailNotifications ?? true);
   const [studyReminders, setStudyReminders] = useState(user.preferences?.studyReminders ?? true);
+  const [notificationView, setNotificationView] = useState<NotificationView>('preferences');
+  const [notificationTypeFilter, setNotificationTypeFilter] = useState<'all' | 'info' | 'success' | 'warning' | 'error'>('all');
 
   // --- Helpers ---
   const handleAvatarClick = () => {
@@ -520,64 +526,223 @@ const Profile: React.FC = () => {
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-              <form onSubmit={handleNotificationSubmit} className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
-                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 mb-1">Notification Preferences</h2>
-                  <p className="text-sm text-zinc-500">Choose what updates you want to receive.</p>
-                </div>
+              <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
+                 {/* View Toggle */}
+                 <div className="flex items-center justify-between">
+                   <div>
+                     <h2 className="text-lg font-bold text-zinc-900 mb-1">Notifications</h2>
+                     <p className="text-sm text-zinc-500">Manage your notification preferences and history.</p>
+                   </div>
+                   <div className="flex gap-2 bg-zinc-100 p-1 rounded-lg">
+                     <button
+                       onClick={() => setNotificationView('preferences')}
+                       className={`px-4 py-1.5 text-xs font-medium rounded transition-all ${
+                         notificationView === 'preferences'
+                           ? 'bg-white text-zinc-900 shadow-sm'
+                           : 'text-zinc-600 hover:text-zinc-900'
+                       }`}
+                     >
+                       Preferences
+                     </button>
+                     <button
+                       onClick={() => setNotificationView('history')}
+                       className={`px-4 py-1.5 text-xs font-medium rounded transition-all ${
+                         notificationView === 'history'
+                           ? 'bg-white text-zinc-900 shadow-sm'
+                           : 'text-zinc-600 hover:text-zinc-900'
+                       }`}
+                     >
+                       History
+                     </button>
+                   </div>
+                 </div>
 
-                <div className="space-y-4 flex-1">
-                  <div className="flex items-center justify-between p-4 border border-zinc-200 rounded-lg hover:border-zinc-300 transition-colors">
-                    <div className="flex gap-3">
-                       <div className="p-2 bg-zinc-100 rounded-lg h-fit text-zinc-500">
-                         <Mail size={20} />
+                 {/* Preferences View */}
+                 {notificationView === 'preferences' && (
+                   <form onSubmit={handleNotificationSubmit} className="space-y-4 flex-1 flex flex-col">
+                     <div className="space-y-4 flex-1">
+                       <div className="flex items-center justify-between p-4 border border-zinc-200 rounded-lg hover:border-zinc-300 transition-colors">
+                         <div className="flex gap-3">
+                            <div className="p-2 bg-zinc-100 rounded-lg h-fit text-zinc-500">
+                              <Mail size={20} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-zinc-900">Email Notifications</p>
+                              <p className="text-xs text-zinc-500">Receive updates about new content and features.</p>
+                            </div>
+                         </div>
+                         <label className="relative inline-flex items-center cursor-pointer">
+                           <input type="checkbox" checked={emailNotifs} onChange={() => setEmailNotifs(!emailNotifs)} className="sr-only peer" />
+                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                         </label>
                        </div>
-                       <div>
-                         <p className="text-sm font-bold text-zinc-900">Email Notifications</p>
-                         <p className="text-xs text-zinc-500">Receive updates about new content and features.</p>
-                       </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={emailNotifs} onChange={() => setEmailNotifs(!emailNotifs)} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
-                    </label>
-                  </div>
 
-                  <div className="flex items-center justify-between p-4 border border-zinc-200 rounded-lg hover:border-zinc-300 transition-colors">
-                    <div className="flex gap-3">
-                       <div className="p-2 bg-zinc-100 rounded-lg h-fit text-zinc-500">
-                         <Bell size={20} />
+                       <div className="flex items-center justify-between p-4 border border-zinc-200 rounded-lg hover:border-zinc-300 transition-colors">
+                         <div className="flex gap-3">
+                            <div className="p-2 bg-zinc-100 rounded-lg h-fit text-zinc-500">
+                              <Bell size={20} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-zinc-900">Study Reminders</p>
+                              <p className="text-xs text-zinc-500">Get reminded about your study schedule.</p>
+                            </div>
+                         </div>
+                         <label className="relative inline-flex items-center cursor-pointer">
+                           <input type="checkbox" checked={studyReminders} onChange={() => setStudyReminders(!studyReminders)} className="sr-only peer" />
+                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                         </label>
                        </div>
-                       <div>
-                         <p className="text-sm font-bold text-zinc-900">Study Reminders</p>
-                         <p className="text-xs text-zinc-500">Get reminded about your study schedule.</p>
-                       </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={studyReminders} onChange={() => setStudyReminders(!studyReminders)} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
-                    </label>
-                  </div>
-                </div>
+                     </div>
 
-                <div className="pt-4 flex items-center justify-between border-t border-zinc-50 mt-auto">
-                  <div className="text-sm">
-                      {showSuccess && (
-                        <span className="text-emerald-600 flex items-center gap-1.5 animate-fade-in">
-                          <Check size={16} /> Preferences saved
-                        </span>
-                      )}
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isSaving || (emailNotifs === user.preferences?.emailNotifications && studyReminders === user.preferences?.studyReminders)}
-                    className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
-                  >
-                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                    Save Preferences
-                  </button>
-                </div>
-              </form>
+                     <div className="pt-4 flex items-center justify-between border-t border-zinc-50 mt-auto">
+                       <div className="text-sm">
+                           {showSuccess && (
+                             <span className="text-emerald-600 flex items-center gap-1.5 animate-fade-in">
+                               <Check size={16} /> Preferences saved
+                             </span>
+                           )}
+                       </div>
+                       <button
+                         type="submit"
+                         disabled={isSaving || (emailNotifs === user.preferences?.emailNotifications && studyReminders === user.preferences?.studyReminders)}
+                         className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
+                       >
+                         {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                         Save Preferences
+                       </button>
+                     </div>
+                   </form>
+                 )}
+
+                 {/* History View */}
+                 {notificationView === 'history' && (
+                   <div className="flex-1 flex flex-col space-y-4">
+                     {/* Filters */}
+                     <div className="flex items-center gap-2 flex-wrap">
+                       <Filter size={14} className="text-zinc-400" />
+                       {(['all', 'info', 'success', 'warning', 'error'] as const).map((type) => (
+                         <button
+                           key={type}
+                           onClick={() => setNotificationTypeFilter(type)}
+                           className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                             notificationTypeFilter === type
+                               ? 'bg-zinc-900 text-white'
+                               : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                           }`}
+                         >
+                           {type.charAt(0).toUpperCase() + type.slice(1)}
+                         </button>
+                       ))}
+                       {user.notifications && user.notifications.filter(n => !n.isRead).length > 0 && (
+                         <button
+                           onClick={() => markNotificationsAsRead()}
+                           className="ml-auto px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-all flex items-center gap-1"
+                         >
+                           <Check size={12} /> Mark all read
+                         </button>
+                       )}
+                     </div>
+
+                     {/* Notifications List */}
+                     <div className="flex-1 overflow-y-auto space-y-2">
+                       {user.notifications && user.notifications
+                         .filter(n => notificationTypeFilter === 'all' || n.type === notificationTypeFilter)
+                         .length > 0 ? (
+                         user.notifications
+                           .filter(n => notificationTypeFilter === 'all' || n.type === notificationTypeFilter)
+                           .map((notif) => {
+                             const getTypeIcon = (type: string) => {
+                               switch (type) {
+                                 case 'success': return <CheckCircle size={16} className="text-emerald-600" />;
+                                 case 'warning': return <AlertTriangle size={16} className="text-amber-600" />;
+                                 case 'error': return <AlertCircle size={16} className="text-red-600" />;
+                                 default: return <Info size={16} className="text-blue-600" />;
+                               }
+                             };
+
+                             const getTypeColor = (type: string) => {
+                               switch (type) {
+                                 case 'success': return 'border-l-emerald-500 bg-emerald-50/30';
+                                 case 'warning': return 'border-l-amber-500 bg-amber-50/30';
+                                 case 'error': return 'border-l-red-500 bg-red-50/30';
+                                 default: return 'border-l-blue-500 bg-blue-50/30';
+                               }
+                             };
+
+                             const actionUrl = getNotificationActionUrl(notif);
+                             const isClickable = !!actionUrl;
+
+                             return (
+                               <div
+                                 key={notif.id}
+                                 onClick={() => isClickable && navigate(actionUrl!)}
+                                 className={`group relative p-4 rounded-lg border-l-4 transition-all duration-200 ${
+                                   notif.isRead
+                                     ? 'opacity-75 hover:opacity-100 bg-white hover:bg-zinc-50/50'
+                                     : `${getTypeColor(notif.type)} hover:shadow-sm`
+                                 } ${isClickable ? 'cursor-pointer' : ''}`}
+                               >
+                                 {!notif.isRead && (
+                                   <div className="absolute top-4 right-4 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                 )}
+                                 <div className="flex gap-3">
+                                   <div className="flex-shrink-0 mt-0.5">
+                                     {getTypeIcon(notif.type)}
+                                   </div>
+                                   <div className="flex-1 min-w-0">
+                                     <div className="flex items-start justify-between gap-2">
+                                       <p className="text-sm font-semibold text-zinc-900 leading-tight">{notif.title}</p>
+                                       {isClickable && (
+                                         <ExternalLink size={12} className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                                       )}
+                                     </div>
+                                     <p className="text-xs text-zinc-600 mt-1 leading-relaxed">{notif.message}</p>
+                                     <div className="flex items-center gap-2 mt-2">
+                                       <Clock size={10} className="text-zinc-400" />
+                                       <p className="text-[10px] text-zinc-400">
+                                         {formatRelativeTime(notif.date)}
+                                       </p>
+                                     </div>
+                                   </div>
+                                   <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                     {!notif.isRead && (
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           markNotificationsAsRead([notif.id]);
+                                         }}
+                                         className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all duration-200"
+                                         title="Mark as read"
+                                       >
+                                         <Check size={14} />
+                                       </button>
+                                     )}
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         deleteNotification(notif.id);
+                                       }}
+                                       className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-all duration-200"
+                                       title="Delete notification"
+                                     >
+                                       <Trash2 size={14} />
+                                     </button>
+                                   </div>
+                                 </div>
+                               </div>
+                             );
+                           })
+                       ) : (
+                         <div className="text-center py-16">
+                           <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
+                           <p className="text-sm font-medium text-zinc-900 mb-1">No notifications found</p>
+                           <p className="text-xs text-zinc-400">Try adjusting your filters</p>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 )}
+              </div>
             )}
           </div>
         </div>

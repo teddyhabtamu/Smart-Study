@@ -9,11 +9,11 @@ export interface UserPreferences {
   studyReminders: boolean;
 }
 
-export interface Notification {
+export interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning';
+  type: 'info' | 'success' | 'warning' | 'error';
   isRead: boolean;
   date: string;
 }
@@ -52,7 +52,7 @@ export interface User {
   practiceAttempts?: number;
 
   // Notifications
-  notifications: Notification[];
+  notifications: NotificationItem[];
 }
 
 export enum FileType {

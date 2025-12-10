@@ -456,7 +456,7 @@ const VideoWatch: React.FC = () => {
                    <div className="flex items-center gap-4 text-sm text-zinc-500">
                       <span>{(video.views || 0).toLocaleString()} views</span>
                       <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
-                      <span>{video.uploadedAt || 'Unknown date'}</span>
+                      <span>{video.uploadedAt || (video.created_at ? new Date(video.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown date')}</span>
                    </div>
                    <div className="flex items-center gap-2 relative">
                       <button
