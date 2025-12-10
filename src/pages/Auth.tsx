@@ -84,15 +84,15 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:flex-none lg:px-20 xl:px-24 w-full lg:w-1/2 bg-white relative z-10">
         <div className="mx-auto w-full max-w-sm lg:w-96 animate-fade-in">
           {/* Logo */}
-          <div className="flex items-center gap-2 mb-10">
-            <div className="bg-zinc-900 w-8 h-8 rounded-lg flex items-center justify-center">
-              <GraduationCap className="text-white" size={16} />
+          <div className="flex items-center gap-2 mb-8 sm:mb-10">
+            <div className="bg-zinc-900 w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center">
+              <GraduationCap className="text-white sm:w-4 sm:h-4" size={14} />
             </div>
-            <span className="font-bold text-lg text-zinc-900">SmartStudy</span>
+            <span className="font-bold text-base sm:text-lg text-zinc-900">SmartStudy</span>
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">
               {view === 'login' && 'Welcome back'}
               {view === 'register' && 'Create an account'}
               {view === 'forgot' && 'Reset Password'}
@@ -104,13 +104,13 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             </p>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             {view !== 'forgot' && (
               <>
                 <button
                   onClick={handleGoogleLogin}
                   disabled={isGoogleLoading || isLoading}
-                  className="w-full flex items-center justify-center gap-3 bg-white text-zinc-700 border border-zinc-200 font-medium py-2.5 rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all mb-6 relative group"
+                  className="w-full flex items-center justify-center gap-3 bg-white text-zinc-700 border border-zinc-200 font-medium py-3 sm:py-2.5 rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all mb-6 relative group"
                 >
                   {isGoogleLoading ? (
                     <Loader2 size={20} className="animate-spin text-zinc-400" />
@@ -208,7 +208,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               <button
                 type="submit"
                 disabled={isLoading || isGoogleLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
+                className="w-full flex justify-center py-3.5 sm:py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
               >
                 {isLoading ? (
                   <Loader2 size={20} className="animate-spin" />
@@ -244,12 +244,34 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             </div>
 
             {/* Demo Hint */}
-            <div className="mt-8 p-3 bg-zinc-50 border border-zinc-100 rounded-lg flex gap-3 text-xs text-zinc-500">
-               <Info size={16} className="text-zinc-400 flex-shrink-0 mt-0.5" />
-               <p>
-                 <span className="font-semibold text-zinc-700 block mb-0.5">Demo Access:</span> 
+            <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-zinc-50 border border-zinc-100 rounded-lg flex gap-2 sm:gap-3 text-xs text-zinc-500">
+               <Info size={14} className="sm:w-4 sm:h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
+               <p className="leading-relaxed">
+                 <span className="font-semibold text-zinc-700 block mb-1">Demo Access:</span>
                  Use any email to sign in. Include <span className="font-mono bg-zinc-200 px-1 rounded text-zinc-800">admin</span> in the email to access the Admin Dashboard.
                </p>
+            </div>
+
+            {/* Mobile Testimonial */}
+            <div className="mt-6 sm:mt-8 lg:hidden p-4 bg-zinc-900 text-white rounded-xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/20 rounded-full blur-2xl -mr-4 -mt-4"></div>
+               <div className="relative z-10">
+                  <div className="flex gap-1 mb-3">
+                     {[1,2,3,4,5].map(i => <Star key={i} size={12} className="fill-amber-400 text-amber-400" />)}
+                  </div>
+                  <blockquote className="text-sm font-medium leading-relaxed mb-4">
+                    "This platform completely changed how I study. The AI tutor explains complex physics concepts in a way that actually makes sense."
+                  </blockquote>
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center font-bold text-sm backdrop-blur-sm border border-white/20">
+                        S
+                     </div>
+                     <div>
+                        <div className="font-bold text-xs">Samuel K.</div>
+                        <div className="text-zinc-400 text-xs">Grade 12 Student</div>
+                     </div>
+                  </div>
+               </div>
             </div>
           </div>
         </div>

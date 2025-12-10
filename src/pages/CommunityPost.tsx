@@ -44,6 +44,9 @@ const CommunityPost: React.FC = () => {
   // AI Answer State
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
+  // Mobile Menu State
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
   // Action loading states
   const [isSavingPost, setIsSavingPost] = useState(false);
   const [isDeletingPost, setIsDeletingPost] = useState(false);
@@ -419,127 +422,193 @@ const CommunityPost: React.FC = () => {
   const isAdmin = user.role === UserRole.ADMIN;
 
   return (
-    <div className="h-[calc(100vh-5rem)] flex flex-col gap-4 animate-fade-in relative">
+    <div className="h-[calc(100vh-5rem)] flex flex-col gap-3 sm:gap-4 animate-fade-in relative">
       {/* Header Row */}
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <Link to="/community" className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 transition-colors">
-          <ChevronLeft size={20} />
+          <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
         </Link>
         <div className="min-w-0 flex-1">
           {isEditing ? (
-            <input 
-              type="text" 
-              value={editTitle} 
+            <input
+              type="text"
+              value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full text-lg font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
+              className="w-full text-base sm:text-lg font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
               placeholder="Question Title"
             />
           ) : (
-            <h1 className="text-lg font-bold text-zinc-900 leading-none mb-1 truncate">{post.title}</h1>
+            <h1 className="text-base sm:text-lg font-bold text-zinc-900 leading-none mb-1 truncate">{post.title}</h1>
           )}
-          <p className="text-xs text-zinc-500 flex items-center gap-2 mt-1">
+          <p className="text-xs text-zinc-500 flex items-center gap-1.5 sm:gap-2 mt-1">
             <span>{post.subject}</span>
             <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
             <span>Grade {post.grade}</span>
           </p>
         </div>
-        <div className="ml-auto flex gap-2 relative">
-           {!isEditing && (
-             <button 
-               onClick={handleShare}
-               className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 flex items-center gap-2"
-             >
-               <Share2 size={14} /> Share
-             </button>
-           )}
-           
-           {(isAuthor || isAdmin) && !isEditing && (
-             <>
-               <button 
-                 onClick={() => setIsEditing(true)}
-                 className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
-                 title="Edit Discussion"
-               >
-                 <Edit2 size={14} /> Edit
-               </button>
-               <button
-                 onClick={handleDeletePost}
-                 disabled={isDeletingPost}
-                 className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                 title="Delete Discussion"
-               >
-                 {isDeletingPost ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                 {isDeletingPost ? 'Deleting...' : 'Delete'}
-               </button>
-             </>
-           )}
+        <div className="ml-auto flex gap-1 sm:gap-2 relative">
+           {/* Mobile: Single menu button */}
+           <div className="sm:hidden">
+             {!isEditing ? (
+               <div className="relative">
+                 <button
+                   onClick={() => setShowMobileMenu(!showMobileMenu)}
+                   className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                 >
+                   <HelpCircle size={18} />
+                 </button>
+                 {showMobileMenu && (
+                   <>
+                     <div className="fixed inset-0 z-10" onClick={() => setShowMobileMenu(false)} />
+                     <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 py-2">
+                       <button
+                         onClick={() => { handleShare(); setShowMobileMenu(false); }}
+                         className="w-full px-4 py-3 text-left text-sm font-medium text-zinc-600 hover:bg-zinc-50 flex items-center gap-3"
+                       >
+                         <Share2 size={16} /> Share
+                       </button>
+                       {(isAuthor || isAdmin) && (
+                         <>
+                           <button
+                             onClick={() => { setIsEditing(true); setShowMobileMenu(false); }}
+                             className="w-full px-4 py-3 text-left text-sm font-medium text-zinc-600 hover:bg-zinc-50 flex items-center gap-3"
+                           >
+                             <Edit2 size={16} /> Edit Post
+                           </button>
+                           <button
+                             onClick={(e) => { handleDeletePost(e); setShowMobileMenu(false); }}
+                             disabled={isDeletingPost}
+                             className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-3 disabled:opacity-50"
+                           >
+                             {isDeletingPost ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                             {isDeletingPost ? 'Deleting...' : 'Delete Post'}
+                           </button>
+                         </>
+                       )}
+                     </div>
+                   </>
+                 )}
+               </div>
+             ) : (
+               <div className="flex gap-1">
+                 <button
+                   onClick={handleCancelEdit}
+                   className="px-2.5 py-1.5 text-xs font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
+                 >
+                   <X size={14} />
+                 </button>
+                 <button
+                   onClick={handleSaveEdit}
+                   disabled={isSavingPost}
+                   className="px-2.5 py-1.5 text-xs font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                 >
+                   {isSavingPost ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                 </button>
+               </div>
+             )}
+           </div>
 
-           {isEditing && (
-             <>
-               <button 
-                 onClick={handleCancelEdit}
-                 className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
-               >
-                 <X size={14} /> Cancel
-               </button>
+           {/* Desktop: Full buttons */}
+           <div className="hidden sm:flex sm:gap-2">
+             {!isEditing && (
                <button
-                 onClick={handleSaveEdit}
-                 disabled={isSavingPost}
-                 className="px-3 py-1.5 text-sm font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                 onClick={handleShare}
+                 className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 flex items-center gap-2"
                >
-                 {isSavingPost ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                 {isSavingPost ? 'Saving...' : 'Save'}
+                 <Share2 size={14} /> Share
                </button>
-             </>
-           )}
+             )}
+
+             {(isAuthor || isAdmin) && !isEditing && (
+               <>
+                 <button
+                   onClick={() => setIsEditing(true)}
+                   className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                   title="Edit Discussion"
+                 >
+                   <Edit2 size={14} /> Edit
+                 </button>
+                 <button
+                   onClick={handleDeletePost}
+                   disabled={isDeletingPost}
+                   className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                   title="Delete Discussion"
+                 >
+                   {isDeletingPost ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                   {isDeletingPost ? 'Deleting...' : 'Delete'}
+                 </button>
+               </>
+             )}
+
+             {isEditing && (
+               <>
+                 <button
+                   onClick={handleCancelEdit}
+                   className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                 >
+                   <X size={14} /> Cancel
+                 </button>
+                 <button
+                   onClick={handleSaveEdit}
+                   disabled={isSavingPost}
+                   className="px-3 py-1.5 text-sm font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                 >
+                   {isSavingPost ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                   {isSavingPost ? 'Saving...' : 'Save'}
+                 </button>
+               </>
+             )}
+           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex gap-6 min-h-0">
+      <div className="flex-1 flex gap-3 sm:gap-6 min-h-0">
         {/* Left: Main Content (Scrollable Area) */}
         <div className="flex-1 bg-zinc-100 rounded-xl overflow-hidden flex flex-col border border-zinc-200 relative">
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center">
-             <div className="w-full max-w-3xl space-y-6">
-                
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 flex justify-center">
+             <div className="w-full max-w-3xl space-y-4 sm:space-y-6">
+
                 {/* Main Question Card */}
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-8">
-                   <div className="flex gap-6">
-                      {/* Vote Column */}
-                      <div className="flex flex-col items-center gap-1 pt-1">
+                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 md:p-8">
+                   <div className="flex gap-3 sm:gap-6">
+                      {/* Vote Column - Mobile optimized */}
+                      <div className="flex flex-col items-center gap-1 pt-1 flex-shrink-0">
                          <button
                            onClick={handleVote}
                            disabled={isVotingPost}
-                           className={`p-2 rounded-lg transition-colors ${(fullPost?.userVote === 1) ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                           className={`p-1.5 sm:p-2 rounded-lg transition-colors ${(fullPost?.userVote === 1) ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'} disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation`}
                          >
-                            {isVotingPost ? <Loader2 size={24} className="animate-spin" /> : <ThumbsUp size={24} className={fullPost?.userVote === 1 ? 'fill-current' : ''} />}
+                            {isVotingPost ? <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" /> : <ThumbsUp size={20} className={`sm:w-6 sm:h-6 ${fullPost?.userVote === 1 ? 'fill-current' : ''}`} />}
                          </button>
-                          <span className={`font-bold text-xl ${fullPost?.userVote === 1 ? 'text-zinc-900' : 'text-zinc-700'}`}>{fullPost?.votes || post?.votes || 0}</span>
+                          <span className={`font-bold text-lg sm:text-xl ${fullPost?.userVote === 1 ? 'text-zinc-900' : 'text-zinc-700'}`}>{fullPost?.votes || post?.votes || 0}</span>
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                         <div className="flex items-center gap-3 mb-6">
+                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
                            <div className="flex items-center gap-2">
-                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                               post.authorRole === UserRole.TUTOR ? 'bg-zinc-800' : 
+                             <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold text-white flex-shrink-0 ${
+                               post.authorRole === UserRole.TUTOR ? 'bg-zinc-800' :
                                post.authorRole === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
                              }`}>
                                {post.author.charAt(0)}
                              </div>
-                             <div>
-                                <p className="text-sm font-semibold text-zinc-900 leading-tight">{post.author}</p>
+                             <div className="min-w-0">
+                                <p className="text-sm font-semibold text-zinc-900 leading-tight truncate">{post.author}</p>
                                 <p className="text-xs text-zinc-500">
                                   {post.createdAt}
                                   {post.isEdited && <span className="italic text-zinc-400 ml-1">(edited)</span>}
                                 </p>
                              </div>
                            </div>
-                           {post.isSolved && (
-                             <span className="ml-auto px-3 py-1 rounded bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100 flex items-center gap-1">
-                               <CheckCircle size={14} /> SOLVED
-                             </span>
-                           )}
-                           {!isEditing && <TTSButton text={post.content} size={16} quality="high" className="ml-2" />}
+                           <div className="flex items-center gap-2 ml-auto">
+                             {post.isSolved && (
+                               <span className="px-2 sm:px-3 py-1 rounded bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100 flex items-center gap-1">
+                                 <CheckCircle size={12} className="sm:w-3.5 sm:h-3.5" /> SOLVED
+                               </span>
+                             )}
+                             {!isEditing && <TTSButton text={post.content} size={14} className="sm:w-4 sm:h-4" />}
+                           </div>
                          </div>
 
                          {isEditing ? (
@@ -611,37 +680,37 @@ const CommunityPost: React.FC = () => {
                 </div>
 
                 {/* Answers Count */}
-                <div className="flex items-center gap-2 text-base font-bold text-zinc-900 px-1 pt-2 border-t border-zinc-200">
-                  <MessageSquare size={18} />
+                <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900 px-1 pt-2 border-t border-zinc-200">
+                  <MessageSquare size={16} className="sm:w-[18px] sm:h-[18px]" />
                   {(post.comments?.length || (post as any).comment_count || 0)} Answers
                 </div>
 
                 {/* Answers List */}
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                    {(post.comments || []).map((comment) => (
-                      <div key={comment.id} className={`bg-white rounded-xl border p-8 shadow-sm ${comment.isAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
-                         <div className="flex items-center justify-between mb-4">
+                      <div key={comment.id} className={`bg-white rounded-xl border p-4 sm:p-6 md:p-8 shadow-sm ${comment.isAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
+                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
                             <div className="flex items-center gap-2">
-                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                                 comment.role === UserRole.TUTOR ? 'bg-zinc-800' : 
+                               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
+                                 comment.role === UserRole.TUTOR ? 'bg-zinc-800' :
                                  comment.role === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
                                }`}>
                                  {comment.author.charAt(0)}
                                </div>
-                               <div>
-                                  <p className="text-sm font-semibold text-zinc-900">{comment.author}</p>
+                               <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-zinc-900 truncate">{comment.author}</p>
                                   <p className="text-[10px] text-zinc-500">
                                     {comment.role === UserRole.TUTOR ? 'Expert Tutor' : comment.role === UserRole.ADMIN ? 'Administrator' : 'Student'} • {comment.createdAt}
                                     {comment.isEdited && <span className="italic ml-1">(edited)</span>}
                                   </p>
                                </div>
                             </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <TTSButton text={comment.content} size={14} quality="high" className="text-zinc-400 hover:text-zinc-900" />
+
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <TTSButton text={comment.content} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-zinc-900" />
                               {comment.isAccepted && (
-                                <span className="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded font-bold border border-emerald-100">
-                                  <Check size={12} /> Accepted Solution
+                                <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-600 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-100">
+                                  <Check size={10} className="sm:w-3 sm:h-3" /> Accepted
                                 </span>
                               )}
                             </div>
@@ -673,35 +742,35 @@ const CommunityPost: React.FC = () => {
                            </div>
                          )}
 
-                         <div className="flex items-center justify-between border-t border-zinc-50 pt-4">
-                            <div className="flex items-center gap-4">
+                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-t border-zinc-50 pt-3 sm:pt-4">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                                <button
                                  onClick={() => handleCommentVote(comment.id)}
                                  disabled={isVotingComment}
-                                className={`flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
                                   fullPost?.userCommentVotes?.[comment.id] === 1 ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-900'
                                 }`}
                                >
-                                 {isVotingComment ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
+                                 {isVotingComment ? <Loader2 size={12} className="sm:w-3.5 sm:h-3.5 animate-spin" /> : <ThumbsUp size={12} className="sm:w-3.5 sm:h-3.5" />}
                                  {comment.votes} Helpful
                                </button>
                                {(user.name === comment.author || isAdmin) && (
-                                 <>
-                                   <button 
+                                 <div className="flex items-center gap-2 sm:gap-3">
+                                   <button
                                      onClick={() => handleEditComment(comment)}
-                                     className="text-xs font-medium text-zinc-400 hover:text-zinc-900 transition-colors"
+                                     className="text-xs sm:text-sm font-medium text-zinc-400 hover:text-zinc-900 transition-colors px-2 py-1 rounded hover:bg-zinc-50"
                                    >
                                      Edit
                                    </button>
                                    <button
                                      onClick={(e) => handleDeleteComment(e, comment.id)}
                                      disabled={isDeletingComment}
-                                     className="text-xs font-medium text-zinc-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                                     className="text-xs sm:text-sm font-medium text-zinc-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors px-2 py-1 rounded hover:bg-red-50 flex items-center gap-1"
                                    >
-                                     {isDeletingComment ? <Loader2 size={12} className="animate-spin" /> : null}
+                                     {isDeletingComment ? <Loader2 size={10} className="sm:w-3 sm:h-3 animate-spin" /> : null}
                                      {isDeletingComment ? 'Deleting...' : 'Delete'}
                                    </button>
-                                 </>
+                                 </div>
                                )}
                             </div>
 
@@ -709,9 +778,9 @@ const CommunityPost: React.FC = () => {
                               <button
                                 onClick={() => handleAcceptSolution(comment.id)}
                                 disabled={isMarkingSolution}
-                                className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-zinc-400 hover:text-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors px-2 py-1 rounded hover:bg-emerald-50 self-start sm:self-auto"
                               >
-                                {isMarkingSolution ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                {isMarkingSolution ? <Loader2 size={12} className="sm:w-3.5 sm:h-3.5 animate-spin" /> : <CheckCircle size={12} className="sm:w-3.5 sm:h-3.5" />}
                                 {isMarkingSolution ? 'Marking...' : 'Mark as Solution'}
                               </button>
                             )}
@@ -721,23 +790,23 @@ const CommunityPost: React.FC = () => {
                 </div>
 
                 {/* Reply Form - NOT STICKY ANYMORE */}
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 mt-8">
-                   <h3 className="font-bold text-zinc-900 mb-4 text-sm">Post a Reply</h3>
+                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 mt-6 sm:mt-8">
+                   <h3 className="font-bold text-zinc-900 mb-3 sm:mb-4 text-sm sm:text-base">Post a Reply</h3>
                    <form onSubmit={handleSubmitReply}>
                       <textarea
                         value={replyContent}
                         onChange={(e) => setReplyContent(e.target.value)}
                         placeholder="Type your answer here... Markdown supported."
-                        className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 resize-none text-sm transition-all mb-4"
-                        rows={4}
+                        className="w-full p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 resize-none text-sm sm:text-base transition-all mb-3 sm:mb-4"
+                        rows={3}
                       ></textarea>
                       <div className="flex justify-end">
                          <button
                            type="submit"
                            disabled={!replyContent.trim() || isPostingComment}
-                           className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2"
+                           className="px-4 sm:px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2 text-sm sm:text-base touch-manipulation"
                          >
-                           {isPostingComment ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                           {isPostingComment ? <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" /> : <Send size={14} className="sm:w-4 sm:h-4" />}
                            {isPostingComment ? 'Posting...' : 'Post Answer'}
                          </button>
                       </div>

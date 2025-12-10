@@ -33,6 +33,7 @@ const Profile: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isUpdatingBadges, setIsUpdatingBadges] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -46,6 +47,47 @@ const Profile: React.FC = () => {
       setAvatar(user.avatar);
     }
   }, [user]);
+
+  // Check for newly unlocked badges based on level/streak progression
+  useEffect(() => {
+    if (user && !isUpdatingBadges) {
+      const currentUnlockedBadges = user.unlockedBadges || [];
+      const newlyUnlockedBadges = BADGES
+        .filter(badge => {
+          // Check level-based unlock
+          const levelUnlocked = badge.requiredLevel !== undefined &&
+            user.level >= badge.requiredLevel &&
+            !currentUnlockedBadges.includes(badge.id);
+
+          // Check streak-based unlock
+          const streakUnlocked = badge.requiredStreak !== undefined &&
+            user.streak >= badge.requiredStreak &&
+            !currentUnlockedBadges.includes(badge.id);
+
+          return levelUnlocked || streakUnlocked;
+        })
+        .map(badge => badge.id);
+
+      if (newlyUnlockedBadges.length > 0) {
+        setIsUpdatingBadges(true);
+
+        // Update the user's unlocked badges
+        const updatedBadges = [...currentUnlockedBadges, ...newlyUnlockedBadges];
+        updateUser({ unlockedBadges: updatedBadges });
+
+        // Show toast for newly unlocked badges
+        newlyUnlockedBadges.forEach(badgeId => {
+          const badge = BADGES.find(b => b.id === badgeId);
+          if (badge) {
+            addToast(`🏆 Achievement Unlocked: ${badge.name}!`, 'success');
+          }
+        });
+
+        // Reset the flag after a delay
+        setTimeout(() => setIsUpdatingBadges(false), 2000);
+      }
+    }
+  }, [user?.level, user?.streak]); // Check on level or streak changes
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -173,56 +215,55 @@ const Profile: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
       {/* Header Profile Card */}
-      <div className="flex flex-col md:flex-row items-center gap-6 border-b border-zinc-200 pb-8">
-        <div className="relative group mx-auto md:mx-0 w-fit">
-          <div className="w-28 h-28 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-4xl border-4 border-white shadow-lg overflow-hidden relative ring-1 ring-zinc-200/50">
+      <div className="flex flex-col items-center gap-4 sm:gap-6 border-b border-zinc-200 pb-6 sm:pb-8">
+        <div className="relative group w-fit">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl border-4 border-white shadow-lg overflow-hidden relative ring-1 ring-zinc-200/50">
             {avatar ? (
               <img src={avatar} alt={name || 'User'} className="w-full h-full object-cover" />
             ) : (
               (name || 'U').charAt(0).toUpperCase()
             )}
-            
+
             {/* Upload Overlay */}
-            <div 
+            <div
               onClick={handleAvatarClick}
               className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer backdrop-blur-sm"
             >
-              <Camera className="text-white" size={28} />
+              <Camera className="text-white sm:w-7 sm:h-7" size={24} />
             </div>
           </div>
-          
+
           {/* Floating Edit Button */}
-          <button 
+          <button
              onClick={handleAvatarClick}
-             className="absolute bottom-1 right-1 bg-zinc-900 text-white p-2 rounded-full border-2 border-white shadow-md hover:bg-zinc-800 hover:scale-110 transition-all z-10"
+             className="absolute bottom-0 right-0 sm:bottom-1 sm:right-1 bg-zinc-900 text-white p-1.5 sm:p-2 rounded-full border-2 border-white shadow-md hover:bg-zinc-800 hover:scale-110 transition-all z-10"
              title="Change Photo"
           >
-             <Upload size={14} />
+             <Upload size={12} className="sm:w-3.5 sm:h-3.5" />
           </button>
-          
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept="image/*" 
-            className="hidden" 
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+            className="hidden"
           />
         </div>
-        
-        <div className="text-center md:text-left">
-          <h1 className="text-3xl font-bold text-zinc-900">{user.name}</h1>
-          <div className="flex flex-col md:flex-row items-center gap-3 text-sm text-zinc-500 mt-2 justify-center md:justify-start">
+
+        <div className="text-center">
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900">{user.name}</h1>
+          <div className="flex flex-col items-center gap-2 sm:gap-3 text-sm text-zinc-500 mt-2">
             <span>{user.email}</span>
-            <span className="hidden md:inline w-1 h-1 bg-zinc-300 rounded-full"></span>
-            
+
             {user.role === UserRole.ADMIN ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-900 text-white border border-zinc-800">
-                <Shield size={12} />
+                <Shield size={10} className="sm:w-3 sm:h-3" />
                 Administrator
               </span>
             ) : (
               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${user.isPremium ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'}`}>
-                {user.isPremium ? <Crown size={12} /> : null}
+                {user.isPremium ? <Crown size={10} className="sm:w-3 sm:h-3" /> : null}
                 {user.isPremium ? 'Student Pro' : 'Free Account'}
               </span>
             )}
@@ -352,7 +393,11 @@ const Profile: React.FC = () => {
                  
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {BADGES.map(badge => {
-                      const isUnlocked = user.unlockedBadges.includes(badge.id);
+                      // Check if badge is unlocked either by backend data or by requirements
+                      const isUnlockedByBackend = user.unlockedBadges?.includes(badge.id) || false;
+                      const isUnlockedByLevel = badge.requiredLevel !== undefined ? user.level >= badge.requiredLevel : false;
+                      const isUnlockedByStreak = badge.requiredStreak !== undefined ? user.streak >= badge.requiredStreak : false;
+                      const isUnlocked = isUnlockedByBackend || isUnlockedByLevel || isUnlockedByStreak;
                       const Icon = IconMap[badge.iconName] || Trophy;
                       
                       return (
@@ -372,15 +417,17 @@ const Profile: React.FC = () => {
                               <h3 className="font-bold text-zinc-900 text-sm">{badge.name}</h3>
                               <p className="text-xs text-zinc-500 mt-1">{badge.description}</p>
                            </div>
-                           {badge.requiredLevel ? (
+                           {!isUnlocked ? (
                              <div className="mt-auto pt-2">
-                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                 user.level >= badge.requiredLevel
-                                   ? 'bg-emerald-100 text-emerald-600'
-                                   : 'bg-zinc-200 text-zinc-500'
-                               }`}>
-                                 Level {badge.requiredLevel} Required
-                               </span>
+                               {badge.requiredLevel !== undefined ? (
+                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-500">
+                                   Level {badge.requiredLevel} Required
+                                 </span>
+                               ) : badge.requiredStreak !== undefined ? (
+                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-500">
+                                   {badge.requiredStreak} Day Streak Required
+                                 </span>
+                               ) : null}
                              </div>
                            ) : null}
                         </div>

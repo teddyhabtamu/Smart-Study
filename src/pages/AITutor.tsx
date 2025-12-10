@@ -48,7 +48,19 @@ const AITutor: React.FC = () => {
   // History state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(true); // open by default on desktop
+
+  // Set sidebar open by default on desktop
+  useEffect(() => {
+    const checkScreenSize = () => {
+      if (window.innerWidth >= 768) { // md breakpoint
+        setIsHistoryOpen(true);
+      }
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false); // closed by default on mobile, open on desktop
 
   // Delete confirmation state
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -336,50 +348,59 @@ const AITutor: React.FC = () => {
   const limitReached = !user && guestPromptCount >= MAX_FREE_PROMPTS;
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex gap-4 animate-fade-in relative">
+    <div className="h-[calc(100vh-6rem)] flex gap-1 sm:gap-2 md:gap-4 animate-fade-in relative">
+      {/* Mobile Sidebar Backdrop */}
+      {user && isHistoryOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-10 md:hidden animate-fade-in"
+          onClick={() => setIsHistoryOpen(false)}
+        />
+      )}
+
       {/* History Sidebar */}
       {user && (
         <div className={`
-          absolute md:static inset-y-0 left-0 z-20 w-64 bg-white border border-zinc-200 rounded-2xl shadow-lg md:shadow-sm transform transition-transform duration-300 flex flex-col
-          ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:border-0 md:overflow-hidden'}
+          fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 sm:w-72 md:w-64 bg-white border-r md:border border-zinc-200 rounded-r-2xl md:rounded-2xl shadow-2xl md:shadow-sm transform transition-transform duration-300 ease-in-out flex flex-col
+          ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          md:relative md:transform-none
         `}>
-          <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
-            <h3 className="font-bold text-zinc-900 text-sm">Chat History</h3>
-            <button onClick={() => setIsHistoryOpen(false)} className="md:hidden text-zinc-400">
-              <Menu size={18} />
+          <div className="p-4 sm:p-3 md:p-4 border-b border-zinc-100 flex items-center justify-between">
+            <h3 className="font-bold text-zinc-900 text-sm sm:text-sm">Chat History</h3>
+            <button onClick={() => setIsHistoryOpen(false)} className="md:hidden text-zinc-400 hover:text-zinc-900 p-2 rounded-lg hover:bg-zinc-100 transition-colors">
+              <X size={18} className="sm:w-5 sm:h-5" />
             </button>
           </div>
-          <div className="p-3">
-            <button 
+          <div className="p-4 sm:p-3">
+            <button
               onClick={handleNewChat}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+              className="w-full flex items-center gap-2 px-3 sm:px-3 py-3 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
             >
-              <Plus size={16} /> New Chat
+              <Plus size={16} className="sm:w-4 sm:h-4" /> New Chat
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-3 pb-4 sm:pb-3 space-y-2">
             {sessions.length === 0 ? (
-              <p className="text-xs text-zinc-400 text-center py-4">No saved chats yet.</p>
+              <p className="text-sm text-zinc-400 text-center py-8">No saved chats yet.</p>
             ) : (
               sessions.map(session => (
-                <div 
+                <div
                   key={session.id}
                   onClick={() => handleSelectSession(session)}
-                  className={`group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
-                    activeSessionId === session.id 
-                      ? 'bg-zinc-100 text-zinc-900 font-medium' 
+                  className={`group flex items-center justify-between px-3 sm:px-3 py-3 rounded-lg text-sm cursor-pointer transition-colors ${
+                    activeSessionId === session.id
+                      ? 'bg-zinc-100 text-zinc-900 font-medium border border-zinc-200'
                       : 'text-zinc-600 hover:bg-zinc-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <MessageSquare size={14} className="flex-shrink-0" />
-                    <span className="truncate">{session.title}</span>
+                  <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                    <MessageSquare size={14} className="sm:w-4 sm:h-4 flex-shrink-0 text-zinc-400" />
+                    <span className="truncate text-sm">{session.title}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-600 rounded"
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 flex-shrink-0 transition-all"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={12} className="sm:w-3.5 sm:h-3.5" />
                   </button>
                 </div>
               ))
@@ -389,38 +410,39 @@ const AITutor: React.FC = () => {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm relative">
+      <div className="flex-1 flex flex-col bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm relative md:ml-0">
         {/* Header */}
-        <div className="p-4 border-b border-zinc-100 flex items-center justify-between bg-white/80 backdrop-blur-md z-10 sticky top-0">
-          <div className="flex items-center gap-3">
+        <div className="p-3 sm:p-4 border-b border-zinc-100 flex items-center justify-between bg-white/80 backdrop-blur-md z-10 sticky top-0">
+          <div className="flex items-center gap-2 sm:gap-3">
             {user && (
-              <button 
+              <button
                 onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                className="p-2 -ml-2 mr-1 text-zinc-500 hover:bg-zinc-100 rounded-lg md:hidden"
+                className="md:hidden p-2 -ml-2 mr-1 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
+                title="Open chat history"
               >
-                <Menu size={20} />
+                <Menu size={18} className="sm:w-5 sm:h-5" />
               </button>
             )}
-            <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-zinc-900/10">
-              <Sparkles size={18} />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-zinc-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-zinc-900/10">
+              <Sparkles size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
             <div>
-              <h1 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
+              <h1 className="font-bold text-xs sm:text-sm text-zinc-900 flex items-center gap-1 sm:gap-2">
                 Smart Tutor
                 {deepThinking && (
-                  <span className="flex items-center gap-1 text-[10px] bg-zinc-100 text-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200">
-                    <Brain size={10} /> Deep Think
+                  <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-zinc-100 text-zinc-800 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                    <Brain size={8} className="sm:w-2.5 sm:h-2.5" /> Deep Think
                   </span>
                 )}
                 {subjectFocus !== 'General' && (
-                  <span className="flex items-center gap-1 text-[10px] bg-zinc-100 text-zinc-700 px-1.5 py-0.5 rounded border border-zinc-200">
-                    <GraduationCap size={10} /> {subjectFocus}
+                  <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-zinc-100 text-zinc-700 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                    <GraduationCap size={8} className="sm:w-2.5 sm:h-2.5" /> {subjectFocus}
                   </span>
                 )}
               </h1>
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-[10px] text-zinc-500 font-medium">Online</p>
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <p className="text-[9px] sm:text-[10px] text-zinc-500 font-medium">Online</p>
               </div>
             </div>
           </div>
@@ -506,68 +528,68 @@ const AITutor: React.FC = () => {
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-zinc-50/50" ref={scrollRef}>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 bg-zinc-50/50" ref={scrollRef}>
           {messages.map((msg, idx) => (
-            <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div key={idx} className={`flex gap-2 sm:gap-3 md:gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'model' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
-                    <Bot size={16} className="text-zinc-900" />
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
+                    <Bot size={12} className="sm:w-4 sm:h-4 text-zinc-900" />
                   </div>
                 </div>
               )}
-              
-              <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl p-5 shadow-sm relative group ${
-                msg.role === 'user' 
-                  ? 'bg-zinc-900 text-white rounded-br-sm' 
+
+              <div className={`max-w-[90%] sm:max-w-[85%] md:max-w-[70%] rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm relative group ${
+                msg.role === 'user'
+                  ? 'bg-zinc-900 text-white rounded-br-sm'
                   : 'bg-white border border-zinc-200 text-zinc-800 rounded-bl-sm'
               }`}>
                 {msg.role === 'user' ? (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                 ) : (
                   <>
                     <MarkdownRenderer content={msg.text} />
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <TTSButton text={msg.text} size={14} quality="high" className="bg-white/80 hover:bg-white shadow-sm" />
+                       <TTSButton text={msg.text} size={12} className="sm:w-3.5 sm:h-3.5 bg-white/80 hover:bg-white shadow-sm" />
                     </div>
                   </>
                 )}
               </div>
 
               {msg.role === 'user' && (
-                <div className="w-8 h-8 rounded-lg bg-zinc-200 flex items-center justify-center flex-shrink-0 mt-1">
-                  <UserIcon size={16} className="text-zinc-600" />
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-zinc-200 flex items-center justify-center flex-shrink-0 mt-1">
+                  <UserIcon size={12} className="sm:w-4 sm:h-4 text-zinc-600" />
                 </div>
               )}
             </div>
           ))}
 
           {isLoading && (
-            <div className="flex gap-4 justify-start animate-fade-in">
-              <div className="w-8 h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Bot size={16} className="text-zinc-900" />
+            <div className="flex gap-2 sm:gap-3 md:gap-4 justify-start animate-fade-in">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Bot size={12} className="sm:w-4 sm:h-4 text-zinc-900" />
               </div>
-              <div className="px-5 py-4 bg-white border border-zinc-200 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"></span>
-                <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-100"></span>
-                <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-200"></span>
+              <div className="px-3 sm:px-4 md:px-5 py-3 sm:py-4 bg-white border border-zinc-200 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-1 sm:gap-1.5">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-zinc-400 rounded-full animate-bounce"></span>
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-zinc-400 rounded-full animate-bounce delay-100"></span>
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-zinc-400 rounded-full animate-bounce delay-200"></span>
               </div>
             </div>
           )}
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-white border-t border-zinc-100">
-          <div className="max-w-3xl mx-auto space-y-4">
+        <div className="p-3 sm:p-4 bg-white border-t border-zinc-100">
+          <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4">
             {!isLoading && messages.length < 3 && !limitReached && (
-              <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 hide-scrollbar">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(s.label)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-full text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300 transition-all whitespace-nowrap"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-zinc-50 border border-zinc-200 rounded-full text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300 transition-all whitespace-nowrap"
                   >
-                    <s.icon size={12} />
+                    <s.icon size={10} className="sm:w-3 sm:h-3" />
                     {s.label}
                   </button>
                 ))}
@@ -575,72 +597,72 @@ const AITutor: React.FC = () => {
             )}
 
             {limitReached ? (
-               <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-center">
-                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-zinc-100">
-                    <Lock size={20} className="text-zinc-900" />
+               <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 sm:p-6 text-center">
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-zinc-100">
+                    <Lock size={16} className="sm:w-5 sm:h-5 text-zinc-900" />
                  </div>
-                 <h3 className="font-bold text-zinc-900 mb-2">Free Limit Reached</h3>
-                 <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto">
+                 <h3 className="font-bold text-zinc-900 mb-2 text-sm sm:text-base">Free Limit Reached</h3>
+                 <p className="text-xs sm:text-sm text-zinc-500 mb-4 sm:mb-6 max-w-sm mx-auto">
                    You've used your 5 free AI Tutor questions. Sign in to your account to continue chatting unlimitedly.
                  </p>
-                 <div className="flex justify-center gap-3">
-                    <Link to="/login" className="px-6 py-2 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm">
+                 <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
+                    <Link to="/login" className="px-4 sm:px-6 py-2 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm">
                       Log In
                     </Link>
-                    <Link to="/register" className="px-6 py-2 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm">
+                    <Link to="/register" className="px-4 sm:px-6 py-2 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm">
                       Create Account
                     </Link>
                  </div>
                </div>
             ) : (
-              <form 
+              <form
                 onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                className="relative flex gap-2 items-center"
+                className="relative flex gap-1.5 sm:gap-2 items-center"
               >
                 <div className="relative flex-1">
                   <input
                     ref={inputRef}
                     type="text"
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-4 pr-12 py-3.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-all font-medium text-sm placeholder-zinc-400 shadow-sm"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-3 sm:pl-4 pr-10 sm:pr-12 py-3 sm:py-3.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-all font-medium text-sm placeholder-zinc-400 shadow-sm"
                     placeholder={isListening ? "Listening..." : "Ask a question..."}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={isLoading}
                     autoFocus
                   />
-                  <div className="absolute right-2 top-2 flex gap-1">
-                    <button 
+                  <div className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 flex gap-1">
+                    <button
                       type="button"
                       onClick={toggleListening}
-                      className={`p-1.5 rounded-lg transition-all ${
-                        isListening 
-                          ? 'bg-red-50 text-red-600 animate-pulse' 
+                      className={`p-1 sm:p-1.5 rounded-lg transition-all ${
+                        isListening
+                          ? 'bg-red-50 text-red-600 animate-pulse'
                           : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
                       }`}
                       title="Voice Input"
                     >
-                      {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                      {isListening ? <MicOff size={14} className="sm:w-4 sm:h-4" /> : <Mic size={14} className="sm:w-4 sm:h-4" />}
                     </button>
                   </div>
                 </div>
-                
-                <button 
+
+                <button
                   type="submit"
                   disabled={isLoading || !input.trim()}
-                  className="p-3.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 disabled:opacity-50 transition-all shadow-sm"
+                  className="p-3 sm:p-3.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 disabled:opacity-50 transition-all shadow-sm"
                 >
-                  <Send size={18} />
+                  <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </form>
             )}
 
             <div className="text-center flex flex-col items-center gap-1">
               {!user && !limitReached && (
-                 <p className="text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-medium">
+                 <p className="text-[9px] sm:text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-medium">
                     {MAX_FREE_PROMPTS - guestPromptCount} free messages remaining
                  </p>
               )}
-              <p className="text-sm text-zinc-400">AI can make mistakes. Please verify important information.</p>
+              <p className="text-xs sm:text-sm text-zinc-400">AI can make mistakes. Please verify important information.</p>
             </div>
           </div>
         </div>

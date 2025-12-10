@@ -172,7 +172,7 @@ export const usersAPI = {
       method: 'POST',
     }),
 
-  getLeaderboard: (limit?: number): Promise<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number }[]> =>
+  getLeaderboard: (limit?: number): Promise<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number; isUser?: boolean }[]> =>
     apiRequest(`/users/leaderboard${limit ? `?limit=${limit}` : ''}`, {}, false),
 };
 

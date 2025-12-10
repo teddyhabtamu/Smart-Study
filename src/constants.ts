@@ -27,14 +27,14 @@ export const BADGES: Badge[] = [
     name: 'Streak Master',
     description: 'Maintain a 7-day study streak.',
     iconName: 'Flame',
-    requiredLevel: 0
+    requiredStreak: 7
   },
   {
     id: 'b5',
     name: 'Community Pillar',
     description: 'Contribute helpful answers in the forum.',
     iconName: 'Users',
-    requiredLevel: 0
+    requiredLevel: 2
   },
   {
     id: 'b6',

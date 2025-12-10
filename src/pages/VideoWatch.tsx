@@ -222,32 +222,32 @@ const VideoWatch: React.FC = () => {
 
   if (isRestricted) {
     return (
-      <div className="max-w-4xl mx-auto py-12 px-6 animate-fade-in text-center">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-12 shadow-sm max-w-lg mx-auto">
-          <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-6 text-zinc-400">
-            <Lock size={32} />
+      <div className="max-w-4xl mx-auto py-8 sm:py-12 px-4 sm:px-6 animate-fade-in text-center">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6 sm:p-8 md:p-12 shadow-sm max-w-lg mx-auto">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 text-zinc-400">
+            <Lock size={24} className="sm:w-8 sm:h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-zinc-900 mb-2">Free Preview Limit Reached</h2>
-          <p className="text-zinc-500 mb-8 leading-relaxed">
+          <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-2">Free Preview Limit Reached</h2>
+          <p className="text-zinc-500 mb-6 sm:mb-8 leading-relaxed text-sm sm:text-base">
             You've viewed your free video lesson for this session. <br/>
             Create a free account to continue accessing our classroom, AI tutor, and more.
           </p>
-          
+
           <div className="space-y-3">
-             <Link 
-               to="/register" 
-               className="block w-full py-3 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
+             <Link
+               to="/register"
+               className="block w-full py-3 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
              >
-               <UserPlus size={18} /> Create Free Account
+               <UserPlus size={16} className="sm:w-[18px] sm:h-[18px]" /> Create Free Account
              </Link>
-             <Link 
-               to="/login" 
-               className="block w-full py-3 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-xl hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2"
+             <Link
+               to="/login"
+               className="block w-full py-3 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-xl hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
              >
-               <LogIn size={18} /> Sign In
+               <LogIn size={16} className="sm:w-[18px] sm:h-[18px]" /> Sign In
              </Link>
           </div>
-          <p className="mt-6 text-xs text-zinc-400">
+          <p className="mt-4 sm:mt-6 text-xs text-zinc-400 px-2">
             Join thousands of Ethiopian students learning smarter today.
           </p>
         </div>
@@ -352,50 +352,50 @@ const VideoWatch: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in relative pb-12">
-       <div className="flex items-center gap-2 text-sm text-zinc-500">
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 animate-fade-in relative pb-8 sm:pb-12">
+       <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-zinc-500">
           <Link to="/videos" className="hover:text-zinc-900 transition-colors flex items-center gap-1">
-             <ChevronLeft size={16} /> Back to Classroom
+             <ChevronLeft size={14} className="sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Back to Classroom</span><span className="xs:hidden">Back</span>
           </Link>
           <span className="text-zinc-300">/</span>
-          <span>{video.subject}</span>
-          <span className="text-zinc-300">/</span>
-          <span className="text-zinc-900 font-medium truncate max-w-[200px]">{video.title}</span>
+          <span className="truncate">{video.subject}</span>
+          <span className="text-zinc-300 hidden xs:inline">/</span>
+          <span className="text-zinc-900 font-medium truncate max-w-[120px] xs:max-w-[200px]">{video.title}</span>
        </div>
 
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
              <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-lg relative">
                 {canWatch && videoId ? (
-                   <iframe 
-                     width="100%" 
-                     height="100%" 
+                   <iframe
+                     width="100%"
+                     height="100%"
                      src={embedUrl}
                      title={video.title}
-                     frameBorder="0" 
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                     frameBorder="0"
+                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                      referrerPolicy="strict-origin-when-cross-origin"
                      allowFullScreen
                      className="w-full h-full"
                    ></iframe>
                 ) : (
-                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 text-white p-6 text-center">
-                      <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4">
-                         <Lock size={32} />
+                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 text-white p-4 sm:p-6 text-center">
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                         <Lock size={24} className="sm:w-8 sm:h-8" />
                       </div>
-                      <h3 className="text-xl font-bold mb-2">
+                      <h3 className="text-lg sm:text-xl font-bold mb-2">
                         {!videoId ? 'Video Error' : 'Premium Lesson'}
                       </h3>
-                      <p className="text-zinc-400 max-w-sm mb-6">
-                        {!videoId 
-                          ? 'This video source is invalid.' 
+                      <p className="text-zinc-400 max-w-sm mb-4 sm:mb-6 text-sm sm:text-base">
+                        {!videoId
+                          ? 'This video source is invalid.'
                           : 'Upgrade your account to Student Pro to watch this lesson and access hundreds more.'}
                       </p>
                       {canWatch ? null : (
-                        <Link 
-                          to="/subscription" 
+                        <Link
+                          to="/subscription"
                           state={{ from: location.pathname }}
-                          className="px-6 py-2 bg-white text-zinc-900 font-bold rounded-lg hover:bg-zinc-100 transition-colors"
+                          className="px-4 sm:px-6 py-2 bg-white text-zinc-900 font-bold rounded-lg hover:bg-zinc-100 transition-colors text-sm sm:text-base"
                         >
                            Upgrade Plan
                         </Link>
@@ -405,18 +405,18 @@ const VideoWatch: React.FC = () => {
              </div>
 
              <div>
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
                   <div>
-                    <h1 className="text-xl md:text-2xl font-bold text-zinc-900 leading-tight mb-2">{video.title}</h1>
+                    <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 leading-tight mb-2">{video.title}</h1>
                     {canWatch && videoId && (
                       <div className="flex gap-4">
-                        <a 
-                          href={`https://www.youtube.com/watch?v=${videoId}`} 
-                          target="_blank" 
+                        <a
+                          href={`https://www.youtube.com/watch?v=${videoId}`}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs font-medium text-zinc-500 hover:text-zinc-800 flex items-center gap-1"
                         >
-                          <ExternalLink size={12} /> Watch directly on YouTube
+                          <ExternalLink size={12} /> <span className="hidden xs:inline">Watch directly on YouTube</span><span className="xs:hidden">YouTube</span>
                         </a>
                       </div>
                     )}
@@ -426,27 +426,28 @@ const VideoWatch: React.FC = () => {
                        <button
                          onClick={handleCompleteLesson}
                          disabled={isCompleted}
-                         className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 flex-shrink-0 ${
-                           isCompleted 
-                             ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-default' 
+                         className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ${
+                           isCompleted
+                             ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-default'
                              : 'bg-zinc-900 text-white border border-zinc-900 hover:bg-zinc-800 shadow-md'
                          }`}
                        >
-                         {isCompleted ? <CheckCircle size={16} /> : <CheckCircle size={16} />}
-                         {isCompleted ? 'Completed' : 'Complete Lesson'}
+                         {isCompleted ? <CheckCircle size={14} className="sm:w-4 sm:h-4" /> : <CheckCircle size={14} className="sm:w-4 sm:h-4" />}
+                         <span className="hidden xs:inline">{isCompleted ? 'Completed' : 'Complete Lesson'}</span>
+                         <span className="xs:hidden">{isCompleted ? 'Done' : 'Complete'}</span>
                        </button>
                      )}
                      <button
                        onClick={() => user && toggleBookmark(video.id, 'video')}
-                       className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 flex-shrink-0 ${
+                       className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ${
                          isBookmarked
                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
                            : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'
                        }`}
                        disabled={!user}
                      >
-                       <Bookmark size={16} className={isBookmarked ? "fill-current text-amber-600" : ""} />
-                       {isBookmarked ? 'Saved' : 'Save'}
+                       <Bookmark size={14} className={isBookmarked ? "fill-current text-amber-600" : ""} />
+                       <span className="hidden xs:inline">{isBookmarked ? 'Saved' : 'Save'}</span>
                      </button>
                    </div>
                 </div>
@@ -495,7 +496,7 @@ const VideoWatch: React.FC = () => {
              </div>
           </div>
 
-          <div className="flex flex-col h-[600px] bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="flex flex-col h-[400px] sm:h-[500px] md:h-[600px] bg-white border border-zinc-200 rounded-xl overflow-hidden shadow-sm">
              <div className="flex border-b border-zinc-100 bg-zinc-50/50">
                {[
                  { id: 'upNext', icon: PlayCircle, label: 'Up Next' },
@@ -506,14 +507,14 @@ const VideoWatch: React.FC = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex-1 py-3 text-xs font-medium flex flex-col items-center justify-center gap-1 transition-colors relative ${
-                      activeTab === tab.id 
-                        ? 'bg-white text-zinc-900' 
+                    className={`flex-1 py-2.5 sm:py-3 text-xs font-medium flex flex-col items-center justify-center gap-1 transition-colors relative ${
+                      activeTab === tab.id
+                        ? 'bg-white text-zinc-900'
                         : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50'
                     }`}
                   >
-                    <tab.icon size={16} />
-                    {tab.label}
+                    <tab.icon size={14} className="sm:w-4 sm:h-4" />
+                    <span className="text-[10px] sm:text-xs">{tab.label}</span>
                     {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900"></div>}
                   </button>
                ))}

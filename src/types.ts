@@ -24,6 +24,7 @@ export interface Badge {
   description: string;
   iconName: string; // We'll map string names to Lucide icons
   requiredLevel?: number;
+  requiredStreak?: number;
 }
 
 export interface User {

@@ -186,30 +186,30 @@ const Practice: React.FC = () => {
 
   if (view === 'limit') {
     return (
-      <div className="max-w-2xl mx-auto py-16 px-6 animate-fade-in text-center">
-        <div className="bg-white rounded-3xl border border-zinc-200 shadow-xl p-10 relative overflow-hidden">
-           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-100 rounded-full blur-3xl -mr-32 -mt-32 opacity-50"></div>
-           
-           <div className="w-20 h-20 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-zinc-900/20 relative z-10">
-              <Crown size={40} className="text-amber-400" />
+      <div className="max-w-2xl mx-auto py-12 sm:py-16 px-4 sm:px-6 animate-fade-in text-center">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-zinc-200 shadow-xl p-6 sm:p-8 md:p-10 relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-amber-100 rounded-full blur-3xl -mr-24 -mt-24 sm:-mr-32 sm:-mt-32 opacity-50"></div>
+
+           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg shadow-zinc-900/20 relative z-10">
+              <Crown size={32} className="sm:w-10 sm:h-10 text-amber-400" />
            </div>
-           
-           <h2 className="text-2xl font-bold text-zinc-900 mb-3 relative z-10">Practice Limit Reached</h2>
-           <p className="text-zinc-500 mb-8 max-w-md mx-auto relative z-10">
+
+           <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-3 relative z-10">Practice Limit Reached</h2>
+           <p className="text-zinc-500 mb-6 sm:mb-8 max-w-md mx-auto relative z-10 text-sm sm:text-base">
              You've used your free daily practice session. Upgrade to Student Pro for unlimited AI-generated quizzes and faster learning.
            </p>
-           
-           <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10">
-              <Link 
-                to="/subscription" 
+
+           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center relative z-10">
+              <Link
+                to="/subscription"
                 state={{ from: '/practice' }}
-                className="px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-center gap-2"
+                className="px-6 sm:px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base"
               >
-                Upgrade Now <ArrowRight size={18} />
+                Upgrade Now <ArrowRight size={16} className="sm:w-[18px] sm:h-[18px]" />
               </Link>
-              <button 
+              <button
                 onClick={() => setView('config')}
-                className="px-8 py-3 bg-white border border-zinc-200 text-zinc-600 font-medium rounded-xl hover:bg-zinc-50 transition-colors"
+                className="px-6 sm:px-8 py-3 bg-white border border-zinc-200 text-zinc-600 font-medium rounded-xl hover:bg-zinc-50 transition-colors text-sm sm:text-base"
               >
                 Back to Config
               </button>
@@ -223,14 +223,14 @@ const Practice: React.FC = () => {
     const attemptsLeft = user && !user.isPremium ? Math.max(0, 1 - (user.practiceAttempts || 0)) : '∞';
 
     return (
-      <div className="max-w-2xl mx-auto py-12 px-6 animate-fade-in">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-zinc-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-zinc-900/20">
-            <BrainCircuit size={32} />
+      <div className="max-w-2xl mx-auto py-8 sm:py-12 px-4 sm:px-6 animate-fade-in">
+        <div className="text-center mb-8 sm:mb-10">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-zinc-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-zinc-900/20">
+            <BrainCircuit size={24} className="sm:w-8 sm:h-8" />
           </div>
-          <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Practice Center</h1>
-          <p className="text-zinc-500 mt-2">Generate unlimited quizzes powered by AI to master any subject.</p>
-          
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">Practice Center</h1>
+          <p className="text-zinc-500 mt-2 text-sm sm:text-base">Generate unlimited quizzes powered by AI to master any subject.</p>
+
           {!user?.isPremium && user && (
              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-zinc-100 rounded-full text-xs font-medium text-zinc-600 border border-zinc-200">
                <Lock size={12} /> Free Practices Left: {attemptsLeft}
@@ -238,17 +238,17 @@ const Practice: React.FC = () => {
           )}
         </div>
 
-        <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-6 relative">
-          
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-4 sm:space-y-6 relative">
+
           {user?.isPremium && (
             <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
                 <div className="absolute top-4 right-4 text-amber-500 opacity-20">
-                   <Crown size={100} className="rotate-12" />
+                   <Crown size={80} className="sm:w-24 sm:h-24 rotate-12" />
                 </div>
             </div>
           )}
 
-          <div className="grid md:grid-cols-2 gap-6 relative z-20">
+          <div className="grid gap-4 sm:gap-6 relative z-20">
             <div>
               <label className="block text-xs font-semibold text-zinc-700 mb-2 uppercase tracking-wide">Subject</label>
               <CustomSelect options={subjectOptions} value={subject} onChange={setSubject} />
@@ -298,10 +298,10 @@ const Practice: React.FC = () => {
     const progress = ((currentQIndex) / questions.length) * 100;
 
     return (
-      <div className="max-w-3xl mx-auto py-8 px-6 animate-fade-in">
+      <div className="max-w-3xl mx-auto py-6 sm:py-8 px-4 sm:px-6 animate-fade-in">
         {/* Header / Progress */}
-        <div className="mb-8">
-           <div className="flex justify-between items-end mb-2">
+        <div className="mb-6 sm:mb-8">
+           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 mb-2">
              <span className="text-sm font-semibold text-zinc-500">Question {currentQIndex + 1} of {questions.length}</span>
              <span className="text-xs font-bold bg-zinc-100 px-2 py-1 rounded text-zinc-600">{subject} • {difficulty}</span>
            </div>
@@ -311,14 +311,14 @@ const Practice: React.FC = () => {
         </div>
 
         {/* Question Card */}
-        <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm mb-8">
-           <div className="flex items-start gap-3 mb-6">
-             <h2 className="text-xl font-bold text-zinc-900 leading-relaxed flex-1">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 shadow-sm mb-6 sm:mb-8">
+           <div className="flex items-start gap-3 mb-4 sm:mb-6">
+             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 leading-relaxed flex-1">
                {question.question}
              </h2>
-             <TTSButton text={question.question} size={18} quality="high" className="text-zinc-400 hover:text-zinc-900 flex-shrink-0" />
+             <TTSButton text={question.question} size={16} className="sm:w-[18px] sm:h-[18px] text-zinc-400 hover:text-zinc-900 flex-shrink-0" />
            </div>
-           
+
            <div className="space-y-3">
              {question.options.map((option, idx) => {
                const isSelected = answers[currentQIndex] === option;
@@ -326,16 +326,16 @@ const Practice: React.FC = () => {
                  <button
                    key={idx}
                    onClick={() => handleSelectOption(option)}
-                   className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between group ${
-                     isSelected 
-                       ? 'border-zinc-900 bg-zinc-50' 
+                   className={`w-full text-left p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-between group ${
+                     isSelected
+                       ? 'border-zinc-900 bg-zinc-50'
                        : 'border-zinc-100 hover:border-zinc-300 hover:bg-zinc-50'
                    }`}
                  >
-                   <span className={`font-medium ${isSelected ? 'text-zinc-900' : 'text-zinc-600'}`}>
+                   <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-zinc-900' : 'text-zinc-600'}`}>
                      {option}
                    </span>
-                   {isSelected && <div className="w-5 h-5 bg-zinc-900 rounded-full flex items-center justify-center"><Check size={12} className="text-white" /></div>}
+                   {isSelected && <div className="w-4 h-4 sm:w-5 sm:h-5 bg-zinc-900 rounded-full flex items-center justify-center"><Check size={10} className="sm:w-3 sm:h-3 text-white" /></div>}
                  </button>
                );
              })}
@@ -344,21 +344,21 @@ const Practice: React.FC = () => {
 
         {/* Footer */}
         <div className="flex justify-between items-center">
-           <button 
+           <button
              onClick={() => {
                // Confirm quit and clear state
                if(window.confirm("Are you sure you want to quit? Progress will be lost.")) {
                  resetQuiz();
                }
-             }} 
-             className="text-zinc-400 hover:text-zinc-600 text-sm font-medium px-4"
+             }}
+             className="text-zinc-400 hover:text-zinc-600 text-sm font-medium px-3 sm:px-4"
            >
              Quit
            </button>
            <button
              onClick={handleNext}
              disabled={!answers[currentQIndex]}
-             className="px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-zinc-900/10"
+             className="px-6 sm:px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-zinc-900/10 text-sm sm:text-base"
            >
              {currentQIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
            </button>
@@ -372,42 +372,42 @@ const Practice: React.FC = () => {
     const passed = percentage >= 60;
 
     return (
-      <div className="max-w-3xl mx-auto py-12 px-6 animate-fade-in">
-        <div className="bg-white rounded-3xl border border-zinc-200 shadow-xl overflow-hidden mb-12">
-           <div className={`p-12 text-center text-white ${passed ? 'bg-zinc-900' : 'bg-zinc-700'}`}>
-              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
-                 <Trophy size={40} className={passed ? 'text-yellow-400' : 'text-zinc-300'} />
+      <div className="max-w-3xl mx-auto py-8 sm:py-12 px-4 sm:px-6 animate-fade-in">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-zinc-200 shadow-xl overflow-hidden mb-8 sm:mb-12">
+           <div className={`p-8 sm:p-12 text-center text-white ${passed ? 'bg-zinc-900' : 'bg-zinc-700'}`}>
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 backdrop-blur-sm">
+                 <Trophy size={32} className="sm:w-10 sm:h-10" />
               </div>
-              <h1 className="text-4xl font-bold mb-2">{percentage}%</h1>
-              <p className="text-zinc-300 text-lg mb-6">
+              <h1 className="text-3xl sm:text-4xl font-bold mb-2">{percentage}%</h1>
+              <p className="text-zinc-300 text-base sm:text-lg mb-4 sm:mb-6">
                 You answered {score} out of {questions.length} correctly.
               </p>
-              
-              <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full text-sm font-medium backdrop-blur-md">
+
+              <div className="inline-flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-2 rounded-full text-sm font-medium backdrop-blur-md">
                  <span className="text-emerald-400">+{score * 10} XP</span> Earned
               </div>
            </div>
 
-           <div className="p-8 bg-zinc-50">
-              <h3 className="font-bold text-zinc-900 mb-6 flex items-center gap-2">
-                 <AlertCircle size={20} /> Review Answers
+           <div className="p-6 sm:p-8 bg-zinc-50">
+              <h3 className="font-bold text-zinc-900 mb-4 sm:mb-6 flex items-center gap-2 text-base sm:text-lg">
+                 <AlertCircle size={18} className="sm:w-5 sm:h-5" /> Review Answers
               </h3>
-              
-              <div className="space-y-6">
+
+              <div className="space-y-4 sm:space-y-6">
                  {questions.map((q, idx) => {
                    const userAnswer = answers[idx];
                    const isCorrect = userAnswer === q.correctAnswer;
-                   
+
                    return (
-                     <div key={idx} className={`p-6 rounded-xl border ${isCorrect ? 'bg-white border-zinc-200' : 'bg-red-50 border-red-100'}`}>
+                     <div key={idx} className={`p-4 sm:p-6 rounded-xl border ${isCorrect ? 'bg-white border-zinc-200' : 'bg-red-50 border-red-100'}`}>
                         <div className="flex gap-3">
-                           <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                           <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
                              isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-200 text-red-600'
                            }`}>
-                              {isCorrect ? <Check size={14} /> : <X size={14} />}
+                              {isCorrect ? <Check size={12} className="sm:w-3.5 sm:h-3.5" /> : <X size={12} className="sm:w-3.5 sm:h-3.5" />}
                            </div>
-                           <div>
-                              <p className="font-bold text-zinc-900 mb-3 text-sm">{q.question}</p>
+                           <div className="flex-1">
+                              <p className="font-bold text-zinc-900 mb-3 text-sm sm:text-base">{q.question}</p>
                               <div className="space-y-1 mb-3">
                                  <p className="text-xs text-zinc-500">
                                    Your Answer: <span className={isCorrect ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}>{userAnswer}</span>
@@ -421,7 +421,7 @@ const Practice: React.FC = () => {
                               <div className="text-xs bg-black/5 p-3 rounded-lg text-zinc-600 leading-relaxed relative">
                                  <div className="flex justify-between items-start mb-1">
                                     <span className="font-bold">Explanation:</span>
-                                    <TTSButton text={q.explanation} size={14} quality="high" className="p-1 -mt-1 -mr-1" />
+                                    <TTSButton text={q.explanation} size={12} className="sm:w-3.5 sm:h-3.5 p-1 -mt-1 -mr-1" />
                                  </div>
                                  {q.explanation}
                               </div>
@@ -435,11 +435,11 @@ const Practice: React.FC = () => {
         </div>
 
         <div className="text-center">
-           <button 
+           <button
              onClick={resetQuiz}
-             className="px-8 py-3 bg-white border border-zinc-300 text-zinc-900 font-bold rounded-xl hover:bg-zinc-50 transition-colors inline-flex items-center gap-2 shadow-sm"
+             className="px-6 sm:px-8 py-3 bg-white border border-zinc-300 text-zinc-900 font-bold rounded-xl hover:bg-zinc-50 transition-colors inline-flex items-center gap-2 shadow-sm text-sm sm:text-base"
            >
-             <RotateCcw size={18} /> Practice Another Topic
+             <RotateCcw size={16} className="sm:w-[18px] sm:h-[18px]" /> Practice Another Topic
            </button>
         </div>
       </div>

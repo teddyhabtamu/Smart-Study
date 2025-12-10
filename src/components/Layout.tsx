@@ -260,7 +260,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                    )}
                 </div>
 
-                <Link to="/profile" className={`flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group ${isCollapsed ? 'justify-center w-full' : 'flex-1 overflow-hidden'}`} title={isCollapsed ? user.name : undefined}>
+                <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className={`flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group ${isCollapsed ? 'justify-center w-full' : 'flex-1 overflow-hidden'}`} title={isCollapsed ? user.name : undefined}>
                   <div className="h-9 w-9 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-xs border border-zinc-200 flex-shrink-0 overflow-hidden relative">
                     {user.avatar ? (
                       <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />

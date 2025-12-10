@@ -82,84 +82,86 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
   // RENDER: Active Subscription View
   if (user?.isPremium) {
     return (
-      <div className="max-w-4xl mx-auto py-12 animate-fade-in px-6">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold text-zinc-900 tracking-tight mb-3">Manage Subscription</h1>
-          <p className="text-zinc-500">View your plan details and billing history.</p>
+      <div className="max-w-4xl mx-auto py-8 sm:py-12 animate-fade-in px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-3">Manage Subscription</h1>
+          <p className="text-zinc-500 text-sm sm:text-base">View your plan details and billing history.</p>
         </div>
 
         <div className="max-w-xl mx-auto bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
           {/* Active Plan Header */}
-          <div className="bg-zinc-900 p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-gradient-to-bl from-zinc-500/20 to-transparent w-32 h-32 rounded-bl-full"></div>
-            <div className="flex items-center gap-4 mb-4 relative z-10">
-              <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10">
-                <Crown size={28} className="text-amber-400" />
+          <div className="bg-zinc-900 p-6 sm:p-8 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-gradient-to-bl from-zinc-500/20 to-transparent w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full"></div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 relative z-10">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 flex-shrink-0">
+                  <Crown size={20} className="sm:w-7 sm:h-7 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold">Student Pro</h3>
+                  <p className="text-zinc-400 text-sm">Active Subscription</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-bold">Student Pro</h3>
-                <p className="text-zinc-400 text-sm">Active Subscription</p>
-              </div>
-              <span className="ml-auto bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck size={12} /> Active
+              <span className="self-start sm:ml-auto bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 sm:px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                <ShieldCheck size={10} className="sm:w-3 sm:h-3" /> Active
               </span>
             </div>
           </div>
           
           {/* Plan Details */}
-          <div className="p-8 space-y-8">
-            <div className="grid grid-cols-2 gap-y-6 gap-x-4 pb-8 border-b border-zinc-100">
+          <div className="p-6 sm:p-8 space-y-6 sm:space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 sm:gap-y-6 gap-x-4 pb-6 sm:pb-8 border-b border-zinc-100">
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Billing Cycle</p>
-                <p className="text-zinc-900 font-medium flex items-center gap-2">
-                  <Calendar size={16} className="text-zinc-400" /> Monthly
+                <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
+                  <Calendar size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> Monthly
                 </p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Next Payment</p>
-                <p className="text-zinc-900 font-medium">
+                <p className="text-zinc-900 font-medium text-sm sm:text-base break-words">
                   {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Payment Method</p>
-                <p className="text-zinc-900 font-medium flex items-center gap-2">
-                  <CreditCard size={16} className="text-zinc-400" /> Telebirr (**92)
+                <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
+                  <CreditCard size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> Telebirr (**92)
                 </p>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Amount</p>
-                <p className="text-zinc-900 font-medium">100 ETB</p>
+                <p className="text-zinc-900 font-medium text-sm sm:text-base">100 ETB</p>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-bold text-zinc-900 text-sm">Active Plan Features</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <h4 className="font-bold text-zinc-900 text-sm sm:text-base">Active Plan Features</h4>
+              <div className="grid grid-cols-1 gap-3">
                 {['Unlimited Downloads', 'AI Tutor (Deep Think)', 'Offline Access', 'Priority Support', 'Ad-free Experience', 'Exclusive Content'].map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-zinc-600">
-                    <Check size={14} className="text-emerald-500 flex-shrink-0" /> {f}
+                    <Check size={12} className="sm:w-3.5 sm:h-3.5 text-emerald-500 flex-shrink-0" /> {f}
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="pt-6 border-t border-zinc-100 flex flex-col sm:flex-row gap-4">
-              <button 
+            <div className="pt-4 sm:pt-6 border-t border-zinc-100 space-y-3 sm:space-y-0 sm:flex sm:gap-4">
+              <button
                 onClick={handleCancelSubscription}
-                className="flex-1 py-2.5 bg-white border border-zinc-200 text-red-600 font-medium rounded-lg hover:bg-red-50 hover:border-red-100 transition-colors text-sm"
+                className="w-full sm:flex-1 py-3 sm:py-2.5 bg-white border border-zinc-200 text-red-600 font-medium rounded-lg hover:bg-red-50 hover:border-red-100 transition-colors text-sm sm:text-base touch-manipulation"
               >
                 Cancel Subscription
               </button>
-              <button className="flex-1 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm">
+              <button className="w-full sm:flex-1 py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm sm:text-base touch-manipulation">
                 Update Payment Method
               </button>
             </div>
             
-            <div className="bg-zinc-50 rounded-lg p-4 flex gap-3 items-start text-xs text-zinc-800 leading-relaxed border border-zinc-200">
-               <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-zinc-600" />
+            <div className="bg-zinc-50 rounded-lg p-3 sm:p-4 flex gap-3 items-start text-xs sm:text-sm text-zinc-800 leading-relaxed border border-zinc-200">
+               <AlertCircle size={14} className="sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 text-zinc-600" />
                <p>
-                 Need an invoice for reimbursement? <a href="#" className="underline font-semibold hover:text-zinc-950">Download latest invoice</a>.
+                 Need an invoice for reimbursement? <a href="#" className="underline font-semibold hover:text-zinc-950 text-xs sm:text-sm">Download latest invoice</a>.
                </p>
             </div>
           </div>
@@ -170,59 +172,59 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
 
   // RENDER: Upgrade View (For Free Users)
   return (
-    <div className="max-w-4xl mx-auto py-12 animate-fade-in relative px-6">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold text-zinc-900 tracking-tight mb-3">Simple, transparent pricing</h1>
-        <p className="text-zinc-500">Invest in your education with our premium resources.</p>
+    <div className="max-w-4xl mx-auto py-8 sm:py-12 animate-fade-in relative px-4 sm:px-6">
+      <div className="text-center mb-8 sm:mb-12">
+        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-3">Simple, transparent pricing</h1>
+        <p className="text-zinc-500 text-sm sm:text-base">Invest in your education with our premium resources.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
         {/* Free */}
-        <div className="bg-white p-8 rounded-2xl border border-zinc-200 flex flex-col">
-           <div className="mb-6">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 flex flex-col">
+           <div className="mb-4 sm:mb-6">
              <h3 className="text-lg font-bold text-zinc-900">Basic</h3>
              <div className="mt-2 flex items-baseline gap-1">
-               <span className="text-4xl font-bold text-zinc-900 tracking-tight">Free</span>
+               <span className="text-3xl sm:text-4xl font-bold text-zinc-900 tracking-tight">Free</span>
              </div>
              <p className="text-sm text-zinc-500 mt-2">Essential access for every student.</p>
            </div>
-           
-           <div className="flex-1 space-y-4 mb-8">
+
+           <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8">
              {['Browse entire catalog', 'Limited previews', 'Community access'].map((f, i) => (
                <div key={i} className="flex items-center gap-3 text-sm text-zinc-600">
-                 <Check size={16} className="text-zinc-400" /> {f}
+                 <Check size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {f}
                </div>
              ))}
            </div>
-           
-           <button className="w-full py-3 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-zinc-200 transition-colors cursor-default">
+
+           <button className="w-full py-3 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-zinc-200 transition-colors cursor-default text-sm sm:text-base">
              Current Plan
            </button>
         </div>
 
         {/* Pro */}
-        <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800 flex flex-col relative overflow-hidden shadow-2xl">
-           <div className="absolute top-0 right-0 bg-gradient-to-bl from-zinc-500/20 to-transparent w-32 h-32 rounded-bl-full"></div>
-           <div className="mb-6 relative z-10">
+        <div className="bg-zinc-900 p-6 sm:p-8 rounded-2xl border border-zinc-800 flex flex-col relative overflow-hidden shadow-2xl">
+           <div className="absolute top-0 right-0 bg-gradient-to-bl from-zinc-500/20 to-transparent w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full"></div>
+           <div className="mb-4 sm:mb-6 relative z-10">
              <h3 className="text-lg font-bold text-white">Student Pro</h3>
              <div className="mt-2 flex items-baseline gap-1">
-               <span className="text-4xl font-bold text-white tracking-tight">100 ETB</span>
+               <span className="text-3xl sm:text-4xl font-bold text-white tracking-tight">100 ETB</span>
                <span className="text-zinc-400 text-sm">/mo</span>
              </div>
              <p className="text-sm text-zinc-400 mt-2">Unlock your full potential.</p>
            </div>
-           
-           <div className="flex-1 space-y-4 mb-8 relative z-10">
+
+           <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8 relative z-10">
              {['Unlimited downloads', 'Full AI Tutor access', 'Offline mode', 'Priority support'].map((f, i) => (
                <div key={i} className="flex items-center gap-3 text-sm text-zinc-300">
-                 <Check size={16} className="text-emerald-500" /> {f}
+                 <Check size={14} className="sm:w-4 sm:h-4 text-emerald-500" /> {f}
                </div>
              ))}
            </div>
-           
-           <button 
+
+           <button
              onClick={() => setIsModalOpen(true)}
-             className="w-full py-3 bg-white text-zinc-900 font-medium rounded-lg hover:bg-zinc-100 transition-colors relative z-10"
+             className="w-full py-3 bg-white text-zinc-900 font-medium rounded-lg hover:bg-zinc-100 transition-colors relative z-10 text-sm sm:text-base"
            >
              Upgrade via Telebirr
            </button>

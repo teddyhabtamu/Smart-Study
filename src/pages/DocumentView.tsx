@@ -298,18 +298,18 @@ const DocumentView: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] bg-zinc-50/50">
-      
+
       {/* 1. HEADER BAR */}
-      <header className="flex-shrink-0 bg-white border-b border-zinc-200 px-4 py-3 sm:px-6 shadow-sm z-20">
-        <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+      <header className="flex-shrink-0 bg-white border-b border-zinc-200 px-3 sm:px-4 md:px-6 py-3 shadow-sm z-20">
+        <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link to="/library" className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors">
-              <ChevronLeft size={20} />
+              <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
             </Link>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-zinc-900 truncate">{doc.title}</h1>
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-zinc-500">
-                <span className="px-2 py-0.5 bg-zinc-100 rounded text-zinc-600 font-medium">{doc.subject}</span>
+              <h1 className="text-base sm:text-lg md:text-xl font-bold text-zinc-900 truncate">{doc.title}</h1>
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-zinc-500">
+                <span className="px-1.5 sm:px-2 py-0.5 bg-zinc-100 rounded text-zinc-600 font-medium text-xs">{doc.subject}</span>
                 <span>•</span>
                 <span>Grade {doc.grade}</span>
               </div>
@@ -356,23 +356,23 @@ const DocumentView: React.FC = () => {
       </header>
 
       {/* 2. MOBILE VIEW TOGGLE */}
-      <div className="md:hidden px-4 py-2 bg-white border-b border-zinc-200 flex-shrink-0">
+      <div className="md:hidden px-3 sm:px-4 py-2 bg-white border-b border-zinc-200 flex-shrink-0">
         <div className="flex p-1 bg-zinc-100 rounded-lg">
           <button
             onClick={() => setMobileView('doc')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
               mobileView === 'doc' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'
             }`}
           >
-            <Eye size={16} /> Document
+            <Eye size={14} className="sm:w-4 sm:h-4" /> Document
           </button>
           <button
             onClick={() => setMobileView('tools')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
               mobileView === 'tools' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-500'
             }`}
           >
-            <Sparkles size={16} /> AI Tools
+            <Sparkles size={14} className="sm:w-4 sm:h-4" /> AI Tools
           </button>
         </div>
       </div>
