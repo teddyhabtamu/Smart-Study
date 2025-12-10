@@ -296,6 +296,21 @@ const Admin: React.FC = () => {
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState('Content Manager');
 
+  // Confirmation Modal State
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    type: 'upgrade' | 'downgrade' | 'activate' | 'ban' | null;
+    studentId: string | null;
+    studentName: string | null;
+    currentStatus?: string;
+    isPremium?: boolean;
+  }>({
+    isOpen: false,
+    type: null,
+    studentId: null,
+    studentName: null
+  });
+
   // Options
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
   const subjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
@@ -390,7 +405,10 @@ const Admin: React.FC = () => {
         if (editingId) {
           // Update Document
           const updateData: any = {
-            title, description, subject, isPremium,
+            title, 
+            description, 
+            subject, 
+            is_premium: isPremium, // Backend expects snake_case
             grade: parseInt(grade),
             file_type: docFileType,
             author: docAuthor
@@ -409,14 +427,14 @@ const Admin: React.FC = () => {
           await updateDocument(editingId, updateData);
           addToast('Document updated successfully!', 'success');
         } else {
-          // Create Document
+          // Create Document - Use adminAPI for proper field mapping
           const documentData: any = {
             title: title || (file ? file.name.split('.')[0] : "New Document"),
             description: description || "New uploaded material.",
             subject,
             grade: parseInt(grade),
             file_type: docFileType,
-            isPremium,
+            is_premium: isPremium, // Backend expects snake_case
             author: docAuthor || "Admin",
             tags: []
           };
@@ -431,7 +449,8 @@ const Admin: React.FC = () => {
             documentData.preview_image = docThumbnailUrl.trim();
           }
 
-          await createDocument(documentData);
+          // Use adminAPI instead of createDocument from useData
+          await adminAPI.createDocument(documentData);
           addToast('Document published successfully!', 'success');
         }
       } else {
@@ -506,30 +525,72 @@ const Admin: React.FC = () => {
   };
 
   // --- Student Handlers ---
-  const toggleStudentStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'Active' ? 'Banned' : 'Active';
+  const openStatusConfirmation = (student: any) => {
+    const currentStatus = student.status || 'Active';
+    const isActive = currentStatus === 'Active';
+    setConfirmationModal({
+      isOpen: true,
+      type: isActive ? 'ban' : 'activate',
+      studentId: student.id,
+      studentName: student.name,
+      currentStatus: currentStatus
+    });
+  };
+
+  const openPremiumConfirmation = (student: any) => {
+    setConfirmationModal({
+      isOpen: true,
+      type: student.isPremium ? 'downgrade' : 'upgrade',
+      studentId: student.id,
+      studentName: student.name,
+      isPremium: student.isPremium
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmationModal.studentId || !confirmationModal.type) return;
+
     try {
-      await adminAPI.updateUserStatus(id, newStatus);
-      // Refresh user data
-      await fetchUsers();
-      addToast(`User marked as ${newStatus}`, newStatus === 'Active' ? 'success' : 'warning');
+      if (confirmationModal.type === 'upgrade' || confirmationModal.type === 'downgrade') {
+        // Premium toggle
+        await adminAPI.updateUserPremium(confirmationModal.studentId, confirmationModal.type === 'upgrade');
+        await fetchUsers();
+        addToast(
+          confirmationModal.type === 'upgrade' 
+            ? 'User upgraded to Premium Plan' 
+            : 'User downgraded to Free Plan',
+          'success'
+        );
+      } else if (confirmationModal.type === 'ban' || confirmationModal.type === 'activate') {
+        // Status toggle
+        const newStatus = confirmationModal.type === 'ban' ? 'Banned' : 'Active';
+        await adminAPI.updateUserStatus(confirmationModal.studentId, newStatus);
+        await fetchUsers();
+        addToast(
+          `User marked as ${newStatus}`, 
+          newStatus === 'Active' ? 'success' : 'warning'
+        );
+      }
+
+      // Close modal
+      setConfirmationModal({
+        isOpen: false,
+        type: null,
+        studentId: null,
+        studentName: null
+      });
     } catch (error: any) {
-      addToast(error.message || 'Failed to update user status', 'error');
+      addToast(error.message || 'Failed to update user', 'error');
     }
   };
 
-  const toggleStudentPremium = async (id: string, isPremium: boolean) => {
-    try {
-      await adminAPI.updateUserPremium(id, !isPremium);
-      // Refresh user data
-      await fetchUsers();
-      addToast(
-        !isPremium ? 'User upgraded to Premium Plan' : 'User downgraded to Free Plan',
-        'success'
-      );
-    } catch (error: any) {
-      addToast(error.message || 'Failed to update user premium status', 'error');
-    }
+  const closeConfirmationModal = () => {
+    setConfirmationModal({
+      isOpen: false,
+      type: null,
+      studentId: null,
+      studentName: null
+    });
   };
 
   // --- Team Handlers ---
@@ -587,52 +648,53 @@ const Admin: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-8 pb-12">
+    <div className="max-w-7xl mx-auto animate-fade-in space-y-4 sm:space-y-8 pb-12 px-2 sm:px-0">
       
       {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-zinc-200 pb-4 sm:pb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:gap-4 border-b border-zinc-200 pb-4 sm:pb-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2">
               <span className="px-2 py-1 rounded-md bg-zinc-900 text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                 <Shield size={10} /> Admin Panel
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight">System Administration</h1>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 tracking-tight">System Administration</h1>
           </div>
 
-          {/* Main Tabs */}
-          <div className="flex p-1 bg-zinc-100 rounded-lg overflow-x-auto">
-            {[
-              { id: 'overview', label: 'Overview', icon: BarChart3 },
-              { id: 'content', label: 'Content', icon: FileText },
-              { id: 'students', label: 'Students', icon: Users },
-              { id: 'community', label: 'Community', icon: MessageSquare },
-              { id: 'team', label: 'Team', icon: Shield },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-700'
-                }`}
-              >
-                <tab.icon size={14} className="sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">{tab.label}</span>
-                <span className="xs:hidden">{tab.label.slice(0, 4)}</span>
-              </button>
-            ))}
+          {/* Main Tabs - Mobile Optimized */}
+          <div className="flex p-1 bg-zinc-100 rounded-lg overflow-x-auto hide-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
+            <div className="flex gap-1 min-w-max">
+              {[
+                { id: 'overview', label: 'Overview', icon: BarChart3 },
+                { id: 'content', label: 'Content', icon: FileText },
+                { id: 'students', label: 'Students', icon: Users },
+                { id: 'community', label: 'Community', icon: MessageSquare },
+                { id: 'team', label: 'Team', icon: Shield },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200'
+                      : 'text-zinc-500 hover:text-zinc-700 active:bg-white/50'
+                  }`}
+                >
+                  <tab.icon size={16} className="flex-shrink-0" />
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       {/* --- OVERVIEW TAB --- */}
       {activeTab === 'overview' && (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-4 sm:space-y-8 animate-fade-in">
               {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {adminLoading || !adminStats ? (
               <>
                 <StatsCardSkeleton />
@@ -642,36 +704,36 @@ const Admin: React.FC = () => {
               </>
             ) : (
               <>
-                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Users size={20} /></div>
-                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12%</span>
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-3 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Users size={18} className="sm:w-5 sm:h-5" /></div>
+                      <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">+12%</span>
                    </div>
-                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalUsers.toLocaleString()}</div>
-                   <div className="text-sm text-zinc-500 mt-1">Total Students</div>
+                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalUsers.toLocaleString()}</div>
+                   <div className="text-xs sm:text-sm text-zinc-500 mt-1">Total Students</div>
                 </div>
-                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Crown size={20} /></div>
-                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+5%</span>
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-3 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Crown size={18} className="sm:w-5 sm:h-5" /></div>
+                      <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">+5%</span>
                    </div>
-                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
-                   <div className="text-sm text-zinc-500 mt-1">Premium Subscribers</div>
+                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
+                   <div className="text-xs sm:text-sm text-zinc-500 mt-1">Premium Subscribers</div>
                 </div>
-                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><FileText size={20} /></div>
-                      <span className="text-xs font-bold text-zinc-400 bg-zinc-50 px-2 py-1 rounded-full">New</span>
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-3 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><FileText size={18} className="sm:w-5 sm:h-5" /></div>
+                      <span className="text-[10px] sm:text-xs font-bold text-zinc-400 bg-zinc-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">New</span>
                    </div>
-                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
-                   <div className="text-sm text-zinc-500 mt-1">Learning Resources</div>
+                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
+                   <div className="text-xs sm:text-sm text-zinc-500 mt-1">Learning Resources</div>
                 </div>
-                <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
-                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-zinc-100 text-zinc-700 rounded-lg"><MessageSquare size={20} /></div>
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                   <div className="flex justify-between items-start mb-3 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><MessageSquare size={18} className="sm:w-5 sm:h-5" /></div>
                    </div>
-                   <div className="text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalPosts}</div>
-                   <div className="text-sm text-zinc-500 mt-1">Community Posts</div>
+                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalPosts}</div>
+                   <div className="text-xs sm:text-sm text-zinc-500 mt-1">Community Posts</div>
                 </div>
               </>
             )}
@@ -722,10 +784,10 @@ const Admin: React.FC = () => {
 
       {/* --- CONTENT TAB --- */}
       {activeTab === 'content' && (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-4 sm:space-y-8 animate-fade-in">
           
           {/* Content Type Toggle */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
              <button 
                onClick={() => { setContentCategory('documents'); resetForm(); }}
                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
@@ -749,24 +811,24 @@ const Admin: React.FC = () => {
           </div>
 
           {/* Form Section */}
-          <section ref={formSectionRef} className={`bg-white p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
-                {editingId ? <Edit2 size={20} className="text-zinc-900" /> : <Upload size={20} className="text-zinc-400" />}
-                {editingId ? `Edit ${contentCategory === 'documents' ? 'Document' : 'Video'}` : `Add New ${contentCategory === 'documents' ? 'Document' : 'Video'}`}
+          <section ref={formSectionRef} className={`bg-white p-4 sm:p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-base sm:text-lg font-bold text-zinc-900 flex items-center gap-2">
+                {editingId ? <Edit2 size={18} className="text-zinc-900 sm:w-5 sm:h-5" /> : <Upload size={18} className="text-zinc-400 sm:w-5 sm:h-5" />}
+                <span className="line-clamp-1">{editingId ? `Edit ${contentCategory === 'documents' ? 'Document' : 'Video'}` : `Add New ${contentCategory === 'documents' ? 'Document' : 'Video'}`}</span>
               </h2>
               {editingId && (
                 <button 
                   onClick={resetForm}
-                  className="text-xs font-medium text-zinc-500 hover:text-zinc-900 bg-zinc-100 px-3 py-1.5 rounded-lg transition-colors"
+                  className="text-xs font-medium text-zinc-500 hover:text-zinc-900 bg-zinc-100 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
             
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Title</label>
                   <input 
@@ -958,38 +1020,91 @@ const Admin: React.FC = () => {
 
           {/* List Section */}
           <section className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
+             <div className="p-3 sm:p-4 border-b border-zinc-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-zinc-50/50">
                 <h3 className="font-bold text-zinc-900 text-sm flex items-center gap-2">
                   {contentCategory === 'documents' ? <FileText size={16} /> : <PlaySquare size={16} />}
-                  Manage {contentCategory === 'documents' ? 'Documents' : 'Videos'}
+                  <span className="hidden sm:inline">Manage {contentCategory === 'documents' ? 'Documents' : 'Videos'}</span>
+                  <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : 'Videos'}</span>
                 </h3>
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                    <input 
                      type="text" 
-                     placeholder="Search content..." 
-                     className="pl-8 pr-3 py-1.5 bg-white border border-zinc-200 rounded-md text-xs focus:outline-none focus:border-zinc-400 w-48 transition-all"
+                     placeholder="Search..." 
+                     className="pl-8 pr-3 py-1.5 bg-white border border-zinc-200 rounded-md text-xs focus:outline-none focus:border-zinc-400 w-full sm:w-48 transition-all"
                      value={searchTerm}
                      onChange={(e) => setSearchTerm(e.target.value)}
                    />
                 </div>
              </div>
              
-             <div className="overflow-x-auto">
-               {loading.documents || loading.videos ? (
-                 <ContentTableSkeleton />
-               ) : (
-                 <table className="w-full text-sm text-left">
-                   <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
-                     <tr>
-                       <th className="px-6 py-3 font-semibold">Title</th>
-                       <th className="px-6 py-3 font-semibold">Details</th>
-                       <th className="px-6 py-3 font-semibold">Type</th>
-                       <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                     </tr>
-                   </thead>
-                   <tbody className="divide-y divide-zinc-50">
-                     {filteredItems.map((item) => (
+             {loading.documents || loading.videos ? (
+               <ContentTableSkeleton />
+             ) : (
+               <>
+                 {/* Mobile Card Layout */}
+                 <div className="md:hidden p-3 space-y-3">
+                   {filteredItems.map((item) => (
+                     <div key={item.id} className="border border-zinc-200 rounded-lg p-3 bg-zinc-50/50">
+                       <div className="flex items-start gap-3 mb-2">
+                         <div className="w-10 h-10 rounded bg-zinc-200 flex items-center justify-center text-zinc-500 flex-shrink-0">
+                           {contentCategory === 'documents' ? <FileText size={18} /> : <PlaySquare size={18} />}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <h4 className="font-medium text-zinc-900 text-sm line-clamp-1">{item.title}</h4>
+                           <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{item.description}</p>
+                         </div>
+                       </div>
+                       <div className="flex items-center justify-between gap-2 mb-2">
+                         <div className="flex flex-col gap-1 text-xs">
+                           <span className="font-medium text-zinc-700">{item.subject}</span>
+                           <span className="text-zinc-500">Grade {item.grade}</span>
+                         </div>
+                         <div className="flex items-center gap-1.5">
+                           {((item as any).isPremium || (item as any).is_premium) && (
+                             <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
+                           )}
+                           <span className="bg-zinc-100 text-zinc-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
+                             {contentCategory === 'documents' ? (item as Document).file_type : 'Video'}
+                           </span>
+                         </div>
+                       </div>
+                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
+                         <button 
+                           onClick={() => contentCategory === 'documents' ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
+                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                         >
+                           <Edit2 size={14} /> Edit
+                         </button>
+                         <button 
+                           onClick={() => handleDelete(item.id)}
+                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                         >
+                           <Trash2 size={14} /> Delete
+                         </button>
+                       </div>
+                     </div>
+                   ))}
+                   {filteredItems.length === 0 && (
+                     <div className="text-center py-12 text-zinc-400 text-xs">
+                       No content found matching your filters.
+                     </div>
+                   )}
+                 </div>
+
+                 {/* Desktop Table Layout */}
+                 <div className="hidden md:block overflow-x-auto">
+                   <table className="w-full text-sm text-left">
+                     <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                       <tr>
+                         <th className="px-6 py-3 font-semibold">Title</th>
+                         <th className="px-6 py-3 font-semibold">Details</th>
+                         <th className="px-6 py-3 font-semibold">Type</th>
+                         <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-zinc-50">
+                       {filteredItems.map((item) => (
                      <tr key={item.id} className="hover:bg-zinc-50/80 transition-colors group">
                        <td className="px-6 py-4 font-medium text-zinc-900">
                           <div className="flex items-center gap-3">
@@ -1035,33 +1150,34 @@ const Admin: React.FC = () => {
                           </div>
                        </td>
                      </tr>
-                   ))}
-                   {filteredItems.length === 0 && (
-                     <tr>
-                       <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-xs">
-                         No content found matching your filters.
-                       </td>
-                     </tr>
-                   )}
-                 </tbody>
-               </table>
-               )}
-             </div>
+                       ))}
+                       {filteredItems.length === 0 && (
+                         <tr>
+                           <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-xs">
+                             No content found matching your filters.
+                           </td>
+                         </tr>
+                       )}
+                     </tbody>
+                   </table>
+                 </div>
+               </>
+             )}
           </section>
         </div>
       )}
 
       {/* --- STUDENTS TAB --- */}
       {activeTab === 'students' && (
-        <div className="space-y-6 animate-fade-in">
-           <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-              <h2 className="text-lg font-bold text-zinc-900">Student Management</h2>
-              <div className="relative">
+        <div className="space-y-4 sm:space-y-6 animate-fade-in">
+           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
+              <h2 className="text-base sm:text-lg font-bold text-zinc-900">Student Management</h2>
+              <div className="relative w-full sm:w-auto">
                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                  <input 
                    type="text" 
                    placeholder="Search students..." 
-                   className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all w-64"
+                   className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all w-full sm:w-64"
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
                  />
@@ -1071,7 +1187,60 @@ const Admin: React.FC = () => {
            {loading.users ? (
              <StudentsTableSkeleton />
            ) : (
-             <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+             <>
+               {/* Mobile Card Layout */}
+               <div className="md:hidden space-y-3">
+                 {filteredStudents.map((student) => (
+                   <div key={student.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
+                     <div className="flex items-start justify-between mb-3">
+                       <div className="flex-1 min-w-0">
+                         <h4 className="font-medium text-zinc-900 truncate">{student.name}</h4>
+                         <p className="text-xs text-zinc-500 truncate">{student.email}</p>
+                       </div>
+                       <button 
+                         onClick={() => openStatusConfirmation(student)}
+                         className={`ml-2 p-2 rounded-lg transition-colors ${
+                           (student.status === 'Active' || !student.status) ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
+                         }`}
+                       >
+                         {(student.status === 'Active' || !student.status) ? <Ban size={16} /> : <CheckCircle size={16} />}
+                       </button>
+                     </div>
+                     <div className="flex items-center justify-between gap-2 text-xs">
+                       <div className="flex items-center gap-2">
+                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium border text-[10px] ${
+                           (student.status === 'Active' || !student.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
+                         }`}>
+                           <span className={`w-1 h-1 rounded-full ${(student.status === 'Active' || !student.status) ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                           {student.status || 'Active'}
+                         </span>
+                         {student.isPremium ? (
+                           <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                             <Crown size={10} /> PRO
+                           </span>
+                         ) : (
+                           <span className="text-[10px] text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">Free</span>
+                         )}
+                       </div>
+                       <button 
+                         onClick={() => openPremiumConfirmation(student)}
+                         className="text-[10px] font-medium text-zinc-500 hover:text-amber-600 hover:underline"
+                       >
+                         {student.isPremium ? 'Downgrade' : 'Upgrade'}
+                       </button>
+                     </div>
+                     <div className="mt-2 text-[10px] text-zinc-400">
+                       Joined {new Date(student.joinedDate || '').toLocaleDateString()}
+                     </div>
+                   </div>
+                 ))}
+                 {filteredStudents.length === 0 && (
+                   <div className="text-center py-12 text-zinc-400 text-sm">No students found.</div>
+                 )}
+               </div>
+
+               {/* Desktop Table Layout */}
+               <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -1094,9 +1263,9 @@ const Admin: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                             student.status === 'Active' || !student.status ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
+                             (student.status === 'Active' || !student.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${student.status === 'Active' || !student.status ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                              <span className={`w-1.5 h-1.5 rounded-full ${(student.status === 'Active' || !student.status) ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
                               {student.status || 'Active'}
                            </span>
                         </td>
@@ -1115,67 +1284,77 @@ const Admin: React.FC = () => {
                         <td className="px-6 py-4 text-right">
                            <div className="flex justify-end items-center gap-2">
                               <button 
-                                onClick={() => toggleStudentPremium(student.id, student.isPremium)}
+                                onClick={() => openPremiumConfirmation(student)}
                                 className="text-xs font-medium text-zinc-500 hover:text-amber-600 hover:underline"
                               >
                                 {student.isPremium ? 'Downgrade' : 'Upgrade'}
                               </button>
                               <div className="h-4 w-px bg-zinc-200"></div>
                               <button 
-                                onClick={() => toggleStudentStatus(student.id, student.status || 'Active')}
+                                onClick={() => openStatusConfirmation(student)}
                                 className={`p-1.5 rounded-lg transition-colors ${
-                                  student.status === 'Active' ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
+                                  (student.status === 'Active' || !student.status) ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
                                 }`}
-                                title={student.status === 'Active' ? 'Ban User' : 'Activate User'}
+                                title={(student.status === 'Active' || !student.status) ? 'Ban User' : 'Activate User'}
                               >
-                                {student.status === 'Active' ? <Ban size={16} /> : <CheckCircle size={16} />}
+                                {(student.status === 'Active' || !student.status) ? <Ban size={16} /> : <CheckCircle size={16} />}
                               </button>
                            </div>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      ))}
+                      {filteredStudents.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 text-sm">
+                            No students found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-           </div>
+             </>
            )}
         </div>
       )}
 
       {/* --- COMMUNITY TAB --- */}
       {activeTab === 'community' && (
-         <div className="space-y-6 animate-fade-in">
-            <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm mb-6">
-              <h2 className="text-lg font-bold text-zinc-900 mb-2">Community Moderation</h2>
-              <p className="text-sm text-zinc-500">Review flagged posts and manage discussions.</p>
+         <div className="space-y-4 sm:space-y-6 animate-fade-in">
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+              <h2 className="text-base sm:text-lg font-bold text-zinc-900 mb-2">Community Moderation</h2>
+              <p className="text-xs sm:text-sm text-zinc-500">Review flagged posts and manage discussions.</p>
             </div>
 
             {loading.forumPosts ? (
               <CommunityPostsSkeleton />
             ) : (
-              <div className="grid gap-4">
+              <div className="grid gap-3 sm:gap-4">
                  {forumPosts.map(post => (
-                   <div key={post.id} className="bg-white p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-4">
-                      <div className="flex flex-col items-center gap-1 text-zinc-400 pt-1">
+                   <div key={post.id} className="bg-white p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-3 sm:gap-4">
+                      <div className="flex flex-col items-center gap-1 text-zinc-400 pt-1 hidden sm:flex">
                          <AlertTriangle size={20} />
                       </div>
                       <div className="flex-1 min-w-0">
-                         <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-bold text-zinc-900 text-sm">{post.title}</h3>
+                         <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-2">
+                            <h3 className="font-bold text-zinc-900 text-sm flex-1 min-w-0 line-clamp-1">{post.title}</h3>
                             <button
                               onClick={() => handleDeletePost(post.id)}
-                              className="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                              className="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors whitespace-nowrap"
                             >
-                              Delete Post
+                              Delete
                             </button>
                          </div>
-                         <p className="text-sm text-zinc-600 line-clamp-2 mb-3 bg-zinc-50 p-3 rounded-lg border border-zinc-100 italic">
+                         <p className="text-xs sm:text-sm text-zinc-600 line-clamp-2 mb-3 bg-zinc-50 p-2 sm:p-3 rounded-lg border border-zinc-100 italic">
                             "{post.content}"
                          </p>
-                         <div className="flex items-center gap-4 text-xs text-zinc-400">
-                            <span>Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
-                            <span>• {post.createdAt}</span>
-                            <span>• {post.comment_count} comments</span>
+                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
+                            <span className="truncate">Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
+                            <span className="hidden sm:inline">•</span>
+                            <span className="text-[10px] sm:text-xs">{post.createdAt}</span>
+                            <span className="hidden sm:inline">•</span>
+                            <span className="text-[10px] sm:text-xs">{post.comment_count} comments</span>
                          </div>
                       </div>
                    </div>
@@ -1190,24 +1369,67 @@ const Admin: React.FC = () => {
 
       {/* --- TEAM TAB --- */}
       {activeTab === 'team' && (
-        <div className="space-y-8 animate-fade-in">
-           <div className="flex justify-between items-end">
+        <div className="space-y-4 sm:space-y-8 animate-fade-in">
+           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-3">
               <div>
-                <h2 className="text-lg font-bold text-zinc-900">Admin Team</h2>
-                <p className="text-sm text-zinc-500">Manage access to the admin panel.</p>
+                <h2 className="text-base sm:text-lg font-bold text-zinc-900">Admin Team</h2>
+                <p className="text-xs sm:text-sm text-zinc-500">Manage access to the admin panel.</p>
               </div>
               <button 
                 onClick={() => setIsInviteOpen(true)}
-                className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
               >
-                <UserPlus size={16} /> Invite Member
+                <UserPlus size={16} /> <span>Invite Member</span>
               </button>
            </div>
 
            {adminLoading ? (
              <AdminTeamSkeleton />
            ) : (
-             <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+             <>
+               {/* Mobile Card Layout */}
+               <div className="md:hidden space-y-3">
+                 {admins.map((admin) => (
+                   <div key={admin.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
+                     <div className="flex items-start justify-between mb-3">
+                       <div className="flex items-center gap-3 flex-1 min-w-0">
+                         <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-600 flex-shrink-0">
+                           {admin.name.charAt(0)}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <h4 className="font-medium text-zinc-900 truncate">{admin.name}</h4>
+                           <p className="text-xs text-zinc-500 truncate">{admin.email}</p>
+                         </div>
+                       </div>
+                       <button
+                         onClick={() => handleRemoveAdmin(admin.id)}
+                         className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                       >
+                         <Trash2 size={16} />
+                       </button>
+                     </div>
+                     <div className="flex items-center justify-between text-xs">
+                       <div className="flex items-center gap-2">
+                         <span className="text-zinc-600 font-medium">
+                           {admin.role === 'ADMIN' ? 'Super Admin' : admin.role}
+                         </span>
+                         <span className="px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px]">
+                           Active
+                         </span>
+                       </div>
+                       <span className="text-zinc-400 text-[10px]">
+                         {new Date((admin as any).created_at || (admin as any).joinedDate || '').toLocaleDateString()}
+                       </span>
+                     </div>
+                   </div>
+                 ))}
+                 {admins.length === 0 && (
+                   <div className="text-center py-12 text-zinc-400 text-sm">No team members yet.</div>
+                 )}
+               </div>
+
+               {/* Desktop Table Layout */}
+               <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -1254,23 +1476,31 @@ const Admin: React.FC = () => {
                           </td>
                         </tr>
                       ))}
+                      {admins.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 text-sm">
+                            No team members yet.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
-             </div>
+              </div>
+             </>
            )}
 
            {/* Invite Modal */}
            {isInviteOpen && mounted && createPortal(
-              <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
-                  <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
-                     <h3 className="font-bold text-zinc-900">Invite Team Member</h3>
+              <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up max-h-[90vh] overflow-y-auto">
+                  <div className="p-3 sm:p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl sticky top-0">
+                     <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Invite Team Member</h3>
                      <button onClick={() => setIsInviteOpen(false)} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
                        <X size={20} />
                      </button>
                   </div>
-                  <form onSubmit={handleInvite} className="p-6 space-y-4">
+                  <form onSubmit={handleInvite} className="p-4 sm:p-6 space-y-4">
                      <div>
                         <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Full Name</label>
                         <input 
@@ -1311,6 +1541,80 @@ const Admin: React.FC = () => {
               document.body
            )}
         </div>
+      )}
+
+      {/* Confirmation Modal - Outside all tabs so it can be shown from any tab */}
+      {confirmationModal.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className={`p-3 rounded-full ${
+                  confirmationModal.type === 'ban' 
+                    ? 'bg-red-100 text-red-600' 
+                    : confirmationModal.type === 'activate'
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : confirmationModal.type === 'upgrade'
+                    ? 'bg-amber-100 text-amber-600'
+                    : 'bg-zinc-100 text-zinc-600'
+                }`}>
+                  {confirmationModal.type === 'ban' && <Ban size={24} />}
+                  {confirmationModal.type === 'activate' && <CheckCircle size={24} />}
+                  {confirmationModal.type === 'upgrade' && <Crown size={24} />}
+                  {confirmationModal.type === 'downgrade' && <X size={24} />}
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                    {confirmationModal.type === 'upgrade' && 'Upgrade to Premium?'}
+                    {confirmationModal.type === 'downgrade' && 'Downgrade to Free Plan?'}
+                    {confirmationModal.type === 'ban' && 'Ban User?'}
+                    {confirmationModal.type === 'activate' && 'Activate User?'}
+                  </h3>
+                  <p className="text-sm text-zinc-600">
+                    {confirmationModal.type === 'upgrade' && (
+                      <>Are you sure you want to upgrade <strong>{confirmationModal.studentName}</strong> to Premium Plan? They will gain access to all premium content.</>
+                    )}
+                    {confirmationModal.type === 'downgrade' && (
+                      <>Are you sure you want to downgrade <strong>{confirmationModal.studentName}</strong> to Free Plan? They will lose access to premium content.</>
+                    )}
+                    {confirmationModal.type === 'ban' && (
+                      <>Are you sure you want to ban <strong>{confirmationModal.studentName}</strong>? They will not be able to access the platform.</>
+                    )}
+                    {confirmationModal.type === 'activate' && (
+                      <>Are you sure you want to activate <strong>{confirmationModal.studentName}</strong>? They will regain access to the platform.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={closeConfirmationModal}
+                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmAction}
+                  className={`flex-1 px-4 py-2.5 font-medium rounded-lg transition-colors ${
+                    confirmationModal.type === 'ban'
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : confirmationModal.type === 'activate'
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : confirmationModal.type === 'upgrade'
+                      ? 'bg-amber-600 text-white hover:bg-amber-700'
+                      : 'bg-zinc-600 text-white hover:bg-zinc-700'
+                  }`}
+                >
+                  {confirmationModal.type === 'upgrade' && 'Upgrade'}
+                  {confirmationModal.type === 'downgrade' && 'Downgrade'}
+                  {confirmationModal.type === 'ban' && 'Ban User'}
+                  {confirmationModal.type === 'activate' && 'Activate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

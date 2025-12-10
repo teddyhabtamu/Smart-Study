@@ -4,7 +4,7 @@ import { authAPI, usersAPI } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
-  login: (emailOrUser: string | User, password?: string) => Promise<void>;
+  login: (emailOrUser: string | User, password?: string) => Promise<User | void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<User>) => Promise<void>;
@@ -261,8 +261,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         is_premium: undefined
       };
       setUser(transformedUser);
+      // Save to localStorage for immediate access
+      localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
       // Load full profile including bookmarks
       await refreshUser();
+      // Return the user for immediate access to role
+      return transformedUser;
     } catch (error) {
       throw error;
     }

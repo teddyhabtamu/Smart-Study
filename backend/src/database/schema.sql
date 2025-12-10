@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_active_date DATE,
     unlocked_badges TEXT[] DEFAULT ARRAY['b1'],
     practice_attempts INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Banned', 'Inactive')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

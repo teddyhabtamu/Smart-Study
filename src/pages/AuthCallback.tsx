@@ -23,7 +23,12 @@ const AuthCallback: React.FC = () => {
       authAPI.verify().then(response => {
         if (response?.user) {
           login(response.user).then(() => {
-            navigate('/dashboard', { replace: true });
+            // Redirect admin to management panel, others to dashboard
+            if (response.user.role === 'ADMIN') {
+              navigate('/admin', { replace: true });
+            } else {
+              navigate('/dashboard', { replace: true });
+            }
           }).catch(err => {
             console.error('Login error:', err);
             addToast("Login failed", "error");

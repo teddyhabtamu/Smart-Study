@@ -13,7 +13,7 @@ interface AuthProps {
 const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { login, register } = useAuth();
+  const { login, register, user } = useAuth();
   
   // Local state to handle 'forgot' view without changing URL necessarily
   const [view, setView] = useState<'login' | 'register' | 'forgot'>(initialType);
@@ -46,15 +46,24 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
       // LOGIN FLOW
       if (view === 'login') {
-        await login(email, password);
+        const loggedInUser = await login(email, password);
         addToast("Login successful!", "success");
-        navigate('/dashboard');
+        
+        // Redirect admin to management panel, others to dashboard
+        // Check if user is admin (compare as string to avoid type narrowing issues)
+        if (loggedInUser && String(loggedInUser.role) === 'ADMIN') {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
       }
 
       // REGISTER FLOW
       else if (view === 'register') {
         await register(name, email, password);
         addToast("Registration successful! Welcome to SmartStudy!", "success");
+        
+        // After registration, redirect to dashboard (new users are always students)
         navigate('/dashboard');
       }
 
