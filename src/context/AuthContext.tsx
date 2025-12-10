@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, NotificationItem } from '../types';
 import { authAPI, usersAPI } from '../services/api';
 
@@ -24,6 +24,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastNotificationCheck, setLastNotificationCheck] = useState<Date>(new Date());
+  
+  // Request deduplication - prevent multiple simultaneous calls
+  const profileRequestRef = useRef<Promise<any> | null>(null);
+  const lastProfileFetchRef = useRef<Date | null>(null);
+  const PROFILE_CACHE_DURATION = 5000; // 5 seconds cache
 
   // Check authentication on mount
   useEffect(() => {
@@ -58,8 +63,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(transformedUser);
           // Save to localStorage for persistence
           localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
-          // Load full profile including bookmarks
-          await refreshUser();
+          // Load full profile including bookmarks (force refresh on initial load)
+          await refreshUser(true);
         } catch (error) {
           console.error('Token verification failed:', error);
           localStorage.removeItem('auth_token');
@@ -97,9 +102,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isPolling = true;
 
       try {
-        const response = await usersAPI.getProfile();
+        // Check if we need fresh data (more than 20 seconds since last fetch)
+        const now = new Date();
+        const shouldFetchFresh = !lastProfileFetchRef.current || 
+          (now.getTime() - lastProfileFetchRef.current.getTime()) > 20000; // 20 seconds
+        
         const currentNotifications = user.notifications || [];
-        const newNotifications = response.notifications || [];
+        let newNotifications = currentNotifications;
+        
+        if (shouldFetchFresh) {
+          // For notification polling, check if there's a pending profile request
+          if (profileRequestRef.current) {
+            // Wait for existing request to complete
+            await profileRequestRef.current;
+            // Get updated notifications from user state (refreshUser updates it)
+            newNotifications = user.notifications || [];
+          } else {
+            // Make fresh call for notifications
+            const response = await usersAPI.getProfile();
+            newNotifications = response.notifications || [];
+            // Update user state with fresh notifications
+            setUser(prev => prev ? { ...prev, notifications: newNotifications } : null);
+            lastProfileFetchRef.current = new Date();
+          }
+        }
 
         // Get current notification IDs for comparison
         const currentIds = new Set(currentNotifications.map(n => n.id));
@@ -276,7 +302,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const updatedUser = await usersAPI.updateProfile(data);
-      setUser(updatedUser);
+      // Preserve notifications from current user state if they're not in the response
+      setUser({
+        ...updatedUser,
+        notifications: updatedUser.notifications || user.notifications || []
+      });
     } catch (error) {
       console.error('Update user error:', error);
       throw error;
@@ -363,15 +393,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = useCallback(async (force = false) => {
     // Do nothing if there's no auth token
     const token = localStorage.getItem('auth_token');
     if (!token) {
       return;
     }
 
+    // Check if we have a recent fetch (within cache duration) and not forcing
+    const now = new Date();
+    if (!force && lastProfileFetchRef.current) {
+      const timeSinceLastFetch = now.getTime() - lastProfileFetchRef.current.getTime();
+      if (timeSinceLastFetch < PROFILE_CACHE_DURATION && profileRequestRef.current) {
+        // Return the existing promise if it's still pending
+        return profileRequestRef.current;
+      }
+    }
+
+    // If there's already a pending request, return it instead of making a new one
+    if (profileRequestRef.current && !force) {
+      return profileRequestRef.current;
+    }
+
     try {
-      const response = await usersAPI.getProfile();
+      // Create and store the promise
+      const profilePromise = usersAPI.getProfile();
+      profileRequestRef.current = profilePromise;
+      
+      const response = await profilePromise;
       // Transform snake_case fields to camelCase to match User interface
       const transformedUser = {
         ...response,

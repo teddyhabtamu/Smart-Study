@@ -22,19 +22,33 @@ const Dashboard: React.FC = () => {
   const [greeting, setGreeting] = useState('');
   const [quickQuestion, setQuickQuestion] = useState('');
 
+  // Track last dashboard fetch to prevent duplicate calls
+  const lastDashboardFetchRef = React.useRef<number>(0);
+  const DASHBOARD_CACHE_DURATION = 10000; // 10 seconds cache
+
   // Fetch dashboard data on mount and when user changes
   useEffect(() => {
     if (user) {
-      fetchDashboard();
+      const now = Date.now();
+      // Only fetch if it's been more than cache duration since last fetch
+      if (now - lastDashboardFetchRef.current > DASHBOARD_CACHE_DURATION) {
+        lastDashboardFetchRef.current = now;
+        fetchDashboard();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Refresh dashboard when page becomes visible (user navigates back)
+  // Refresh dashboard when page becomes visible (user navigates back) - with debounce
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && user) {
-        fetchDashboard();
+        const now = Date.now();
+        // Only fetch if it's been more than cache duration since last fetch
+        if (now - lastDashboardFetchRef.current > DASHBOARD_CACHE_DURATION) {
+          lastDashboardFetchRef.current = now;
+          fetchDashboard();
+        }
       }
     };
 
@@ -45,16 +59,26 @@ const Dashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Refresh dashboard when bookmarks change
+  // Refresh dashboard when bookmarks change - with debounce
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
     const handleBookmarksChanged = () => {
       if (user) {
-        fetchDashboard();
+        // Debounce to prevent multiple rapid calls
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          const now = Date.now();
+          if (now - lastDashboardFetchRef.current > DASHBOARD_CACHE_DURATION) {
+            lastDashboardFetchRef.current = now;
+            fetchDashboard();
+          }
+        }, 500); // 500ms debounce
       }
     };
 
     window.addEventListener('bookmarksChanged', handleBookmarksChanged);
     return () => {
+      clearTimeout(timeoutId);
       window.removeEventListener('bookmarksChanged', handleBookmarksChanged);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

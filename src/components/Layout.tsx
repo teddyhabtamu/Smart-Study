@@ -24,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread'>('all');
   const notificationRef = useRef<HTMLDivElement>(null);
+  const mobileNotificationRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   
   const location = useLocation();
@@ -177,6 +178,75 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-zinc-50/50 flex font-sans">
       <SearchPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       
+      {/* Mobile Header - Single Header with Logo, Notification & Profile */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-zinc-200 z-50 flex items-center justify-between px-4">
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="p-2 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={24} />
+        </button>
+
+        {/* SmartStudy Logo - Center */}
+        <Link to="/" className="flex items-center gap-2 flex-1 justify-center" onClick={() => setIsSidebarOpen(false)}>
+          <div className="bg-zinc-900 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
+            <GraduationCap className="text-white" size={16} />
+          </div>
+          <span className="font-bold text-base text-zinc-900 tracking-tight">SmartStudy</span>
+        </Link>
+
+        <div className="flex items-center gap-3">
+          {/* Notification Bell (Mobile) */}
+          {user && (
+            <div className="relative" ref={mobileNotificationRef}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsNotificationsOpen(!isNotificationsOpen);
+                  if (!isNotificationsOpen && user) {
+                    refreshUser().catch(error => {
+                      console.error('Failed to fetch notifications:', error);
+                    });
+                  }
+                }}
+                className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'}`}
+                aria-label="Notifications"
+              >
+                <Bell size={22} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Profile Icon (Mobile) */}
+          {user ? (
+            <Link
+              to="/profile"
+              onClick={() => setIsSidebarOpen(false)}
+              className="h-9 w-9 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-xs border border-zinc-200 overflow-hidden relative"
+              aria-label="Profile"
+            >
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+              )}
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className="p-2 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+              aria-label="Login"
+            >
+              <User size={22} />
+            </Link>
+          )}
+        </div>
+      </header>
+      
       {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div
@@ -292,11 +362,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
           </div>
 
-          {/* Footer / Profile */}
-          <div className="p-4 border-t border-zinc-100 relative overflow-visible">
+          {/* Footer / Profile - Hidden on mobile (moved to header) */}
+          <div className="hidden lg:block p-4 border-t border-zinc-100 relative overflow-visible">
             {user ? (
               <div className={`flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center flex-col gap-4' : 'gap-2'} relative`}>
-                {/* Notification Bell (Only visible if user exists) */}
+                {/* Notification Bell (Desktop only) */}
                 <div className="relative z-50" ref={notificationRef}>
                    <button
                      onClick={(e) => {
@@ -321,16 +391,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                    </button>
                    
                    {/* Notification Dropdown */}
-                   {isNotificationsOpen && notificationRef.current && createPortal(
+                   {isNotificationsOpen && (notificationRef.current || mobileNotificationRef.current) && createPortal(
                      <div
                        data-notification-dropdown
-                       className="fixed w-96 bg-white border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in-fast overflow-hidden"
-                       style={{
-                         bottom: `${window.innerHeight - notificationRef.current.getBoundingClientRect().top + 8}px`,
-                         left: `${notificationRef.current.getBoundingClientRect().right + 8}px`,
-                         maxHeight: `${Math.min(600, notificationRef.current.getBoundingClientRect().top - 16)}px`,
-                         minHeight: '200px'
-                       }}
+                       className={`fixed bg-white border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in-fast overflow-hidden ${
+                         window.innerWidth < 1024 
+                           ? 'w-[calc(100vw-2rem)] max-w-sm right-4 top-20' 
+                           : 'w-96'
+                       }`}
+                       style={
+                         window.innerWidth >= 1024 && notificationRef.current
+                           ? {
+                               bottom: `${window.innerHeight - notificationRef.current.getBoundingClientRect().top + 8}px`,
+                               left: `${notificationRef.current.getBoundingClientRect().right + 8}px`,
+                               maxHeight: `${Math.min(600, notificationRef.current.getBoundingClientRect().top - 16)}px`,
+                               minHeight: '200px'
+                             }
+                           : {
+                               maxHeight: 'calc(100vh - 6rem)',
+                               minHeight: '200px'
+                             }
+                       }
                        onClick={(e) => e.stopPropagation()}
                        onMouseDown={(e) => e.stopPropagation()}
                      >
@@ -502,7 +583,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {filteredNotifications.length > 0 && (
                            <div className="p-3 border-t border-zinc-200 bg-zinc-900">
                               <Link
-                                 to="/profile?tab=notifications"
+                                 to="/profile?tab=notifications&view=history"
                                  onClick={() => setIsNotificationsOpen(false)}
                                  className="block w-full text-center text-xs font-medium text-white hover:text-zinc-200 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
                               >
@@ -559,7 +640,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-white relative">
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-white relative lg:mt-0 mt-16">
         
         {/* Modern Watermark - Fixed Background Layer */}
         <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none overflow-hidden select-none">
@@ -569,23 +650,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </h1>
         </div>
 
-        {/* Mobile Header */}
-        <header className="lg:hidden h-14 bg-white/80 backdrop-blur-md border-b border-zinc-200 flex items-center justify-between px-4 sticky top-0 z-30">
-          <div className="flex items-center gap-2">
-            <div className="bg-zinc-900 w-7 h-7 rounded-lg flex items-center justify-center">
-              <GraduationCap className="text-white" size={14} />
-            </div>
-            <span className="font-bold text-zinc-900">SmartStudy</span>
-          </div>
-          <div className="flex items-center gap-2">
-             <button onClick={() => setIsSearchOpen(true)} className="p-2 text-zinc-500">
-               <Search size={20} />
-             </button>
-             <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-zinc-500">
-               <Menu size={20} />
-             </button>
-          </div>
-        </header>
+        {/* Mobile Header - Removed (using fixed header at top level instead) */}
 
         {/* Scrollable Content Area */}
         <div ref={mainContentRef} className="flex-1 overflow-y-auto scroll-smooth bg-zinc-50/60 relative z-10">

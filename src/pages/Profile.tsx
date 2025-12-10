@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,7 @@ const Profile: React.FC = () => {
   const { user, logout, changePassword, updateUser, markNotificationsAsRead, deleteNotification } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [name, setName] = useState(user?.name || '');
   const [avatar, setAvatar] = useState<string | undefined>(user?.avatar);
@@ -37,7 +38,6 @@ const Profile: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isUpdatingBadges, setIsUpdatingBadges] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -52,46 +52,9 @@ const Profile: React.FC = () => {
     }
   }, [user]);
 
-  // Check for newly unlocked badges based on level/streak progression
-  useEffect(() => {
-    if (user && !isUpdatingBadges) {
-      const currentUnlockedBadges = user.unlockedBadges || [];
-      const newlyUnlockedBadges = BADGES
-        .filter(badge => {
-          // Check level-based unlock
-          const levelUnlocked = badge.requiredLevel !== undefined &&
-            user.level >= badge.requiredLevel &&
-            !currentUnlockedBadges.includes(badge.id);
-
-          // Check streak-based unlock
-          const streakUnlocked = badge.requiredStreak !== undefined &&
-            user.streak >= badge.requiredStreak &&
-            !currentUnlockedBadges.includes(badge.id);
-
-          return levelUnlocked || streakUnlocked;
-        })
-        .map(badge => badge.id);
-
-      if (newlyUnlockedBadges.length > 0) {
-        setIsUpdatingBadges(true);
-
-        // Update the user's unlocked badges
-        const updatedBadges = [...currentUnlockedBadges, ...newlyUnlockedBadges];
-        updateUser({ unlockedBadges: updatedBadges });
-
-        // Show toast for newly unlocked badges
-        newlyUnlockedBadges.forEach(badgeId => {
-          const badge = BADGES.find(b => b.id === badgeId);
-          if (badge) {
-            addToast(`🏆 Achievement Unlocked: ${badge.name}!`, 'success');
-          }
-        });
-
-        // Reset the flag after a delay
-        setTimeout(() => setIsUpdatingBadges(false), 2000);
-      }
-    }
-  }, [user?.level, user?.streak]); // Check on level or streak changes
+  // Profile page should only DISPLAY achievements, not UNLOCK them
+  // Achievement unlocking should happen in other contexts (Dashboard, etc.)
+  // Removed automatic badge checking to prevent toasts on page load
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +68,66 @@ const Profile: React.FC = () => {
   const [studyReminders, setStudyReminders] = useState(user.preferences?.studyReminders ?? true);
   const [notificationView, setNotificationView] = useState<NotificationView>('preferences');
   const [notificationTypeFilter, setNotificationTypeFilter] = useState<'all' | 'info' | 'success' | 'warning' | 'error'>('all');
+
+  // Ref for notification history section
+  const notificationHistoryRef = useRef<HTMLDivElement>(null);
+
+  // Read URL parameters on mount and when they change
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as Tab | null;
+    const viewParam = searchParams.get('view') as NotificationView | null;
+    
+    if (tabParam && ['general', 'security', 'notifications', 'achievements'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+    
+    if (viewParam && ['preferences', 'history'].includes(viewParam)) {
+      setNotificationView(viewParam);
+    }
+  }, [searchParams]);
+
+  // Scroll to notification history when navigating to it
+  useEffect(() => {
+    if (activeTab === 'notifications' && notificationView === 'history') {
+      // Use multiple attempts to ensure scroll works after DOM is ready
+      const attemptScroll = (attempts = 0) => {
+        const element = notificationHistoryRef.current;
+        
+        if (element) {
+          // Multiple methods to ensure scroll works
+          setTimeout(() => {
+            // Method 1: scrollIntoView
+            element.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'start',
+              inline: 'nearest'
+            });
+            
+            // Method 2: Manual scroll calculation as backup
+            setTimeout(() => {
+              const rect = element.getBoundingClientRect();
+              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+              const elementTop = rect.top + scrollTop;
+              const offset = 100;
+              
+              window.scrollTo({
+                top: Math.max(0, elementTop - offset),
+                behavior: 'smooth'
+              });
+            }, 100);
+          }, 50);
+        } else if (attempts < 10) {
+          // Retry if element not found yet (more attempts)
+          setTimeout(() => attemptScroll(attempts + 1), 150);
+        }
+      };
+
+      // Start scrolling after a delay to ensure tab is switched
+      const scrollTimeout = setTimeout(() => attemptScroll(), 300);
+
+      return () => clearTimeout(scrollTimeout);
+    }
+  }, [activeTab, notificationView]);
 
   // --- Helpers ---
   const handleAvatarClick = () => {
@@ -616,7 +639,7 @@ const Profile: React.FC = () => {
 
                  {/* History View */}
                  {notificationView === 'history' && (
-                   <div className="flex-1 flex flex-col space-y-4">
+                   <div ref={notificationHistoryRef} className="flex-1 flex flex-col space-y-4">
                      {/* Filters */}
                      <div className="flex items-center gap-2 flex-wrap">
                        <Filter size={14} className="text-zinc-400" />
@@ -645,12 +668,47 @@ const Profile: React.FC = () => {
 
                      {/* Notifications List */}
                      <div className="flex-1 overflow-y-auto space-y-2">
-                       {user.notifications && user.notifications
-                         .filter(n => notificationTypeFilter === 'all' || n.type === notificationTypeFilter)
-                         .length > 0 ? (
-                         user.notifications
-                           .filter(n => notificationTypeFilter === 'all' || n.type === notificationTypeFilter)
-                           .map((notif) => {
+                       {(() => {
+                         if (!user.notifications || !Array.isArray(user.notifications)) {
+                           return (
+                             <div className="text-center py-16">
+                               <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
+                               <p className="text-sm font-medium text-zinc-900 mb-1">No notifications yet</p>
+                               <p className="text-xs text-zinc-400">You'll see your notifications here when they arrive</p>
+                             </div>
+                           );
+                         }
+                         
+                         if (user.notifications.length === 0) {
+                           return (
+                             <div className="text-center py-16">
+                               <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
+                               <p className="text-sm font-medium text-zinc-900 mb-1">No notifications yet</p>
+                               <p className="text-xs text-zinc-400">You'll see your notifications here when they arrive</p>
+                             </div>
+                           );
+                         }
+                         
+                         // Filter notifications
+                         const filteredNotifications = user.notifications.filter(n => {
+                           if (notificationTypeFilter === 'all') return true;
+                           // Normalize type comparison (case-insensitive)
+                           const notificationType = (n.type || '').toLowerCase();
+                           const filterType = notificationTypeFilter.toLowerCase();
+                           return notificationType === filterType;
+                         });
+                         
+                         if (filteredNotifications.length === 0) {
+                           return (
+                             <div className="text-center py-16">
+                               <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
+                               <p className="text-sm font-medium text-zinc-900 mb-1">No notifications found</p>
+                               <p className="text-xs text-zinc-400">Try adjusting your filters</p>
+                             </div>
+                           );
+                         }
+                         
+                         return filteredNotifications.map((notif) => {
                              const getTypeIcon = (type: string) => {
                                switch (type) {
                                  case 'success': return <CheckCircle size={16} className="text-emerald-600" />;
@@ -731,14 +789,8 @@ const Profile: React.FC = () => {
                                  </div>
                                </div>
                              );
-                           })
-                       ) : (
-                         <div className="text-center py-16">
-                           <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
-                           <p className="text-sm font-medium text-zinc-900 mb-1">No notifications found</p>
-                           <p className="text-xs text-zinc-400">Try adjusting your filters</p>
-                         </div>
-                       )}
+                           });
+                       })()}
                      </div>
                    </div>
                  )}
