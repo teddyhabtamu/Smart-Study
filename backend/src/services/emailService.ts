@@ -131,9 +131,23 @@ export class EmailService {
       // Log full error for debugging
       if (errorBody) {
         console.error('❌ Brevo API Error Response:', JSON.stringify(errorBody, null, 2));
+      } else if (error.response?.data) {
+        console.error('❌ Brevo API Error Response (data):', JSON.stringify(error.response.data, null, 2));
+      } else if (error.response?.body) {
+        console.error('❌ Brevo API Error Response (body):', JSON.stringify(error.response.body, null, 2));
       } else if (error.response) {
-        console.error('❌ Brevo API Error Response:', JSON.stringify(error.response.body, null, 2));
+        console.error('❌ Brevo API Error Response (full):', JSON.stringify(error.response, null, 2));
+      } else if (error.message) {
+        console.error('❌ Error message:', error.message);
       }
+      
+      // Log the request that was sent for debugging
+      console.error('❌ Request details:', {
+        to,
+        templateId,
+        params: JSON.stringify(params, null, 2),
+        sender: sendSmtpEmail.sender
+      });
       
       return false;
     }
@@ -537,7 +551,11 @@ export class EmailService {
       console.error('❌ Failed to send premium downgrade email:', {
         email,
         name,
+        expiryDate,
+        params,
         error: error.message || error,
+        response: error.response?.data || error.response || 'No response data',
+        statusCode: error.response?.status || error.status || 'Unknown',
         stack: error.stack
       });
       return false;

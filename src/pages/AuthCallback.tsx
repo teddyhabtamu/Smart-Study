@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { GraduationCap, CheckCircle2 } from 'lucide-react';
+import { GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { authAPI } from '../services/api';
@@ -50,48 +50,37 @@ const AuthCallback: React.FC = () => {
   }, [searchParams, login, addToast, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <h2 className="text-xl font-semibold text-zinc-900 mb-2">
-          Completing Google Sign-in...
-        </h2>
-        <p className="text-zinc-500">
-          Please wait while we verify your account.
-        </p>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-zinc-200 p-8 sm:p-10 text-center animate-fade-in">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className="bg-zinc-900 w-12 h-12 rounded-xl flex items-center justify-center">
-            <GraduationCap className="text-white" size={24} />
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="bg-zinc-900 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center">
+            <GraduationCap className="text-white" size={20} />
           </div>
-          <span className="font-bold text-xl text-zinc-900">SmartStudy</span>
-        </div>
-
-        {/* Loading State */}
-        <div className="mb-6">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="text-blue-600" size={32} />
-          </div>
-          <h2 className="text-xl font-semibold text-zinc-900 mb-2">
-            Signing you in...
-          </h2>
-          <p className="text-zinc-500">
-            Please wait while we complete your Google sign-in.
-          </p>
+          <span className="font-bold text-xl sm:text-2xl text-zinc-900">SmartStudy</span>
         </div>
 
         {/* Loading Spinner */}
-        <div className="flex justify-center">
-          <div className="w-6 h-6 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
+        <div className="mb-6">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600 animate-spin" />
+          </div>
+          
+          <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-2 tracking-tight">
+            Completing Google Sign-in...
+          </h2>
+          <p className="text-sm sm:text-base text-zinc-500 font-light">
+            Please wait while we verify your account.
+          </p>
+        </div>
+
+        {/* Subtle progress indicator */}
+        <div className="mt-8 pt-6 border-t border-zinc-100">
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+          </div>
         </div>
       </div>
     </div>
