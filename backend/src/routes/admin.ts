@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, query } from 'express-validator';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { dbAdmin } from '../database/config';
 import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
 import { config } from '../config';
@@ -652,10 +653,11 @@ router.post('/admins/invite', [
 
     // Create a temporary user account with a placeholder password
     // The user will set their actual password when accepting the invitation
+    // We generate a cryptographically secure random password that is never exposed
     const bcrypt = await import('bcryptjs');
-    // Generate a random temporary password that will be changed on acceptance
-    const tempPassword = `temp_${Math.random().toString(36).slice(2)}_${Date.now()}`;
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    // Generate a secure random password (never exposed, will be replaced on invitation acceptance)
+    const placeholderPassword = crypto.randomBytes(32).toString('hex');
+    const hashedPassword = await bcrypt.hash(placeholderPassword, 10);
 
     const userData = {
       name,
