@@ -10,11 +10,28 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
   try {
     const userId = req.user!.id;
 
-    // Get today's date in YYYY-MM-DD format (use local date to match event dates)
-    const today = new Date();
-    const todayStr = today.getFullYear() + '-' +
-      String(today.getMonth() + 1).padStart(2, '0') + '-' +
-      String(today.getDate()).padStart(2, '0');
+    // Get today's date - use client's date if provided (to handle timezone differences),
+    // otherwise fall back to server's UTC date
+    let todayStr: string;
+    if (req.query.date && typeof req.query.date === 'string') {
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (dateRegex.test(req.query.date)) {
+        todayStr = req.query.date;
+      } else {
+        // Invalid date format, use server date
+        const today = new Date();
+        todayStr = today.getFullYear() + '-' +
+          String(today.getMonth() + 1).padStart(2, '0') + '-' +
+          String(today.getDate()).padStart(2, '0');
+      }
+    } else {
+      // No date provided, use server's UTC date
+      const today = new Date();
+      todayStr = today.getUTCFullYear() + '-' +
+        String(today.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(today.getUTCDate()).padStart(2, '0');
+    }
 
     // Get user profile with bookmarks
     const userResult = await query(`
