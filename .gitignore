@@ -26,3 +26,5 @@ dist-ssr
 backend/.env
 *.env.local
 backend/.env.local
+*.md
+*.sql

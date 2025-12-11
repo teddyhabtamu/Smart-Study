@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Library from './pages/Library';
@@ -8,6 +8,8 @@ import DocumentView from './pages/DocumentView';
 import Dashboard from './pages/Dashboard';
 import Auth from './pages/Auth';
 import AuthCallback from './pages/AuthCallback';
+import ResetPassword from './pages/ResetPassword';
+import AcceptInvitation from './pages/AcceptInvitation';
 import Subscription from './pages/Subscription';
 import Admin from './pages/Admin';
 import AITutor from './pages/AITutor';
@@ -84,6 +86,8 @@ const App: React.FC = () => {
           <Route path="/login" element={<Auth type="login" />} />
           <Route path="/register" element={<Auth type="register" />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/accept-invitation" element={<AcceptInvitation />} />
           
           {/* Protected Routes */}
           <Route 

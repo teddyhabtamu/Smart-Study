@@ -51,8 +51,14 @@ export const config = {
     geminiApiKey: process.env.GEMINI_API_KEY
   },
   email: {
-    service: process.env.EMAIL_SERVICE || 'gmail',
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    brevo: {
+      apiKey: process.env.BREVO_API_KEY
+    },
+    sender: {
+      email: process.env.BREVO_SENDER_EMAIL || 'noreply@smartstudy.com',
+      name: process.env.BREVO_SENDER_NAME || 'SmartStudy'
+    },
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+    supportEmail: process.env.SUPPORT_EMAIL || 'support@smartstudy.com'
   }
 };

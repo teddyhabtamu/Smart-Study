@@ -6,9 +6,25 @@
 
 -- Create custom types (skip if they already exist)
 DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('STUDENT', 'ADMIN');
+    CREATE TYPE user_role AS ENUM ('STUDENT', 'ADMIN', 'MODERATOR');
 EXCEPTION
     WHEN duplicate_object THEN null;
+END $$;
+
+-- Add MODERATOR to existing enum if it doesn't exist (for existing databases)
+DO $$ 
+BEGIN
+    -- Try to add MODERATOR value if enum already exists
+    -- This is safe to run multiple times
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_enum 
+        WHERE enumlabel = 'MODERATOR' 
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'user_role')
+    ) THEN
+        ALTER TYPE user_role ADD VALUE 'MODERATOR';
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN null;
 END $$;
 
 DO $$ BEGIN

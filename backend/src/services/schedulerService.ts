@@ -30,7 +30,15 @@ export class SchedulerService {
       }
     }, 60 * 1000); // Check every minute
 
-    this.intervals.push(studyReminderInterval, dailyTasksInterval);
+    // Run weekly tasks on Mondays at 9 AM
+    const weeklyTasksInterval = setInterval(() => {
+      const now = new Date();
+      if (now.getDay() === 1 && now.getHours() === 9 && now.getMinutes() === 0) {
+        this.runWeeklyTasks();
+      }
+    }, 60 * 1000); // Check every minute
+
+    this.intervals.push(studyReminderInterval, dailyTasksInterval, weeklyTasksInterval);
 
     // Run initial checks
     this.checkAndSendStudyReminders();
@@ -136,16 +144,43 @@ export class SchedulerService {
         const lastActive = user.last_active_date;
         if (lastActive === yesterdayStr) {
           // User was active yesterday, increment streak
-          const newStreak = (user.streak || 0) + 1;
+          const currentStreak = user.streak || 0;
+          const newStreak = currentStreak + 1;
+          const currentUnlockedBadges = user.unlocked_badges || ['b1'];
+          
           await dbAdmin.update('users', user.id, {
             streak: newStreak,
             last_active_date: new Date().toISOString().split('T')[0]
           });
 
-          // Check for streak milestones
-          if (newStreak % 7 === 0 && newStreak > 0) {
+          // Check for streak milestones (7, 14, 30, 50, 100 days)
+          const streakMilestones = [7, 14, 30, 50, 100];
+          if (streakMilestones.includes(newStreak)) {
             await NotificationService.createStreakMilestoneNotification(user.id, newStreak);
+            
+            // Send streak milestone email (non-blocking)
+            if (user.email && user.name) {
+              const { EmailService } = await import('./emailService');
+              EmailService.sendStreakMilestoneEmail(
+                user.email,
+                user.name,
+                newStreak
+              ).catch(error => {
+                console.error(`❌ Failed to send streak milestone email for user ${user.id}:`, error);
+              });
+            }
           }
+
+          // Check for newly unlocked badges (non-blocking)
+          const { EmailService } = await import('./emailService');
+          EmailService.checkAndUnlockBadges(
+            user.id,
+            user.level || 1,
+            newStreak,
+            currentUnlockedBadges
+          ).catch(error => {
+            console.error(`❌ Failed to check badges for user ${user.id}:`, error);
+          });
         } else if (lastActive !== new Date().toISOString().split('T')[0]) {
           // User wasn't active yesterday, reset streak if it's been more than 1 day
           const lastActiveDate = new Date(lastActive);
@@ -207,5 +242,21 @@ export class SchedulerService {
    */
   static async triggerDailyTasks(): Promise<void> {
     await this.runDailyTasks();
+  }
+
+  /**
+   * Run weekly tasks (sends weekly digest emails)
+   */
+  private static async runWeeklyTasks(): Promise<void> {
+    try {
+      console.log('📧 Running weekly tasks...');
+      
+      const { EmailService } = await import('./emailService');
+      await EmailService.sendWeeklyDigestsToAllUsers();
+      
+      console.log('✅ Weekly tasks completed');
+    } catch (error) {
+      console.error('❌ Error running weekly tasks:', error);
+    }
   }
 }

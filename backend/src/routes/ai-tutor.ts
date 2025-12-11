@@ -338,10 +338,21 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
     if (userId) {
       const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
       if (user) {
-        const newXp = (user.xp || 0) + 5;
+        const xpGain = 5;
+        const newXp = (user.xp || 0) + xpGain;
         const newLevel = Math.floor(newXp / 1000) + 1;
         await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
-        xpGained = 5;
+        
+        // Record XP history
+        await dbAdmin.insert('xp_history', {
+          user_id: userId,
+          amount: xpGain,
+          source: 'ai_tutor',
+          source_id: currentSessionId || null,
+          description: 'Used AI Tutor'
+        });
+        
+        xpGained = xpGain;
       }
     }
 

@@ -6,6 +6,7 @@ import { query, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { EmailService } from '../services/emailService';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -501,15 +502,93 @@ router.post('/gain-xp', [
     const previousLevel = Math.floor(currentXp / 1000) + 1;
     const leveledUp = newLevel > previousLevel;
 
-    // Update user XP and level
+    // Check for newly unlocked badges based on level
+    const currentUnlockedBadges = currentUser.unlocked_badges || ['b1'];
+    const newUnlockedBadges: string[] = [];
+    
+    // Badge requirements (matching frontend constants)
+    const badgeRequirements = [
+      { id: 'b1', requiredLevel: 1 },
+      { id: 'b2', requiredLevel: 5 },
+      { id: 'b3', requiredLevel: 10 },
+      { id: 'b5', requiredLevel: 2 },
+      { id: 'b6', requiredLevel: 20 }
+    ];
+
+    // Check which badges should be unlocked based on new level
+    for (const badge of badgeRequirements) {
+      if (!currentUnlockedBadges.includes(badge.id) && newLevel >= badge.requiredLevel) {
+        newUnlockedBadges.push(badge.id);
+      }
+    }
+
+    // Update unlocked badges if any new ones were unlocked
+    const allUnlockedBadges = [...new Set([...currentUnlockedBadges, ...newUnlockedBadges])];
+
+    // Record XP history
+    await dbAdmin.insert('xp_history', {
+      user_id: userId,
+      amount: amount,
+      source: req.body.source || 'manual', // Allow source to be passed in request
+      source_id: req.body.source_id || null,
+      description: req.body.description || `Gained ${amount} XP`
+    });
+
+    // Record badge unlocks
+    for (const badgeId of newUnlockedBadges) {
+      // Check if badge unlock already exists
+      const existingUnlock = await dbAdmin.findOne('badge_unlocks', (b: any) => 
+        b.user_id === userId && b.badge_id === badgeId
+      );
+      
+      if (!existingUnlock) {
+        await dbAdmin.insert('badge_unlocks', {
+          user_id: userId,
+          badge_id: badgeId,
+          unlocked_at: new Date().toISOString()
+        });
+      }
+    }
+
+    // Update user XP, level, and badges
     const updatedUser = await dbAdmin.update('users', userId, {
       xp: newXp,
-      level: newLevel
+      level: newLevel,
+      unlocked_badges: allUnlockedBadges
     });
 
     // Create level up notification if leveled up
     if (leveledUp) {
       await NotificationService.createLevelUpNotification(userId, newLevel);
+    }
+
+    // Send achievement unlocked emails for newly unlocked badges (non-blocking)
+    if (newUnlockedBadges.length > 0 && currentUser.email && currentUser.name) {
+      const badgeNames: Record<string, { name: string; description: string }> = {
+        'b1': { name: 'First Steps', description: 'Create your account and start learning.' },
+        'b2': { name: 'Dedicated Student', description: 'Reach Level 5 by earning XP.' },
+        'b3': { name: 'Scholar', description: 'Reach Level 10 and master your subjects.' },
+        'b5': { name: 'Community Pillar', description: 'Contribute helpful answers in the forum.' },
+        'b6': { name: 'Top of the Class', description: 'Reach Level 20. You are an expert!' }
+      };
+
+      for (const badgeId of newUnlockedBadges) {
+        const badge = badgeNames[badgeId];
+        if (badge) {
+          console.log('📧 Triggering achievement unlocked email for badge:', { badgeId, badgeName: badge.name });
+          EmailService.sendAchievementUnlockedEmail(
+            currentUser.email,
+            currentUser.name,
+            badge.name,
+            badge.description,
+            leveledUp, // Include level up info if they leveled up
+            leveledUp ? newLevel : undefined
+          ).catch(error => {
+            console.error(`❌ Failed to send achievement unlocked email for badge ${badgeId}:`, error);
+            // Don't fail the request if email fails
+          });
+        }
+      }
     }
 
     res.json({
@@ -610,6 +689,15 @@ router.put('/:userId/premium', [
     // Import supabase for direct API calls
     const { supabase } = await import('../database/config');
 
+    // Get current user state before update to check if it's a downgrade
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('is_premium')
+      .eq('id', userId)
+      .single();
+    
+    const wasPremium = currentUser?.is_premium === true;
+
     const { data: userData, error } = await supabase
       .from('users')
       .update({
@@ -653,6 +741,24 @@ router.put('/:userId/premium', [
       } catch (notificationError) {
         console.error('Failed to create notification:', notificationError);
         // Don't fail the whole request for notification error
+      }
+    }
+
+    // Send premium email notifications (non-blocking)
+    if (userData.email && userData.name) {
+      if (isPremium) {
+        console.log('📧 Triggering premium upgrade email for user:', { email: userData.email, name: userData.name });
+        EmailService.sendPremiumUpgradeEmail(userData.email, userData.name).catch(error => {
+          console.error('❌ Failed to send premium upgrade email:', error);
+          // Don't fail the request if email fails
+        });
+      } else if (wasPremium) {
+        // Only send downgrade email if user was previously premium
+        console.log('📧 Triggering premium downgrade email for user:', { email: userData.email, name: userData.name });
+        EmailService.sendPremiumDowngradeEmail(userData.email, userData.name).catch(error => {
+          console.error('❌ Failed to send premium downgrade email:', error);
+          // Don't fail the request if email fails
+        });
       }
     }
 
@@ -714,6 +820,15 @@ router.post('/upgrade-premium', authenticateToken, async (req: express.Request, 
       // Don't fail the whole request for notification error
     }
 
+    // Send premium upgrade email (non-blocking)
+    if (userData.email && userData.name) {
+      console.log('📧 Triggering premium upgrade email for user:', { email: userData.email, name: userData.name });
+      EmailService.sendPremiumUpgradeEmail(userData.email, userData.name).catch(error => {
+        console.error('❌ Failed to send premium upgrade email:', error);
+        // Don't fail the request if email fails
+      });
+    }
+
     res.json({
       success: true,
       data: userData,
@@ -773,6 +888,33 @@ router.put('/password', [
     // Update password
     await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newPasswordHash, userId]);
 
+    // Get user info for email
+    const userInfoResult = await query('SELECT name, email FROM users WHERE id = $1', [userId]);
+    if (userInfoResult.rows.length > 0) {
+      const user = userInfoResult.rows[0];
+      
+      // Send password reset success email (non-blocking, security notification)
+      const changeTime = new Date().toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+      
+      // Get device info from User-Agent header
+      const userAgent = req.headers['user-agent'] || 'Unknown device';
+      const deviceInfo = userAgent.length > 100 ? userAgent.substring(0, 100) + '...' : userAgent;
+      
+      console.log('📧 Triggering password change success email for user:', { email: user.email, name: user.name });
+      EmailService.sendPasswordResetSuccessEmail(user.email, user.name, changeTime, deviceInfo).catch(error => {
+        console.error('❌ Failed to send password change success email:', error);
+        // Don't fail password change if email fails
+      });
+    }
+
     res.json({
       success: true,
       message: 'Password updated successfully'
@@ -782,6 +924,40 @@ router.put('/password', [
     res.status(500).json({
       success: false,
       message: 'Failed to change password'
+    } as ApiResponse);
+  }
+});
+
+// Delete account endpoint - allows users to delete their own account
+router.delete('/account', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+
+    // Verify user exists
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    // Delete user account (this will cascade delete related data due to ON DELETE CASCADE)
+    // Note: In production, you might want to soft delete instead
+    await dbAdmin.delete('users', userId);
+
+    console.log(`✅ Account deleted successfully for user: ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Account deleted successfully'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete account'
     } as ApiResponse);
   }
 });

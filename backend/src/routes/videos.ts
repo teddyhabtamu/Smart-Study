@@ -1,8 +1,9 @@
 import express from 'express';
 import { body, query } from 'express-validator';
-import { query as dbQuery } from '../database/config';
+import { query as dbQuery, dbAdmin } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Video, User } from '../types';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -257,11 +258,36 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
     }
 
     if (completed) {
+      // Check if already completed to avoid duplicate XP
+      const existingCompletion = await dbQuery(
+        'SELECT id FROM video_completions WHERE user_id = $1 AND video_id = $2',
+        [userId, id]
+      );
+      
+      const isNewCompletion = existingCompletion.rows.length === 0;
+      
       // Mark as complete (ignore if already exists due to unique constraint)
       await dbQuery(
         'INSERT INTO video_completions (user_id, video_id, xp_awarded) VALUES ($1, $2, $3) ON CONFLICT (user_id, video_id) DO NOTHING',
         [userId, id, 100]
       );
+      
+      // Record XP history only if this is a new completion
+      // Note: XP is also awarded via frontend gainXP call, but we record it here too for tracking
+      if (isNewCompletion) {
+        try {
+          await dbAdmin.insert('xp_history', {
+            user_id: userId,
+            amount: 100,
+            source: 'video',
+            source_id: id,
+            description: 'Completed video lesson'
+          });
+        } catch (xpError) {
+          console.error('Failed to record video completion XP history:', xpError);
+          // Don't fail the request if XP history recording fails
+        }
+      }
     } else {
       // Mark as incomplete (remove completion)
       await dbQuery(
@@ -390,9 +416,28 @@ router.post('/', [
       RETURNING id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at
     `, [title, description, subject, grade, video_url, instructor, thumbnail, is_premium, uploaded_by]);
 
+    const newVideo = result.rows[0];
+
+    // Notify users about new video (non-blocking)
+    if (newVideo && newVideo.id) {
+      console.log('📧 Triggering new video notification for users');
+      EmailService.notifyUsersAboutNewVideo(
+        newVideo.id,
+        title,
+        subject,
+        grade,
+        instructor,
+        description,
+        is_premium
+      ).catch(error => {
+        console.error('❌ Failed to notify users about new video:', error);
+        // Don't fail the request if notification fails
+      });
+    }
+
     res.status(201).json({
       success: true,
-      data: result.rows[0],
+      data: newVideo,
       message: 'Video created successfully'
     } as ApiResponse<Video>);
   } catch (error) {

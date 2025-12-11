@@ -366,31 +366,23 @@ const CommunityPost: React.FC = () => {
       const comment = post.comments?.find(c => c.id === commentId);
       if (!comment) return;
 
-      // If accepting, unmark other solutions first
-      if (!comment.isAccepted) {
-        // This is a simplified approach - in a real app, you'd want to handle this on the backend
-        const otherComments = post.comments?.filter(c => c.id !== commentId) || [];
-        for (const otherComment of otherComments) {
-          if (otherComment.isAccepted) {
-            // Note: This is a limitation - the backend doesn't have an endpoint to unmark solutions
-            // For now, we'll just mark the new solution and let the backend handle conflicts
-          }
-        }
-      }
+      // Use the accept comment endpoint which handles unaccepting other comments
+      // and sends the email notification
+      await forumAPI.acceptComment(commentId);
 
-      // This should ideally be a separate API call to accept/unaccept a solution
-      // For now, we'll update the post's solved status
-      const isSolved = !comment.isAccepted; // Toggle based on current state
-      await forumAPI.markSolved(post.id, isSolved);
+      // Also mark the post as solved when accepting a solution
+      if (!comment.isAccepted) {
+        await forumAPI.markSolved(post.id, true);
+      }
 
       // Refresh the post data
       const refreshedPost = await forumAPI.getPost(post.id);
       setFullPost(refreshedPost);
 
-      addToast(isSolved ? "Marked as solved!" : "Solution unmarked", "success");
+      addToast(comment.isAccepted ? "Solution unmarked" : "Comment marked as solution!", "success");
     } catch (error) {
-      console.error('Failed to update solution status:', error);
-      addToast("Failed to update solution. Please try again.", "error");
+      console.error('Failed to accept solution:', error);
+      addToast("Failed to mark solution. Please try again.", "error");
     } finally {
       setIsMarkingSolution(false);
     }

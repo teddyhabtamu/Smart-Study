@@ -5,6 +5,7 @@ import { UserRole } from '../types';
 import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../services/api';
 
 interface AuthProps {
   type: 'login' | 'register';
@@ -38,9 +39,10 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
     try {
       // FORGOT PASSWORD FLOW
       if (view === 'forgot') {
-        // TODO: Implement forgot password API call
-        addToast("Password reset functionality not implemented yet.", "info");
+        await authAPI.forgotPassword(email);
+        addToast("If an account with that email exists, a password reset link has been sent.", "success");
         setView('login');
+        setEmail(''); // Clear email field
         return;
       }
 

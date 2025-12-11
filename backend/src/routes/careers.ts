@@ -4,6 +4,7 @@ import { dbAdmin } from '../database/config';
 import { authenticateToken, optionalAuth, requireRole, validateRequest } from '../middleware/auth';
 import { ApiResponse, JobPosition, JobApplication } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -135,7 +136,7 @@ router.post('/:id/apply', [
       status: 'Pending'
     });
     
-    // Notify admins
+    // Notify admins (in-app notifications)
     try {
       const admins = await dbAdmin.get('users');
       const adminUsers = admins.filter((u: any) => u.role === 'ADMIN');
@@ -151,6 +152,18 @@ router.post('/:id/apply', [
     } catch (notifError) {
       console.error('Failed to send notification:', notifError);
     }
+
+    // Send email notifications to admins (non-blocking)
+    console.log('📧 Triggering job application received email for admins');
+    EmailService.notifyAdminsAboutJobApplication(
+      position.title,
+      applicant_name,
+      applicant_email,
+      applicant_phone || undefined
+    ).catch(error => {
+      console.error('❌ Failed to notify admins about job application:', error);
+      // Don't fail the request if email fails
+    });
     
     res.status(201).json({
       success: true,
@@ -219,6 +232,22 @@ router.post('/admin/positions', [
       is_active,
       posted_by
     });
+    
+    // Notify all users about new job position (non-blocking)
+    if (position && position.id && is_active) {
+      console.log('📧 Triggering new job position notification for users');
+      EmailService.notifyUsersAboutNewJobPosition(
+        position.id,
+        title,
+        department || 'General',
+        employment_type,
+        description,
+        location || undefined
+      ).catch(error => {
+        console.error('❌ Failed to notify users about new job position:', error);
+        // Don't fail the request if notification fails
+      });
+    }
     
     res.status(201).json({
       success: true,
@@ -415,18 +444,42 @@ router.put('/admin/applications/:id/status', [
     
     const updated = await dbAdmin.update('job_applications', id, updates);
     
-    // Notify applicant if they have an account
+    // Get position title for notifications
+    const position = await dbAdmin.findOne('job_positions', (p: any) => p.id === application.position_id);
+    const positionTitle = position?.title || 'a position';
+    
+    // Notify applicant if they have an account (in-app notification)
     if (application.applicant_id) {
       try {
         await NotificationService.create({
           user_id: application.applicant_id,
           title: 'Application Status Updated',
-          message: `Your application for ${(await dbAdmin.findOne('job_positions', (p: any) => p.id === application.position_id))?.title || 'a position'} has been ${status.toLowerCase()}.`,
+          message: `Your application for ${positionTitle} has been ${status.toLowerCase()}.`,
           type: status === 'Accepted' ? 'SUCCESS' : status === 'Rejected' ? 'ERROR' : 'INFO'
         });
       } catch (notifError) {
         console.error('Failed to send notification:', notifError);
       }
+    }
+    
+    // Send email notification to applicant (non-blocking)
+    // Send email even if applicant doesn't have an account (guest applicants)
+    if (application.applicant_email && application.applicant_name) {
+      console.log('📧 Triggering job application status update email for applicant:', { 
+        email: application.applicant_email, 
+        name: application.applicant_name,
+        status 
+      });
+      EmailService.sendJobApplicationStatusUpdateEmail(
+        application.applicant_email,
+        application.applicant_name,
+        positionTitle,
+        status,
+        notes || undefined
+      ).catch(error => {
+        console.error('❌ Failed to send job application status update email:', error);
+        // Don't fail the request if email fails
+      });
     }
     
     res.json({

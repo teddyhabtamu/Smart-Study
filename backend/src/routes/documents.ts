@@ -1,8 +1,9 @@
 import express from 'express';
 import { body, query } from 'express-validator';
-import { query as dbQuery, db } from '../database/config';
+import { query as dbQuery, db, dbAdmin } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Document, User } from '../types';
+import { EmailService } from '../services/emailService';
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {
@@ -176,6 +177,33 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
       return;
     }
 
+    // Record document view for authenticated users
+    if (userId) {
+      try {
+        // Check if view already exists
+        const existingView = await dbAdmin.findOne('document_views', (v: any) => 
+          v.user_id === userId && v.document_id === id
+        );
+        
+        if (!existingView) {
+          // Insert new view
+          await dbAdmin.insert('document_views', {
+            user_id: userId,
+            document_id: id,
+            viewed_at: new Date().toISOString()
+          });
+        } else {
+          // Update view timestamp to track latest view (for weekly digest, we count unique documents)
+          await dbAdmin.update('document_views', existingView.id, {
+            viewed_at: new Date().toISOString()
+          });
+        }
+      } catch (viewError) {
+        console.error('Failed to record document view:', viewError);
+        // Don't fail the request if view tracking fails
+      }
+    }
+
     res.json({
       success: true,
       data: document
@@ -270,9 +298,27 @@ router.post('/', [
       RETURNING id, title, description, subject, grade, file_type, is_premium, downloads, preview_image, tags, author, created_at, updated_at
     `, [title, description, subject, grade, file_type, is_premium, author, tags, uploaded_by]);
 
+    const newDocument = result.rows[0];
+
+    // Notify users about new document (non-blocking)
+    if (newDocument && newDocument.id) {
+      console.log('📧 Triggering new document notification for users');
+      EmailService.notifyUsersAboutNewDocument(
+        newDocument.id,
+        title,
+        subject,
+        grade,
+        description,
+        is_premium
+      ).catch(error => {
+        console.error('❌ Failed to notify users about new document:', error);
+        // Don't fail the request if notification fails
+      });
+    }
+
     res.status(201).json({
       success: true,
-      data: result.rows[0],
+      data: newDocument,
       message: 'Document created successfully'
     } as ApiResponse<Document>);
   } catch (error) {

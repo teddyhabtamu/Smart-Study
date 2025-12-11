@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { config } from '../config';
 import { supabase } from '../database/config';
+import { EmailService } from '../services/emailService';
 
 // Configure Google OAuth Strategy
 passport.use(new GoogleStrategy({
@@ -87,9 +88,35 @@ passport.use(new GoogleStrategy({
         console.error('Failed to create welcome notification:', notificationError);
         // Continue with authentication even if notification creation fails
       }
+
+      // Send welcome email via Brevo (non-blocking)
+      EmailService.sendWelcomeEmail(user.email, user.name).catch(error => {
+        console.error('Failed to send welcome email for OAuth user:', error);
+        // Don't fail authentication if email fails
+      });
     } else {
       // User exists, update Google info if needed
       user = existingUser;
+      
+      // Send login success email for existing users logging in via OAuth (non-blocking)
+      const loginTime = new Date().toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+      
+      // For OAuth, we don't have request object, so use simplified device info
+      const deviceInfo = 'Google OAuth Login';
+      const location = 'OAuth Authentication';
+      
+      console.log('📧 Triggering login success email for OAuth user:', { email: user.email, name: user.name });
+      EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
+        console.error('❌ Failed to send login success email for OAuth user:', error);
+      });
 
       // Try to update google_id if user doesn't have it
       if (!user.google_id) {
@@ -206,6 +233,8 @@ passport.use(new GoogleStrategy({
         newStreak = 1; // Streak broken
       }
 
+      const previousStreak = user.streak || 0;
+
       const { error: streakError } = await supabase
         .from('users')
         .update({
@@ -218,6 +247,26 @@ passport.use(new GoogleStrategy({
       if (streakError) throw streakError;
       user.streak = newStreak;
       user.last_active_date = today;
+
+      // Check for streak milestones (7, 14, 30, 50, 100 days)
+      if (newStreak > previousStreak) {
+        const streakMilestones = [7, 14, 30, 50, 100];
+        if (streakMilestones.includes(newStreak)) {
+          const { NotificationService } = await import('../services/notificationService');
+          await NotificationService.createStreakMilestoneNotification(user.id, newStreak);
+          
+          // Send streak milestone email (non-blocking)
+          if (user.email && user.name) {
+            EmailService.sendStreakMilestoneEmail(
+              user.email,
+              user.name,
+              newStreak
+            ).catch(error => {
+              console.error('❌ Failed to send streak milestone email on Google OAuth login:', error);
+            });
+          }
+        }
+      }
     }
 
     return done(null, user);

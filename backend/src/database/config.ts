@@ -55,7 +55,8 @@ class SupabaseDB {
 
   async update(table: string, id: any, updates: any): Promise<any | null> {
     // Only add updated_at if the table has that column
-    const tablesWithUpdatedAt = ['users', 'documents', 'videos', 'forum_posts', 'forum_comments', 'study_events', 'practice_sessions', 'ai_tutor_sessions', 'job_positions', 'job_applications', 'notifications'];
+    // Note: notifications table doesn't have updated_at column in Supabase
+    const tablesWithUpdatedAt = ['users', 'documents', 'videos', 'forum_posts', 'forum_comments', 'study_events', 'practice_sessions', 'ai_tutor_sessions', 'job_positions', 'job_applications'];
     const updateData = tablesWithUpdatedAt.includes(table) 
       ? { ...updates, updated_at: new Date().toISOString() }
       : updates;

@@ -101,6 +101,24 @@ export const authAPI = {
 
   logout: (): Promise<void> =>
     apiRequest('/auth/logout', { method: 'POST' }),
+
+  forgotPassword: (email: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }, false),
+
+  resetPassword: (token: string, password: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }, false),
+
+  acceptInvitation: (token: string, password: string): Promise<{ user: User; token: string }> =>
+    apiRequest('/auth/accept-invitation', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }, false),
 };
 
 // Users API
@@ -171,6 +189,11 @@ export const usersAPI = {
     apiRequest('/users/password', {
       method: 'PUT',
       body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+    }),
+
+  deleteAccount: (): Promise<void> =>
+    apiRequest('/users/account', {
+      method: 'DELETE',
     }),
 
   upgradePremium: (): Promise<{ id: string; name: string; email: string; isPremium: boolean }> =>
@@ -566,6 +589,19 @@ export const plannerAPI = {
     apiRequest('/planner/practice', {
       method: 'POST',
       body: JSON.stringify({ subject, duration, topics }),
+    }),
+
+  recordQuizCompletion: (data: {
+    subject: string;
+    score: number;
+    totalQuestions: number;
+    timeSpent: string;
+    xpEarned: number;
+    isHighScore?: boolean;
+  }): Promise<{ subject: string; score: number; totalQuestions: number; timeSpent: string; xpEarned: number; isHighScore: boolean }> =>
+    apiRequest('/planner/practice/quiz-complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 
   getStats: (): Promise<{ total_sessions: number; current_level: number; total_xp: number; xp_to_next_level: number; current_streak: number }> =>

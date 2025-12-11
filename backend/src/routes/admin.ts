@@ -1,8 +1,11 @@
 import express from 'express';
 import { body, query } from 'express-validator';
+import jwt from 'jsonwebtoken';
 import { dbAdmin } from '../database/config';
 import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
+import { config } from '../config';
 import { ApiResponse, User, Document, Video, ForumPost } from '../types';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -226,6 +229,9 @@ router.put('/users/:userId/premium', [
       return;
     }
 
+    // Check if user was previously premium (for downgrade detection)
+    const wasPremium = user.is_premium === true || user.is_premium === 'true';
+
     await dbAdmin.update('users', targetUserId, {
       is_premium: isPremium,
       updated_at: new Date().toISOString()
@@ -242,6 +248,27 @@ router.put('/users/:userId/premium', [
       is_read: false
     });
 
+    // Send premium email notifications (non-blocking)
+    if (user.email && user.name) {
+      if (isPremium) {
+        console.log('📧 Triggering premium upgrade email for user:', { email: user.email, name: user.name });
+        EmailService.sendPremiumUpgradeEmail(user.email, user.name).catch(error => {
+          console.error('❌ Failed to send premium upgrade email:', error);
+          // Don't fail the request if email fails
+        });
+      } else {
+        // Check if user was previously premium (downgrade scenario)
+        const wasPremium = user.is_premium === true || user.is_premium === 'true';
+        if (wasPremium) {
+          console.log('📧 Triggering premium downgrade email for user:', { email: user.email, name: user.name });
+          EmailService.sendPremiumDowngradeEmail(user.email, user.name).catch(error => {
+            console.error('❌ Failed to send premium downgrade email:', error);
+            // Don't fail the request if email fails
+          });
+        }
+      }
+    }
+
     res.json({
       success: true,
       message: `User ${isPremium ? 'upgraded to' : 'downgraded from'} premium`
@@ -257,11 +284,12 @@ router.put('/users/:userId/premium', [
 
 // Update user status (active/banned)
 router.put('/users/:userId/status', [
-  body('status').isIn(['Active', 'Banned']).withMessage('Status must be Active or Banned')
+  body('status').isIn(['Active', 'Banned']).withMessage('Status must be Active or Banned'),
+  body('reason').optional().isString().withMessage('Reason must be a string')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { userId } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
     const targetUserId = userId;
 
     const user = await dbAdmin.findOne('users', (u: any) => u.id === targetUserId);
@@ -279,15 +307,37 @@ router.put('/users/:userId/status', [
     });
 
     // Create notification for the user
+    const notificationMessage = status === 'Active'
+      ? 'Your account has been reactivated. You can now access all features.'
+      : reason 
+        ? `Your account has been suspended. Reason: ${reason}`
+        : 'Your account has been suspended. Please contact support for more information.';
+
     await dbAdmin.insert('notifications', {
       user_id: targetUserId,
       title: status === 'Active' ? 'Account Reactivated' : 'Account Suspended',
-      message: status === 'Active'
-        ? 'Your account has been reactivated. You can now access all features.'
-        : 'Your account has been suspended. Please contact support for more information.',
+      message: notificationMessage,
       type: status === 'Active' ? 'SUCCESS' : 'WARNING',
       is_read: false
     });
+
+    // Send email notification for account status change (non-blocking)
+    if (user.email && user.name) {
+      if (status === 'Banned') {
+        const suspensionReason = reason || 'Violation of Terms of Service';
+        console.log('📧 Triggering account suspended email for user:', { email: user.email, name: user.name });
+        EmailService.sendAccountSuspendedEmail(user.email, user.name, suspensionReason).catch(error => {
+          console.error('❌ Failed to send account suspended email:', error);
+          // Don't fail the request if email fails
+        });
+      } else if (status === 'Active') {
+        console.log('📧 Triggering account reactivated email for user:', { email: user.email, name: user.name });
+        EmailService.sendAccountReactivatedEmail(user.email, user.name).catch(error => {
+          console.error('❌ Failed to send account reactivated email:', error);
+          // Don't fail the request if email fails
+        });
+      }
+    }
 
     res.json({
       success: true,
@@ -422,6 +472,22 @@ router.post('/documents', [
 
     const inserted = await dbAdmin.insert('documents', documentData);
 
+    // Notify users about new document (non-blocking)
+    if (inserted && inserted.id) {
+      console.log('📧 Triggering new document notification for users');
+      EmailService.notifyUsersAboutNewDocument(
+        inserted.id,
+        title,
+        subject,
+        grade,
+        description,
+        is_premium
+      ).catch(error => {
+        console.error('❌ Failed to notify users about new document:', error);
+        // Don't fail the request if notification fails
+      });
+    }
+
     res.status(201).json({
       success: true,
       data: inserted,
@@ -467,6 +533,23 @@ router.post('/videos', [
     };
 
     const inserted = await dbAdmin.insert('videos', videoData);
+
+    // Notify users about new video (non-blocking)
+    if (inserted && inserted.id) {
+      console.log('📧 Triggering new video notification for users');
+      EmailService.notifyUsersAboutNewVideo(
+        inserted.id,
+        title,
+        subject,
+        grade,
+        instructor,
+        description,
+        is_premium
+      ).catch(error => {
+        console.error('❌ Failed to notify users about new video:', error);
+        // Don't fail the request if notification fails
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -555,7 +638,7 @@ router.post('/admins/invite', [
   body('role').optional().isIn(['ADMIN', 'MODERATOR']).withMessage('Invalid role')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const { email, name, role = 'MODERATOR' } = req.body;
+    const { email, name, role = 'ADMIN' } = req.body;
 
     // Check if user already exists
     const existingUser = await dbAdmin.findOne('users', (u: any) => u.email === email);
@@ -567,9 +650,12 @@ router.post('/admins/invite', [
       return;
     }
 
-    // Create the admin user directly (for demo purposes)
+    // Create a temporary user account with a placeholder password
+    // The user will set their actual password when accepting the invitation
     const bcrypt = await import('bcryptjs');
-    const hashedPassword = await bcrypt.hash('temppassword123', 10);
+    // Generate a random temporary password that will be changed on acceptance
+    const tempPassword = `temp_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     const userData = {
       name,
@@ -580,21 +666,39 @@ router.post('/admins/invite', [
       xp: 0,
       level: 1,
       streak: 0,
+      status: 'Inactive', // Set to inactive until they accept invitation
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     const inserted = await dbAdmin.insert('users', userData);
 
+    // Generate invitation token (expires in 7 days)
+    const invitationToken = jwt.sign(
+      { userId: inserted.id, email: email, type: 'admin-invitation' },
+      config.jwt.secret!,
+      { expiresIn: '7d' }
+    );
+
+    // Create invitation link
+    const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+    const invitationLink = `${frontendUrl}/accept-invitation?token=${invitationToken}`;
+
+    // Send admin invitation email (non-blocking)
+    console.log('📧 Triggering admin invitation email:', { email, name, role });
+    EmailService.sendAdminInvitationEmail(email, name, role, invitationLink).catch(error => {
+      console.error('❌ Failed to send admin invitation email:', error);
+      // Don't fail the request if email fails
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Admin created successfully. They can now log in with email and temporary password.',
+      message: 'Admin invitation sent successfully. They will receive an email with instructions to accept the invitation.',
       data: {
         userId: inserted.id,
         email,
         name,
-        role,
-        tempPassword: 'temppassword123'
+        role
       }
     } as ApiResponse);
   } catch (error) {

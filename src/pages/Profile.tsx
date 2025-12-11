@@ -32,6 +32,7 @@ const Profile: React.FC = () => {
     return <div>Loading...</div>;
   }
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   
   // Modal States
@@ -236,9 +237,22 @@ const Profile: React.FC = () => {
     setShowDeleteConfirm(true);
   };
   
-  const confirmDeleteAccount = () => {
-    addToast("Account scheduled for deletion.", "info");
-    logout();
+  const confirmDeleteAccount = async () => {
+    try {
+      setIsLoading(true);
+      await usersAPI.deleteAccount();
+      addToast("Account deleted successfully.", "success");
+      // Logout after successful deletion
+      setTimeout(() => {
+        logout();
+      }, 1000);
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      addToast(error.message || 'Failed to delete account', 'error');
+    } finally {
+      setIsLoading(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   return (
@@ -851,9 +865,17 @@ const Profile: React.FC = () => {
                 </button>
                 <button 
                   onClick={confirmDeleteAccount}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm"
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Delete Forever
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete Forever'
+                  )}
                 </button>
               </div>
             </div>

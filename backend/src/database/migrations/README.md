@@ -1,49 +1,36 @@
 # Database Migrations
 
-## Adding the status column to users table
+This directory contains SQL migration files for the SmartStudy database schema.
 
-If you're getting the error: `Could not find the 'status' column of 'users' in the schema cache`
+## Running Migrations
 
-### Step 1: Run the migration SQL
+1. Connect to your Supabase project
+2. Open the SQL Editor
+3. Copy and paste the contents of the migration file
+4. Execute the SQL
 
-1. Go to your Supabase Dashboard
-2. Navigate to **SQL Editor**
-3. Copy and paste the contents of `add_user_status_column.sql`
-4. Click **Run**
+## Migration Files
 
-### Step 2: Refresh Supabase Schema Cache
+### `add_tracking_tables.sql`
+**Created:** 2025-12-11  
+**Description:** Adds tracking tables for XP history, document views, and badge unlock dates.
 
-After running the migration, you **MUST** refresh Supabase's schema cache:
+**Tables Created:**
+- `xp_history` - Tracks all XP gains with source information
+- `document_views` - Tracks document views per user
+- `badge_unlocks` - Tracks when badges were unlocked
 
-1. Go to **Settings** in your Supabase Dashboard
-2. Click on **API** in the left sidebar
-3. Scroll down to find **Reload Schema** button
-4. Click **Reload Schema**
+**Purpose:** Enables accurate weekly digest email statistics by tracking:
+- Weekly XP earned
+- Documents viewed in the past week
+- Achievements unlocked in the past week
 
-This is critical! Supabase caches the schema, and without refreshing, it won't recognize the new column.
+**Indexes:** All tables include appropriate indexes for efficient querying by user_id and date ranges.
 
-### Alternative: Manual Refresh via SQL
+### `add_moderator_role.sql`
+**Created:** 2025-12-11  
+**Description:** Adds MODERATOR as a valid value to the user_role enum type.
 
-If the dashboard button doesn't work, you can also try:
+**Purpose:** Enables the system to support MODERATOR role for admin invitations, allowing for different permission levels (ADMIN vs MODERATOR).
 
-```sql
-NOTIFY pgrst, 'reload schema';
-```
-
-Then wait a few seconds and try your API call again.
-
-### Verify the Column Exists
-
-Run this query to verify the column was added:
-
-```sql
-SELECT column_name, data_type, column_default 
-FROM information_schema.columns 
-WHERE table_name = 'users' AND column_name = 'status';
-```
-
-You should see a row with:
-- column_name: status
-- data_type: character varying
-- column_default: 'Active'
-
+**Note:** This migration uses `ALTER TYPE ... ADD VALUE IF NOT EXISTS` which may need to be run outside of a transaction block in some PostgreSQL versions. If you encounter issues, run it directly in the Supabase SQL Editor.

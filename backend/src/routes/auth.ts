@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
 import { config } from '../config';
@@ -7,6 +8,7 @@ import { authenticateToken, generateToken, validateRequest } from '../middleware
 import passport from '../middleware/googleAuth';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -47,6 +49,13 @@ router.post('/register', [
 
     // Create welcome notification
     await NotificationService.createWelcomeNotification(user.id);
+
+    // Send welcome email via Brevo (non-blocking)
+    console.log('📧 Triggering welcome email for new user:', { email: user.email, name: user.name });
+    EmailService.sendWelcomeEmail(user.email, user.name).catch(error => {
+      console.error('❌ Failed to send welcome email:', error);
+      // Don't fail registration if email fails
+    });
 
     res.status(201).json({
       success: true,
@@ -119,6 +128,9 @@ router.post('/login', [
         newStreak = 1; // Streak broken
       }
 
+      // Get current unlocked badges before update
+      const currentUnlockedBadges = user.unlocked_badges || ['b1'];
+
       // Update user activity using Supabase directly
       const { error: updateError } = await supabase
         .from('users')
@@ -133,14 +145,70 @@ router.post('/login', [
         console.error('Failed to update user activity:', updateError);
       }
 
+      const previousStreak = user.streak || 0;
       user.streak = newStreak;
       user.last_active_date = today;
+
+      // Check for newly unlocked badges (non-blocking)
+      if (newStreak > previousStreak) {
+        EmailService.checkAndUnlockBadges(
+          user.id,
+          user.level || 1,
+          newStreak,
+          currentUnlockedBadges
+        ).catch(error => {
+          console.error('❌ Failed to check badges on login:', error);
+        });
+
+        // Check for streak milestones (7, 14, 30, 50, 100 days)
+        const streakMilestones = [7, 14, 30, 50, 100];
+        if (streakMilestones.includes(newStreak)) {
+          await NotificationService.createStreakMilestoneNotification(user.id, newStreak);
+          
+          // Send streak milestone email (non-blocking)
+          if (user.email && user.name) {
+            EmailService.sendStreakMilestoneEmail(
+              user.email,
+              user.name,
+              newStreak
+            ).catch(error => {
+              console.error('❌ Failed to send streak milestone email on login:', error);
+            });
+          }
+        }
+      }
     }
 
     // Remove password hash from response
     delete user.password_hash;
 
     const token = generateToken(user);
+
+    // Send login success email (non-blocking, security notification)
+    // Note: Login notifications are security-related, so we send them even if user has email notifications disabled
+    const loginTime = new Date().toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+    
+    // Get device info from User-Agent header
+    const userAgent = req.headers['user-agent'] || 'Unknown device';
+    const deviceInfo = userAgent.length > 100 ? userAgent.substring(0, 100) + '...' : userAgent;
+    
+    // Get IP address for location (simplified - in production, use a geolocation service)
+    const ip = req.ip || req.socket.remoteAddress || 'Unknown';
+    const location = `IP: ${ip}`; // Simplified - you can enhance this with geolocation API
+    
+    console.log('📧 Triggering login success email for user:', { email: user.email, name: user.name });
+    EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
+      console.error('❌ Failed to send login success email:', error);
+      // Don't fail login if email fails
+    });
 
     res.json({
       success: true,
@@ -188,9 +256,243 @@ router.get('/google/callback',
 
     // Redirect to frontend auth callback with token
     const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-    const redirectUrl = `${frontendUrl}/#/auth/callback?token=${token}&success=true`;
+    const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&success=true`;
     res.redirect(redirectUrl);
   }
 );
+
+// Forgot password endpoint - Request password reset
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    // Find user by email
+    const result = await query('SELECT id, name, email FROM users WHERE email = $1', [email]);
+
+    // Always return success message (security best practice - don't reveal if email exists)
+    // But only send email if user exists
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+
+      // Generate password reset token (expires in 1 hour)
+      const resetToken = jwt.sign(
+        { userId: user.id, type: 'password-reset' },
+        config.jwt.secret!,
+        { expiresIn: '1h' }
+      );
+
+      // Create reset link
+      const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+      const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+      // Send password reset email (non-blocking)
+      console.log('📧 Triggering password reset email for user:', { email: user.email, name: user.name });
+      EmailService.sendPasswordResetEmail(user.email, user.name, resetLink).catch(error => {
+        console.error('❌ Failed to send password reset email:', error);
+        // Don't fail the request if email fails
+      });
+    }
+
+    // Always return success (security best practice)
+    res.json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process password reset request'
+    } as ApiResponse);
+  }
+});
+
+// Reset password endpoint - Validate token and update password
+router.post('/reset-password', [
+  body('token').exists().withMessage('Reset token is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    // Verify and decode the reset token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, config.jwt.secret!) as any;
+      
+      // Verify it's a password reset token
+      if (decoded.type !== 'password-reset') {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid reset token'
+        } as ApiResponse);
+        return;
+      }
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        res.status(400).json({
+          success: false,
+          message: 'Reset token has expired. Please request a new one.'
+        } as ApiResponse);
+        return;
+      }
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      } as ApiResponse);
+      return;
+    }
+
+    // Get user
+    const userResult = await query('SELECT id, name, email FROM users WHERE id = $1', [decoded.userId]);
+    if (userResult.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    const user = userResult.rows[0];
+
+    // Hash new password
+    const saltRounds = 12;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Update password
+    await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [password_hash, user.id]);
+
+    // Send password reset success email (non-blocking, security notification)
+    const changeTime = new Date().toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+    
+    // Get device info from User-Agent header
+    const userAgent = req.headers['user-agent'] || 'Unknown device';
+    const deviceInfo = userAgent.length > 100 ? userAgent.substring(0, 100) + '...' : userAgent;
+    
+    console.log('📧 Triggering password reset success email for user:', { email: user.email, name: user.name });
+    EmailService.sendPasswordResetSuccessEmail(user.email, user.name, changeTime, deviceInfo).catch(error => {
+      console.error('❌ Failed to send password reset success email:', error);
+      // Don't fail password reset if email fails
+    });
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password'
+    } as ApiResponse);
+  }
+});
+
+// Accept admin invitation endpoint - Validate token and set password
+router.post('/accept-invitation', [
+  body('token').exists().withMessage('Invitation token is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    // Verify and decode the invitation token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, config.jwt.secret!) as any;
+      
+      // Verify it's an admin invitation token
+      if (decoded.type !== 'admin-invitation') {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid invitation token'
+        } as ApiResponse);
+        return;
+      }
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired invitation token'
+      } as ApiResponse);
+      return;
+    }
+
+    // Find user by ID from token
+    const result = await query(
+      'SELECT id, email, name, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    const user = result.rows[0];
+
+    // Verify email matches (extra security check)
+    if (user.email !== decoded.email) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid invitation token'
+      } as ApiResponse);
+      return;
+    }
+
+    // Hash the new password
+    const saltRounds = 12;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Update user password and activate account
+    await query(
+      'UPDATE users SET password_hash = $1, status = $2, updated_at = NOW() WHERE id = $3',
+      [password_hash, 'Active', user.id]
+    );
+
+    // Get updated user data
+    const updatedResult = await query(
+      'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      [user.id]
+    );
+    
+    const updatedUser = updatedResult.rows[0];
+    // Add bookmarks array (empty for new users)
+    updatedUser.bookmarks = [];
+    
+    const authToken = generateToken(updatedUser as User);
+
+    // Send welcome email (non-blocking)
+    console.log('📧 Triggering welcome email for new admin:', { email: user.email, name: user.name });
+    EmailService.sendWelcomeEmail(user.email, user.name).catch(error => {
+      console.error('❌ Failed to send welcome email:', error);
+    });
+
+    res.json({
+      success: true,
+      message: 'Invitation accepted successfully. Your account has been activated.',
+      user: updatedUser,
+      token: authToken
+    } as AuthResponse);
+  } catch (error) {
+    console.error('Accept invitation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to accept invitation'
+    } as ApiResponse);
+  }
+});
 
 export default router;

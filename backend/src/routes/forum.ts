@@ -4,6 +4,7 @@ import { db, dbAdmin, query } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, ForumPost, ForumComment, User } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -439,15 +440,26 @@ router.put('/posts/:id/solved', [
         success: false,
         message: 'You can only mark your own posts as solved'
       } as ApiResponse);
+      return;
     }
 
-    await query(
-      'UPDATE forum_posts SET is_solved = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [solved, id]
-    );
+    // Update the post using dbAdmin.update() which handles the update properly
+    const updated = await dbAdmin.update('forum_posts', id, {
+      is_solved: solved,
+      updated_at: new Date().toISOString()
+    });
+
+    if (!updated) {
+      res.status(404).json({
+        success: false,
+        message: 'Forum post not found'
+      } as ApiResponse);
+      return;
+    }
 
     res.json({
       success: true,
+      data: updated,
       message: `Post marked as ${solved ? 'solved' : 'unsolved'}`
     } as ApiResponse);
   } catch (error) {
@@ -613,16 +625,37 @@ router.post('/posts/:postId/comments', authenticateToken, async (req: express.Re
     // Send notification to post author (if not commenting on own post)
     if (post.author_id !== author_id) {
       try {
-        // Get comment author's name for the notification
+        // Get comment author's name and post author's details for notifications
         const users = await dbAdmin.get('users');
         const commenter = users.find(u => u.id === author_id);
+        const postAuthor = users.find(u => u.id === post.author_id);
 
         if (commenter) {
+          // Create in-app notification
           await NotificationService.createForumReplyNotification(
             post.author_id,
             post.title,
             commenter.name
           );
+
+          // Send email notification (non-blocking)
+          if (postAuthor && postAuthor.email && postAuthor.name && postId) {
+            console.log('📧 Triggering forum comment reply email for post author:', { 
+              postAuthorEmail: postAuthor.email, 
+              postTitle: post.title 
+            });
+            EmailService.sendForumCommentReplyEmail(
+              postAuthor.email,
+              postAuthor.name,
+              commenter.name,
+              postId,
+              post.title,
+              content
+            ).catch(error => {
+              console.error('❌ Failed to send forum comment reply email:', error);
+              // Don't fail the request if email fails
+            });
+          }
         }
       } catch (notificationError) {
         console.error('Failed to create forum reply notification:', notificationError);
@@ -805,36 +838,83 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
       return;
     }
 
+    // Get the comment first to get author_id
+    const comment = await dbAdmin.findOne('forum_comments', (c: any) => c.id === id);
+    if (!comment) {
+      res.status(404).json({
+        success: false,
+        message: 'Comment not found'
+      } as ApiResponse);
+      return;
+    }
+
+    const commentAuthorId = comment.author_id;
+
+    // Get post details
+    const post = await dbAdmin.findOne('forum_posts', (p: any) => p.id === post_id);
+    if (!post) {
+      res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      } as ApiResponse);
+      return;
+    }
+
+    const postTitle = post.title;
+
     // First, unaccept all other comments on this post
-    await query(
-      'UPDATE forum_comments SET is_accepted = false WHERE post_id = $1',
-      [post_id]
-    );
+    const allComments = await dbAdmin.get('forum_comments');
+    const otherComments = allComments.filter((c: any) => c.post_id === post_id && c.id !== id && c.is_accepted);
+    
+    for (const otherComment of otherComments) {
+      await dbAdmin.update('forum_comments', otherComment.id, { is_accepted: false });
+    }
 
     // Then accept this comment
-    const commentUpdateResult = await query(
-      'UPDATE forum_comments SET is_accepted = true WHERE id = $1 RETURNING author_id',
-      [id]
-    );
+    const updatedComment = await dbAdmin.update('forum_comments', id, { 
+      is_accepted: true,
+      updated_at: new Date().toISOString()
+    });
+
+    // Also mark the post as solved
+    await dbAdmin.update('forum_posts', post_id, {
+      is_solved: true,
+      updated_at: new Date().toISOString()
+    });
 
     // Send notification to comment author
-    if (commentUpdateResult.rows.length > 0) {
-      const commentAuthorId = commentUpdateResult.rows[0].author_id;
+    try {
+      // Create in-app notification
+      await NotificationService.createForumAnswerAcceptedNotification(
+        commentAuthorId,
+        postTitle
+      );
 
-      try {
-        // Get post title for the notification
-        const postResult = await query('SELECT title FROM forum_posts WHERE id = $1', [post_id]);
-        if (postResult.rows.length > 0) {
-          const postTitle = postResult.rows[0].title;
-          await NotificationService.createForumAnswerAcceptedNotification(
-            commentAuthorId,
-            postTitle
-          );
-        }
-      } catch (notificationError) {
-        console.error('Failed to create answer accepted notification:', notificationError);
-        // Don't fail the acceptance for notification errors
+      // Send email notification (non-blocking)
+      // Get comment author's details
+      const users = await dbAdmin.get('users');
+      const commentAuthor = users.find((u: any) => u.id === commentAuthorId);
+      
+      if (commentAuthor && commentAuthor.email && commentAuthor.name) {
+        console.log('📧 Triggering comment accepted as solution email for comment author:', { 
+          commentAuthorEmail: commentAuthor.email, 
+          postTitle 
+        });
+        EmailService.sendCommentAcceptedSolutionEmail(
+          commentAuthor.email,
+          commentAuthor.name,
+          post_id,
+          postTitle
+        ).catch(error => {
+          console.error('❌ Failed to send comment accepted as solution email:', error);
+          // Don't fail the request if email fails
+        });
+      } else {
+        console.warn('⚠️ Comment author not found or missing email/name:', { commentAuthorId, commentAuthor });
       }
+    } catch (notificationError) {
+      console.error('Failed to create answer accepted notification:', notificationError);
+      // Don't fail the acceptance for notification errors
     }
 
     res.json({

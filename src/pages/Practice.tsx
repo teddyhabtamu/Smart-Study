@@ -37,6 +37,7 @@ const Practice: React.FC = () => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<{[key: number]: string}>({}); // Index -> Selected Option
   const [score, setScore] = useState(0);
+  const [startTime, setStartTime] = useState<Date | null>(null);
 
   // Restore State on Mount
   useEffect(() => {
@@ -126,6 +127,7 @@ const Practice: React.FC = () => {
         setView('quiz');
         setAnswers({});
         setCurrentQIndex(0);
+        setStartTime(new Date()); // Start tracking time
 
         addToast(`Generated ${quizData.length} practice questions! (+${xpGained} XP)`, "success");
       } else {
@@ -160,6 +162,13 @@ const Practice: React.FC = () => {
     });
     setScore(correctCount);
     
+    // Calculate time spent
+    const endTime = new Date();
+    const timeSpentMs = startTime ? endTime.getTime() - startTime.getTime() : 0;
+    const minutes = Math.floor(timeSpentMs / 60000);
+    const seconds = Math.floor((timeSpentMs % 60000) / 1000);
+    const timeSpent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+    
     // Award XP
     const xpEarned = correctCount * 10;
     if (xpEarned > 0) {
@@ -167,6 +176,21 @@ const Practice: React.FC = () => {
       if (leveledUp) {
         setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "success"), 1000);
       }
+    }
+    
+    // Record quiz completion and send email (non-blocking)
+    try {
+      await plannerAPI.recordQuizCompletion({
+        subject,
+        score: correctCount,
+        totalQuestions: questions.length,
+        timeSpent,
+        xpEarned,
+        isHighScore: false // TODO: Implement high score tracking
+      });
+    } catch (error) {
+      console.error('Failed to record quiz completion:', error);
+      // Don't block the UI if this fails
     }
     
     setView('result');

@@ -4,6 +4,7 @@ import { dbAdmin } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, StudyEvent, User } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -204,6 +205,15 @@ router.put('/events/:id', [
         const newLevel = Math.floor(newXp / 1000) + 1;
         dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
 
+        // Record XP history
+        await dbAdmin.insert('xp_history', {
+          user_id: userId,
+          amount: xpGain,
+          source: 'study_event',
+          source_id: eventId,
+          description: `Completed ${event.event_type}: ${event.title}`
+        });
+
         // Create notification
         await NotificationService.createStudyGoalCompletedNotification(userId, event.title, xpGain);
       }
@@ -331,6 +341,15 @@ router.post('/practice', [
         level: newLevel
       });
 
+      // Record XP history
+      await dbAdmin.insert('xp_history', {
+        user_id: userId,
+        amount: xpGain,
+        source: 'practice_session',
+        source_id: null,
+        description: `Practice session: ${subject} (${duration} minutes)`
+      });
+
       // Create notification for milestone
       if (newAttempts % 10 === 0) {
         await NotificationService.createPracticeMilestoneNotification(userId, newAttempts);
@@ -352,6 +371,80 @@ router.post('/practice', [
     res.status(500).json({
       success: false,
       message: 'Failed to record practice session'
+    } as ApiResponse);
+  }
+});
+
+// Record quiz completion (practice quiz)
+router.post('/practice/quiz-complete', [
+  authenticateToken,
+  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
+  body('score').isInt({ min: 0 }).withMessage('Score must be a non-negative integer'),
+  body('totalQuestions').isInt({ min: 1 }).withMessage('Total questions must be at least 1'),
+  body('timeSpent').isString().trim().isLength({ min: 1 }).withMessage('Time spent is required'),
+  body('xpEarned').isInt({ min: 0 }).withMessage('XP earned must be a non-negative integer'),
+  body('isHighScore').optional().isBoolean().withMessage('isHighScore must be a boolean')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { subject, score, totalQuestions, timeSpent, xpEarned, isHighScore = false } = req.body;
+
+    // Get user details
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    // Update user's practice attempts
+    const newAttempts = (user.practice_attempts || 0) + 1;
+    await dbAdmin.update('users', userId, {
+      practice_attempts: newAttempts
+    });
+
+    // Send practice session completed email (non-blocking)
+    if (user.email && user.name) {
+      console.log('📧 Triggering practice session completed email for user:', { 
+        email: user.email, 
+        subject,
+        score,
+        totalQuestions
+      });
+      EmailService.sendPracticeSessionCompletedEmail(
+        user.email,
+        user.name,
+        subject,
+        score,
+        totalQuestions,
+        timeSpent,
+        xpEarned,
+        isHighScore
+      ).catch(error => {
+        console.error('❌ Failed to send practice session completed email:', error);
+        // Don't fail the request if email fails
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        subject,
+        score,
+        totalQuestions,
+        timeSpent,
+        xpEarned,
+        isHighScore
+      },
+      message: 'Quiz completion recorded successfully'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Record quiz completion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record quiz completion'
     } as ApiResponse);
   }
 });
