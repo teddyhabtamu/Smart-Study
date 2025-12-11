@@ -2,7 +2,7 @@
 // src/pages/AITutor.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff } from 'lucide-react';
+import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { ChatSession } from '../types';
@@ -220,9 +220,12 @@ const AITutor: React.FC = () => {
   };
 
   // Confirm delete session
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
+  
   const confirmDeleteSession = async () => {
     if (!deleteConfirmation.sessionId) return;
 
+    setIsDeletingSession(true);
     try {
       await aiTutorAPI.deleteChatSession(deleteConfirmation.sessionId);
       const newSessions = sessions.filter(s => s.id !== deleteConfirmation.sessionId);
@@ -237,6 +240,7 @@ const AITutor: React.FC = () => {
       if (activeSessionId === deleteConfirmation.sessionId) handleNewChat();
       addToast('Failed to delete chat session', 'error');
     } finally {
+      setIsDeletingSession(false);
       setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' });
     }
   };
@@ -649,9 +653,13 @@ const AITutor: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading || !input.trim()}
-                  className="p-3 sm:p-3.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 disabled:opacity-50 transition-all shadow-sm"
+                  className="p-3 sm:p-3.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center"
                 >
-                  <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  {isLoading ? (
+                    <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+                  ) : (
+                    <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  )}
                 </button>
               </form>
             )}
@@ -689,9 +697,17 @@ const AITutor: React.FC = () => {
                 </button>
                 <button
                   onClick={confirmDeleteSession}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                  disabled={isDeletingSession}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Delete
+                  {isDeletingSession ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
                 </button>
               </div>
             </div>

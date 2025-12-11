@@ -330,6 +330,13 @@ const Admin: React.FC = () => {
   // Content Management State
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isDeletingPosition, setIsDeletingPosition] = useState<string | null>(null);
+  const [isUpdatingApplication, setIsUpdatingApplication] = useState<string | null>(null);
+  const [isSavingPosition, setIsSavingPosition] = useState(false);
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false);
+  const [isRemovingAdmin, setIsRemovingAdmin] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Edit Mode State
@@ -608,16 +615,23 @@ const Admin: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this item permanently?")) {
-      if (contentCategory === 'documents') {
-        deleteDocument(id);
-        addToast('Document deleted permanently', 'info');
-      } else {
-        deleteVideo(id);
-        addToast('Video deleted permanently', 'info');
+      setIsDeleting(id);
+      try {
+        if (contentCategory === 'documents') {
+          await deleteDocument(id);
+          addToast('Document deleted permanently', 'info');
+        } else {
+          await deleteVideo(id);
+          addToast('Video deleted permanently', 'info');
+        }
+        if (editingId === id) resetForm();
+      } catch (error: any) {
+        addToast(error.message || 'Failed to delete item', 'error');
+      } finally {
+        setIsDeleting(null);
       }
-      if (editingId === id) resetForm();
     }
   };
 
@@ -654,6 +668,7 @@ const Admin: React.FC = () => {
   const handleConfirmAction = async () => {
     if (!confirmationModal.studentId || !confirmationModal.type) return;
 
+    setIsConfirmingAction(true);
     try {
       if (confirmationModal.type === 'upgrade' || confirmationModal.type === 'downgrade') {
         // Premium toggle
@@ -685,6 +700,8 @@ const Admin: React.FC = () => {
       });
     } catch (error: any) {
       addToast(error.message || 'Failed to update user', 'error');
+    } finally {
+      setIsConfirmingAction(false);
     }
   };
 
@@ -702,6 +719,7 @@ const Admin: React.FC = () => {
     e.preventDefault();
     if (!inviteEmail || !inviteName) return;
 
+    setIsInviting(true);
     try {
       await adminAPI.inviteAdmin({
         email: inviteEmail,
@@ -714,6 +732,8 @@ const Admin: React.FC = () => {
       addToast(`Invitation sent to ${inviteEmail}`, 'success');
     } catch (error: any) {
       addToast(error.message || 'Failed to send invitation', 'error');
+    } finally {
+      setIsInviting(false);
     }
   };
 
@@ -758,6 +778,7 @@ const Admin: React.FC = () => {
 
   const handlePositionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSavingPosition(true);
     try {
       if (editingPositionId) {
         await careersAPI.admin.updatePosition(editingPositionId, positionForm);
@@ -772,6 +793,8 @@ const Admin: React.FC = () => {
       fetchPositions();
     } catch (error: any) {
       addToast(error.message || 'Failed to save position', 'error');
+    } finally {
+      setIsSavingPosition(false);
     }
   };
 
@@ -791,23 +814,29 @@ const Admin: React.FC = () => {
 
   const handleDeletePosition = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this position?")) {
+      setIsDeletingPosition(id);
       try {
         await careersAPI.admin.deletePosition(id);
         addToast('Position deleted successfully', 'success');
         fetchPositions();
       } catch (error: any) {
         addToast(error.message || 'Failed to delete position', 'error');
+      } finally {
+        setIsDeletingPosition(null);
       }
     }
   };
 
   const handleUpdateApplicationStatus = async (applicationId: string, status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected', notes?: string) => {
+    setIsUpdatingApplication(applicationId);
     try {
       await careersAPI.admin.updateApplicationStatus(applicationId, { status, notes });
       addToast('Application status updated', 'success');
       fetchApplications(selectedPositionId || undefined);
     } catch (error: any) {
       addToast(error.message || 'Failed to update application', 'error');
+    } finally {
+      setIsUpdatingApplication(null);
     }
   };
 
@@ -826,12 +855,15 @@ const Admin: React.FC = () => {
 
   const handleRemoveAdmin = async (id: string) => {
     if (window.confirm("Remove this user from the admin team?")) {
+      setIsRemovingAdmin(id);
       try {
         await adminAPI.removeAdmin(id);
         await fetchAdmins(); // Refresh admin list
         addToast('Team member removed', 'info');
       } catch (error: any) {
         addToast(error.message || 'Failed to remove admin', 'error');
+      } finally {
+        setIsRemovingAdmin(null);
       }
     }
   };
@@ -1290,9 +1322,19 @@ const Admin: React.FC = () => {
                          </button>
                          <button 
                            onClick={() => handleDelete(item.id)}
-                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                           disabled={isDeleting === item.id}
+                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                          >
-                           <Trash2 size={14} /> Delete
+                           {isDeleting === item.id ? (
+                             <>
+                               <Loader2 size={14} className="animate-spin" />
+                               Deleting...
+                             </>
+                           ) : (
+                             <>
+                               <Trash2 size={14} /> Delete
+                             </>
+                           )}
                          </button>
                        </div>
                      </div>
@@ -1355,9 +1397,14 @@ const Admin: React.FC = () => {
                              </button>
                              <button 
                                onClick={() => handleDelete(item.id)}
-                               className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                               disabled={isDeleting === item.id}
+                               className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                              >
-                               <Trash2 size={16} />
+                               {isDeleting === item.id ? (
+                                 <Loader2 size={16} className="animate-spin" />
+                               ) : (
+                                 <Trash2 size={16} />
+                               )}
                              </button>
                           </div>
                        </td>
@@ -1682,10 +1729,15 @@ const Admin: React.FC = () => {
                           </button>
                           <button
                             onClick={() => handleDeletePosition(position.id)}
-                            className="p-2.5 text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            disabled={isDeletingPosition === position.id}
+                            className="p-2.5 text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete position"
                           >
-                            <Trash2 size={18} />
+                            {isDeletingPosition === position.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={18} />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1931,9 +1983,15 @@ const Admin: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 px-4 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm flex items-center justify-center gap-2"
+                      disabled={isSavingPosition}
+                      className="flex-1 px-4 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {editingPositionId ? (
+                      {isSavingPosition ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          {editingPositionId ? 'Saving...' : 'Creating...'}
+                        </>
+                      ) : editingPositionId ? (
                         <>
                           <Save size={16} />
                           Update Position
@@ -1990,9 +2048,14 @@ const Admin: React.FC = () => {
                        </div>
                        <button
                          onClick={() => handleRemoveAdmin(admin.id)}
-                         className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                         disabled={isRemovingAdmin === admin.id}
+                         className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                        >
-                         <Trash2 size={16} />
+                         {isRemovingAdmin === admin.id ? (
+                           <Loader2 size={16} className="animate-spin" />
+                         ) : (
+                           <Trash2 size={16} />
+                         )}
                        </button>
                      </div>
                      <div className="flex items-center justify-between text-xs">
@@ -2056,9 +2119,14 @@ const Admin: React.FC = () => {
                           <td className="px-6 py-4 text-right">
                              <button
                                onClick={() => handleRemoveAdmin(admin.id)}
-                               className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                               disabled={isRemovingAdmin === admin.id}
+                               className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                              >
-                               <Trash2 size={16} />
+                               {isRemovingAdmin === admin.id ? (
+                                 <Loader2 size={16} className="animate-spin" />
+                               ) : (
+                                 <Trash2 size={16} />
+                               )}
                              </button>
                           </td>
                         </tr>
@@ -2118,9 +2186,17 @@ const Admin: React.FC = () => {
                      </div>
                      <button 
                        type="submit"
-                       className="w-full py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2"
+                       disabled={isInviting}
+                       className="w-full py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                      >
-                       Send Invitation
+                       {isInviting ? (
+                         <>
+                           <Loader2 size={16} className="animate-spin" />
+                           Sending...
+                         </>
+                       ) : (
+                         'Send Invitation'
+                       )}
                      </button>
                   </form>
                 </div>
@@ -2182,7 +2258,8 @@ const Admin: React.FC = () => {
                 </button>
                 <button
                   onClick={handleConfirmAction}
-                  className={`flex-1 px-4 py-2.5 font-medium rounded-lg transition-colors ${
+                  disabled={isConfirmingAction}
+                  className={`flex-1 px-4 py-2.5 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                     confirmationModal.type === 'ban'
                       ? 'bg-red-600 text-white hover:bg-red-700'
                       : confirmationModal.type === 'activate'
@@ -2192,10 +2269,22 @@ const Admin: React.FC = () => {
                       : 'bg-zinc-600 text-white hover:bg-zinc-700'
                   }`}
                 >
-                  {confirmationModal.type === 'upgrade' && 'Upgrade'}
-                  {confirmationModal.type === 'downgrade' && 'Downgrade'}
-                  {confirmationModal.type === 'ban' && 'Ban User'}
-                  {confirmationModal.type === 'activate' && 'Activate'}
+                  {isConfirmingAction ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      {confirmationModal.type === 'upgrade' && 'Upgrading...'}
+                      {confirmationModal.type === 'downgrade' && 'Downgrading...'}
+                      {confirmationModal.type === 'ban' && 'Banning...'}
+                      {confirmationModal.type === 'activate' && 'Activating...'}
+                    </>
+                  ) : (
+                    <>
+                      {confirmationModal.type === 'upgrade' && 'Upgrade'}
+                      {confirmationModal.type === 'downgrade' && 'Downgrade'}
+                      {confirmationModal.type === 'ban' && 'Ban User'}
+                      {confirmationModal.type === 'activate' && 'Activate'}
+                    </>
+                  )}
                 </button>
               </div>
             </div>

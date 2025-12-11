@@ -419,8 +419,17 @@ const Profile: React.FC = () => {
                     disabled={isSaving || (name === user.name && avatar === user.avatar)}
                     className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                   >
-                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                    Save Changes
+                    {isSaving ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Changes
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -535,8 +544,17 @@ const Profile: React.FC = () => {
                     disabled={isSaving || !currentPassword || !newPassword || newPassword !== confirmPassword}
                     className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                   >
-                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                    Update Password
+                    {isSaving ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Update Password
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -644,8 +662,17 @@ const Profile: React.FC = () => {
                          disabled={isSaving || (emailNotifs === user.preferences?.emailNotifications && studyReminders === user.preferences?.studyReminders)}
                          className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                        >
-                         {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                         Save Preferences
+                         {isSaving ? (
+                           <>
+                             <Loader2 size={16} className="animate-spin" />
+                             Saving...
+                           </>
+                         ) : (
+                           <>
+                             <Save size={16} />
+                             Save Preferences
+                           </>
+                         )}
                        </button>
                      </div>
                    </form>

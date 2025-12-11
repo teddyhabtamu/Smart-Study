@@ -25,6 +25,7 @@ const Practice: React.FC = () => {
 
   // State: 'config' | 'loading' | 'quiz' | 'result' | 'limit'
   const [view, setView] = useState<'config' | 'loading' | 'quiz' | 'result' | 'limit'>('config');
+  const [isStarting, setIsStarting] = useState(false);
   
   // Config State
   const [subject, setSubject] = useState('Mathematics');
@@ -107,6 +108,7 @@ const Practice: React.FC = () => {
       return;
     }
 
+    setIsStarting(true);
     setView('loading');
     
     try {
@@ -138,6 +140,8 @@ const Practice: React.FC = () => {
       console.error(e);
       addToast("An error occurred while generating questions.", "error");
       setView('config');
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -294,9 +298,19 @@ const Practice: React.FC = () => {
           <div className="pt-4 relative z-10">
             <button 
               onClick={handleStartQuiz}
-              className="w-full py-4 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 text-lg shadow-xl shadow-zinc-900/10 hover:shadow-2xl hover:scale-[1.01]"
+              disabled={isStarting}
+              className="w-full py-4 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 text-lg shadow-xl shadow-zinc-900/10 hover:shadow-2xl hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Start Practice Session <ArrowRight size={20} />
+              {isStarting ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  Start Practice Session <ArrowRight size={20} />
+                </>
+              )}
             </button>
             <p className="text-center text-xs text-zinc-400 mt-4">
               Each correct answer awards <strong>10 XP</strong>.

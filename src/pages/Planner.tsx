@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy } from 'lucide-react';
+import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -23,6 +23,8 @@ const Planner: React.FC = () => {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isDeletingEvent, setIsDeletingEvent] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [mounted, setMounted] = useState(false);
 
@@ -81,6 +83,7 @@ const Planner: React.FC = () => {
     e.preventDefault();
     if (!title || !date) return;
 
+    setIsAdding(true);
     try {
       await createStudyEvent({
         title,
@@ -100,6 +103,8 @@ const Planner: React.FC = () => {
     } catch (error) {
       console.error('Failed to add study event:', error);
       addToast("Failed to add study event", "error");
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -362,17 +367,25 @@ const Planner: React.FC = () => {
 
                         <button
                           onClick={async () => {
+                            setIsDeletingEvent(event.id);
                             try {
                               await deleteStudyEvent(event.id);
                               addToast("Study event deleted", "success");
                             } catch (error) {
                               console.error('Failed to delete event:', error);
                               addToast("Failed to delete event", "error");
+                            } finally {
+                              setIsDeletingEvent(null);
                             }
                           }}
-                          className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          disabled={isDeletingEvent === event.id}
+                          className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                          <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          {isDeletingEvent === event.id ? (
+                            <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+                          ) : (
+                            <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          )}
                         </button>
                       </div>
                     ))}
@@ -454,9 +467,17 @@ const Planner: React.FC = () => {
                </div>
                <button
                  type="submit"
-                 className="w-full py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2"
+                 disabled={isAdding}
+                 className="w-full py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                >
-                 Add to Schedule
+                 {isAdding ? (
+                   <>
+                     <Loader2 size={16} className="animate-spin" />
+                     Adding...
+                   </>
+                 ) : (
+                   'Add to Schedule'
+                 )}
                </button>
             </form>
           </div>
@@ -498,11 +519,14 @@ const Planner: React.FC = () => {
                <button
                  onClick={handleGenerateAI}
                  disabled={isGenerating || !aiPrompt.trim()}
-                 className="w-full py-3.5 sm:py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                 className="w-full py-3.5 sm:py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                >
                  {isGenerating ? (
-                   <>Generating Plan...</>
-                   ) : (
+                   <>
+                     <Loader2 size={16} className="animate-spin" />
+                     Generating...
+                   </>
+                 ) : (
                    <>
                      <Sparkles size={16} /> Generate Schedule
                    </>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, ExternalLink, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, ExternalLink, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2 } from 'lucide-react';
 import { videosAPI, aiTutorAPI } from '../services/api';
 import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -98,6 +98,9 @@ const VideoWatch: React.FC = () => {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [quizContent, setQuizContent] = useState<string | null>(null);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
   
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
@@ -277,6 +280,7 @@ const VideoWatch: React.FC = () => {
       return;
     }
 
+    setIsLiking(true);
     try {
       const newLikedState = !hasLiked;
       const response = await videosAPI.like(video.id, newLikedState);
@@ -294,6 +298,8 @@ const VideoWatch: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to like video:', error);
       addToast(error.message || 'Failed to like video', 'error');
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -310,6 +316,7 @@ const VideoWatch: React.FC = () => {
 
     if (isCompleted) return;
 
+    setIsCompleting(true);
     try {
       console.log('Completing lesson for video:', video.id);
       const response = await videosAPI.complete(video.id, true);
@@ -333,6 +340,8 @@ const VideoWatch: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to complete lesson:', error);
       addToast(error.message || 'Failed to complete lesson', 'error');
+    } finally {
+      setIsCompleting(false);
     }
   };
 
@@ -425,28 +434,52 @@ const VideoWatch: React.FC = () => {
                      {user && canWatch && (
                        <button
                          onClick={handleCompleteLesson}
-                         disabled={isCompleted}
-                         className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ${
+                         disabled={isCompleted || isCompleting}
+                         className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 sm:gap-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                            isCompleted
                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-default'
                              : 'bg-zinc-900 text-white border border-zinc-900 hover:bg-zinc-800 shadow-md'
                          }`}
                        >
-                         {isCompleted ? <CheckCircle size={14} className="sm:w-4 sm:h-4" /> : <CheckCircle size={14} className="sm:w-4 sm:h-4" />}
-                         <span className="hidden xs:inline">{isCompleted ? 'Completed' : 'Complete Lesson'}</span>
-                         <span className="xs:hidden">{isCompleted ? 'Done' : 'Complete'}</span>
+                         {isCompleting ? (
+                           <>
+                             <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
+                             <span className="hidden xs:inline">Completing...</span>
+                             <span className="xs:hidden">...</span>
+                           </>
+                         ) : (
+                           <>
+                             {isCompleted ? <CheckCircle size={14} className="sm:w-4 sm:h-4" /> : <CheckCircle size={14} className="sm:w-4 sm:h-4" />}
+                             <span className="hidden xs:inline">{isCompleted ? 'Completed' : 'Complete Lesson'}</span>
+                             <span className="xs:hidden">{isCompleted ? 'Done' : 'Complete'}</span>
+                           </>
+                         )}
                        </button>
                      )}
                      <button
-                       onClick={() => user && toggleBookmark(video.id, 'video')}
-                       className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ${
+                       onClick={async () => {
+                         if (!user) return;
+                         setIsBookmarking(true);
+                         try {
+                           await toggleBookmark(video.id, 'video');
+                         } catch (error) {
+                           console.error('Failed to toggle bookmark:', error);
+                         } finally {
+                           setIsBookmarking(false);
+                         }
+                       }}
+                       className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                          isBookmarked
                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
                            : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'
                        }`}
-                       disabled={!user}
+                       disabled={!user || isBookmarking}
                      >
-                       <Bookmark size={14} className={isBookmarked ? "fill-current text-amber-600" : ""} />
+                       {isBookmarking ? (
+                         <Loader2 size={14} className="animate-spin" />
+                       ) : (
+                         <Bookmark size={14} className={isBookmarked ? "fill-current text-amber-600" : ""} />
+                       )}
                        <span className="hidden xs:inline">{isBookmarked ? 'Saved' : 'Save'}</span>
                      </button>
                    </div>
@@ -461,11 +494,16 @@ const VideoWatch: React.FC = () => {
                    <div className="flex items-center gap-2 relative">
                       <button
                         onClick={handleLike}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        disabled={isLiking}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           hasLiked ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
                         }`}
                       >
-                         <ThumbsUp size={16} className={hasLiked ? "fill-current text-blue-600" : ""} />
+                         {isLiking ? (
+                           <Loader2 size={16} className="animate-spin" />
+                         ) : (
+                           <ThumbsUp size={16} className={hasLiked ? "fill-current text-blue-600" : ""} />
+                         )}
                          {video.likes}
                       </button>
                       <button 
@@ -628,9 +666,13 @@ const VideoWatch: React.FC = () => {
                           <button 
                              type="submit" 
                              disabled={!chatInput.trim() || isChatLoading}
-                             className="absolute right-2 top-2 p-1 text-zinc-400 hover:text-zinc-900 disabled:opacity-50 transition-colors"
+                             className="absolute right-2 top-2 p-1 text-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                           >
-                             <Send size={14} />
+                             {isChatLoading ? (
+                               <Loader2 size={14} className="animate-spin" />
+                             ) : (
+                               <Send size={14} />
+                             )}
                           </button>
                        </form>
                     </div>
@@ -647,9 +689,17 @@ const VideoWatch: React.FC = () => {
                           <p className="text-sm text-zinc-600 mb-4">Test your understanding of this lesson.</p>
                           <button 
                              onClick={handleGenerateQuiz}
-                             className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
+                             disabled={isQuizLoading}
+                             className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                             Generate Quiz
+                             {isQuizLoading ? (
+                               <>
+                                 <Loader2 size={14} className="animate-spin" />
+                                 Generating...
+                               </>
+                             ) : (
+                               'Generate Quiz'
+                             )}
                           </button>
                        </div>
                     )}
@@ -669,9 +719,17 @@ const VideoWatch: React.FC = () => {
                           <MarkdownRenderer content={quizContent} />
                           <button 
                              onClick={handleGenerateQuiz}
-                             className="mt-6 w-full py-2 bg-zinc-100 text-zinc-600 text-xs font-medium rounded-lg hover:bg-zinc-200 transition-colors"
+                             disabled={isQuizLoading}
+                             className="mt-6 w-full py-2 bg-zinc-100 text-zinc-600 text-xs font-medium rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                             Regenerate Quiz
+                             {isQuizLoading ? (
+                               <>
+                                 <Loader2 size={12} className="animate-spin" />
+                                 Regenerating...
+                               </>
+                             ) : (
+                               'Regenerate Quiz'
+                             )}
                           </button>
                        </div>
                     )}

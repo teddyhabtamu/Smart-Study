@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, BookOpen, Lock, Filter, ArrowUpDown, Bookmark } from 'lucide-react';
+import { Search, BookOpen, Lock, Filter, ArrowUpDown, Bookmark, Loader2 } from 'lucide-react';
 import { SUBJECTS, GRADES } from '../constants';
 import { Document } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
@@ -171,15 +171,19 @@ const Library: React.FC = () => {
 const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
   const { user, toggleBookmark } = useAuth();
   const isBookmarked = user?.bookmarks?.includes(doc.id);
+  const [isBookmarking, setIsBookmarking] = useState(false);
 
   const handleBookmarkClick = async (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent navigation
     e.stopPropagation(); // Prevent event bubbling
     if (user) {
+      setIsBookmarking(true);
       try {
         await toggleBookmark(doc.id, 'document');
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
+      } finally {
+        setIsBookmarking(false);
       }
     }
   };
@@ -190,13 +194,18 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
       {user && (
         <button
           onClick={handleBookmarkClick}
-          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all ${
+          disabled={isBookmarking}
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
             isBookmarked
               ? 'bg-amber-500 text-white shadow-lg hover:bg-amber-600'
               : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow-md'
           }`}
         >
-          <Bookmark size={12} className={isBookmarked ? "fill-current text-white" : ""} />
+          {isBookmarking ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Bookmark size={12} className={isBookmarked ? "fill-current text-white" : ""} />
+          )}
         </button>
       )}
 

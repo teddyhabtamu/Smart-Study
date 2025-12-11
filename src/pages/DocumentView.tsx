@@ -3,7 +3,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   Download, MessageSquare, ChevronLeft, Lock, FileText, Send, Bot,
   HelpCircle, Bookmark, LogIn, UserPlus, Sparkles, Eye,
-  Maximize, Minimize, Share2, MoreHorizontal, CheckCircle
+  Maximize, Minimize, Share2, MoreHorizontal, CheckCircle, Loader2
 } from 'lucide-react';
 import { documentsAPI, aiTutorAPI } from '../services/api';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -74,6 +74,7 @@ const DocumentView: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRestricted, setIsRestricted] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
 
   // --- FULL SCREEN HANDLERS ---
   const toggleFullScreen = () => {
@@ -319,15 +320,30 @@ const DocumentView: React.FC = () => {
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-2">
              <button
-              onClick={() => user && toggleBookmark(doc.id)}
-              className={`p-2 rounded-lg transition-colors border ${
+              onClick={async () => {
+                if (!user) return;
+                setIsBookmarking(true);
+                try {
+                  await toggleBookmark(doc.id, 'document');
+                } catch (error) {
+                  console.error('Failed to toggle bookmark:', error);
+                } finally {
+                  setIsBookmarking(false);
+                }
+              }}
+              disabled={isBookmarking}
+              className={`p-2 rounded-lg transition-colors border disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${
                 isBookmarked
                   ? 'bg-amber-50 border-amber-200 text-amber-600'
                   : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
               }`}
               title={isBookmarked ? "Remove from saved" : "Save for later"}
             >
-              <Bookmark size={18} className={isBookmarked ? "fill-current" : ""} />
+              {isBookmarking ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Bookmark size={18} className={isBookmarked ? "fill-current" : ""} />
+              )}
             </button>
             
             {canDownload ? (
@@ -545,8 +561,19 @@ const DocumentView: React.FC = () => {
                     </div>
                     <h3 className="text-zinc-900 font-medium mb-1">Test Your Knowledge</h3>
                     <p className="text-sm text-zinc-500 mb-6 px-4">Generate an instant 5-question multiple choice quiz based on this document.</p>
-                    <button onClick={handleGenerateQuiz} className="px-6 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-xl hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200">
-                      Generate Quiz
+                    <button 
+                      onClick={handleGenerateQuiz} 
+                      disabled={isQuizLoading}
+                      className="px-6 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-xl hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isQuizLoading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        'Generate Quiz'
+                      )}
                     </button>
                   </div>
                 )}
@@ -567,8 +594,19 @@ const DocumentView: React.FC = () => {
                        <button onClick={() => setQuizContent(null)} className="flex-1 py-2.5 text-sm text-zinc-600 font-medium hover:bg-zinc-50 rounded-lg transition-colors">
                           Clear
                        </button>
-                       <button onClick={handleGenerateQuiz} className="flex-1 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors">
-                          New Quiz
+                       <button 
+                         onClick={handleGenerateQuiz} 
+                         disabled={isQuizLoading}
+                         className="flex-1 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                       >
+                         {isQuizLoading ? (
+                           <>
+                             <Loader2 size={16} className="animate-spin" />
+                             Generating...
+                           </>
+                         ) : (
+                           'New Quiz'
+                         )}
                        </button>
                     </div>
                   </div>
@@ -624,9 +662,13 @@ const DocumentView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!chatInput.trim() || isChatLoading}
-                  className="p-2 mb-0.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 mb-0.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                 >
-                  <Send size={16} />
+                  {isChatLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Send size={16} />
+                  )}
                 </button>
               </form>
             </div>

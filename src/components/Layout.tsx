@@ -5,7 +5,7 @@ import {
   Home, Search, User, Menu, GraduationCap, Crown, LogOut, Sparkles,
   LayoutDashboard, Shield, PlaySquare, Users, X, CalendarDays,
   PanelLeftClose, PanelLeftOpen, Bell, Check, BrainCircuit, Trash2,
-  Info, AlertTriangle, CheckCircle, AlertCircle, Clock, Filter, ExternalLink
+  Info, AlertTriangle, CheckCircle, AlertCircle, Clock, Filter, ExternalLink, Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SearchPalette from './SearchPalette';
@@ -23,6 +23,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread'>('all');
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+  const [isDeletingNotification, setIsDeletingNotification] = useState<string | null>(null);
+  const [isMarkingRead, setIsMarkingRead] = useState<string | null>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const mobileNotificationRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -429,10 +432,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               </div>
                               {unreadCount > 0 && (
                                  <button 
-                                   onClick={() => markNotificationsAsRead()}
-                                   className="text-[10px] font-medium text-zinc-300 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+                                   onClick={async () => {
+                                     setIsMarkingAllRead(true);
+                                     try {
+                                       await markNotificationsAsRead();
+                                     } catch (error) {
+                                       console.error('Failed to mark all as read:', error);
+                                     } finally {
+                                       setIsMarkingAllRead(false);
+                                     }
+                                   }}
+                                   disabled={isMarkingAllRead}
+                                   className="text-[10px] font-medium text-zinc-300 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                  >
-                                   <Check size={12} /> Mark all read
+                                   {isMarkingAllRead ? (
+                                     <>
+                                       <Loader2 size={12} className="animate-spin" />
+                                       Marking...
+                                     </>
+                                   ) : (
+                                     <>
+                                       <Check size={12} /> Mark all read
+                                     </>
+                                   )}
                                  </button>
                               )}
                            </div>
@@ -534,25 +556,49 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                              {!notif.isRead && (
                                                <button
-                                                 onClick={(e) => {
+                                                 onClick={async (e) => {
                                                    e.stopPropagation();
-                                                   markNotificationsAsRead([notif.id]);
+                                                   setIsMarkingRead(notif.id);
+                                                   try {
+                                                     await markNotificationsAsRead([notif.id]);
+                                                   } catch (error) {
+                                                     console.error('Failed to mark as read:', error);
+                                                   } finally {
+                                                     setIsMarkingRead(null);
+                                                   }
                                                  }}
-                                                 className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all duration-200"
+                                                 disabled={isMarkingRead === notif.id}
+                                                 className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                                  title="Mark as read"
                                                >
-                                                 <Check size={14} />
+                                                 {isMarkingRead === notif.id ? (
+                                                   <Loader2 size={14} className="animate-spin" />
+                                                 ) : (
+                                                   <Check size={14} />
+                                                 )}
                                                </button>
                                              )}
                                              <button
-                                               onClick={(e) => {
+                                               onClick={async (e) => {
                                                  e.stopPropagation();
-                                                 deleteNotification(notif.id);
+                                                 setIsDeletingNotification(notif.id);
+                                                 try {
+                                                   await deleteNotification(notif.id);
+                                                 } catch (error) {
+                                                   console.error('Failed to delete notification:', error);
+                                                 } finally {
+                                                   setIsDeletingNotification(null);
+                                                 }
                                                }}
-                                               className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-all duration-200"
+                                               disabled={isDeletingNotification === notif.id}
+                                               className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                                title="Delete notification"
                                              >
-                                               <Trash2 size={14} />
+                                               {isDeletingNotification === notif.id ? (
+                                                 <Loader2 size={14} className="animate-spin" />
+                                               ) : (
+                                                 <Trash2 size={14} />
+                                               )}
                                              </button>
                                            </div>
                                          </div>
