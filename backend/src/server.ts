@@ -78,6 +78,7 @@ import plannerRoutes from './routes/planner';
 import adminRoutes from './routes/admin';
 import dashboardRoutes from './routes/dashboard';
 import searchRoutes from './routes/search';
+import careersRoutes from './routes/careers';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -90,6 +91,7 @@ app.use('/api/planner', plannerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/careers', careersRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

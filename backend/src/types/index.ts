@@ -140,6 +140,37 @@ export interface Badge {
   required_level?: number;
 }
 
+export interface JobPosition {
+  id: string;
+  title: string;
+  description: string;
+  requirements?: string;
+  department?: string;
+  employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+  location?: string;
+  is_active: boolean;
+  posted_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobApplication {
+  id: string;
+  position_id: string;
+  applicant_id?: string;
+  applicant_name: string;
+  applicant_email: string;
+  applicant_phone?: string;
+  cover_letter?: string;
+  resume_url?: string;
+  status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+  notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // API Request/Response types
 export interface LoginRequest {
   email: string;

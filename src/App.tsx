@@ -21,6 +21,7 @@ import Practice from './pages/Practice';
 import About from './pages/About';
 import Careers from './pages/Careers';
 import NotFound from './pages/NotFound';
+import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
 import { UserRole } from './types';
 
@@ -28,11 +29,7 @@ const App: React.FC = () => {
   const { user, login, updateUser, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-        <div className="w-8 h-8 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <Loader />;
   }
 
   return (

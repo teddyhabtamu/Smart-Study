@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
-import { GraduationCap, Info, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -90,36 +90,36 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   return (
     <div className="min-h-screen flex bg-white">
       {/* Left Panel: Form */}
-      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:flex-none lg:px-20 xl:px-24 w-full lg:w-1/2 bg-white relative z-10">
-        <div className="mx-auto w-full max-w-sm lg:w-96 animate-fade-in">
+      <div className="flex-1 flex flex-col justify-center py-8 sm:py-12 md:py-16 px-4 sm:px-6 md:px-8 lg:px-20 xl:px-24 w-full md:w-1/2 lg:w-1/2 bg-white relative z-10">
+        <div className="mx-auto w-full max-w-sm md:max-w-md lg:max-w-lg xl:w-96 animate-fade-in">
           {/* Logo */}
-          <div className="flex items-center gap-2 mb-8 sm:mb-10">
-            <div className="bg-zinc-900 w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center">
-              <GraduationCap className="text-white sm:w-4 sm:h-4" size={14} />
+          <div className="flex items-center gap-2 mb-6 sm:mb-8 md:mb-10">
+            <div className="bg-zinc-900 w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center">
+              <GraduationCap className="text-white sm:w-4 sm:h-4 md:w-5 md:h-5" size={14} />
             </div>
-            <span className="font-bold text-base sm:text-lg text-zinc-900">SmartStudy</span>
+            <span className="font-bold text-base sm:text-lg md:text-xl text-zinc-900">SmartStudy</span>
           </div>
 
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-zinc-900">
               {view === 'login' && 'Welcome back'}
               {view === 'register' && 'Create an account'}
               {view === 'forgot' && 'Reset Password'}
             </h2>
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-sm sm:text-base text-zinc-500">
               {view === 'login' && 'Please enter your details to sign in.'}
               {view === 'register' && 'Start your learning journey today.'}
               {view === 'forgot' && "Don't worry, we'll send you reset instructions."}
             </p>
           </div>
 
-          <div className="mt-6 sm:mt-8">
+          <div className="mt-6 sm:mt-8 md:mt-10">
             {view !== 'forgot' && (
               <>
                 <button
                   onClick={handleGoogleLogin}
                   disabled={isGoogleLoading || isLoading}
-                  className="w-full flex items-center justify-center gap-3 bg-white text-zinc-700 border border-zinc-200 font-medium py-3 sm:py-2.5 rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all mb-6 relative group"
+                  className="w-full flex items-center justify-center gap-3 bg-white text-zinc-700 border border-zinc-200 font-medium py-3 sm:py-2.5 md:py-3 rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all mb-6 relative group"
                 >
                   {isGoogleLoading ? (
                     <Loader2 size={20} className="animate-spin text-zinc-400" />
@@ -147,7 +147,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               </>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
               {view === 'register' && (
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Full Name</label>
@@ -217,7 +217,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               <button
                 type="submit"
                 disabled={isLoading || isGoogleLoading}
-                className="w-full flex justify-center py-3.5 sm:py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
+                className="w-full flex justify-center py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
               >
                 {isLoading ? (
                   <Loader2 size={20} className="animate-spin" />
@@ -252,15 +252,6 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               )}
             </div>
 
-            {/* Demo Hint */}
-            <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-zinc-50 border border-zinc-100 rounded-lg flex gap-2 sm:gap-3 text-xs text-zinc-500">
-               <Info size={14} className="sm:w-4 sm:h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
-               <p className="leading-relaxed">
-                 <span className="font-semibold text-zinc-700 block mb-1">Demo Access:</span>
-                 Use any email to sign in. Include <span className="font-mono bg-zinc-200 px-1 rounded text-zinc-800">admin</span> in the email to access the Admin Dashboard.
-               </p>
-            </div>
-
             {/* Mobile Testimonial */}
             <div className="mt-6 sm:mt-8 lg:hidden p-4 bg-zinc-900 text-white rounded-xl relative overflow-hidden">
                <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/20 rounded-full blur-2xl -mr-4 -mt-4"></div>
@@ -287,7 +278,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       </div>
 
       {/* Right Panel: Visual & Testimonial */}
-      <div className="hidden lg:block relative w-0 flex-1 bg-zinc-900 overflow-hidden">
+      <div className="hidden md:block relative w-0 flex-1 bg-zinc-900 overflow-hidden">
         {/* Abstract Background Pattern */}
         <div className="absolute inset-0 opacity-20">
             <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -298,35 +289,35 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[100px] -ml-20 -mb-20"></div>
         </div>
 
-        <div className="absolute inset-0 flex flex-col justify-center items-center p-12 text-white z-10">
-           <div className="max-w-md space-y-8">
+        <div className="absolute inset-0 flex flex-col justify-center items-center p-6 md:p-8 lg:p-12 text-white z-10">
+           <div className="max-w-md md:max-w-lg space-y-6 md:space-y-8">
               <div className="space-y-2">
-                 <div className="flex gap-1 mb-4">
-                    {[1,2,3,4,5].map(i => <Star key={i} size={20} className="fill-amber-400 text-amber-400" />)}
+                 <div className="flex gap-1 mb-3 md:mb-4">
+                    {[1,2,3,4,5].map(i => <Star key={i} size={18} className="md:w-5 md:h-5 fill-amber-400 text-amber-400" />)}
                  </div>
-                 <blockquote className="text-2xl font-medium leading-relaxed">
+                 <blockquote className="text-lg md:text-xl lg:text-2xl font-medium leading-relaxed">
                    "This platform completely changed how I study. The AI tutor explains complex physics concepts in a way that actually makes sense."
                  </blockquote>
               </div>
               
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center font-bold text-lg backdrop-blur-sm border border-white/20">
+              <div className="flex items-center gap-3 md:gap-4">
+                 <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10 rounded-full flex items-center justify-center font-bold text-base md:text-lg backdrop-blur-sm border border-white/20">
                     S
                  </div>
                  <div>
-                    <div className="font-bold">Samuel K.</div>
-                    <div className="text-zinc-400 text-sm">Grade 12 Student • Addis Ababa</div>
+                    <div className="font-bold text-sm md:text-base">Samuel K.</div>
+                    <div className="text-zinc-400 text-xs md:text-sm">Grade 12 Student • Addis Ababa</div>
                  </div>
               </div>
 
-              <div className="pt-8 border-t border-white/10 flex gap-8">
+              <div className="pt-6 md:pt-8 border-t border-white/10 flex gap-6 md:gap-8">
                  <div>
-                    <div className="text-3xl font-bold">10k+</div>
-                    <div className="text-zinc-400 text-sm">Active Students</div>
+                    <div className="text-2xl md:text-3xl font-bold">10k+</div>
+                    <div className="text-zinc-400 text-xs md:text-sm">Active Students</div>
                  </div>
                  <div>
-                    <div className="text-3xl font-bold">5k+</div>
-                    <div className="text-zinc-400 text-sm">Learning Resources</div>
+                    <div className="text-2xl md:text-3xl font-bold">5k+</div>
+                    <div className="text-zinc-400 text-xs md:text-sm">Learning Resources</div>
                  </div>
               </div>
            </div>

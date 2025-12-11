@@ -46,3 +46,24 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #d4d4d8;
 }
+
+/* Loader Animation Keyframes */
+@keyframes loaderRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  58%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loaderRotateReverse {
+  0% {
+    transform: rotate(0deg);
+  }
+  58%,
+  100% {
+    transform: rotate(-360deg);
+  }
+}

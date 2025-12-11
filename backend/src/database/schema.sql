@@ -524,3 +524,68 @@ CREATE POLICY "Users can manage own chat sessions" ON chat_sessions FOR ALL USIN
 
 -- Badges are readable by all authenticated users
 CREATE POLICY "Anyone can view badges" ON badges FOR SELECT TO authenticated USING (true);
+
+-- Job Positions table
+CREATE TABLE IF NOT EXISTS job_positions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    requirements TEXT,
+    department VARCHAR(100),
+    employment_type VARCHAR(50) NOT NULL CHECK (employment_type IN ('Full-time', 'Part-time', 'Contract', 'Internship')),
+    location VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    posted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Job Applications table
+CREATE TABLE IF NOT EXISTS job_applications (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    position_id UUID NOT NULL REFERENCES job_positions(id) ON DELETE CASCADE,
+    applicant_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    applicant_name VARCHAR(255) NOT NULL,
+    applicant_email VARCHAR(255) NOT NULL,
+    applicant_phone VARCHAR(50),
+    cover_letter TEXT,
+    resume_url TEXT,
+    status VARCHAR(50) DEFAULT 'Pending' CHECK (status IN ('Pending', 'Under Review', 'Interview', 'Accepted', 'Rejected')),
+    notes TEXT,
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for job positions and applications
+CREATE INDEX IF NOT EXISTS idx_job_positions_is_active ON job_positions(is_active);
+CREATE INDEX IF NOT EXISTS idx_job_positions_department ON job_positions(department);
+CREATE INDEX IF NOT EXISTS idx_job_applications_position ON job_applications(position_id);
+CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications(applicant_id);
+CREATE INDEX IF NOT EXISTS idx_job_applications_status ON job_applications(status);
+
+-- Enable RLS for job positions and applications
+DO $$ BEGIN
+    ALTER TABLE job_positions ENABLE ROW LEVEL SECURITY;
+EXCEPTION
+    WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
+EXCEPTION
+    WHEN others THEN null;
+END $$;
+
+-- Disable RLS for job positions and applications (using service role with route-level auth)
+ALTER TABLE job_positions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE job_applications DISABLE ROW LEVEL SECURITY;
+
+-- Trigger for updated_at on job_positions
+DROP TRIGGER IF EXISTS update_job_positions_updated_at ON job_positions;
+CREATE TRIGGER update_job_positions_updated_at BEFORE UPDATE ON job_positions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for updated_at on job_applications
+DROP TRIGGER IF EXISTS update_job_applications_updated_at ON job_applications;
+CREATE TRIGGER update_job_applications_updated_at BEFORE UPDATE ON job_applications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

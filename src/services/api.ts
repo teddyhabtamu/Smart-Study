@@ -793,3 +793,202 @@ export const dashboardAPI = {
   }> =>
     apiRequest('/dashboard'),
 };
+
+// Careers API
+export const careersAPI = {
+  // Public endpoints
+  getPositions: (params?: {
+    department?: string;
+    employment_type?: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+  }): Promise<Array<{
+    id: string;
+    title: string;
+    description: string;
+    requirements?: string;
+    department?: string;
+    employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+    location?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  }>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.department) queryParams.append('department', params.department);
+    if (params?.employment_type) queryParams.append('employment_type', params.employment_type);
+    return apiRequest(`/careers?${queryParams.toString()}`, {}, false);
+  },
+
+  getPosition: (id: string): Promise<{
+    id: string;
+    title: string;
+    description: string;
+    requirements?: string;
+    department?: string;
+    employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+    location?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  }> =>
+    apiRequest(`/careers/${id}`, {}, false),
+
+  apply: (positionId: string, data: {
+    applicant_name: string;
+    applicant_email: string;
+    applicant_phone?: string;
+    cover_letter?: string;
+    resume_url?: string;
+  }): Promise<{
+    id: string;
+    position_id: string;
+    applicant_name: string;
+    applicant_email: string;
+    status: string;
+    created_at: string;
+  }> =>
+    apiRequest(`/careers/${positionId}/apply`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, false), // Optional auth - works for both logged in and guest users
+
+  // Admin endpoints
+  admin: {
+    getPositions: (): Promise<Array<{
+      id: string;
+      title: string;
+      description: string;
+      requirements?: string;
+      department?: string;
+      employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+      location?: string;
+      is_active: boolean;
+      posted_by?: string;
+      created_at: string;
+      updated_at: string;
+    }>> =>
+      apiRequest('/careers/admin/positions'),
+
+    createPosition: (data: {
+      title: string;
+      description: string;
+      requirements?: string;
+      department?: string;
+      employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+      location?: string;
+      is_active?: boolean;
+    }): Promise<{
+      id: string;
+      title: string;
+      description: string;
+      requirements?: string;
+      department?: string;
+      employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+      location?: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    }> =>
+      apiRequest('/careers/admin/positions', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    updatePosition: (id: string, data: {
+      title?: string;
+      description?: string;
+      requirements?: string;
+      department?: string;
+      employment_type?: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+      location?: string;
+      is_active?: boolean;
+    }): Promise<{
+      id: string;
+      title: string;
+      description: string;
+      requirements?: string;
+      department?: string;
+      employment_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship';
+      location?: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    }> =>
+      apiRequest(`/careers/admin/positions/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    deletePosition: (id: string): Promise<void> =>
+      apiRequest(`/careers/admin/positions/${id}`, {
+        method: 'DELETE',
+      }),
+
+    getApplications: (params?: {
+      position_id?: string;
+      status?: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+    }): Promise<Array<{
+      id: string;
+      position_id: string;
+      applicant_id?: string;
+      applicant_name: string;
+      applicant_email: string;
+      applicant_phone?: string;
+      cover_letter?: string;
+      resume_url?: string;
+      status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      notes?: string;
+      reviewed_by?: string;
+      reviewed_at?: string;
+      created_at: string;
+      updated_at: string;
+    }>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.position_id) queryParams.append('position_id', params.position_id);
+      if (params?.status) queryParams.append('status', params.status);
+      return apiRequest(`/careers/admin/applications?${queryParams.toString()}`);
+    },
+
+    getApplication: (id: string): Promise<{
+      id: string;
+      position_id: string;
+      applicant_id?: string;
+      applicant_name: string;
+      applicant_email: string;
+      applicant_phone?: string;
+      cover_letter?: string;
+      resume_url?: string;
+      status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      notes?: string;
+      reviewed_by?: string;
+      reviewed_at?: string;
+      created_at: string;
+      updated_at: string;
+    }> =>
+      apiRequest(`/careers/admin/applications/${id}`),
+
+    updateApplicationStatus: (id: string, data: {
+      status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      notes?: string;
+    }): Promise<{
+      id: string;
+      position_id: string;
+      applicant_name: string;
+      applicant_email: string;
+      status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      notes?: string;
+      reviewed_by?: string;
+      reviewed_at?: string;
+      created_at: string;
+      updated_at: string;
+    }> =>
+      apiRequest(`/careers/admin/applications/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    deleteApplication: (id: string): Promise<void> =>
+      apiRequest(`/careers/admin/applications/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+};

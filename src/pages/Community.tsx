@@ -462,8 +462,8 @@ const Community: React.FC = () => {
             )}
           </div>
 
-          {/* Leaderboard */}
-          <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
+          {/* Leaderboard - Desktop Only */}
+          <div className="hidden lg:block bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
             <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2">
               <Trophy size={16} className="text-amber-500" /> Top Learners
             </h3>
