@@ -146,7 +146,10 @@ export class EmailService {
         to,
         templateId,
         params: JSON.stringify(params, null, 2),
-        sender: sendSmtpEmail.sender
+        sender: {
+          email: config.email.sender.email,
+          name: config.email.sender.name
+        }
       });
       
       return false;
@@ -514,26 +517,25 @@ export class EmailService {
     name: string,
     expiryDate?: string
   ): Promise<boolean> {
+    // If no expiry date provided, set it to current date (immediate cancellation)
+    const expiryDateFormatted = expiryDate || new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    const params = {
+      userName: name,
+      userEmail: email,
+      expiryDate: expiryDateFormatted,
+      frontendUrl: config.email.frontendUrl,
+      supportEmail: config.email.supportEmail,
+      currentYear: new Date().getFullYear().toString()
+    };
+
     try {
       console.log('📧 Attempting to send premium downgrade email:', { email, name });
-      
-      // If no expiry date provided, set it to current date (immediate cancellation)
-      const expiryDateFormatted = expiryDate || new Date().toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      
-      const params = {
-        userName: name,
-        userEmail: email,
-        expiryDate: expiryDateFormatted,
-        frontendUrl: config.email.frontendUrl,
-        supportEmail: config.email.supportEmail,
-        currentYear: new Date().getFullYear().toString()
-      };
-
       console.log('📧 Premium downgrade email params:', params);
       console.log('📧 Using template ID: 12');
 
@@ -551,8 +553,8 @@ export class EmailService {
       console.error('❌ Failed to send premium downgrade email:', {
         email,
         name,
-        expiryDate,
-        params,
+        expiryDate: expiryDateFormatted,
+        params: JSON.stringify(params, null, 2),
         error: error.message || error,
         response: error.response?.data || error.response || 'No response data',
         statusCode: error.response?.status || error.status || 'Unknown',
