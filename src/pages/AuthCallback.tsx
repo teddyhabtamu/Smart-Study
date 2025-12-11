@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { authAPI } from '../services/api';
@@ -50,39 +49,40 @@ const AuthCallback: React.FC = () => {
   }, [searchParams, login, addToast, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-zinc-200 p-8 sm:p-10 text-center animate-fade-in">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="bg-zinc-900 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center">
-            <GraduationCap className="text-white" size={20} />
-          </div>
-          <span className="font-bold text-xl sm:text-2xl text-zinc-900">SmartStudy</span>
-        </div>
-
-        {/* Loading Spinner */}
-        <div className="mb-6">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600 animate-spin" />
-          </div>
-          
-          <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-2 tracking-tight">
-            Completing Google Sign-in...
-          </h2>
-          <p className="text-sm sm:text-base text-zinc-500 font-light">
-            Please wait while we verify your account.
-          </p>
-        </div>
-
-        {/* Subtle progress indicator */}
-        <div className="mt-8 pt-6 border-t border-zinc-100">
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 px-4">
+      <div className="relative h-[12px] w-[48px] flex items-center justify-center mb-4">
+        {/* Background gradients */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'no-repeat radial-gradient(farthest-side, #000 90%, transparent) left, no-repeat radial-gradient(farthest-side, #000 90%, transparent) right',
+            backgroundSize: '25% 100%',
+          }}
+        />
+        
+        {/* First circle - rotates clockwise */}
+        <div 
+          className="absolute h-[12px] w-[12px] rounded-full bg-zinc-900"
+          style={{
+            transformOrigin: '-100% 50%',
+            animation: 'loaderRotate 1s infinite linear',
+          }}
+        />
+        
+        {/* Second circle - rotates counter-clockwise with delay */}
+        <div 
+          className="absolute h-[12px] w-[12px] rounded-full bg-zinc-900"
+          style={{
+            transformOrigin: '200% 50%',
+            animation: 'loaderRotateReverse 1s infinite linear -0.5s',
+          }}
+        />
       </div>
+      
+      {/* SmartStudy Text */}
+      <p className="text-sm sm:text-base text-zinc-400 font-medium tracking-wide">
+        SmartStudy
+      </p>
     </div>
   );
 };

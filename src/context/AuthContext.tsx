@@ -72,15 +72,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
         }
       } else if (savedUser) {
-        // If there's no token but a cached user, hydrate from cache without remote calls
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
-        } catch (error) {
-          console.error('Failed to parse saved user:', error);
-          localStorage.removeItem('smartstudy_user');
-          setUser(null);
-        }
+        // If there's no token but a cached user exists, clear it (user logged out)
+        // Don't restore user without a valid token
+        console.log('No token found but cached user exists - clearing stale cache');
+        localStorage.removeItem('smartstudy_user');
+        setUser(null);
       }
       setIsLoading(false);
     };
@@ -296,7 +292,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear all authentication data
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('smartstudy_user');
       setUser(null);
     }
   };
