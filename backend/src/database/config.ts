@@ -68,7 +68,13 @@ class SupabaseDB {
       .select()
       .single();
 
-    if (error) throw error;
+    // PGRST116 means no rows found - return null instead of throwing
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
     return data;
   }
 
@@ -380,39 +386,69 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
         return { rows: [], rowCount: 1 };
       }
 
-      const updates: any = {};
       const id = params[params.length - 1];
+      const updates: any = {};
 
-      const setMatch = sql.match(/set\s+(.*?)\s+where/i);
+      const setMatch = sql.match(/SET\s+(.*?)\s+WHERE/i);
       if (setMatch && setMatch[1]) {
         const assignments = setMatch[1].split(',').map(a => a.trim());
         assignments.forEach((assignment, index) => {
-          const [column] = assignment.split('=').map(s => s.trim());
-          if (column && params[index] !== undefined) {
-            updates[column] = params[index];
+          const [field] = assignment.split('=').map(s => s.trim());
+          if (field && index < params.length - 1) {
+            updates[field] = params[index];
           }
         });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('documents')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
 
-      if (error) throw error;
-      return { rows: data ? [data] : [], rowCount: data ? 1 : 0 };
+      // PGRST116 means no rows found - return empty result instead of throwing
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { rows: [], rowCount: 0 };
+        }
+        throw error;
+      }
+
+      if (data) {
+        return {
+          rows: [{
+            id: data.id,
+            title: data.title,
+            description: data.description,
+            subject: data.subject,
+            grade: data.grade,
+            file_type: data.file_type,
+            file_size: data.file_size,
+            file_url: data.file_url,
+            is_premium: data.is_premium,
+            downloads: data.downloads || 0,
+            preview_image: data.preview_image,
+            tags: data.tags,
+            author: data.author,
+            created_at: data.created_at,
+            updated_at: data.updated_at
+          }],
+          rowCount: 1
+        };
+      }
+      return { rows: [], rowCount: 0 };
     }
 
     if (sql.includes('delete from documents')) {
-      const { error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('documents')
         .delete()
-        .eq('id', params[0]);
+        .eq('id', params[0])
+        .select();
 
       if (error) throw error;
-      return { rows: [], rowCount: 1 };
+      return { rows: [], rowCount: data && data.length > 0 ? data.length : 0 };
     }
 
     // Handle COUNT queries first (before specific table handlers)
@@ -684,13 +720,14 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
     }
 
     if (sql.includes('delete from videos')) {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('videos')
         .delete()
-        .eq('id', params[0]);
+        .eq('id', params[0])
+        .select();
 
       if (error) throw error;
-      return { rows: [], rowCount: 1 };
+      return { rows: [], rowCount: data && data.length > 0 ? data.length : 0 };
     }
 
     // Handle forum posts queries

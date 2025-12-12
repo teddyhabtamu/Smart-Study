@@ -370,7 +370,19 @@ router.put('/:id', [
     if (author !== undefined) updates.author = author;
     if (tags !== undefined) updates.tags = tags;
 
-    if (Object.keys(updates).length === 0) {
+    // Build update query dynamically (same approach as videos)
+    const updateFields: string[] = [];
+    const params: any[] = [];
+    let paramCount = 1;
+
+    Object.keys(updates).forEach(key => {
+      if (updates[key] !== undefined) {
+        updateFields.push(`${key} = $${paramCount++}`);
+        params.push(updates[key]);
+      }
+    });
+
+    if (updateFields.length === 0) {
       res.status(400).json({
         success: false,
         message: 'No valid fields to update'
@@ -378,22 +390,17 @@ router.put('/:id', [
       return;
     }
 
-    // Use SimpleDB update directly
-    const targetId = parseInt(id || '0');
-    const updated = await db.update('documents', targetId, {
-      ...updates,
-      updated_at: new Date().toISOString()
-    });
+    params.push(id);
 
-    if (!updated) {
-      res.status(404).json({
-        success: false,
-        message: 'Document not found'
-      } as ApiResponse);
-      return;
-    }
+    const result = await dbQuery(`
+      UPDATE documents
+      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount}
+      RETURNING id, title, description, subject, grade, file_type, file_size, file_url, is_premium,
+                 downloads, preview_image, tags, author, created_at, updated_at
+    `, params);
 
-    if (!updated) {
+    if (result.rows.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Document not found'
@@ -403,7 +410,7 @@ router.put('/:id', [
 
     res.json({
       success: true,
-      data: updated,
+      data: result.rows[0],
       message: 'Document updated successfully'
     } as ApiResponse<Document>);
   } catch (error) {

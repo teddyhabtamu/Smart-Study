@@ -401,6 +401,19 @@ const Admin: React.FC = () => {
     studentName: null
   });
 
+  // Delete Confirmation Modal State
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    id: string | null;
+    title: string | null;
+    type: 'document' | 'video' | null;
+  }>({
+    isOpen: false,
+    id: null,
+    title: null,
+    type: null
+  });
+
   // Options
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
   const subjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
@@ -466,6 +479,7 @@ const Admin: React.FC = () => {
   // --- Handlers ---
 
   const handleEditDocument = (doc: Document) => {
+    console.log('Editing document:', { id: doc.id, title: doc.title });
     setContentCategory('documents');
     setEditingId(doc.id);
     setTitle(doc.title);
@@ -514,6 +528,17 @@ const Admin: React.FC = () => {
     try {
       if (contentCategory === 'documents') {
         if (editingId) {
+          // Verify document exists before updating
+          const documentExists = documents.find(doc => doc.id === editingId);
+          if (!documentExists) {
+            console.error('Document not found in local state:', editingId);
+            console.log('Available document IDs:', documents.map(d => d.id));
+            addToast('Document not found. Refreshing document list...', 'warning');
+            await fetchDocuments();
+            resetForm();
+            return;
+          }
+
           // Update Document
           const updateData: any = {
             title, 
@@ -535,6 +560,7 @@ const Admin: React.FC = () => {
             updateData.preview_image = docThumbnailUrl.trim();
           }
 
+          console.log('Updating document:', { id: editingId, updateData });
           await updateDocument(editingId, updateData);
           addToast('Document updated successfully!', 'success');
         } else {
@@ -609,30 +635,60 @@ const Admin: React.FC = () => {
       resetForm();
     } catch (error: any) {
       console.error('Error submitting content:', error);
-      addToast(error.message || 'Failed to save content', 'error');
+      const errorMessage = error.message || 'Failed to save content';
+      
+      // If document not found, refresh the list and reset form (likely stale data)
+      if (errorMessage.includes('Document not found') || errorMessage.includes('not found')) {
+        addToast('Document not found. Refreshing document list...', 'warning');
+        fetchDocuments();
+        resetForm();
+      } else {
+        addToast(errorMessage, 'error');
+      }
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this item permanently?")) {
-      setIsDeleting(id);
-      try {
-        if (contentCategory === 'documents') {
-          await deleteDocument(id);
-          addToast('Document deleted permanently', 'info');
-        } else {
-          await deleteVideo(id);
-          addToast('Video deleted permanently', 'info');
-        }
-        if (editingId === id) resetForm();
-      } catch (error: any) {
-        addToast(error.message || 'Failed to delete item', 'error');
-      } finally {
-        setIsDeleting(null);
-      }
+  const handleDelete = (id: string) => {
+    // Find the item to get its title
+    const item = contentCategory === 'documents' 
+      ? documents.find(doc => doc.id === id)
+      : videos.find(vid => vid.id === id);
+    
+    if (item) {
+      setDeleteConfirmation({
+        isOpen: true,
+        id: id,
+        title: item.title,
+        type: contentCategory === 'documents' ? 'document' : 'video'
+      });
     }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmation.id || !deleteConfirmation.type) return;
+
+    setIsDeleting(deleteConfirmation.id);
+    try {
+      if (deleteConfirmation.type === 'document') {
+        await deleteDocument(deleteConfirmation.id);
+        addToast('Document deleted permanently', 'info');
+      } else {
+        await deleteVideo(deleteConfirmation.id);
+        addToast('Video deleted permanently', 'info');
+      }
+      if (editingId === deleteConfirmation.id) resetForm();
+      setDeleteConfirmation({ isOpen: false, id: null, title: null, type: null });
+    } catch (error: any) {
+      addToast(error.message || 'Failed to delete item', 'error');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const closeDeleteConfirmation = () => {
+    setDeleteConfirmation({ isOpen: false, id: null, title: null, type: null });
   };
 
   const handleDeletePost = (id: string) => {
@@ -2284,6 +2340,52 @@ const Admin: React.FC = () => {
                       {confirmationModal.type === 'ban' && 'Ban User'}
                       {confirmationModal.type === 'activate' && 'Activate'}
                     </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                    Delete {deleteConfirmation.type === 'document' ? 'Document' : 'Video'}?
+                  </h3>
+                  <p className="text-sm text-zinc-600">
+                    Are you sure you want to delete <strong>"{deleteConfirmation.title}"</strong>? This action is permanent and cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={closeDeleteConfirmation}
+                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={isDeleting === deleteConfirmation.id}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting === deleteConfirmation.id ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete Forever'
                   )}
                 </button>
               </div>
