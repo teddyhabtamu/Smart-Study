@@ -283,9 +283,9 @@ router.post('/forgot-password', [
         { expiresIn: '1h' }
       );
 
-      // Create reset link
+      // Create reset link (URL encode the token to handle special characters in JWT)
       const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-      const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+      const resetLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
       // Send password reset email (non-blocking)
       console.log('📧 Triggering password reset email for user:', { email: user.email, name: user.name });
@@ -317,13 +317,19 @@ router.post('/reset-password', [
   try {
     const { token, password } = req.body;
 
+    console.log('🔐 Reset password request received');
+    console.log('🔐 Token length:', token ? token.length : 0);
+    console.log('🔐 Token preview:', token ? token.substring(0, 50) + '...' : 'none');
+
     // Verify and decode the reset token
     let decoded: any;
     try {
       decoded = jwt.verify(token, config.jwt.secret!) as any;
+      console.log('🔐 Token decoded successfully:', { userId: decoded.userId, type: decoded.type });
       
       // Verify it's a password reset token
       if (decoded.type !== 'password-reset') {
+        console.error('🔐 Invalid token type:', decoded.type);
         res.status(400).json({
           success: false,
           message: 'Invalid reset token'
@@ -331,10 +337,20 @@ router.post('/reset-password', [
         return;
       }
     } catch (error) {
+      console.error('🔐 Token verification error:', error);
       if (error instanceof jwt.TokenExpiredError) {
+        console.error('🔐 Token expired');
         res.status(400).json({
           success: false,
           message: 'Reset token has expired. Please request a new one.'
+        } as ApiResponse);
+        return;
+      }
+      if (error instanceof jwt.JsonWebTokenError) {
+        console.error('🔐 JWT error:', error.message);
+        res.status(400).json({
+          success: false,
+          message: 'Invalid reset token format'
         } as ApiResponse);
         return;
       }
@@ -363,6 +379,7 @@ router.post('/reset-password', [
 
     // Update password
     await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [password_hash, user.id]);
+    console.log('✅ Password updated successfully for user:', user.email);
 
     // Send password reset success email (non-blocking, security notification)
     const changeTime = new Date().toLocaleString('en-US', {

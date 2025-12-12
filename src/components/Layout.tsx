@@ -16,7 +16,8 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, logout, markNotificationsAsRead, deleteNotification, refreshUser } = useAuth();
+  const { user, logout, markNotificationsAsRead, deleteNotification, refreshUser, isLoading } = useAuth();
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -29,9 +30,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const notificationRef = useRef<HTMLDivElement>(null);
   const mobileNotificationRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  
-  const location = useLocation();
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+
+  // Redirect unauthorized users only when they're on protected pages (and auth is loaded)
+  useEffect(() => {
+    // Public paths that should NOT use Layout component at all
+    const publicPathsWithoutLayout = ["/login", "/register", "/forgot-password", "/reset-password", "/auth/callback", "/accept-invitation"];
+    
+    // If we're on a public path that shouldn't have Layout, something is wrong
+    // Don't redirect, just return early (Layout shouldn't be rendered for these paths)
+    if (publicPathsWithoutLayout.includes(location.pathname)) {
+      return; // Early return - don't do any redirect logic
+    }
+
+    // Public paths that CAN use Layout (accessible without authentication)
+    // These are content pages that should be viewable by everyone
+    const publicPathsWithLayout = [
+      "/",                    // Landing page
+      "/library",             // Library - public content
+      "/videos",              // Video library - public content
+      "/ai-tutor",            // AI Tutor - public feature
+      "/community",            // Community - public forum
+      "/about",               // About page
+      "/careers",             // Careers page
+    ];
+    
+    // Also allow document and video detail pages (they handle their own auth if needed)
+    const isPublicContentPage = publicPathsWithLayout.includes(location.pathname) ||
+      location.pathname.startsWith('/document/') ||
+      location.pathname.startsWith('/video/') ||
+      location.pathname.startsWith('/community/');
+
+    // Don't redirect if:
+    // 1. Still loading
+    // 2. User is authenticated
+    // 3. Path is public content page (accessible without authentication)
+    if (!isLoading && !user && !isPublicContentPage) {
+      navigate("/");
+    }
+  }, [user, isLoading, location.pathname, navigate]);
 
   // Scroll to top whenever the route changes
   useEffect(() => {
@@ -176,6 +214,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       navigate(actionUrl);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-zinc-50/50 flex font-sans">
@@ -374,7 +413,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                    <button
                      onClick={(e) => {
                        e.stopPropagation();
-                       console.log('Notification button clicked!');
                        // Open dropdown immediately
                        setIsNotificationsOpen(!isNotificationsOpen);
                        

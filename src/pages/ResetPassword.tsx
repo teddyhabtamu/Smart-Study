@@ -18,7 +18,7 @@ const ResetPassword: React.FC = () => {
   useEffect(() => {
     const tokenParam = searchParams.get('token');
     if (!tokenParam) {
-      setError('Invalid or missing reset token');
+      setError('Invalid or missing reset token. Please check your email link.');
     } else {
       setToken(tokenParam);
     }
@@ -48,16 +48,16 @@ const ResetPassword: React.FC = () => {
     try {
       await authAPI.resetPassword(token, password);
       setIsSuccess(true);
-      addToast('Password reset successfully! You can now login with your new password.', 'success');
+      addToast('Password reset successful! You can now sign in with your new password.', 'success');
       
       // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate('/login');
       }, 2000);
     } catch (error: any) {
-      console.error('Reset password error:', error);
-      setError(error.message || 'Failed to reset password. The link may have expired.');
-      addToast(error.message || 'Failed to reset password', 'error');
+      const errorMessage = error.message || 'Failed to reset password. The link may have expired.';
+      setError(errorMessage);
+      addToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +71,7 @@ const ResetPassword: React.FC = () => {
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
           <h2 className="text-2xl font-bold text-zinc-900 mb-2">Password Reset Successful!</h2>
-          <p className="text-zinc-600 mb-6">Your password has been reset. Redirecting to login...</p>
+          <p className="text-zinc-600 mb-6">Your password has been updated. Redirecting to login...</p>
         </div>
       </div>
     );
@@ -90,11 +90,11 @@ const ResetPassword: React.FC = () => {
           </div>
 
           <div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-zinc-900">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 mb-2">
               Reset Your Password
             </h2>
-            <p className="mt-2 text-sm sm:text-base text-zinc-500">
-              Enter your new password below.
+            <p className="text-sm sm:text-base text-zinc-500">
+              Enter your new password below to complete the reset process.
             </p>
           </div>
 
@@ -107,11 +107,13 @@ const ResetPassword: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="mt-6 sm:mt-8 md:mt-10 space-y-5">
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-2">
+              <label htmlFor="password" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">
                 New Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                  <Lock size={18} />
+                </div>
                 <input
                   id="password"
                   type="password"
@@ -119,20 +121,22 @@ const ResetPassword: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="w-full pl-10 pr-4 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent outline-none transition-all text-zinc-900 placeholder-zinc-400"
-                  placeholder="Enter new password"
+                  className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
+                  placeholder="Enter your new password"
                   disabled={isLoading || !token}
                 />
               </div>
-              <p className="mt-1 text-xs text-zinc-500">Must be at least 6 characters</p>
+              <p className="mt-1 text-xs text-zinc-500 ml-1">Must be at least 6 characters</p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-700 mb-2">
-                Confirm Password
+              <label htmlFor="confirmPassword" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">
+                Confirm New Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                  <Lock size={18} />
+                </div>
                 <input
                   id="confirmPassword"
                   type="password"
@@ -140,21 +144,28 @@ const ResetPassword: React.FC = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="w-full pl-10 pr-4 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent outline-none transition-all text-zinc-900 placeholder-zinc-400"
-                  placeholder="Confirm new password"
+                  className={`block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
+                    confirmPassword && password !== confirmPassword
+                      ? 'border-red-300 focus:border-red-500'
+                      : 'border-zinc-200 focus:border-zinc-900'
+                  }`}
+                  placeholder="Confirm your new password"
                   disabled={isLoading || !token}
                 />
               </div>
+              {confirmPassword && password !== confirmPassword && (
+                <p className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
+              )}
             </div>
 
             <button
               type="submit"
               disabled={isLoading || !token || password.length < 6 || password !== confirmPassword}
-              className="w-full bg-zinc-900 text-white font-medium py-3 rounded-xl hover:bg-zinc-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full flex justify-center py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 size={20} className="animate-spin mr-2" />
                   Resetting Password...
                 </>
               ) : (
@@ -163,13 +174,16 @@ const ResetPassword: React.FC = () => {
             </button>
 
             <div className="text-center">
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-              >
-                Back to Login
-              </button>
+              <p className="text-xs text-zinc-500">
+                Remember your password?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="font-semibold text-zinc-900 hover:underline"
+                >
+                  Sign in
+                </button>
+              </p>
             </div>
           </form>
         </div>
@@ -179,4 +193,3 @@ const ResetPassword: React.FC = () => {
 };
 
 export default ResetPassword;
-

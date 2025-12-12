@@ -26,6 +26,7 @@ import NotFound from './pages/NotFound';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
 import { UserRole } from './types';
+import { PublicRoute } from './components/PublicRoute';
 
 const App: React.FC = () => {
   const { user, login, updateUser, isLoading } = useAuth();
@@ -36,77 +37,82 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <Layout>
-        <Routes>
-          {/* Default Route: Redirects to Dashboard (Overview) if logged in, otherwise Landing */}
-          <Route 
-            path="/" 
-            element={
-              user ? (
-                user.role === UserRole.ADMIN ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />
-              ) : <Landing />
-            } 
-          />
-          
-          <Route path="/library" element={<Library />} />
-          <Route path="/document/:id" element={<DocumentView />} />
-          
-          <Route path="/videos" element={<VideoLibrary />} />
-          <Route path="/video/:id" element={<VideoWatch />} />
+      <Routes>
+        {/* RESET PASSWORD - MUST be first, no authentication required, no Layout wrapper */}
+        <Route
+          path="/reset-password"
+          element={<PublicRoute><ResetPassword /></PublicRoute>}
+        />
+        <Route path="/login" element={<PublicRoute><Auth type="login" /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Auth type="register" /></PublicRoute>} />
+        <Route path="/auth/callback" element={<PublicRoute><AuthCallback /></PublicRoute>} />
+        <Route path="/accept-invitation" element={<PublicRoute><AcceptInvitation /></PublicRoute>} />
 
-          <Route path="/ai-tutor" element={<AITutor />} />
-          
-          {/* Protected Planner Route */}
-          <Route 
-            path="/planner" 
-            element={user ? <Planner /> : <Navigate to="/login" />} 
-          />
+        <Route path="/library" element={<Layout><Library /></Layout>} />
+        <Route path="/document/:id" element={<Layout><DocumentView /></Layout>} />
 
-          <Route path="/practice" element={<Practice />} />
-          
-          <Route path="/community" element={<Community />} />
-          <Route path="/community/:id" element={<CommunityPost />} />
+        <Route path="/videos" element={<Layout><VideoLibrary /></Layout>} />
+        <Route path="/video/:id" element={<Layout><VideoWatch /></Layout>} />
 
-          <Route 
-            path="/subscription" 
-            element={
-              user ? (
+        <Route path="/ai-tutor" element={<Layout><AITutor /></Layout>} />
+
+        {/* Protected Planner Route */}
+        <Route
+          path="/planner"
+          element={<Layout>{user ? <Planner /> : <Navigate to="/login" />}</Layout>}
+        />
+
+        <Route path="/practice" element={<Layout><Practice /></Layout>} />
+
+        <Route path="/community" element={<Layout><Community /></Layout>} />
+        <Route path="/community/:id" element={<Layout><CommunityPost /></Layout>} />
+
+        <Route
+          path="/subscription"
+          element={
+            <Layout>
+              {user ? (
                 <Subscription onUpgrade={() => updateUser({ isPremium: true })} />
               ) : (
                 <Navigate to="/login" />
-              )
-            } 
-          />
-          
-          {/* Static Pages */}
-          <Route path="/about" element={<About />} />
-          <Route path="/careers" element={<Careers />} />
+              )}
+            </Layout>
+          }
+        />
 
-          {/* Auth Routes */}
-          <Route path="/login" element={<Auth type="login" />} />
-          <Route path="/register" element={<Auth type="register" />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/accept-invitation" element={<AcceptInvitation />} />
-          
-          {/* Protected Routes */}
-          <Route 
-            path="/dashboard" 
-            element={user ? <Dashboard /> : <Navigate to="/login" />} 
-          />
-          <Route 
-            path="/admin" 
-            element={user?.role === UserRole.ADMIN ? <Admin /> : <Navigate to="/" />} 
-          />
-          <Route 
-            path="/profile" 
-            element={user ? <Profile /> : <Navigate to="/login" />} 
-          />
-          
-          {/* 404 Page */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Layout>
+        {/* Static Pages */}
+        <Route path="/about" element={<Layout><About /></Layout>} />
+        <Route path="/careers" element={<Layout><Careers /></Layout>} />
+
+        {/* Protected Routes */}
+        <Route
+          path="/dashboard"
+          element={<Layout>{user ? <Dashboard /> : <Navigate to="/login" />}</Layout>}
+        />
+        <Route
+          path="/admin"
+          element={<Layout>{user?.role === UserRole.ADMIN ? <Admin /> : <Navigate to="/" />}</Layout>}
+        />
+        <Route
+          path="/profile"
+          element={<Layout>{user ? <Profile /> : <Navigate to="/login" />}</Layout>}
+        />
+
+        {/* ROOT ROUTE - MUST BE LAST (index route for exact / only) */}
+        <Route
+          index
+          element={
+            <Layout>
+              {user ? (
+                user.role === UserRole.ADMIN ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />
+              ) : <Landing />}
+            </Layout>
+          }
+        />
+
+        {/* 404 Page - MUST BE LAST */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </Router>
   );
 };
