@@ -13,6 +13,10 @@ import { SchedulerService } from './services/schedulerService';
 
 const app = express();
 
+// Trust proxy - Required for Vercel and other reverse proxies
+// This allows Express to correctly identify the client IP from X-Forwarded-For headers
+app.set('trust proxy', true);
+
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -49,7 +53,21 @@ if (config.server.nodeEnv === 'production') {
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.'
+    message: 'Too many requests from this IP, please try again later.',
+    // Custom key generator to properly handle forwarded headers
+    // With trust proxy enabled, req.ip automatically uses X-Forwarded-For
+    keyGenerator: (req) => {
+      // Strip port numbers if present (some proxies include IP:PORT format)
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      return ip.replace(/:\d+[^:]*$/, '');
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Disable validation warnings - we've properly configured trust proxy above
+    validate: {
+      xForwardedForHeader: false, // We handle this with trust proxy
+      forwardedHeader: false // We handle this with trust proxy
+    }
   });
   app.use('/api/', limiter);
 } else {
