@@ -23,7 +23,7 @@ const AuthCallback: React.FC = () => {
         if (response?.user) {
           login(response.user).then(() => {
             // Redirect admin to management panel, others to dashboard
-            if (response.user.role === 'ADMIN') {
+            if (response.user.role === 'ADMIN' || response.user.role === 'MODERATOR') {
               navigate('/admin', { replace: true });
             } else {
               navigate('/dashboard', { replace: true });

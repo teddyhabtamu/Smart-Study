@@ -449,10 +449,9 @@ router.post('/', [
   }
 });
 
-// Update video (Admin only)
+// Update video (Admin, Moderator, or Premium)
 router.put('/:id', [
   authenticateToken,
-  requirePremium,
   body('title').optional().trim().isLength({ min: 1, max: 500 }),
   body('description').optional().trim().isLength({ max: 2000 }),
   body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']),
@@ -464,6 +463,15 @@ router.put('/:id', [
   body('is_premium').optional().isBoolean()
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
+    // Check if user is admin, moderator, or premium
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR' && !req.user!.is_premium) {
+      res.status(403).json({
+        success: false,
+        message: 'Admin, moderator, or premium subscription required to update videos'
+      } as ApiResponse);
+      return;
+    }
+
     const { id } = req.params;
     const updates = req.body;
 
@@ -518,9 +526,17 @@ router.put('/:id', [
   }
 });
 
-// Delete video (Admin only)
+// Delete video (Admin or Moderator only)
 router.delete('/:id', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
+    // Check if user is admin or moderator
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
+      res.status(403).json({
+        success: false,
+        message: 'Admin or moderator access required to delete videos'
+      } as ApiResponse);
+      return;
+    }
     const { id } = req.params;
 
     const result = await dbQuery('DELETE FROM videos WHERE id = $1', [id]);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { User, NotificationItem } from '../types';
+import { User, NotificationItem, UserRole } from '../types';
 import { authAPI, usersAPI } from '../services/api';
 
 interface AuthContextType {
@@ -19,6 +19,15 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Helper function to normalize role from backend (string) to frontend enum
+const normalizeRole = (role: any): UserRole => {
+  const roleStr = String(role || '').toUpperCase();
+  if (roleStr === 'ADMIN') return UserRole.ADMIN;
+  if (roleStr === 'MODERATOR') return UserRole.MODERATOR;
+  if (roleStr === 'TUTOR') return UserRole.TUTOR;
+  return UserRole.STUDENT;
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -48,11 +57,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const response = await authAPI.verify();
           const userData = response.user as any; // Backend user format
           // Transform snake_case fields to camelCase to match User interface
+          // Normalize role to enum value
+          const normalizedRole = normalizeRole(userData.role);
+          
           const transformedUser: User = {
             id: userData.id,
             name: userData.name,
             email: userData.email,
-            role: userData.role,
+            role: normalizedRole,
             isPremium: userData.is_premium || userData.isPremium || false,
             bookmarks: userData.bookmarks || [],
             avatar: userData.avatar,
@@ -121,6 +133,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.warn('Network/backend error during token verification, restoring cached user data');
             try {
               const cachedUser = JSON.parse(savedUser);
+              // Normalize role in cached user
+              if (cachedUser && cachedUser.role) {
+                cachedUser.role = normalizeRole(cachedUser.role);
+              }
               setUser(cachedUser);
               // Show notification to user (only once per session)
               if (!networkErrorShownRef.current) {
@@ -317,7 +333,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: userData.id,
         name: userData.name,
         email: userData.email,
-        role: userData.role,
+        role: normalizeRole(userData.role),
         isPremium: userData.is_premium || userData.isPremium || false,
         bookmarks: userData.bookmarks || [],
         avatar: userData.avatar,
@@ -344,10 +360,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await authAPI.login(email, password!);
       localStorage.setItem('auth_token', response.token);
       // Transform snake_case fields to camelCase to match User interface
-      const transformedUser = {
-        ...response.user,
-        isPremium: (response.user as any).is_premium,
-        is_premium: undefined
+      const userData = response.user as any;
+      const transformedUser: User = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: normalizeRole(userData.role),
+        isPremium: userData.is_premium || userData.isPremium || false,
+        bookmarks: userData.bookmarks || [],
+        avatar: userData.avatar,
+        preferences: userData.preferences,
+        status: userData.status || 'Active',
+        joinedDate: userData.created_at || userData.joinedDate,
+        xp: userData.xp || 0,
+        level: userData.level || 1,
+        streak: userData.streak || 0,
+        lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
+        unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
+        practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        notifications: userData.notifications || []
       };
       setUser(transformedUser);
       // Save to localStorage for immediate access
@@ -516,14 +547,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileRequestRef.current = profilePromise;
       
       const response = await profilePromise;
+      const userData = response as any;
       // Transform snake_case fields to camelCase to match User interface
-      const transformedUser = {
-        ...response,
-        isPremium: (response as any).is_premium,
-        // Remove the snake_case field to avoid confusion
-        is_premium: undefined
+      const transformedUser: User = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: normalizeRole(userData.role),
+        isPremium: userData.is_premium || userData.isPremium || false,
+        bookmarks: userData.bookmarks || [],
+        avatar: userData.avatar,
+        preferences: userData.preferences,
+        status: userData.status || 'Active',
+        joinedDate: userData.created_at || userData.joinedDate,
+        xp: userData.xp || 0,
+        level: userData.level || 1,
+        streak: userData.streak || 0,
+        lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
+        unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
+        practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        notifications: userData.notifications || []
       };
       setUser(transformedUser);
+      localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
     } catch (error: any) {
       console.error('Refresh user error:', error);
       // If refresh fails due to auth error, user might be logged out

@@ -53,7 +53,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
         
         // Redirect admin to management panel, others to dashboard
         // Check if user is admin (compare as string to avoid type narrowing issues)
-        if (loggedInUser && String(loggedInUser.role) === 'ADMIN') {
+        if (loggedInUser && (String(loggedInUser.role) === 'ADMIN' || String(loggedInUser.role) === 'MODERATOR')) {
           navigate('/admin');
         } else {
           navigate('/dashboard');

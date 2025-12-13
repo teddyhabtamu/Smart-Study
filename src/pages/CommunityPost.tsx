@@ -411,7 +411,7 @@ const CommunityPost: React.FC = () => {
   };
 
   const isAuthor = user.name === post.author;
-  const isAdmin = user.role === UserRole.ADMIN;
+  const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
 
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col gap-3 sm:gap-4 animate-fade-in relative">

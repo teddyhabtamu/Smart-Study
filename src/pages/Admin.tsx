@@ -7,6 +7,7 @@ import { FileType, Document, VideoLesson, UserRole, User } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { adminAPI, careersAPI } from '../services/api';
 
 // Enhanced Skeleton Components with better styling and animations
@@ -279,7 +280,9 @@ const AdminTeamSkeleton: React.FC = () => (
 const Admin: React.FC = () => {
   const { documents, videos, forumPosts, allUsers, createDocument, updateDocument, deleteDocument, createVideo, updateVideo, deleteVideo, deleteForumPost, updateUserStatus, fetchUsers, fetchDocuments, fetchVideos, fetchForumPosts, loading } = useData();
   const { addToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'careers'>('overview');
+  const { user } = useAuth();
+  const isModerator = user?.role === UserRole.MODERATOR || String(user?.role) === 'MODERATOR';
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'careers'>(isModerator ? 'content' : 'overview');
   const [contentCategory, setContentCategory] = useState<'documents' | 'videos'>('documents');
   const [mounted, setMounted] = useState(false);
   const [admins, setAdmins] = useState<User[]>([]);
@@ -310,6 +313,13 @@ const Admin: React.FC = () => {
     }
   }, []);
 
+  // Prevent moderators from accessing restricted tabs
+  useEffect(() => {
+    if (isModerator && activeTab !== 'content') {
+      setActiveTab('content');
+    }
+  }, [isModerator, activeTab]);
+
   useEffect(() => {
     setMounted(true);
 
@@ -319,13 +329,17 @@ const Admin: React.FC = () => {
     // Fetch initial data (fetch functions handle their own loading states)
     fetchDocuments();
     fetchVideos();
-    fetchForumPosts();
-    fetchUsers();
-    fetchAdmins();
-    fetchAdminStats();
+    
+    // Only fetch these for admins, not moderators
+    if (!isModerator) {
+      fetchAdminStats();
+      fetchForumPosts();
+      fetchUsers();
+      fetchAdmins();
+    }
 
     return () => setMounted(false);
-  }, [fetchDocuments, fetchVideos, fetchForumPosts, fetchUsers, fetchAdmins, fetchAdminStats]);
+  }, [fetchDocuments, fetchVideos, fetchAdminStats, fetchForumPosts, fetchUsers, fetchAdmins, isModerator]);
   
   // Content Management State
   const [file, setFile] = useState<File | null>(null);
@@ -965,12 +979,14 @@ const Admin: React.FC = () => {
           <div className="flex p-1 bg-zinc-100 rounded-lg overflow-x-auto hide-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
             <div className="flex gap-1 min-w-max">
               {[
-                { id: 'overview', label: 'Overview', icon: BarChart3 },
+                ...(isModerator ? [] : [{ id: 'overview', label: 'Overview', icon: BarChart3 }]),
                 { id: 'content', label: 'Content', icon: FileText },
-                { id: 'students', label: 'Students', icon: Users },
-                { id: 'community', label: 'Community', icon: MessageSquare },
-                { id: 'team', label: 'Team', icon: Shield },
-                { id: 'careers', label: 'Careers', icon: Briefcase },
+                ...(isModerator ? [] : [
+                  { id: 'students', label: 'Students', icon: Users },
+                  { id: 'community', label: 'Community', icon: MessageSquare },
+                  { id: 'team', label: 'Team', icon: Shield },
+                  { id: 'careers', label: 'Careers', icon: Briefcase },
+                ]),
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -2117,7 +2133,7 @@ const Admin: React.FC = () => {
                      <div className="flex items-center justify-between text-xs">
                        <div className="flex items-center gap-2">
                          <span className="text-zinc-600 font-medium">
-                           {admin.role === 'ADMIN' ? 'Super Admin' : admin.role}
+                           {admin.role === 'ADMIN' ? 'Super Admin' : admin.role === 'MODERATOR' ? 'Content Manager' : admin.role}
                          </span>
                          <span className="px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px]">
                            Active
@@ -2162,7 +2178,7 @@ const Admin: React.FC = () => {
                              </div>
                           </td>
                           <td className="px-6 py-4 text-zinc-600">
-                             {admin.role === 'ADMIN' ? 'Super Admin' : admin.role}
+                             {admin.role === 'ADMIN' ? 'Super Admin' : admin.role === 'MODERATOR' ? 'Content Manager' : admin.role}
                           </td>
                           <td className="px-6 py-4">
                              <span className={`text-xs px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100`}>

@@ -127,34 +127,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const NavItem = ({ to, icon: Icon, label, isPremium }: { to: string; icon: any; label: string; isPremium?: boolean }) => (
-    <Link
-      to={to}
-      title={isCollapsed ? label : undefined}
-      onClick={() => setIsSidebarOpen(false)}
-      className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium relative ${
-        isActive(to)
-          ? 'bg-zinc-100 text-zinc-900'
-          : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
-      } ${isCollapsed ? 'justify-center' : ''}`}
-    >
-      <Icon size={20} className={`flex-shrink-0 ${isActive(to) ? 'text-zinc-900' : isPremium ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
-      
-      {!isCollapsed && (
-        <span className="whitespace-nowrap overflow-hidden transition-all duration-200">
-          {label}
-        </span>
-      )}
+  const NavItem = ({ to, icon: Icon, label, isPremium }: { to: string; icon: any; label: string; isPremium?: boolean }) => {
+    const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+      setIsSidebarOpen(false);
+    };
+    
+    return (
+      <Link
+        to={to}
+        title={isCollapsed ? label : undefined}
+        onClick={handleClick}
+        className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium relative ${
+          isActive(to)
+            ? 'bg-zinc-100 text-zinc-900'
+            : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+        } ${isCollapsed ? 'justify-center' : ''}`}
+      >
+        <Icon size={20} className={`flex-shrink-0 ${isActive(to) ? 'text-zinc-900' : isPremium ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
+        
+        {!isCollapsed && (
+          <span className="whitespace-nowrap overflow-hidden transition-all duration-200">
+            {label}
+          </span>
+        )}
 
-      {/* Active Indicator */}
-      {!isCollapsed && isActive(to) && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-zinc-900"></div>}
-      
-      {/* Premium Indicator for Collapsed State */}
-      {isCollapsed && isPremium && (
-        <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-zinc-900 border border-white"></div>
-      )}
-    </Link>
-  );
+        {/* Active Indicator */}
+        {!isCollapsed && isActive(to) && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-zinc-900"></div>}
+        
+        {/* Premium Indicator for Collapsed State */}
+        {isCollapsed && isPremium && (
+          <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-zinc-900 border border-white"></div>
+        )}
+      </Link>
+    );
+  };
 
   const unreadCount = user?.notifications?.filter(n => !n.isRead).length || 0;
   
@@ -363,7 +369,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Navigation */}
           <div className="flex-1 px-3 py-2 space-y-8 overflow-y-auto overflow-x-hidden hide-scrollbar">
-            {user?.role === 'ADMIN' ? (
+            {(user?.role === 'ADMIN' || user?.role === 'MODERATOR') ? (
               <>
                 <div className="space-y-1">
                   {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">Administration</p>}
@@ -692,8 +698,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-semibold text-zinc-900 truncate">{user.name}</span>
                       <div className="flex items-center gap-2">
-                         <span className="text-[11px] text-zinc-500 truncate">{user.role === 'ADMIN' ? 'Administrator' : 'Student'}</span>
-                         {user.role !== 'ADMIN' && (
+                         <span className="text-[11px] text-zinc-500 truncate">
+                           {user.role === 'ADMIN' ? 'Administrator' : user.role === 'MODERATOR' ? 'Content Manager' : 'Student'}
+                         </span>
+                         {user.role !== 'ADMIN' && user.role !== 'MODERATOR' && (
                            <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
                              Lvl {user.level}
                            </span>

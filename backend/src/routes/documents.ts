@@ -345,11 +345,11 @@ router.put('/:id', [
   body('tags').optional().isArray()
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    // Check if user is admin or premium
-    if (req.user!.role !== 'ADMIN' && !req.user!.is_premium) {
+    // Check if user is admin, moderator, or premium
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR' && !req.user!.is_premium) {
       res.status(403).json({
         success: false,
-        message: 'Premium subscription required to update documents'
+        message: 'Admin, moderator, or premium subscription required to update documents'
       } as ApiResponse);
       return;
     }
@@ -422,9 +422,17 @@ router.put('/:id', [
   }
 });
 
-// Delete document (Admin only)
+// Delete document (Admin or Moderator only)
 router.delete('/:id', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
+    // Check if user is admin or moderator
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
+      res.status(403).json({
+        success: false,
+        message: 'Admin or moderator access required to delete documents'
+      } as ApiResponse);
+      return;
+    }
     const { id } = req.params;
 
     const result = await dbQuery('DELETE FROM documents WHERE id = $1', [id]);

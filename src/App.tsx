@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Library from './pages/Library';
@@ -27,6 +27,34 @@ import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
 import { UserRole } from './types';
 import { PublicRoute } from './components/PublicRoute';
+
+// Admin route guard component
+const AdminRouteGuard: React.FC = () => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+  
+  // Wait for auth to load
+  if (isLoading) {
+    return <Loader />;
+  }
+  
+  // Handle both enum and string role values
+  const userRole = user?.role;
+  // Convert both to strings for comparison to handle enum/string mismatch
+  const userRoleStr = String(userRole || '').toUpperCase();
+  const isAdmin = userRoleStr === 'ADMIN' || userRole === UserRole.ADMIN;
+  const isModerator = userRoleStr === 'MODERATOR' || userRole === UserRole.MODERATOR;
+  const hasAccess = isAdmin || isModerator;
+  
+  if (!hasAccess) {
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return <Admin />;
+};
 
 const App: React.FC = () => {
   const { user, login, updateUser, isLoading } = useAuth();
@@ -91,7 +119,11 @@ const App: React.FC = () => {
         />
         <Route
           path="/admin"
-          element={<Layout>{user?.role === UserRole.ADMIN ? <Admin /> : <Navigate to="/" />}</Layout>}
+          element={
+            <Layout>
+              <AdminRouteGuard />
+            </Layout>
+          }
         />
         <Route
           path="/profile"
@@ -104,7 +136,13 @@ const App: React.FC = () => {
           element={
             <Layout>
               {user ? (
-                user.role === UserRole.ADMIN ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />
+                (() => {
+                  const userRole = user.role;
+                  const userRoleStr = String(userRole || '').toUpperCase();
+                  const isAdmin = userRoleStr === 'ADMIN' || userRole === UserRole.ADMIN;
+                  const isModerator = userRoleStr === 'MODERATOR' || userRole === UserRole.MODERATOR;
+                  return (isAdmin || isModerator) ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />;
+                })()
               ) : <Landing />}
             </Layout>
           }

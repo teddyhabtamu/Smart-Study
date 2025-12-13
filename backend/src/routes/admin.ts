@@ -676,6 +676,15 @@ router.post('/admins/invite', requireRole(['ADMIN']), [
     };
 
     const inserted = await dbAdmin.insert('users', userData);
+    
+    // Verify the role was saved correctly
+    console.log('🔐 Admin invitation - User created:', {
+      userId: inserted.id,
+      email: inserted.email,
+      role: inserted.role,
+      expectedRole: role,
+      roleMatch: inserted.role === role
+    });
 
     // Generate short opaque token (32 bytes = 64 hex characters)
     const invitationToken = crypto.randomBytes(32).toString('hex');

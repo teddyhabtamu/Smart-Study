@@ -92,7 +92,7 @@ const App: React.FC = () => {
         />
         <Route 
           path="/admin" 
-          element={<Layout>{user?.role === UserRole.ADMIN ? <Admin /> : <Navigate to="/" />}</Layout>} 
+          element={<Layout>{(user?.role === UserRole.ADMIN || user?.role === UserRole.MODERATOR) ? <Admin /> : <Navigate to="/" />}</Layout>} 
         />
         <Route 
           path="/profile" 
@@ -105,7 +105,7 @@ const App: React.FC = () => {
           element={
             <Layout>
               {user ? (
-                user.role === UserRole.ADMIN ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />
+                (user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR) ? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />
               ) : <Landing />}
             </Layout>
           } 

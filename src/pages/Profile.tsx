@@ -299,7 +299,7 @@ const Profile: React.FC = () => {
           <div className="flex flex-col items-center gap-2 sm:gap-3 text-sm text-zinc-500 mt-2">
             <span>{user.email}</span>
 
-            {user.role === UserRole.ADMIN ? (
+            {(user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR) ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-900 text-white border border-zinc-800">
                 <Shield size={10} className="sm:w-3 sm:h-3" />
                 Administrator
@@ -327,7 +327,7 @@ const Profile: React.FC = () => {
           </button>
           
           {/* Only show Achievements for Non-Admin Users */}
-          {user.role !== UserRole.ADMIN && (
+          {user.role !== UserRole.ADMIN && user.role !== UserRole.MODERATOR && (
             <button
               onClick={() => setActiveTab('achievements')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${

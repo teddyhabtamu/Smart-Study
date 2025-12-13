@@ -96,6 +96,13 @@ router.post('/login', [
     }
 
     const user = result.rows[0];
+    
+    // Log user role on login for debugging
+    console.log('🔐 User login - Role check:', {
+      email: user.email,
+      role: user.role,
+      is_premium: user.is_premium
+    });
 
     // Get bookmarks for this user
     const bookmarksResult = await query(`
