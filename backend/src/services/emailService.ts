@@ -81,7 +81,28 @@ export class EmailService {
         paramsCount: Object.keys(params).length
       });
 
-      const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+      // Wrap Brevo API call with timeout to prevent hanging (Vercel has function timeouts)
+      // Use 8 seconds timeout to leave buffer for Vercel's 10s limit on Hobby plan
+      const TIMEOUT_MS = 8000;
+      const startTime = Date.now();
+      
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          const elapsed = Date.now() - startTime;
+          reject(new Error(`Brevo API call timed out after ${elapsed}ms (limit: ${TIMEOUT_MS}ms)`));
+        }, TIMEOUT_MS);
+      });
+
+      console.log(`⏱️ Starting Brevo API call with ${TIMEOUT_MS}ms timeout...`);
+      
+      const response = await Promise.race([
+        apiInstance.sendTransacEmail(sendSmtpEmail).then(result => {
+          const elapsed = Date.now() - startTime;
+          console.log(`✅ Brevo API call completed in ${elapsed}ms`);
+          return result;
+        }),
+        timeoutPromise
+      ]) as any;
       
       // Extract messageId from response (it's in response.body.messageId)
       const messageId = (response as any).body?.messageId || (response as any).messageId || 'N/A';
@@ -108,12 +129,22 @@ export class EmailService {
       const statusCode = error.statusCode || error.status || error.response?.status;
       const errorBody = error.response?.body || error.body;
       
+      // Check if it's a timeout error
+      const isTimeout = error.message && error.message.includes('timed out');
+      
       console.error('❌ Failed to send email:', {
         to,
         templateId,
         error: error.message || error,
-        statusCode
+        statusCode,
+        isTimeout,
+        errorType: isTimeout ? 'TIMEOUT' : 'API_ERROR'
       });
+      
+      if (isTimeout) {
+        console.error('⏱️ Brevo API call timed out - this may indicate network issues or Brevo API problems');
+        console.error('⏱️ The email may still be queued by Brevo, but we cannot confirm delivery');
+      }
       
       // Provide helpful error messages based on status code
       if (statusCode === 401) {
