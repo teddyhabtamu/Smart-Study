@@ -248,11 +248,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (error: any) {
       console.error('Fetch dashboard error:', error);
-      setErrorState('dashboard', error.message || 'Failed to fetch dashboard data');
+      // For timeout/network errors, don't show error state if we have cached data
+      // This allows the dashboard to continue working with stale data
+      if (error?.isTimeout || error?.isNetworkError) {
+        // Only set error if we don't have any cached dashboard data
+        if (!dashboardData) {
+          setErrorState('dashboard', error.message || 'Connection timeout. Please check your internet connection.');
+        } else {
+          // Keep existing data and just log the error
+          console.warn('Dashboard fetch failed, using cached data');
+        }
+      } else {
+        setErrorState('dashboard', error.message || 'Failed to fetch dashboard data');
+      }
     } finally {
       setLoadingState('dashboard', false);
     }
-  }, []);
+  }, [dashboardData]);
 
   // CRUD operations
   const createDocument = async (doc: Omit<Document, 'id' | 'created_at' | 'updated_at'>): Promise<Document> => {

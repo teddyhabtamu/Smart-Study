@@ -24,9 +24,139 @@ const getHeaders = (includeAuth: boolean = true): HeadersInit => {
   return headers;
 };
 
+// Helper function to check if error is a connection timeout
+const isConnectionTimeoutError = (error: any): boolean => {
+  if (!error) return false;
+  
+  const errorMessage = (error.message || error.toString() || '').toLowerCase();
+  const errorDetails = (error.details || '').toLowerCase();
+  const errorCause = error.cause || '';
+  
+  // Check for various timeout error patterns (case-insensitive)
+  return (
+    errorMessage.includes('timeout') ||
+    errorMessage.includes('connect timeout') ||
+    errorMessage.includes('und_err_connect_timeout') ||
+    errorMessage.includes('fetch failed') ||
+    errorDetails.includes('connect timeout') ||
+    errorDetails.includes('und_err_connect_timeout') ||
+    errorDetails.includes('fetch failed') ||
+    errorCause?.message?.toLowerCase().includes('timeout') ||
+    errorCause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    error.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    error.name === 'AbortError' ||
+    error.name === 'TimeoutError'
+  );
+};
+
+// Helper function to check if error is a network error (should retry)
+const isNetworkError = (error: any): boolean => {
+  if (!error) return false;
+  
+  const errorMessage = error.message || error.toString() || '';
+  
+  return (
+    isConnectionTimeoutError(error) ||
+    errorMessage.includes('fetch failed') ||
+    errorMessage.includes('NetworkError') ||
+    errorMessage.includes('Failed to fetch') ||
+    errorMessage.includes('network') ||
+    errorMessage.includes('ECONNREFUSED') ||
+    errorMessage.includes('ENOTFOUND')
+  );
+};
+
+// Helper function to get user-friendly error message
+const getUserFriendlyErrorMessage = (error: any, endpoint: string): string => {
+  if (isConnectionTimeoutError(error)) {
+    return 'Connection timeout. The server is taking too long to respond. Please check your internet connection and try again.';
+  }
+  
+  if (isNetworkError(error)) {
+    return 'Network error. Please check your internet connection and try again.';
+  }
+  
+  // Return original error message if available
+  if (error?.message) {
+    return error.message;
+  }
+  
+  return 'An unexpected error occurred. Please try again later.';
+};
+
 // Helper function to handle API responses
 const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json();
+  // Check if response is ok before trying to parse JSON
+  if (!response.ok) {
+    const is500Error = response.status >= 500;
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch {
+      // If JSON parsing fails, create a basic error
+      const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // 500+ errors usually indicate backend/database connection issues
+      if (is500Error) {
+        (error as any).isNetworkError = true;
+        (error as any).status = response.status;
+      }
+      throw error;
+    }
+
+    // Handle validation errors from express-validator
+    if (errorData.errors && Array.isArray(errorData.errors)) {
+      const errorMessages = errorData.errors.map((error: any) =>
+        error.msg || error.message || 'Validation error'
+      ).join(', ');
+      throw new Error(errorMessages);
+    }
+
+    // Handle general error messages
+    if (errorData.message) {
+      const error = new Error(errorData.message);
+      // Check if the error message indicates a timeout/network issue
+      const messageLower = errorData.message.toLowerCase();
+      // 500 errors often mean backend can't reach database (network issue)
+      // "Authentication failed" from backend usually means it can't connect to DB
+      if (is500Error || 
+          messageLower.includes('timeout') || 
+          messageLower.includes('fetch failed') ||
+          messageLower.includes('connect timeout') ||
+          messageLower.includes('und_err_connect_timeout') ||
+          (messageLower.includes('authentication failed') && is500Error)) {
+        (error as any).isTimeout = messageLower.includes('timeout');
+        (error as any).isNetworkError = true;
+        (error as any).status = response.status;
+      }
+      // Also check details if available
+      if (errorData.details) {
+        const detailsLower = errorData.details.toLowerCase();
+        if (detailsLower.includes('timeout') || 
+            detailsLower.includes('connect timeout') ||
+            detailsLower.includes('und_err_connect_timeout')) {
+          (error as any).isTimeout = true;
+          (error as any).isNetworkError = true;
+        }
+      }
+      throw error;
+    }
+
+    const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+    // 500+ errors usually indicate backend/database connection issues
+    if (response.status >= 500) {
+      (error as any).isNetworkError = true;
+      (error as any).status = response.status;
+    }
+    throw error;
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (error) {
+    // If response is ok but JSON parsing fails, return empty object
+    return {} as T;
+  }
 
   // Check if the response indicates an error (success: false)
   if (data.success === false) {
@@ -40,15 +170,34 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 
     // Handle general error messages
     if (data.message) {
-      throw new Error(data.message);
+      const error = new Error(data.message);
+      // Check if the error message indicates a timeout/network issue
+      const messageLower = data.message.toLowerCase();
+      // Note: We can't check response.status here since response is already parsed
+      // But we can check if it's a generic error that often indicates backend issues
+      if (messageLower.includes('timeout') || 
+          messageLower.includes('fetch failed') ||
+          messageLower.includes('connect timeout') ||
+          messageLower.includes('und_err_connect_timeout') ||
+          (messageLower.includes('authentication failed') && !messageLower.includes('invalid'))) {
+        // "Authentication failed" from backend often means it can't reach DB
+        (error as any).isTimeout = messageLower.includes('timeout');
+        (error as any).isNetworkError = true;
+      }
+      // Also check details if available
+      if (data.details) {
+        const detailsLower = data.details.toLowerCase();
+        if (detailsLower.includes('timeout') || 
+            detailsLower.includes('connect timeout') ||
+            detailsLower.includes('und_err_connect_timeout')) {
+          (error as any).isTimeout = true;
+          (error as any).isNetworkError = true;
+        }
+      }
+      throw error;
     }
 
     throw new Error('An error occurred');
-  }
-
-  // For HTTP error status codes
-  if (!response.ok) {
-    throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   // If the response has success: true and data property, return the data
@@ -60,26 +209,95 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
   return data;
 };
 
-// Generic API request function
+// Helper function to create a timeout signal (with fallback for older browsers)
+const createTimeoutSignal = (timeoutMs: number): AbortSignal => {
+  // Use AbortSignal.timeout if available (modern browsers)
+  if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  
+  // Fallback for older browsers
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+};
+
+// Generic API request function with retry logic
 const apiRequest = async <T>(
   endpoint: string,
   options: RequestInit = {},
-  includeAuth: boolean = true
+  includeAuth: boolean = true,
+  retries: number = 3,
+  retryDelay: number = 1000
 ): Promise<T> => {
   const url = `${API_BASE_URL}${endpoint}`;
+
+  // Create timeout signal (30 seconds)
+  const timeoutSignal = createTimeoutSignal(30000);
+  
+  // Merge signals if one already exists
+  let finalSignal = timeoutSignal;
+  if (options.signal) {
+    // If both signals exist, abort when either one aborts
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    timeoutSignal.addEventListener('abort', abort);
+    options.signal.addEventListener('abort', abort);
+    finalSignal = controller.signal;
+  }
 
   const config: RequestInit = {
     headers: getHeaders(includeAuth),
     ...options,
+    signal: finalSignal,
   };
 
-  try {
-    const response = await fetch(url, config);
-    return handleResponse<T>(response);
-  } catch (error) {
-    console.error(`API request failed: ${endpoint}`, error);
-    throw error;
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, config);
+      return await handleResponse<T>(response);
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's an abort error (timeout)
+      if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
+        const timeoutError: any = new Error('Connection timeout. The server is taking too long to respond.');
+        timeoutError.isTimeout = true;
+        timeoutError.isNetworkError = true;
+        lastError = timeoutError;
+      }
+      
+      // If it's a timeout error and we have retries left, wait and retry
+      if (isNetworkError(lastError) && attempt < retries) {
+        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
+        console.warn(
+          `API request failed (attempt ${attempt + 1}/${retries + 1}): ${endpoint}. Retrying in ${delay}ms...`,
+          lastError
+        );
+        
+        // Wait before retrying - this keeps the loading state visible
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // If it's not a network error or we're out of retries, throw immediately
+      if (!isNetworkError(lastError)) {
+        console.error(`API request failed: ${endpoint}`, lastError);
+        throw lastError;
+      }
+    }
   }
+
+  // If we've exhausted all retries, throw a user-friendly error
+  console.error(`API request failed after ${retries + 1} attempts: ${endpoint}`, lastError);
+  const friendlyMessage = getUserFriendlyErrorMessage(lastError, endpoint);
+  const timeoutError = new Error(friendlyMessage);
+  (timeoutError as any).originalError = lastError;
+  (timeoutError as any).isTimeout = isConnectionTimeoutError(lastError) || lastError?.isTimeout;
+  (timeoutError as any).isNetworkError = isNetworkError(lastError) || lastError?.isNetworkError;
+  throw timeoutError;
 };
 
 // Auth API

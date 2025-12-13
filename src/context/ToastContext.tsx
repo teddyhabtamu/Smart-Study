@@ -16,6 +16,21 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+// Global toast dispatcher - allows components outside ToastProvider to trigger toasts
+let globalToastDispatcher: ((message: string, type?: ToastType) => void) | null = null;
+
+export const dispatchToast = (message: string, type: ToastType = 'info') => {
+  if (globalToastDispatcher) {
+    globalToastDispatcher(message, type);
+  } else {
+    // Fallback: use custom event if dispatcher not ready
+    const event = new CustomEvent('show-toast', {
+      detail: { message, type }
+    });
+    window.dispatchEvent(event);
+  }
+};
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -23,15 +38,40 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
     
-    // Auto remove after 3 seconds
+    // Auto remove after 5 seconds for warnings/errors, 3 seconds for others
+    const duration = (type === 'warning' || type === 'error') ? 5000 : 3000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, duration);
   }, []);
+
+  // Set up global dispatcher when component mounts
+  React.useEffect(() => {
+    globalToastDispatcher = addToast;
+    // Also set on window for easier access
+    (window as any).__toastDispatcher = addToast;
+    return () => {
+      globalToastDispatcher = null;
+      delete (window as any).__toastDispatcher;
+    };
+  }, [addToast]);
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // Listen for custom events from AuthContext (which is outside ToastProvider)
+  React.useEffect(() => {
+    const handleShowToast = (event: CustomEvent) => {
+      const { message, type } = event.detail;
+      addToast(message, type || 'info');
+    };
+
+    window.addEventListener('show-toast', handleShowToast as EventListener);
+    return () => {
+      window.removeEventListener('show-toast', handleShowToast as EventListener);
+    };
+  }, [addToast]);
 
   return (
     <ToastContext.Provider value={{ addToast, removeToast }}>

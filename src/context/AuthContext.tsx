@@ -29,15 +29,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const profileRequestRef = useRef<Promise<any> | null>(null);
   const lastProfileFetchRef = useRef<Date | null>(null);
   const PROFILE_CACHE_DURATION = 5000; // 5 seconds cache
+  const networkErrorShownRef = useRef(false); // Track if we've shown network error notification
 
   // Check authentication on mount
   useEffect(() => {
     const checkAuth = async () => {
+      // Start with loading true - this ensures skeleton shows during retries
+      setIsLoading(true);
+      
       const token = localStorage.getItem('auth_token');
       const savedUser = localStorage.getItem('smartstudy_user');
 
       if (token) {
         try {
+          // Keep loading true during the entire verification process (including retries)
+          // The apiRequest will retry up to 3 times with delays (1s, 2s, 4s = ~7 seconds total)
+          // This keeps the loading skeleton visible during all retries
           const response = await authAPI.verify();
           const userData = response.user as any; // Backend user format
           // Transform snake_case fields to camelCase to match User interface
@@ -63,22 +70,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(transformedUser);
           // Save to localStorage for persistence
           localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
+          // Reset network error flag on successful connection
+          networkErrorShownRef.current = false;
           // Load full profile including bookmarks (force refresh on initial load)
-          await refreshUser(true);
-        } catch (error) {
+          try {
+            await refreshUser(true);
+          } catch (refreshError) {
+            // If refresh fails, that's okay - we have the user data from verify
+            console.warn('Profile refresh failed, but user is authenticated:', refreshError);
+          }
+        } catch (error: any) {
           console.error('Token verification failed:', error);
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('smartstudy_user');
-          setUser(null);
+          
+          // Check if it's a network/timeout error
+          // Also check for 500 errors which often indicate backend connection issues
+          const errorStatus = error?.status || error?.response?.status;
+          const is500Error = errorStatus === 500 || errorStatus >= 500;
+          const errorMessage = (error?.message || '').toLowerCase();
+          
+          const isNetworkError = error?.isTimeout || 
+                                 error?.isNetworkError || 
+                                 is500Error || // 500+ errors usually mean backend can't reach DB
+                                 errorMessage.includes('timeout') ||
+                                 errorMessage.includes('fetch failed') ||
+                                 errorMessage.includes('networkerror') ||
+                                 errorMessage.includes('failed to fetch') ||
+                                 errorMessage.includes('connection timeout') ||
+                                 errorMessage.includes('und_err_connect_timeout') ||
+                                 (errorMessage.includes('authentication failed') && is500Error) || // "Authentication failed" from 500 = DB connection issue
+                                 error?.originalError?.message?.toLowerCase().includes('timeout') ||
+                                 error?.originalError?.message?.toLowerCase().includes('und_err_connect_timeout');
+          
+          // Only clear auth data if it's a real authentication error (401, 403, invalid token)
+          // NOT for 500 errors or network issues
+          const isRealAuthError = (error?.message?.includes('401') || 
+                                   error?.message?.includes('403') || 
+                                   error?.message?.includes('Unauthorized') ||
+                                   error?.message?.includes('Invalid token') ||
+                                   error?.message?.includes('Token expired') ||
+                                   error?.message?.includes('Access token required')) &&
+                                   !error?.message?.toLowerCase().includes('authentication failed'); // "Authentication failed" from 500 is not a real auth error
+          
+          if (isRealAuthError) {
+            // Real auth error - clear everything
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('smartstudy_user');
+            setUser(null);
+          } else if (savedUser) {
+            // For network/timeout/500 errors, restore cached user data
+            console.warn('Network/backend error during token verification, restoring cached user data');
+            try {
+              const cachedUser = JSON.parse(savedUser);
+              setUser(cachedUser);
+              // Show notification to user (only once per session)
+              if (!networkErrorShownRef.current) {
+                networkErrorShownRef.current = true;
+                // Try to use global dispatcher, fallback to custom event
+                const showToast = () => {
+                  // Try global dispatcher first (set by ToastProvider)
+                  if ((window as any).__toastDispatcher) {
+                    (window as any).__toastDispatcher(
+                      'Connection issue detected. Using offline mode. Some features may be limited.',
+                      'warning'
+                    );
+                  } else {
+                    // Fallback: use custom event
+                    const event = new CustomEvent('show-toast', {
+                      detail: {
+                        message: 'Connection issue detected. Using offline mode. Some features may be limited.',
+                        type: 'warning'
+                      }
+                    });
+                    window.dispatchEvent(event);
+                  }
+                };
+                // Try multiple times to ensure ToastProvider is ready
+                showToast();
+                setTimeout(showToast, 300);
+                setTimeout(showToast, 600);
+                setTimeout(showToast, 1000);
+                setTimeout(showToast, 2000);
+              }
+            } catch (parseError) {
+              console.error('Failed to parse cached user:', parseError);
+            }
+          }
+        } finally {
+          // Always set loading to false after all retries are done
+          // This happens after ~7 seconds (1s + 2s + 4s retry delays) if all retries fail
+          setIsLoading(false);
         }
       } else if (savedUser) {
         // If there's no token but a cached user exists, clear it (user logged out)
         // Don't restore user without a valid token
-        console.log('No token found but cached user exists - clearing stale cache');
         localStorage.removeItem('smartstudy_user');
         setUser(null);
+        setIsLoading(false);
+      } else {
+        // No token and no saved user - user is not logged in
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkAuth();
@@ -167,10 +258,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error polling notifications:', error);
-        // On error, increase polling interval to avoid spamming
-        pollTimeout = setTimeout(pollNotifications, 60000); // 1 minute on error
+        // On network/timeout errors, increase polling interval significantly to avoid spamming
+        // For other errors, use a shorter interval
+        const delay = (error?.isTimeout || error?.isNetworkError) ? 120000 : 60000; // 2 minutes for network errors, 1 minute for others
+        pollTimeout = setTimeout(pollNotifications, delay);
         isPolling = false;
         return;
       }
@@ -431,13 +524,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         is_premium: undefined
       };
       setUser(transformedUser);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Refresh user error:', error);
-      // If refresh fails, user might be logged out
-      if ((error as any).message?.includes('401') || (error as any).message?.includes('403')) {
+      // If refresh fails due to auth error, user might be logged out
+      if (error?.message?.includes('401') || error?.message?.includes('403') || error?.message?.includes('Unauthorized')) {
         localStorage.removeItem('auth_token');
         setUser(null);
+      } else if (error?.isTimeout || error?.isNetworkError) {
+        // For timeout/network errors, keep existing user data and don't throw
+        // This allows the app to continue working with cached data
+        console.warn('Network error during user refresh, keeping existing user data');
+        // Clear the request ref so we can retry later
+        profileRequestRef.current = null;
+        lastProfileFetchRef.current = null;
       }
+    } finally {
+      // Always clear the request ref after completion
+      profileRequestRef.current = null;
     }
   }, []);
 
