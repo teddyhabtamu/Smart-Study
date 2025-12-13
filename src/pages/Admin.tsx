@@ -2090,7 +2090,7 @@ const Admin: React.FC = () => {
            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-3">
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-zinc-900">Admin Team</h2>
-                <p className="text-xs sm:text-sm text-zinc-500">Manage access to the admin panel.</p>
+                <p className="text-xs sm:text-sm text-zinc-500">Manage admins and moderators with access to the admin panel.</p>
               </div>
               <button 
                 onClick={() => setIsInviteOpen(true)}
@@ -2104,116 +2104,267 @@ const Admin: React.FC = () => {
              <AdminTeamSkeleton />
            ) : (
              <>
-               {/* Mobile Card Layout */}
-               <div className="md:hidden space-y-3">
-                 {admins.map((admin) => (
-                   <div key={admin.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
-                     <div className="flex items-start justify-between mb-3">
-                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                         <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-600 flex-shrink-0">
-                           {admin.name.charAt(0)}
-                         </div>
-                         <div className="flex-1 min-w-0">
-                           <h4 className="font-medium text-zinc-900 truncate">{admin.name}</h4>
-                           <p className="text-xs text-zinc-500 truncate">{admin.email}</p>
-                         </div>
+               {/* Separate Active and Inactive Members */}
+               {(() => {
+                 const activeMembers = admins.filter((member: any) => (member.status || 'Active') === 'Active');
+                 const inactiveMembers = admins.filter((member: any) => (member.status || 'Active') !== 'Active');
+                 
+                 return (
+                   <div className="space-y-6">
+                     {/* Active Members Section */}
+                     <div>
+                       <div className="flex items-center gap-2 mb-4">
+                         <div className="w-1 h-5 bg-emerald-500 rounded-full"></div>
+                         <h3 className="text-sm font-bold text-zinc-900">Active Members ({activeMembers.length})</h3>
                        </div>
-                       <button
-                         onClick={() => handleRemoveAdmin(admin.id)}
-                         disabled={isRemovingAdmin === admin.id}
-                         className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                       >
-                         {isRemovingAdmin === admin.id ? (
-                           <Loader2 size={16} className="animate-spin" />
-                         ) : (
-                           <Trash2 size={16} />
-                         )}
-                       </button>
-                     </div>
-                     <div className="flex items-center justify-between text-xs">
-                       <div className="flex items-center gap-2">
-                         <span className="text-zinc-600 font-medium">
-                           {admin.role === 'ADMIN' ? 'Super Admin' : admin.role === 'MODERATOR' ? 'Content Manager' : admin.role}
-                         </span>
-                         <span className="px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px]">
-                           Active
-                         </span>
-                       </div>
-                       <span className="text-zinc-400 text-[10px]">
-                         {new Date((admin as any).created_at || (admin as any).joinedDate || '').toLocaleDateString()}
-                       </span>
-                     </div>
-                   </div>
-                 ))}
-                 {admins.length === 0 && (
-                   <div className="text-center py-12 text-zinc-400 text-sm">No team members yet.</div>
-                 )}
-               </div>
-
-               {/* Desktop Table Layout */}
-               <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
-                      <tr>
-                        <th className="px-6 py-3 font-semibold">User</th>
-                        <th className="px-6 py-3 font-semibold">Role</th>
-                        <th className="px-6 py-3 font-semibold">Status</th>
-                        <th className="px-6 py-3 font-semibold">Added</th>
-                        <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-50">
-                      {admins.map((admin) => (
-                        <tr key={admin.id} className="hover:bg-zinc-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
-                                   {admin.name.charAt(0)}
-                                </div>
-                                <div>
-                                  <p className="font-medium text-zinc-900">{admin.name}</p>
-                                  <p className="text-xs text-zinc-500">{admin.email}</p>
-                                </div>
+                       
+                       {/* Mobile Card Layout - Active */}
+                       <div className="md:hidden space-y-3">
+                         {activeMembers.length > 0 ? (
+                           activeMembers.map((member) => (
+                             <div key={member.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
+                               <div className="flex items-start justify-between mb-3">
+                                 <div className="flex items-center gap-3 flex-1 min-w-0">
+                                   <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-600 flex-shrink-0">
+                                     {member.name.charAt(0)}
+                                   </div>
+                                   <div className="flex-1 min-w-0">
+                                     <h4 className="font-medium text-zinc-900 truncate">{member.name}</h4>
+                                     <p className="text-xs text-zinc-500 truncate">{member.email}</p>
+                                   </div>
+                                 </div>
+                                 <button
+                                   onClick={() => handleRemoveAdmin(member.id)}
+                                   disabled={isRemovingAdmin === member.id}
+                                   className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                 >
+                                   {isRemovingAdmin === member.id ? (
+                                     <Loader2 size={16} className="animate-spin" />
+                                   ) : (
+                                     <Trash2 size={16} />
+                                   )}
+                                 </button>
+                               </div>
+                               <div className="flex items-center justify-between text-xs">
+                                 <div className="flex items-center gap-2 flex-wrap">
+                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                     member.role === 'ADMIN' 
+                                       ? 'bg-zinc-900 text-white' 
+                                       : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                   }`}>
+                                     {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
+                                   </span>
+                                   <span className="px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px]">
+                                     Active
+                                   </span>
+                                 </div>
+                                 <span className="text-zinc-400 text-[10px]">
+                                   {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                 </span>
+                               </div>
                              </div>
-                          </td>
-                          <td className="px-6 py-4 text-zinc-600">
-                             {admin.role === 'ADMIN' ? 'Super Admin' : admin.role === 'MODERATOR' ? 'Content Manager' : admin.role}
-                          </td>
-                          <td className="px-6 py-4">
-                             <span className={`text-xs px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100`}>
-                               Active
-                             </span>
-                          </td>
-                          <td className="px-6 py-4 text-zinc-500 text-xs">
-                             {new Date((admin as any).created_at || (admin as any).joinedDate || '').toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                             <button
-                               onClick={() => handleRemoveAdmin(admin.id)}
-                               disabled={isRemovingAdmin === admin.id}
-                               className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                             >
-                               {isRemovingAdmin === admin.id ? (
-                                 <Loader2 size={16} className="animate-spin" />
-                               ) : (
-                                 <Trash2 size={16} />
-                               )}
-                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {admins.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 text-sm">
-                            No team members yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                           ))
+                         ) : (
+                           <div className="text-center py-8 text-zinc-400 text-sm bg-white rounded-xl border border-zinc-200">No active members.</div>
+                         )}
+                       </div>
+
+                       {/* Desktop Table Layout - Active */}
+                       <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                              <tr>
+                                <th className="px-6 py-3 font-semibold">User</th>
+                                <th className="px-6 py-3 font-semibold">Role</th>
+                                <th className="px-6 py-3 font-semibold">Status</th>
+                                <th className="px-6 py-3 font-semibold">Added</th>
+                                <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-50">
+                              {activeMembers.length > 0 ? (
+                                activeMembers.map((member) => (
+                                  <tr key={member.id} className="hover:bg-zinc-50/50 transition-colors">
+                                    <td className="px-6 py-4">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
+                                             {member.name.charAt(0)}
+                                          </div>
+                                          <div>
+                                            <p className="font-medium text-zinc-900">{member.name}</p>
+                                            <p className="text-xs text-zinc-500">{member.email}</p>
+                                          </div>
+                                       </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                         member.role === 'ADMIN' 
+                                           ? 'bg-zinc-900 text-white' 
+                                           : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                       }`}>
+                                         {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
+                                       </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <span className="text-xs px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100">
+                                         Active
+                                       </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-zinc-500 text-xs">
+                                       {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                       <button
+                                         onClick={() => handleRemoveAdmin(member.id)}
+                                         disabled={isRemovingAdmin === member.id}
+                                         className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                       >
+                                         {isRemovingAdmin === member.id ? (
+                                           <Loader2 size={16} className="animate-spin" />
+                                         ) : (
+                                           <Trash2 size={16} />
+                                         )}
+                                       </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 text-sm">
+                                    No active members.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                     </div>
+
+                     {/* Inactive Members Section (Pending Invitations) */}
+                     {inactiveMembers.length > 0 && (
+                       <div>
+                         <div className="flex items-center gap-2 mb-4">
+                           <div className="w-1 h-5 bg-amber-500 rounded-full"></div>
+                           <h3 className="text-sm font-bold text-zinc-900">Pending Invitations ({inactiveMembers.length})</h3>
+                         </div>
+                         
+                         {/* Mobile Card Layout - Inactive */}
+                         <div className="md:hidden space-y-3">
+                           {inactiveMembers.map((member) => (
+                             <div key={member.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 opacity-75">
+                               <div className="flex items-start justify-between mb-3">
+                                 <div className="flex items-center gap-3 flex-1 min-w-0">
+                                   <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-600 flex-shrink-0">
+                                     {member.name.charAt(0)}
+                                   </div>
+                                   <div className="flex-1 min-w-0">
+                                     <h4 className="font-medium text-zinc-900 truncate">{member.name}</h4>
+                                     <p className="text-xs text-zinc-500 truncate">{member.email}</p>
+                                   </div>
+                                 </div>
+                                 <button
+                                   onClick={() => handleRemoveAdmin(member.id)}
+                                   disabled={isRemovingAdmin === member.id}
+                                   className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                 >
+                                   {isRemovingAdmin === member.id ? (
+                                     <Loader2 size={16} className="animate-spin" />
+                                   ) : (
+                                     <Trash2 size={16} />
+                                   )}
+                                 </button>
+                               </div>
+                               <div className="flex items-center justify-between text-xs">
+                                 <div className="flex items-center gap-2 flex-wrap">
+                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                     member.role === 'ADMIN' 
+                                       ? 'bg-zinc-900 text-white' 
+                                       : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                   }`}>
+                                     {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
+                                   </span>
+                                   <span className="px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-100 text-[10px]">
+                                     Pending
+                                   </span>
+                                 </div>
+                                 <span className="text-zinc-400 text-[10px]">
+                                   Invited {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                 </span>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+
+                         {/* Desktop Table Layout - Inactive */}
+                         <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden opacity-90">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                              <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                                <tr>
+                                  <th className="px-6 py-3 font-semibold">User</th>
+                                  <th className="px-6 py-3 font-semibold">Role</th>
+                                  <th className="px-6 py-3 font-semibold">Status</th>
+                                  <th className="px-6 py-3 font-semibold">Invited</th>
+                                  <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-zinc-50">
+                                {inactiveMembers.map((member) => (
+                                  <tr key={member.id} className="hover:bg-zinc-50/50 transition-colors">
+                                    <td className="px-6 py-4">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
+                                             {member.name.charAt(0)}
+                                          </div>
+                                          <div>
+                                            <p className="font-medium text-zinc-900">{member.name}</p>
+                                            <p className="text-xs text-zinc-500">{member.email}</p>
+                                          </div>
+                                       </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                         member.role === 'ADMIN' 
+                                           ? 'bg-zinc-900 text-white' 
+                                           : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                       }`}>
+                                         {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
+                                       </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <span className="text-xs px-2 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-100">
+                                         Pending
+                                       </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-zinc-500 text-xs">
+                                       {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                       <button
+                                         onClick={() => handleRemoveAdmin(member.id)}
+                                         disabled={isRemovingAdmin === member.id}
+                                         className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                       >
+                                         {isRemovingAdmin === member.id ? (
+                                           <Loader2 size={16} className="animate-spin" />
+                                         ) : (
+                                           <Trash2 size={16} />
+                                         )}
+                                       </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                       </div>
+                     )}
+                   </div>
+                 );
+               })()}
              </>
            )}
 

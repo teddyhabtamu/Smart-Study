@@ -615,15 +615,22 @@ router.post('/maintenance/cleanup', requireRole(['ADMIN']), async (req: express.
   }
 });
 
-// Get admin team members
+// Get admin team members (admins and moderators)
 router.get('/admins', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const users = await dbAdmin.get('users');
-    const admins = users.filter((u: any) => u.role === 'ADMIN');
+    // Get both admins and moderators
+    const teamMembers = users.filter((u: any) => u.role === 'ADMIN' || u.role === 'MODERATOR');
+    
+    // Map users to include status (Active if status is 'Active', Inactive otherwise)
+    const membersWithStatus = teamMembers.map((member: any) => ({
+      ...member,
+      status: member.status === 'Active' ? 'Active' : 'Inactive'
+    }));
 
     res.json({
       success: true,
-      data: admins
+      data: membersWithStatus
     } as ApiResponse);
   } catch (error) {
     console.error('Get admins error:', error);
