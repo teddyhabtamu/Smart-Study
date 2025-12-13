@@ -4,7 +4,7 @@ export interface User {
   name: string;
   email: string;
   password_hash?: string; // Only used in database operations
-  role: 'STUDENT' | 'ADMIN' | 'TUTOR';
+  role: 'STUDENT' | 'ADMIN' | 'MODERATOR' | 'TUTOR';
   is_premium: boolean;
   avatar?: string;
   preferences: {

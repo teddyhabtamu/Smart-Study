@@ -527,11 +527,20 @@ router.post('/accept-invitation', [
 
     const user = result.rows[0];
 
+    // Log the role before update to verify it's preserved
+    console.log('🔐 Accepting invitation for user:', {
+      id: user.id,
+      email: user.email,
+      currentRole: user.role,
+      status: user.status
+    });
+
     // Hash the new password
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
     // Update user password, activate account, and mark token as used
+    // NOTE: We do NOT update the role here - it should already be set correctly from invitation
     await query(
       'UPDATE users SET password_hash = $1, status = $2, updated_at = NOW() WHERE id = $3',
       [password_hash, 'Active', user.id]
@@ -545,6 +554,15 @@ router.post('/accept-invitation', [
     );
     
     const updatedUser = updatedResult.rows[0];
+    
+    // Verify role is preserved
+    console.log('🔐 User after invitation acceptance:', {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      is_premium: updatedUser.is_premium,
+      status: updatedUser.status
+    });
     // Add bookmarks array (empty for new users)
     updatedUser.bookmarks = [];
     

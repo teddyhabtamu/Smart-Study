@@ -10,9 +10,11 @@ import { EmailService } from '../services/emailService';
 
 const router = express.Router();
 
-// Apply admin role requirement to all routes
+// Apply authentication to all routes
 router.use(authenticateToken);
-router.use(requireRole(['ADMIN']));
+
+// Most routes require ADMIN or MODERATOR
+// Some sensitive routes will have additional ADMIN-only restrictions
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {
@@ -125,8 +127,8 @@ const getRecentActivity = async () => {
   }
 };
 
-// Get admin dashboard statistics
-router.get('/stats', async (req: express.Request, res: express.Response): Promise<void> => {
+// Get admin dashboard statistics (ADMIN and MODERATOR)
+router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const users = await dbAdmin.get('users');
     const documents = await dbAdmin.get('documents');
@@ -161,7 +163,7 @@ router.get('/stats', async (req: express.Request, res: express.Response): Promis
 });
 
 // User management endpoints
-router.get('/users', [
+router.get('/users', requireRole(['ADMIN']), [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
   query('offset').optional().isInt({ min: 0 }).toInt(),
   query('search').optional().isString()
@@ -213,7 +215,7 @@ router.get('/users', [
 });
 
 // Update user premium status
-router.put('/users/:userId/premium', [
+router.put('/users/:userId/premium', requireRole(['ADMIN']), [
   body('isPremium').isBoolean().withMessage('isPremium must be boolean')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
@@ -284,7 +286,7 @@ router.put('/users/:userId/premium', [
 });
 
 // Update user status (active/banned)
-router.put('/users/:userId/status', [
+router.put('/users/:userId/status', requireRole(['ADMIN']), [
   body('status').isIn(['Active', 'Banned']).withMessage('Status must be Active or Banned'),
   body('reason').optional().isString().withMessage('Reason must be a string')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
@@ -387,7 +389,7 @@ router.delete('/users/:userId', async (req: express.Request, res: express.Respon
 });
 
 // Content management endpoints
-router.get('/content', async (req: express.Request, res: express.Response): Promise<void> => {
+router.get('/content', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const documents = await dbAdmin.get('documents');
     const videos = await dbAdmin.get('videos');
@@ -440,7 +442,7 @@ router.get('/content', async (req: express.Request, res: express.Response): Prom
 });
 
 // Create document (admin)
-router.post('/documents', [
+router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
   body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
@@ -504,7 +506,7 @@ router.post('/documents', [
 });
 
 // Create video (admin)
-router.post('/videos', [
+router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
   body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
@@ -567,7 +569,7 @@ router.post('/videos', [
 });
 
 // Moderate forum content
-router.delete('/forum/posts/:postId', async (req: express.Request, res: express.Response): Promise<void> => {
+router.delete('/forum/posts/:postId', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { postId } = req.params;
     const id = parseInt(postId || '0');
@@ -596,7 +598,7 @@ router.delete('/forum/posts/:postId', async (req: express.Request, res: express.
 });
 
 // System maintenance endpoints
-router.post('/maintenance/cleanup', async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/maintenance/cleanup', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     // In a real implementation, you might clean up old logs, temporary files, etc.
     // For now, just return success
@@ -614,7 +616,7 @@ router.post('/maintenance/cleanup', async (req: express.Request, res: express.Re
 });
 
 // Get admin team members
-router.get('/admins', async (req: express.Request, res: express.Response): Promise<void> => {
+router.get('/admins', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const users = await dbAdmin.get('users');
     const admins = users.filter((u: any) => u.role === 'ADMIN');
@@ -633,7 +635,7 @@ router.get('/admins', async (req: express.Request, res: express.Response): Promi
 });
 
 // Invite new admin (creates a pending invitation)
-router.post('/admins/invite', [
+router.post('/admins/invite', requireRole(['ADMIN']), [
   body('email').isEmail().withMessage('Valid email required'),
   body('name').trim().isLength({ min: 2 }).withMessage('Name is required'),
   body('role').optional().isIn(['ADMIN', 'MODERATOR']).withMessage('Invalid role')
@@ -719,7 +721,7 @@ router.post('/admins/invite', [
 });
 
 // Remove admin privileges
-router.delete('/admins/:userId', async (req: express.Request, res: express.Response): Promise<void> => {
+router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { userId } = req.params;
     const targetUserId = userId;
@@ -760,7 +762,7 @@ router.delete('/admins/:userId', async (req: express.Request, res: express.Respo
 });
 
 // Get system logs (mock implementation)
-router.get('/logs', async (req: express.Request, res: express.Response): Promise<void> => {
+router.get('/logs', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     // In a real implementation, you would read from log files
     const mockLogs = [
