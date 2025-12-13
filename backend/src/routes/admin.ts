@@ -2,7 +2,7 @@ import express from 'express';
 import { body, query } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { dbAdmin } from '../database/config';
+import { dbAdmin, query as dbQuery } from '../database/config';
 import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
 import { config } from '../config';
 import { ApiResponse, User, Document, Video, ForumPost } from '../types';
@@ -675,14 +675,20 @@ router.post('/admins/invite', [
 
     const inserted = await dbAdmin.insert('users', userData);
 
-    // Generate invitation token (expires in 7 days)
-    const invitationToken = jwt.sign(
-      { userId: inserted.id, email: email, type: 'admin-invitation' },
-      config.jwt.secret!,
-      { expiresIn: '7d' }
+    // Generate short opaque token (32 bytes = 64 hex characters)
+    const invitationToken = crypto.randomBytes(32).toString('hex');
+    
+    // Calculate expiration time (7 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    // Store token in database
+    await dbQuery(
+      'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
+      [invitationToken, inserted.id, 'admin-invitation', expiresAt.toISOString()]
     );
 
-    // Create invitation link
+    // Create invitation link (short token, no encoding needed)
     const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
     const invitationLink = `${frontendUrl}/accept-invitation?token=${invitationToken}`;
 

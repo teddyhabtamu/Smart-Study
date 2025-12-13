@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
 import { config } from '../config';
@@ -276,16 +277,22 @@ router.post('/forgot-password', [
     if (result.rows.length > 0) {
       const user = result.rows[0];
 
-      // Generate password reset token (expires in 1 hour)
-      const resetToken = jwt.sign(
-        { userId: user.id, type: 'password-reset' },
-        config.jwt.secret!,
-        { expiresIn: '1h' }
+      // Generate short opaque token (32 bytes = 64 hex characters)
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      
+      // Calculate expiration time (1 hour from now)
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 1);
+
+      // Store token in database
+      await query(
+        'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
+        [resetToken, user.id, 'password-reset', expiresAt.toISOString()]
       );
 
-      // Create reset link (URL encode the token to handle special characters in JWT)
+      // Create reset link (short token, no encoding needed)
       const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-      const resetLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+      const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
       // Send password reset email (non-blocking)
       console.log('📧 Triggering password reset email for user:', { email: user.email, name: user.name });
@@ -319,50 +326,47 @@ router.post('/reset-password', [
 
     console.log('🔐 Reset password request received');
     console.log('🔐 Token length:', token ? token.length : 0);
-    console.log('🔐 Token preview:', token ? token.substring(0, 50) + '...' : 'none');
 
-    // Verify and decode the reset token
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, config.jwt.secret!) as any;
-      console.log('🔐 Token decoded successfully:', { userId: decoded.userId, type: decoded.type });
-      
-      // Verify it's a password reset token
-      if (decoded.type !== 'password-reset') {
-        console.error('🔐 Invalid token type:', decoded.type);
-        res.status(400).json({
-          success: false,
-          message: 'Invalid reset token'
-        } as ApiResponse);
-        return;
-      }
-    } catch (error) {
-      console.error('🔐 Token verification error:', error);
-      if (error instanceof jwt.TokenExpiredError) {
-        console.error('🔐 Token expired');
-        res.status(400).json({
-          success: false,
-          message: 'Reset token has expired. Please request a new one.'
-        } as ApiResponse);
-        return;
-      }
-      if (error instanceof jwt.JsonWebTokenError) {
-        console.error('🔐 JWT error:', error.message);
-        res.status(400).json({
-          success: false,
-          message: 'Invalid reset token format'
-        } as ApiResponse);
-        return;
-      }
+    // Verify token from database
+    const tokenResult = await query(
+      'SELECT token, user_id, type, expires_at, used_at FROM tokens WHERE token = $1 AND type = $2',
+      [token, 'password-reset']
+    );
+
+    if (tokenResult.rows.length === 0) {
+      console.error('🔐 Token not found');
       res.status(400).json({
         success: false,
-        message: 'Invalid or expired reset token'
+        message: 'Invalid reset token'
+      } as ApiResponse);
+      return;
+    }
+
+    const tokenRecord = tokenResult.rows[0];
+
+    // Check if token has been used
+    if (tokenRecord.used_at) {
+      console.error('🔐 Token already used');
+      res.status(400).json({
+        success: false,
+        message: 'This reset token has already been used. Please request a new one.'
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if token has expired
+    const expiresAt = new Date(tokenRecord.expires_at);
+    if (expiresAt < new Date()) {
+      console.error('🔐 Token expired');
+      res.status(400).json({
+        success: false,
+        message: 'Reset token has expired. Please request a new one.'
       } as ApiResponse);
       return;
     }
 
     // Get user
-    const userResult = await query('SELECT id, name, email FROM users WHERE id = $1', [decoded.userId]);
+    const userResult = await query('SELECT id, name, email FROM users WHERE id = $1', [tokenRecord.user_id]);
     if (userResult.rows.length === 0) {
       res.status(404).json({
         success: false,
@@ -377,8 +381,9 @@ router.post('/reset-password', [
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
-    // Update password
+    // Update password and mark token as used
     await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [password_hash, user.id]);
+    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1', [token]);
     console.log('✅ Password updated successfully for user:', user.email);
 
     // Send password reset success email (non-blocking, security notification)
@@ -423,23 +428,40 @@ router.post('/accept-invitation', [
   try {
     const { token, password } = req.body;
 
-    // Verify and decode the invitation token
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, config.jwt.secret!) as any;
-      
-      // Verify it's an admin invitation token
-      if (decoded.type !== 'admin-invitation') {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid invitation token'
-        } as ApiResponse);
-        return;
-      }
-    } catch (error) {
+    // Verify token from database
+    const tokenResult = await query(
+      'SELECT token, user_id, type, expires_at, used_at FROM tokens WHERE token = $1 AND type = $2',
+      [token, 'admin-invitation']
+    );
+
+    if (tokenResult.rows.length === 0) {
+      console.error('🔐 Invitation token not found');
       res.status(400).json({
         success: false,
-        message: 'Invalid or expired invitation token'
+        message: 'Invalid invitation token'
+      } as ApiResponse);
+      return;
+    }
+
+    const tokenRecord = tokenResult.rows[0];
+
+    // Check if token has been used
+    if (tokenRecord.used_at) {
+      console.error('🔐 Invitation token already used');
+      res.status(400).json({
+        success: false,
+        message: 'This invitation token has already been used.'
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if token has expired
+    const expiresAt = new Date(tokenRecord.expires_at);
+    if (expiresAt < new Date()) {
+      console.error('🔐 Invitation token expired');
+      res.status(400).json({
+        success: false,
+        message: 'Invitation token has expired. Please contact an administrator for a new invitation.'
       } as ApiResponse);
       return;
     }
@@ -447,7 +469,7 @@ router.post('/accept-invitation', [
     // Find user by ID from token
     const result = await query(
       'SELECT id, email, name, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
-      [decoded.userId]
+      [tokenRecord.user_id]
     );
     
     if (result.rows.length === 0) {
@@ -460,24 +482,16 @@ router.post('/accept-invitation', [
 
     const user = result.rows[0];
 
-    // Verify email matches (extra security check)
-    if (user.email !== decoded.email) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid invitation token'
-      } as ApiResponse);
-      return;
-    }
-
     // Hash the new password
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
-    // Update user password and activate account
+    // Update user password, activate account, and mark token as used
     await query(
       'UPDATE users SET password_hash = $1, status = $2, updated_at = NOW() WHERE id = $3',
       [password_hash, 'Active', user.id]
     );
+    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1', [token]);
 
     // Get updated user data
     const updatedResult = await query(
