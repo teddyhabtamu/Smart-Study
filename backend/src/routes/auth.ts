@@ -294,15 +294,19 @@ router.post('/forgot-password', [
       const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
       const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-      // Send password reset email (non-blocking)
+      // Send password reset email (truly non-blocking - deferred to next event loop)
+      // This ensures the HTTP response is sent immediately, even if Brevo API hangs
       console.log('📧 Triggering password reset email for user:', { email: user.email, name: user.name });
-      EmailService.sendPasswordResetEmail(user.email, user.name, resetLink).catch(error => {
-        console.error('❌ Failed to send password reset email:', error);
-        // Don't fail the request if email fails
+      setImmediate(() => {
+        EmailService.sendPasswordResetEmail(user.email, user.name, resetLink).catch(error => {
+          console.error('❌ Failed to send password reset email:', error);
+          // Don't fail the request if email fails
+        });
       });
     }
 
     // Always return success (security best practice)
+    // Response is sent immediately, email sending happens in background
     res.json({
       success: true,
       message: 'If an account with that email exists, a password reset link has been sent.'
