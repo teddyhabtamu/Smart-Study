@@ -277,12 +277,12 @@ passport.use(new GoogleStrategy({
 }));
 
 // Serialize user for session
-passport.serializeUser((user: any, done) => {
+passport.serializeUser((user: any, done: (err: any, id?: string) => void) => {
   done(null, user.id);
 });
 
 // Deserialize user from session
-passport.deserializeUser(async (id: string, done) => {
+passport.deserializeUser(async (id: string, done: (err: any, user?: any) => void) => {
   try {
     const { data: user, error: userError } = await supabase
       .from('users')

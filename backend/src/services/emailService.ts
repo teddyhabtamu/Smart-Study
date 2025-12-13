@@ -1,4 +1,6 @@
 import * as brevo from '@getbrevo/brevo';
+import https from 'https';
+import axios, { AxiosInstance } from 'axios';
 import { config } from '../config';
 import { query, supabaseAdmin, dbAdmin } from '../database/config';
 
@@ -81,28 +83,50 @@ export class EmailService {
         paramsCount: Object.keys(params).length
       });
 
-      // Wrap Brevo API call with timeout to prevent hanging (Vercel has function timeouts)
-      // Use 8 seconds timeout to leave buffer for Vercel's 10s limit on Hobby plan
-      const TIMEOUT_MS = 8000;
+      // Use direct axios call for better serverless control (timeout + keep-alive disabled)
+      // Brevo SDK doesn't expose HTTP client configuration needed for serverless
+      const TIMEOUT_MS = 25000; // 25 seconds - Brevo recommends ≥20s for serverless
       const startTime = Date.now();
       
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          const elapsed = Date.now() - startTime;
-          reject(new Error(`Brevo API call timed out after ${elapsed}ms (limit: ${TIMEOUT_MS}ms)`));
-        }, TIMEOUT_MS);
+      // Create HTTPS agent with keep-alive disabled (critical for serverless)
+      // Keep-alive sockets cause "socket hang up" errors on Vercel
+      const httpsAgent = new https.Agent({
+        keepAlive: false,
+        rejectUnauthorized: true
       });
 
-      console.log(`⏱️ Starting Brevo API call with ${TIMEOUT_MS}ms timeout...`);
+      console.log(`⏱️ Starting Brevo API call with ${TIMEOUT_MS}ms timeout (keep-alive disabled for serverless)...`);
       
-      const response = await Promise.race([
-        apiInstance.sendTransacEmail(sendSmtpEmail).then(result => {
-          const elapsed = Date.now() - startTime;
-          console.log(`✅ Brevo API call completed in ${elapsed}ms`);
-          return result;
-        }),
-        timeoutPromise
-      ]) as any;
+      // Use direct axios call instead of SDK for better control
+      const payload = {
+        to: sendSmtpEmail.to,
+        templateId: sendSmtpEmail.templateId,
+        params: sendSmtpEmail.params,
+        sender: sendSmtpEmail.sender
+      };
+
+      const axiosResponse = await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        payload,
+        {
+          headers: {
+            'api-key': config.email.brevo.apiKey!,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: TIMEOUT_MS,
+          httpsAgent: httpsAgent
+        }
+      );
+
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Brevo API call completed in ${elapsed}ms`);
+      
+      // Transform axios response to match SDK response format
+      const response = {
+        body: axiosResponse.data,
+        messageId: axiosResponse.data?.messageId
+      } as any;
       
       // Extract messageId from response (it's in response.body.messageId)
       const messageId = (response as any).body?.messageId || (response as any).messageId || 'N/A';
