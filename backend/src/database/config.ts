@@ -1292,6 +1292,68 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
       return { rows: [], rowCount: 1 };
     }
 
+    // Handle tokens table queries
+    if (sql.includes('insert into tokens')) {
+      const tokenData = {
+        token: params[0],
+        user_id: params[1],
+        type: params[2],
+        expires_at: params[3]
+      };
+
+      const { data, error } = await supabaseAdmin
+        .from('tokens')
+        .insert(tokenData)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { rows: [data], rowCount: 1 };
+    }
+
+    if (sql.includes('select') && sql.includes('from tokens')) {
+      let query = supabaseAdmin.from('tokens').select('*');
+
+      // Handle WHERE token = $1
+      if (sql.includes('where token = $1')) {
+        query = query.eq('token', params[0]);
+      }
+
+      // Handle WHERE token = $1 AND type = $2
+      if (sql.includes('where token = $1') && sql.includes('type = $2')) {
+        query = query.eq('token', params[0]).eq('type', params[1]);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { rows: data || [], rowCount: data?.length || 0 };
+    }
+
+    if (sql.includes('update tokens')) {
+      const updates: any = {};
+
+      // Handle SET used_at = CURRENT_TIMESTAMP WHERE token = $1
+      if (sql.includes('used_at = CURRENT_TIMESTAMP')) {
+        updates.used_at = new Date().toISOString();
+      }
+
+      // Extract token from WHERE clause
+      const whereMatch = sql.match(/where\s+token\s*=\s*\$(\d+)/i);
+      if (whereMatch && whereMatch[1]) {
+        const tokenParamIndex = parseInt(whereMatch[1]) - 1;
+        const token = params[tokenParamIndex];
+
+        // Update without .single() since we don't need to return the row
+        const { error, count } = await supabaseAdmin
+          .from('tokens')
+          .update(updates)
+          .eq('token', token);
+
+        if (error) throw error;
+        // Return empty rows but indicate success if count > 0
+        return { rows: [], rowCount: count || 0 };
+      }
+    }
 
     // Default response for unsupported queries
     console.log('Supabase query executed:', text, params);

@@ -289,6 +289,17 @@ router.post('/forgot-password', [
         'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
         [resetToken, user.id, 'password-reset', expiresAt.toISOString()]
       );
+      
+      // Verify token was saved (debugging)
+      const verifyToken = await query(
+        'SELECT token FROM tokens WHERE token = $1',
+        [resetToken]
+      );
+      console.log('🔐 Token saved verification:', {
+        saved: verifyToken.rows.length > 0,
+        tokenLength: resetToken.length,
+        tokenPreview: resetToken.substring(0, 20) + '...'
+      });
 
       // Create reset link (short token, no encoding needed)
       const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
@@ -330,15 +341,45 @@ router.post('/reset-password', [
 
     console.log('🔐 Reset password request received');
     console.log('🔐 Token length:', token ? token.length : 0);
+    console.log('🔐 Token received (raw):', token ? token.substring(0, 20) + '...' : 'none');
+
+    // Clean and decode token (handle URL encoding and whitespace)
+    let cleanedToken = token ? token.trim() : token;
+    
+    // Try URL decoding in case frontend encoded it
+    try {
+      cleanedToken = decodeURIComponent(cleanedToken);
+    } catch (e) {
+      // If decoding fails, use original (might not be encoded)
+      console.log('🔐 Token not URL encoded, using as-is');
+    }
+    
+    console.log('🔐 Token after cleaning:', cleanedToken ? cleanedToken.substring(0, 20) + '...' : 'none');
+    console.log('🔐 Token length after cleaning:', cleanedToken ? cleanedToken.length : 0);
 
     // Verify token from database
     const tokenResult = await query(
       'SELECT token, user_id, type, expires_at, used_at FROM tokens WHERE token = $1 AND type = $2',
-      [token, 'password-reset']
+      [cleanedToken, 'password-reset']
     );
 
+    console.log('🔐 Token query result:', {
+      found: tokenResult.rows.length > 0,
+      rowCount: tokenResult.rows.length
+    });
+
     if (tokenResult.rows.length === 0) {
-      console.error('🔐 Token not found');
+      // Additional debugging: check if token exists without type filter
+      const anyTokenResult = await query(
+        'SELECT token, type, expires_at, used_at FROM tokens WHERE token = $1',
+        [cleanedToken]
+      );
+      console.error('🔐 Token not found with type filter');
+      console.error('🔐 Token exists without type filter:', anyTokenResult.rows.length > 0);
+      if (anyTokenResult.rows.length > 0) {
+        console.error('🔐 Found token with type:', anyTokenResult.rows[0].type);
+      }
+      
       res.status(400).json({
         success: false,
         message: 'Invalid reset token'
@@ -387,7 +428,7 @@ router.post('/reset-password', [
 
     // Update password and mark token as used
     await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [password_hash, user.id]);
-    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1', [token]);
+    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1', [cleanedToken]);
     console.log('✅ Password updated successfully for user:', user.email);
 
     // Send password reset success email (non-blocking, security notification)
