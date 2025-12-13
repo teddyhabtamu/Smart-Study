@@ -224,8 +224,8 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
       return { rows: [data], rowCount: 1 };
     }
 
-    // Handle password updates specifically
-    if (sql.includes('update users') && sql.includes('password_hash = $1')) {
+    // Handle password updates specifically (only password_hash, no status)
+    if (sql.includes('update users') && sql.includes('password_hash = $1') && !sql.includes('status = $')) {
       const updates: any = {
         password_hash: params[0],
         updated_at: new Date().toISOString()
@@ -247,7 +247,7 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
     if (sql.includes('update users')) {
       const updates: any = {};
 
-      // Parse SET clause
+      // Parse SET clause - handle multiple assignments
       const setMatch = sql.match(/set\s+(.*?)\s+where/i);
       if (setMatch && setMatch[1]) {
         const assignments = setMatch[1].split(',').map(a => a.trim());
@@ -260,7 +260,7 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
               if (params[placeholderIndex] !== undefined) {
                 updates[column] = params[placeholderIndex];
               }
-            } else if (value === 'CURRENT_TIMESTAMP') {
+            } else if (value === 'CURRENT_TIMESTAMP' || value === 'NOW()') {
               // Handle SQL functions
               updates[column] = new Date().toISOString();
             }
@@ -268,7 +268,6 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
         });
       }
 
-      // Find the WHERE id parameter - it's the last parameter that hasn't been used for SET
       // Extract the parameter number from WHERE id = $X
       const whereMatch = sql.match(/where\s+id\s*=\s*\$(\d+)/i);
       if (whereMatch && whereMatch[1]) {
