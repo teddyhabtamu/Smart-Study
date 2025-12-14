@@ -25,25 +25,56 @@ app.use(helmet({
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:5173', // Development frontend
-  'https://smart-study-navy.vercel.app', // Production frontend
+  'https://smart-study-navy.vercel.app', // Production frontend (old)
+  'https://smartstudy.tewodroshabtamu.me', // Production frontend (new)
   ...(config.server.frontendUrl && config.server.frontendUrl !== 'http://localhost:5173'
     ? [config.server.frontendUrl]
     : [])
 ];
 
+// CORS middleware with explicit OPTIONS handling
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (like mobile apps or curl requests) - but only in development
+    if (!origin) {
+      if (config.server.nodeEnv === 'development') {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS: No origin header'));
+    }
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     } else {
+      console.warn(`CORS blocked origin: ${origin}`);
       return callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400 // 24 hours - cache preflight requests
 }));
+
+// Explicit OPTIONS handler for all API routes (additional safety for Vercel)
+app.options('/api/*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Not allowed by CORS'
+    });
+  }
+});
 
 // Passport middleware
 app.use(passport.initialize());
