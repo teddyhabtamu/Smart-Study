@@ -1,4 +1,4 @@
-import { dbAdmin } from '../database/config';
+import { dbAdmin, supabaseAdmin } from '../database/config';
 import { EmailService } from './emailService';
 
 export type NotificationType = 'INFO' | 'WARNING' | 'SUCCESS' | 'ERROR';
@@ -291,5 +291,59 @@ export class NotificationService {
       message: `Amazing! You've maintained a ${streakDays}-day study streak. You're unstoppable!`,
       type: 'SUCCESS'
     });
+  }
+
+  /**
+   * Notify all users about new resources (in-app notification only, no emails)
+   */
+  static async notifyUsersAboutNewResources(isPremium?: boolean): Promise<void> {
+    try {
+      console.log('🔔 Notifying all users about new resources (in-app only)');
+      
+      // Get all users using Supabase directly
+      const { data: users, error: usersError } = await supabaseAdmin
+        .from('users')
+        .select('id, is_premium');
+
+      if (usersError) {
+        console.error('❌ Failed to fetch users for new resource notification:', usersError);
+        return;
+      }
+
+      if (!users || users.length === 0) {
+        console.log('🔔 No users found to notify about new resources');
+        return;
+      }
+
+      let notifiedCount = 0;
+      let skippedCount = 0;
+
+      // Create in-app notification for each user
+      for (const user of users) {
+        try {
+          // For premium content, only notify premium users
+          if (isPremium && !user.is_premium) {
+            skippedCount++;
+            continue;
+          }
+
+          // Create in-app notification
+          await this.create({
+            user_id: user.id,
+            title: 'New resources available',
+            message: 'New content has been added to the library. Check it out!',
+            type: 'INFO'
+          });
+
+          notifiedCount++;
+        } catch (error) {
+          console.error(`❌ Error creating notification for user ${user.id}:`, error);
+        }
+      }
+
+      console.log(`🔔 New resources notification summary: ${notifiedCount} in-app notifications created, ${skippedCount} users skipped`);
+    } catch (error) {
+      console.error('❌ Failed to notify users about new resources:', error);
+    }
   }
 }

@@ -4,6 +4,7 @@ import { query as dbQuery, dbAdmin } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Video, User } from '../types';
 import { EmailService } from '../services/emailService';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -425,18 +426,10 @@ router.post('/', [
 
     const newVideo = result.rows[0];
 
-    // Notify users about new video (non-blocking)
+    // Notify users about new video (in-app notification only, no emails)
     if (newVideo && newVideo.id) {
-      console.log('📧 Triggering new video notification for users');
-      EmailService.notifyUsersAboutNewVideo(
-        newVideo.id,
-        title,
-        subject,
-        grade,
-        instructor,
-        description,
-        is_premium
-      ).catch(error => {
+      console.log('🔔 Triggering new video notification for users (in-app only)');
+      NotificationService.notifyUsersAboutNewResources(is_premium).catch(error => {
         console.error('❌ Failed to notify users about new video:', error);
         // Don't fail the request if notification fails
       });

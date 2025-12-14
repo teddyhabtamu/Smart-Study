@@ -7,6 +7,7 @@ import { authenticateToken, requireRole, validateRequest } from '../middleware/a
 import { config } from '../config';
 import { ApiResponse, User, Document, Video, ForumPost } from '../types';
 import { EmailService } from '../services/emailService';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -501,17 +502,10 @@ router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
 
     const inserted = await dbAdmin.insert('documents', documentData);
 
-    // Notify users about new document (non-blocking)
+    // Notify users about new document (in-app notification only, no emails)
     if (inserted && inserted.id) {
-      console.log('📧 Triggering new document notification for users');
-      EmailService.notifyUsersAboutNewDocument(
-        inserted.id,
-        title,
-        subject,
-        grade,
-        description,
-        is_premium
-      ).catch(error => {
+      console.log('🔔 Triggering new document notification for users (in-app only)');
+      NotificationService.notifyUsersAboutNewResources(is_premium).catch(error => {
         console.error('❌ Failed to notify users about new document:', error);
         // Don't fail the request if notification fails
       });
@@ -569,18 +563,10 @@ router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
 
     const inserted = await dbAdmin.insert('videos', videoData);
 
-    // Notify users about new video (non-blocking)
+    // Notify users about new video (in-app notification only, no emails)
     if (inserted && inserted.id) {
-      console.log('📧 Triggering new video notification for users');
-      EmailService.notifyUsersAboutNewVideo(
-        inserted.id,
-        title,
-        subject,
-        grade,
-        instructor,
-        description,
-        is_premium
-      ).catch(error => {
+      console.log('🔔 Triggering new video notification for users (in-app only)');
+      NotificationService.notifyUsersAboutNewResources(is_premium).catch(error => {
         console.error('❌ Failed to notify users about new video:', error);
         // Don't fail the request if notification fails
       });

@@ -1,9 +1,10 @@
 import express from 'express';
 import { body, query } from 'express-validator';
-import { query as dbQuery, db, dbAdmin } from '../database/config';
+import { query as dbQuery, db, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Document, User } from '../types';
 import { EmailService } from '../services/emailService';
+import { NotificationService } from '../services/notificationService';
 import axios from 'axios';
 
 // Helper function to convert Google Drive sharing links to direct URLs
@@ -308,13 +309,23 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
     const userId = req.user?.id;
     const isPremium = req.user?.is_premium || false;
 
-    const result = await dbQuery(`
-      SELECT id, title, description, subject, grade, file_type, file_size, file_url, is_premium,
-             downloads, preview_image, tags, author, created_at, updated_at
-      FROM documents WHERE id::text = $1
-    `, [id]);
+    // Use Supabase directly to ensure correct ID matching
+    const { data: documents, error: docError } = await supabaseAdmin
+      .from('documents')
+      .select('id, title, description, subject, grade, file_type, file_size, file_url, is_premium, downloads, preview_image, tags, author, created_at, updated_at')
+      .eq('id', id)
+      .limit(1);
 
-    if (result.rows.length === 0) {
+    if (docError) {
+      console.error('Error fetching document:', docError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch document'
+      } as ApiResponse);
+      return;
+    }
+
+    if (!documents || documents.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Document not found'
@@ -322,7 +333,14 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
       return;
     }
 
-    const document = result.rows[0];
+    const document = documents[0];
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      } as ApiResponse);
+      return;
+    }
 
     // Check premium access
     if (document.is_premium && !isPremium) {
@@ -336,23 +354,38 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
     // Record document view for authenticated users
     if (userId) {
       try {
-        // Check if view already exists
-        const existingView = await dbAdmin.findOne('document_views', (v: any) => 
-          v.user_id === userId && v.document_id === id
-        );
+        // Check if view already exists using Supabase directly
+        const { data: existingViews, error: findError } = await supabaseAdmin
+          .from('document_views')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('document_id', id)
+          .limit(1);
         
-        if (!existingView) {
+        if (findError) throw findError;
+        
+        if (!existingViews || existingViews.length === 0) {
           // Insert new view
-          await dbAdmin.insert('document_views', {
-            user_id: userId,
-            document_id: id,
-            viewed_at: new Date().toISOString()
-          });
+          const { error: insertError } = await supabaseAdmin
+            .from('document_views')
+            .insert({
+              user_id: userId,
+              document_id: id,
+              viewed_at: new Date().toISOString()
+            });
+          
+          if (insertError) throw insertError;
         } else {
           // Update view timestamp to track latest view (for weekly digest, we count unique documents)
-          await dbAdmin.update('document_views', existingView.id, {
-            viewed_at: new Date().toISOString()
-          });
+          const existingView = existingViews[0];
+          if (existingView && existingView.id) {
+            const { error: updateError } = await supabaseAdmin
+              .from('document_views')
+              .update({ viewed_at: new Date().toISOString() })
+              .eq('id', existingView.id);
+            
+            if (updateError) throw updateError;
+          }
         }
       } catch (viewError) {
         console.error('Failed to record document view:', viewError);
@@ -462,17 +495,10 @@ router.post('/', [
 
     const newDocument = result.rows[0];
 
-    // Notify users about new document (non-blocking)
+    // Notify users about new document (in-app notification only, no emails)
     if (newDocument && newDocument.id) {
-      console.log('📧 Triggering new document notification for users');
-      EmailService.notifyUsersAboutNewDocument(
-        newDocument.id,
-        title,
-        subject,
-        grade,
-        description,
-        is_premium
-      ).catch(error => {
+      console.log('🔔 Triggering new document notification for users (in-app only)');
+      NotificationService.notifyUsersAboutNewResources(is_premium).catch(error => {
         console.error('❌ Failed to notify users about new document:', error);
         // Don't fail the request if notification fails
       });

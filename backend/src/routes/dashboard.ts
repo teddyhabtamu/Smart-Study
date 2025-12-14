@@ -91,49 +91,53 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
           
           let itemData = null;
 
-          // Query the appropriate table based on item_type
+          // Query the appropriate table based on item_type using Supabase directly
           if (item_type === 'document') {
             try {
-              const docResult = await query(`
-                SELECT id, title, subject, grade, preview_image, is_premium
-                FROM documents
-                WHERE id = $1
-              `, [item_id]);
+              const { data: docs, error: docError } = await supabaseAdmin
+                .from('documents')
+                .select('id, title, subject, grade, preview_image, is_premium')
+                .eq('id', item_id)
+                .limit(1);
               
-              if (docResult.rows.length > 0) {
-                const doc = docResult.rows[0];
-                itemData = {
-                  id: doc.id,
-                  type: 'document',
-                  title: doc.title,
-                  subject: doc.subject,
-                  grade: doc.grade,
-                  previewImage: doc.preview_image,
-                  isPremium: doc.is_premium
-                };
+              if (!docError && docs && docs.length > 0) {
+                const doc = docs[0];
+                if (doc) {
+                  itemData = {
+                    id: doc.id,
+                    type: 'document',
+                    title: doc.title,
+                    subject: doc.subject,
+                    grade: doc.grade,
+                    previewImage: doc.preview_image,
+                    isPremium: doc.is_premium
+                  };
+                }
               }
             } catch (docError) {
               // Document not found, skip
             }
           } else if (item_type === 'video') {
             try {
-              const videoResult = await query(`
-                SELECT id, title, subject, grade, thumbnail, is_premium
-                FROM videos
-                WHERE id = $1
-              `, [item_id]);
+              const { data: videos, error: videoError } = await supabaseAdmin
+                .from('videos')
+                .select('id, title, subject, grade, thumbnail, is_premium')
+                .eq('id', item_id)
+                .limit(1);
               
-              if (videoResult.rows.length > 0) {
-                const video = videoResult.rows[0];
-                itemData = {
-                  id: video.id,
-                  type: 'video',
-                  title: video.title,
-                  subject: video.subject,
-                  grade: video.grade,
-                  previewImage: video.thumbnail,
-                  isPremium: video.is_premium
-                };
+              if (!videoError && videos && videos.length > 0) {
+                const video = videos[0];
+                if (video) {
+                  itemData = {
+                    id: video.id,
+                    type: 'video',
+                    title: video.title,
+                    subject: video.subject,
+                    grade: video.grade,
+                    previewImage: video.thumbnail,
+                    isPremium: video.is_premium
+                  };
+                }
               }
             } catch (videoError) {
               // Video not found, skip
