@@ -271,7 +271,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoadingState('videos', true);
       const response = await videosAPI.getAll(params);
       const transformedVideos = response.videos.map(transformVideoToVideoLesson);
-      setVideos(prev => [...prev, ...transformedVideos]);
+      // Avoid duplicates when loading more - only add videos that don't already exist
+      setVideos(prev => {
+        const existingIds = new Set(prev.map(v => v.id));
+        const newVideos = transformedVideos.filter(v => !existingIds.has(v.id));
+        return [...prev, ...newVideos];
+      });
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch more videos error:', error);

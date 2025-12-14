@@ -411,10 +411,7 @@ Format your response as a valid JSON array of objects with this exact structure:
 
 IMPORTANT: The correctAnswer must be the EXACT text of one of the options, not a letter (A, B, C, D). Make sure the questions are appropriate for Grade ${grade} ${subject}, cover important concepts, and test key understanding.`;
 
-    console.log('Generating practice quiz with prompt:', prompt.substring(0, 100) + '...');
-
     const aiResponse = await getTutorResponse([], prompt, subject, grade);
-    console.log('AI response for practice quiz:', aiResponse.substring(0, 200) + '...');
 
     // Parse the JSON response
     let questions = [];

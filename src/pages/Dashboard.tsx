@@ -12,6 +12,60 @@ import { StudyEvent } from '../types';
 import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
+// Bookmark card component with image error handling
+const BookmarkCard: React.FC<{
+  item: {
+    id: string;
+    type: 'document' | 'video';
+    title: string;
+    subject: string;
+    grade: number;
+    previewImage?: string;
+  };
+}> = ({ item }) => {
+  const [imageError, setImageError] = useState(false);
+  const imageUrl = item.previewImage ? convertGoogleDriveImageUrl(item.previewImage) : '';
+  const hasValidImage = imageUrl && !imageError;
+
+  return (
+    <Link
+      to={item.type === 'video' ? `/video/${item.id}` : `/document/${item.id}`}
+      className="group bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 hover:border-zinc-400 hover:shadow-md transition-all flex gap-3 sm:gap-4 items-center"
+    >
+      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-zinc-200 to-zinc-300 flex-shrink-0 overflow-hidden relative flex items-center justify-center">
+        {hasValidImage ? (
+          <>
+            <img 
+              src={imageUrl} 
+              alt={item.title}
+              className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" 
+              onError={() => setImageError(true)}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+              {item.type === 'video' ? <PlayCircle size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" /> : <Book size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" />}
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 via-zinc-300 to-zinc-400">
+            {item.type === 'video' ? (
+              <PlayCircle size={20} className="sm:w-8 sm:h-8 text-zinc-600 drop-shadow-sm" />
+            ) : (
+              <Book size={20} className="sm:w-8 sm:h-8 text-zinc-600 drop-shadow-sm" />
+            )}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="font-bold text-zinc-900 truncate text-sm mb-1 group-hover:text-zinc-700 transition-colors">{item.title}</h4>
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <span className="bg-zinc-100 px-1.5 py-0.5 rounded">{item.subject}</span>
+          <span>{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
+        </div>
+      </div>
+    </Link>
+  );
+};
+
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { dashboardData, fetchDashboard, loading, errors } = useData();
@@ -222,29 +276,7 @@ const Dashboard: React.FC = () => {
                  </>
                ) : recentSaved.length > 0 ? (
                  recentSaved.map((item) => (
-                   <Link
-                     key={item.id}
-                     to={item.type === 'video' ? `/video/${item.id}` : `/document/${item.id}`}
-                     className="group bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 hover:border-zinc-400 hover:shadow-md transition-all flex gap-3 sm:gap-4 items-center"
-                   >
-                     <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-zinc-100 flex-shrink-0 overflow-hidden relative">
-                        {item.type === 'video' ? (
-                          <img src={convertGoogleDriveImageUrl((item as any).thumbnail)} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" />
-                        ) : (
-                          <img src={convertGoogleDriveImageUrl((item as any).previewImage)} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" />
-                        )}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                           {item.type === 'video' ? <PlayCircle size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" /> : <Book size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" />}
-                        </div>
-                     </div>
-                     <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-zinc-900 truncate text-sm mb-1 group-hover:text-zinc-700 transition-colors">{item.title}</h4>
-                        <div className="flex items-center gap-2 text-xs text-zinc-500">
-                           <span className="bg-zinc-100 px-1.5 py-0.5 rounded">{item.subject}</span>
-                           <span>{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
-                        </div>
-                     </div>
-                   </Link>
+                   <BookmarkCard key={item.id} item={item} />
                  ))
                ) : (
                  <div className="col-span-1 sm:col-span-2 py-8 sm:py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl flex flex-col items-center justify-center text-center">

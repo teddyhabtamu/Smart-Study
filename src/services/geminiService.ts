@@ -45,8 +45,6 @@ To fix this:
 
 
 export const generatePracticeQuiz = async (subject: string, grade: string, difficulty: string, count: number): Promise<{ questions: any[]; xpGained: number }> => {
-  console.log("Generating practice quiz with:", { subject, grade, difficulty, count });
-
   try {
     // Import the API service
     const { aiTutorAPI } = await import('./api');
@@ -54,12 +52,8 @@ export const generatePracticeQuiz = async (subject: string, grade: string, diffi
     // Call the backend API to generate practice questions
     const apiResponse = await aiTutorAPI.generatePracticeQuiz(subject, grade, difficulty, count);
 
-    console.log("Practice quiz API response:", apiResponse);
-
     const questions = apiResponse.data || [];
     const xpGained = apiResponse.xpGained || 0;
-
-    console.log("Extracted questions:", questions.length, "XP gained:", xpGained);
 
     return { questions, xpGained };
 

@@ -98,7 +98,17 @@ const VideoLibrary: React.FC = () => {
   }, [hasMore, loadingMore, loading.videos, loadMoreVideos]);
 
   // Use videos directly since filtering is now done on the backend
-  const filteredVideos = videos;
+  // Deduplicate videos by ID to prevent React key warnings (safety check)
+  const filteredVideos = React.useMemo(() => {
+    const seen = new Set<string>();
+    return videos.filter(video => {
+      if (seen.has(video.id)) {
+        return false;
+      }
+      seen.add(video.id);
+      return true;
+    });
+  }, [videos]);
 
   const subjectOptions: Option[] = SUBJECTS.map(s => ({ label: s === 'All' ? 'All Subjects' : s, value: s }));
   const gradeOptions: Option[] = GRADES.map(g => ({ label: g === 'All' ? 'All Grades' : `Grade ${g}`, value: g }));

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { BrainCircuit, Check, X, Trophy, ArrowRight, Loader2, RotateCcw, AlertCircle, Crown, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { aiTutorAPI, plannerAPI } from '../services/api';
@@ -26,6 +27,8 @@ const Practice: React.FC = () => {
   // State: 'config' | 'loading' | 'quiz' | 'result' | 'limit'
   const [view, setView] = useState<'config' | 'loading' | 'quiz' | 'result' | 'limit'>('config');
   const [isStarting, setIsStarting] = useState(false);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
   
   // Config State
   const [subject, setSubject] = useState('Mathematics');
@@ -149,11 +152,13 @@ const Practice: React.FC = () => {
     setAnswers(prev => ({ ...prev, [currentQIndex]: option }));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentQIndex < questions.length - 1) {
       setCurrentQIndex(prev => prev + 1);
     } else {
-      calculateResults();
+      setIsCalculating(true);
+      await calculateResults();
+      setIsCalculating(false);
     }
   };
 
@@ -383,24 +388,60 @@ const Practice: React.FC = () => {
         {/* Footer */}
         <div className="flex justify-between items-center">
            <button
-             onClick={() => {
-               // Confirm quit and clear state
-               if(window.confirm("Are you sure you want to quit? Progress will be lost.")) {
-                 resetQuiz();
-               }
-             }}
+             onClick={() => setShowQuitConfirm(true)}
              className="text-zinc-400 hover:text-zinc-600 text-sm font-medium px-3 sm:px-4"
            >
              Quit
            </button>
            <button
              onClick={handleNext}
-             disabled={!answers[currentQIndex]}
-             className="px-6 sm:px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-zinc-900/10 text-sm sm:text-base"
+             disabled={!answers[currentQIndex] || isCalculating}
+             className="px-6 sm:px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-zinc-900/10 text-sm sm:text-base flex items-center justify-center gap-2"
            >
-             {currentQIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
+             {isCalculating ? (
+               <>
+                 <Loader2 size={16} className="animate-spin" />
+                 Calculating...
+               </>
+             ) : (
+               currentQIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'
+             )}
            </button>
         </div>
+
+        {/* Quit Confirmation Modal */}
+        {showQuitConfirm && createPortal(
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative animate-slide-up overflow-hidden">
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle size={24} />
+                </div>
+                <h3 className="text-lg font-bold text-zinc-900 mb-2">Quit Practice Session?</h3>
+                <p className="text-sm text-zinc-500 mb-6">Are you sure you want to quit? Your progress will be lost.</p>
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowQuitConfirm(false)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowQuitConfirm(false);
+                      resetQuiz();
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors text-sm"
+                  >
+                    Quit
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     );
   }
