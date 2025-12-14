@@ -7,6 +7,7 @@ import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { VideoCardSkeleton } from '../components/Skeletons';
+import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
 const INITIAL_LIMIT = 16; // Load 16 videos initially
 const LOAD_MORE_LIMIT = 12; // Load 12 more videos each time
@@ -35,7 +36,7 @@ const VideoLibrary: React.FC = () => {
     };
 
     if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
     if (searchTerm.trim()) params.search = searchTerm;
     if (showSavedOnly) params.bookmarked = true;
     if (sortBy !== 'newest') params.sort = sortBy;
@@ -58,7 +59,7 @@ const VideoLibrary: React.FC = () => {
     };
 
     if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
     if (searchTerm.trim()) params.search = searchTerm;
     if (showSavedOnly) params.bookmarked = true;
     if (sortBy !== 'newest') params.sort = sortBy;
@@ -302,7 +303,7 @@ const VideoCard: React.FC<{ video: VideoLesson }> = ({ video }) => {
       <Link to={`/video/${video.id}`} className="flex flex-col h-full">
         <div className="relative aspect-video bg-zinc-100 overflow-hidden">
           {video.thumbnail ? (
-            <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500" />
+            <img src={convertGoogleDriveImageUrl(video.thumbnail)} alt={video.title} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500" />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200">
               <PlayCircle size={36} className="sm:w-12 sm:h-12 text-zinc-400 opacity-60" />
@@ -326,7 +327,7 @@ const VideoCard: React.FC<{ video: VideoLesson }> = ({ video }) => {
                {video.subject}
              </span>
              <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
-               Grade {video.grade}
+               {video.grade === 0 ? 'General' : `Grade ${video.grade}`}
              </span>
           </div>
         </div>

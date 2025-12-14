@@ -4,6 +4,7 @@ import { query as dbQuery, db, dbAdmin } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Document, User } from '../types';
 import { EmailService } from '../services/emailService';
+import axios from 'axios';
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {
@@ -11,15 +12,43 @@ const convertGoogleDriveUrl = (url: string): string => {
     return url;
   }
 
-  // Extract file ID from sharing link
-  const match = url.match(/\/d\/([a-zA-Z0-9-_]+)\//) || url.match(/id=([a-zA-Z0-9-_]+)/);
-  const fileId = match ? match[1] : null;
+  // If it's already converted to uc?export=view format, return as is
+  if (url.includes('uc?export=view&id=') || url.includes('uc?export=download&id=')) {
+    return url;
+  }
+
+  // Extract file ID from various Google Drive URL formats:
+  // - https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+  // - https://drive.google.com/file/d/FILE_ID/view
+  // - https://drive.google.com/open?id=FILE_ID
+  // - https://drive.google.com/d/FILE_ID/
+  // - https://drive.google.com/uc?id=FILE_ID
+  let fileId: string | null = null;
+  
+  // Try different patterns (order matters - most specific first)
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,           // /file/d/FILE_ID (handles /view, /view?usp=sharing, etc.)
+    /\/d\/([a-zA-Z0-9_-]+)/,                  // /d/FILE_ID
+    /[?&]id=([a-zA-Z0-9_-]+)/,                // ?id=FILE_ID or &id=FILE_ID
+    /\/uc\?id=([a-zA-Z0-9_-]+)/               // /uc?id=FILE_ID
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      fileId = match[1];
+      break;
+    }
+  }
 
   if (fileId) {
-    // Convert to direct URL for images
+    // Convert to direct image URL that works in <img> tags
+    // This format works for publicly shared images
+    // Using export=view for images (lighter than download)
     return `https://drive.google.com/uc?export=view&id=${fileId}`;
   }
 
+  // If we can't extract file ID, return original URL (might be a different format)
   return url;
 };
 
@@ -28,9 +57,18 @@ const router = express.Router();
 // Get all documents with optional filtering
 router.get('/', optionalAuth, [
   query('subject').optional().isString(),
-  query('grade').optional().isInt({ min: 9, max: 12 }),
+  query('grade').optional().custom((value) => {
+    if (value === undefined || value === null) return true;
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   query('search').optional().isString(),
   query('bookmarked').optional().isBoolean(),
+  query('tag').optional().isString(),
+  query('excludeTag').optional().isString(),
   query('sort').optional().isIn(['newest', 'popular', 'title']).withMessage('Sort must be newest, popular, or title'),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
   query('offset').optional().isInt({ min: 0 }).toInt()
@@ -40,6 +78,8 @@ router.get('/', optionalAuth, [
     const grade = req.query.grade as string;
     const search = req.query.search as string;
     const bookmarked = req.query.bookmarked as string;
+    const tag = req.query.tag as string;
+    const excludeTag = req.query.excludeTag as string;
     const sort = req.query.sort as string || 'newest';
     const limit = Number(req.query.limit) || 20;
     const offset = Number(req.query.offset) || 0;
@@ -75,6 +115,19 @@ router.get('/', optionalAuth, [
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
+    // Filter by tag at SQL level (include only documents with this tag)
+    // Using array contains operator for PostgreSQL/Supabase text arrays
+    if (tag) {
+      conditions.push(`$${paramCount++} = ANY(tags)`);
+      params.push(tag);
+    }
+
+    // Exclude documents with specific tag at SQL level
+    if (excludeTag) {
+      conditions.push(`NOT ($${paramCount++} = ANY(tags))`);
+      params.push(excludeTag);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Handle bookmarked filter separately (client-side filtering since it's user-specific)
@@ -100,29 +153,57 @@ router.get('/', optionalAuth, [
       orderBy = 'title ASC';
     }
 
-    // Get documents
+    // Handle bookmarked filter - need to apply before SQL query if bookmarked
+    let finalWhereClause = whereClause;
+    if (bookmarked === 'true' && bookmarkedDocIds.length > 0) {
+      const bookmarkPlaceholders = bookmarkedDocIds.map((_, i) => `$${paramCount + i}`).join(',');
+      const bookmarkCondition = `id IN (${bookmarkPlaceholders})`;
+      finalWhereClause = whereClause 
+        ? `${whereClause} AND ${bookmarkCondition}`
+        : `WHERE ${bookmarkCondition}`;
+      params.push(...bookmarkedDocIds);
+      paramCount += bookmarkedDocIds.length;
+    } else if (bookmarked === 'true' && bookmarkedDocIds.length === 0) {
+      // No bookmarks, return empty result
+      finalWhereClause = 'WHERE 1 = 0'; // Always false condition
+    }
+
+    // Get total count for pagination (before pagination, for accurate pagination info)
+    const countParams = [...params];
+    const countResult = await dbQuery(`
+      SELECT COUNT(*) as total
+      FROM documents
+      ${finalWhereClause}
+    `, countParams);
+    const total = parseInt(countResult.rows[0]?.total || '0');
+
+    // Get documents with pagination at SQL level (efficient - only fetches what we need)
     const documentsResult = await dbQuery(`
       SELECT id, title, description, subject, grade, file_type, file_size, file_url, is_premium,
              downloads, preview_image, tags, author, created_at, updated_at
       FROM documents
-      ${whereClause}
+      ${finalWhereClause}
       ORDER BY ${orderBy}
-    `, params);
+      LIMIT $${paramCount++} OFFSET $${paramCount++}
+    `, [...params, limit, offset]);
 
-    let documents = documentsResult.rows;
+    let paginatedDocuments = documentsResult.rows;
 
-    // Apply bookmarked filter if requested
-    if (bookmarked === 'true') {
-      documents = documents.filter(doc => bookmarkedDocIds.includes(doc.id.toString()));
+    // PRIMARY filtering for excludeTag - always apply this filter to ensure correctness
+    if (excludeTag) {
+      paginatedDocuments = paginatedDocuments.filter((doc: any) => {
+        if (!doc.tags || !Array.isArray(doc.tags)) return true; // Include docs with no tags
+        return !doc.tags.includes(excludeTag);
+      });
     }
 
-    // Apply pagination after filtering
-    const startIndex = Number(offset) || 0;
-    const limitNum = Number(limit) || 20;
-    const paginatedDocuments = documents.slice(startIndex, startIndex + limitNum);
-
-    // Get total count for pagination (after filtering)
-    const total = documents.length;
+    // PRIMARY filtering for tag - always apply this filter to ensure correctness
+    if (tag) {
+      paginatedDocuments = paginatedDocuments.filter((doc: any) => {
+        if (!doc.tags || !Array.isArray(doc.tags)) return false; // Exclude docs with no tags when filtering by tag
+        return doc.tags.includes(tag);
+      });
+    }
 
     res.json({
       success: true,
@@ -141,6 +222,81 @@ router.get('/', optionalAuth, [
     res.status(500).json({
       success: false,
       message: 'Failed to get documents'
+    } as ApiResponse);
+  }
+});
+
+// Proxy endpoint for Google Drive images (bypasses CORS)
+// IMPORTANT: This must come BEFORE /:id route to avoid route conflicts
+router.get('/image-proxy/:fileId', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { fileId } = req.params;
+    console.log('Image proxy request received for fileId:', fileId);
+    
+    if (!fileId || fileId.length < 5) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid file ID'
+      } as ApiResponse);
+      return;
+    }
+
+    // Try multiple Google Drive URL formats
+    const urls = [
+      `https://drive.google.com/uc?export=view&id=${fileId}`,
+      `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
+      `https://drive.google.com/thumbnail?id=${fileId}&sz=w500`
+    ];
+
+    let imageData: Buffer | null = null;
+    let contentType = 'image/jpeg';
+
+    // Try each URL until one works
+    for (const url of urls) {
+      try {
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          },
+          timeout: 10000 // 10 second timeout
+        });
+
+        if (response.status === 200 && response.data) {
+          imageData = Buffer.from(response.data);
+          contentType = response.headers['content-type'] || 'image/jpeg';
+          break;
+        }
+      } catch (error: any) {
+        // Try next URL if this one fails
+        if (error.response?.status === 403 || error.response?.status === 404) {
+          continue;
+        }
+        // For other errors, also try next URL
+        continue;
+      }
+    }
+
+    if (!imageData) {
+      res.status(404).json({
+        success: false,
+        message: 'Image not found or not publicly accessible. Please ensure the file is publicly shared on Google Drive.'
+      } as ApiResponse);
+      return;
+    }
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    // Send the image
+    res.send(imageData);
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch image'
     } as ApiResponse);
   }
 });
@@ -279,8 +435,14 @@ router.post('/', [
   requirePremium, // Only premium users can upload? Or should this be admin only?
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
-  body('grade').isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
+  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('grade').custom((value) => {
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   body('file_type').isIn(['PDF', 'DOCX', 'PPT']).withMessage('Valid file type required'),
   body('is_premium').optional().isBoolean(),
   body('author').optional().trim().isLength({ max: 255 }),
@@ -335,8 +497,15 @@ router.put('/:id', [
   authenticateToken,
   body('title').optional().trim().isLength({ min: 1, max: 500 }),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']),
-  body('grade').optional().isInt({ min: 9, max: 12 }),
+  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']),
+  body('grade').optional().custom((value) => {
+    if (value === undefined || value === null) return true;
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   body('file_type').optional().isIn(['PDF', 'DOCX', 'PPT']),
   body('file_url').optional().isURL(),
   body('preview_image').optional().isURL(),
@@ -365,7 +534,10 @@ router.put('/:id', [
     if (grade !== undefined) updates.grade = grade;
     if (file_type !== undefined) updates.file_type = file_type;
     if (file_url !== undefined) updates.file_url = file_url;
-    if (preview_image !== undefined) updates.preview_image = convertGoogleDriveUrl(preview_image);
+    if (preview_image !== undefined) {
+      // Convert Google Drive URL to direct image URL if needed
+      updates.preview_image = preview_image ? convertGoogleDriveUrl(preview_image) : null;
+    }
     if (is_premium !== undefined) updates.is_premium = is_premium;
     if (author !== undefined) updates.author = author;
     if (tags !== undefined) updates.tags = tags;

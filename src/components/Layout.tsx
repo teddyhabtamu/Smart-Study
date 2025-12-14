@@ -5,7 +5,7 @@ import {
   Home, Search, User, Menu, GraduationCap, Crown, LogOut, Sparkles,
   LayoutDashboard, Shield, PlaySquare, Users, X, CalendarDays,
   PanelLeftClose, PanelLeftOpen, Bell, Check, BrainCircuit, Trash2,
-  Info, AlertTriangle, CheckCircle, AlertCircle, Clock, Filter, ExternalLink, Loader2
+  Info, AlertTriangle, CheckCircle, AlertCircle, Clock, Filter, ExternalLink, Loader2, FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SearchPalette from './SearchPalette';
@@ -49,6 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const publicPathsWithLayout = [
       "/",                    // Landing page
       "/library",             // Library - public content
+      "/past-exams",          // Past Exams - public content
       "/videos",              // Video library - public content
       "/ai-tutor",            // AI Tutor - public feature
       "/community",            // Community - public forum
@@ -380,6 +381,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">View as Student</p>}
                   <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
                   <NavItem to="/library" icon={Search} label="Library" />
+                  <NavItem to="/past-exams" icon={FileText} label="Past Exams" />
                   <NavItem to="/videos" icon={PlaySquare} label="Video Lessons" />
                   <NavItem to="/practice" icon={BrainCircuit} label="Practice Center" />
                   <NavItem to="/community" icon={Users} label="Community" />
@@ -393,6 +395,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {/* Conditionally render Study Planner only if logged in */}
                   {user && <NavItem to="/planner" icon={CalendarDays} label="Study Planner" />}
                   <NavItem to="/library" icon={Search} label="Library" />
+                  <NavItem to="/past-exams" icon={FileText} label="Past Exams" />
                   <NavItem to="/videos" icon={PlaySquare} label="Video Lessons" />
                   {user && <NavItem to="/practice" icon={BrainCircuit} label="Practice Center" />}
                   <NavItem to="/ai-tutor" icon={Sparkles} label="AI Tutor" />

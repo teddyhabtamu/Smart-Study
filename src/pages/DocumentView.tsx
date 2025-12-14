@@ -260,8 +260,8 @@ const DocumentView: React.FC = () => {
         <div className="bg-red-50 p-4 rounded-full mb-4"><FileText className="text-red-500" size={32} /></div>
         <h3 className="text-xl font-bold text-zinc-900 mb-2">Document Unavailable</h3>
         <p className="text-zinc-500 mb-6">{error || "This document could not be found."}</p>
-        <Link to="/library" className="px-6 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors">
-          Return to Library
+        <Link to={doc?.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"} className="px-6 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors">
+          Return to {doc?.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "Past Exams" : "Library"}
         </Link>
       </div>
     );
@@ -304,7 +304,7 @@ const DocumentView: React.FC = () => {
       <header className="flex-shrink-0 bg-white border-b border-zinc-200 px-3 sm:px-4 md:px-6 py-3 shadow-sm z-20">
         <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <Link to="/library" className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors">
+            <Link to={doc.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"} className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors">
               <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
             </Link>
             <div className="min-w-0">
@@ -312,7 +312,7 @@ const DocumentView: React.FC = () => {
               <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-zinc-500">
                 <span className="px-1.5 sm:px-2 py-0.5 bg-zinc-100 rounded text-zinc-600 font-medium text-xs">{doc.subject}</span>
                 <span>•</span>
-                <span>Grade {doc.grade}</span>
+                <span>{doc.grade === 0 ? 'General' : `Grade ${doc.grade}`}</span>
               </div>
             </div>
           </div>

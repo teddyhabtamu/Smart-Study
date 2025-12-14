@@ -283,7 +283,7 @@ const Admin: React.FC = () => {
   const { user } = useAuth();
   const isModerator = user?.role === UserRole.MODERATOR || String(user?.role) === 'MODERATOR';
   const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'careers'>(isModerator ? 'content' : 'overview');
-  const [contentCategory, setContentCategory] = useState<'documents' | 'videos'>('documents');
+  const [contentCategory, setContentCategory] = useState<'documents' | 'videos' | 'past-exams'>('documents');
   const [mounted, setMounted] = useState(false);
   const [admins, setAdmins] = useState<User[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -498,7 +498,7 @@ const Admin: React.FC = () => {
     setEditingId(doc.id);
     setTitle(doc.title);
     setDescription(doc.description);
-    setGrade(doc.grade.toString());
+    setGrade(doc.grade === 0 ? 'General' : doc.grade.toString());
     setSubject(doc.subject);
     setIsPremium(doc.is_premium);
     setDocAuthor(doc.author || '');
@@ -516,7 +516,7 @@ const Admin: React.FC = () => {
     setEditingId(video.id);
     setTitle(video.title);
     setDescription(video.description);
-    setGrade(video.grade.toString());
+    setGrade(video.grade === 0 ? 'General' : video.grade.toString());
     setSubject(video.subject);
     setIsPremium(video.isPremium);
     setVideoUrl(video.video_url);
@@ -532,15 +532,15 @@ const Admin: React.FC = () => {
     e.preventDefault();
 
     // Validate required fields
-    if (contentCategory === 'documents' && !editingId && (!docFileUrl || !docFileUrl.trim())) {
-      addToast('Document URL is required to create a document.', 'error');
+    if ((contentCategory === 'documents' || contentCategory === 'past-exams') && !editingId && (!docFileUrl || !docFileUrl.trim())) {
+      addToast(contentCategory === 'past-exams' ? 'Document URL is required to create an exam paper.' : 'Document URL is required to create a document.', 'error');
       return;
     }
 
     setIsUploading(true);
 
     try {
-      if (contentCategory === 'documents') {
+      if (contentCategory === 'documents' || contentCategory === 'past-exams') {
         if (editingId) {
           // Verify document exists before updating
           const documentExists = documents.find(doc => doc.id === editingId);
@@ -559,7 +559,7 @@ const Admin: React.FC = () => {
             description, 
             subject, 
             is_premium: isPremium, // Backend expects snake_case
-            grade: parseInt(grade),
+            grade: grade === 'General' ? 0 : parseInt(grade),
             file_type: docFileType,
             author: docAuthor
           };
@@ -574,20 +574,30 @@ const Admin: React.FC = () => {
             updateData.preview_image = docThumbnailUrl.trim();
           }
 
+          // Update tags for past exams
+          if (contentCategory === 'past-exams') {
+            const existingDoc = documents.find(doc => doc.id === editingId);
+            const existingTags = existingDoc?.tags || [];
+            const hasPastExamTag = existingTags.some((t: string) => t.toLowerCase() === 'past-exam');
+            if (!hasPastExamTag) {
+              updateData.tags = [...existingTags, 'past-exam'];
+            }
+          }
+
           console.log('Updating document:', { id: editingId, updateData });
           await updateDocument(editingId, updateData);
-          addToast('Document updated successfully!', 'success');
+          addToast(contentCategory === 'past-exams' ? 'Past exam updated successfully!' : 'Document updated successfully!', 'success');
         } else {
-          // Create Document - Use adminAPI for proper field mapping
+          // Create Document or Past Exam - Use adminAPI for proper field mapping
           const documentData: any = {
-            title: title || (file ? file.name.split('.')[0] : "New Document"),
-            description: description || "New uploaded material.",
+            title: title || (file ? file.name.split('.')[0] : contentCategory === 'past-exams' ? "New Past Exam" : "New Document"),
+            description: description || (contentCategory === 'past-exams' ? "Past exam paper for practice." : "New uploaded material."),
             subject,
-            grade: parseInt(grade),
+            grade: grade === 'General' ? 0 : parseInt(grade),
             file_type: docFileType,
             is_premium: isPremium, // Backend expects snake_case
             author: docAuthor || "Admin",
-            tags: []
+            tags: contentCategory === 'past-exams' ? ['past-exam'] : []
           };
 
           // Include file_url (validated above)
@@ -602,14 +612,14 @@ const Admin: React.FC = () => {
 
           // Use adminAPI instead of createDocument from useData
           await adminAPI.createDocument(documentData);
-          addToast('Document published successfully!', 'success');
+          addToast(contentCategory === 'past-exams' ? 'Past exam published successfully!' : 'Document published successfully!', 'success');
         }
       } else {
         if (editingId) {
           // Update Video
           const updateData: any = {
             title, description, subject, isPremium,
-            grade: parseInt(grade),
+            grade: grade === 'General' ? 0 : parseInt(grade),
             instructor: videoInstructor
           };
 
@@ -631,7 +641,7 @@ const Admin: React.FC = () => {
             title: title || "New Video Lesson",
             description: description || "Video description.",
             subject,
-            grade: parseInt(grade),
+            grade: grade === 'General' ? 0 : parseInt(grade),
             isPremium,
             video_url: videoUrl,
             instructor: videoInstructor,
@@ -675,7 +685,7 @@ const Admin: React.FC = () => {
         isOpen: true,
         id: id,
         title: item.title,
-        type: contentCategory === 'documents' ? 'document' : 'video'
+        type: (contentCategory === 'documents' || contentCategory === 'past-exams') ? 'document' : 'video'
       });
     }
   };
@@ -940,7 +950,21 @@ const Admin: React.FC = () => {
 
   // Filtering
   const filteredItems = contentCategory === 'documents'
-    ? documents.filter(d => (d.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (d.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()))
+    ? documents.filter(d => {
+        // Exclude past exams from documents view
+        const tags = Array.isArray(d.tags) ? d.tags : (d.tags ? [d.tags] : []);
+        const isPastExam = tags.some((t: string) => t.toLowerCase() === 'past-exam');
+        if (isPastExam) return false;
+        return (d.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (d.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      })
+    : contentCategory === 'past-exams'
+    ? documents.filter(d => {
+        // Only show past exams
+        const tags = Array.isArray(d.tags) ? d.tags : (d.tags ? [d.tags] : []);
+        const isPastExam = tags.some((t: string) => t.toLowerCase() === 'past-exam');
+        if (!isPastExam) return false;
+        return (d.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (d.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      })
     : videos.filter(v => (v.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (v.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
 
   const filteredStudents = allUsers.filter(s => s.role === UserRole.STUDENT && ((s.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (s.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())));
@@ -1115,6 +1139,16 @@ const Admin: React.FC = () => {
                <FileText size={16} /> Documents
              </button>
              <button 
+               onClick={() => { setContentCategory('past-exams'); resetForm(); }}
+               className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
+                 contentCategory === 'past-exams' 
+                   ? 'bg-zinc-900 text-white border-zinc-900' 
+                   : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'
+               }`}
+             >
+               <FileText size={16} /> Past Exams
+             </button>
+             <button 
                onClick={() => { setContentCategory('videos'); resetForm(); }}
                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
                  contentCategory === 'videos' 
@@ -1131,7 +1165,7 @@ const Admin: React.FC = () => {
             <div className="flex justify-between items-center mb-4 sm:mb-6">
               <h2 className="text-base sm:text-lg font-bold text-zinc-900 flex items-center gap-2">
                 {editingId ? <Edit2 size={18} className="text-zinc-900 sm:w-5 sm:h-5" /> : <Upload size={18} className="text-zinc-400 sm:w-5 sm:h-5" />}
-                <span className="line-clamp-1">{editingId ? `Edit ${contentCategory === 'documents' ? 'Document' : 'Video'}` : `Add New ${contentCategory === 'documents' ? 'Document' : 'Video'}`}</span>
+                <span className="line-clamp-1">{editingId ? `Edit ${contentCategory === 'documents' ? 'Document' : contentCategory === 'past-exams' ? 'Past Exam' : 'Video'}` : `Add New ${contentCategory === 'documents' ? 'Document' : contentCategory === 'past-exams' ? 'Past Exam' : 'Video'}`}</span>
               </h2>
               {editingId && (
                 <button 
@@ -1151,13 +1185,13 @@ const Admin: React.FC = () => {
                     type="text" 
                     required 
                     className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
-                    placeholder={contentCategory === 'documents' ? "e.g., Grade 9 Biology Ch.1" : "e.g., Introduction to Algebra"}
+                    placeholder={contentCategory === 'documents' ? "e.g., Grade 9 Biology Ch.1" : contentCategory === 'past-exams' ? "e.g., Grade 10 Mathematics Final Exam 2023" : "e.g., Introduction to Algebra"}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                 </div>
                 
-                {contentCategory === 'documents' ? (
+                {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Author/Source</label>
                     <input 
@@ -1222,7 +1256,7 @@ const Admin: React.FC = () => {
                   />
                 </div>
 
-                {contentCategory === 'documents' ? (
+                {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (
                    <div className="md:col-span-2 space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div>
@@ -1318,7 +1352,7 @@ const Admin: React.FC = () => {
                  )}
                  <button
                    type="submit"
-                   disabled={isUploading || (contentCategory === 'documents' && !editingId && (!docFileUrl || !docFileUrl.trim()))}
+                   disabled={isUploading || ((contentCategory === 'documents' || contentCategory === 'past-exams') && !editingId && (!docFileUrl || !docFileUrl.trim()))}
                    className="px-8 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isUploading ? (
@@ -1338,9 +1372,9 @@ const Admin: React.FC = () => {
           <section className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
              <div className="p-3 sm:p-4 border-b border-zinc-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-zinc-50/50">
                 <h3 className="font-bold text-zinc-900 text-sm flex items-center gap-2">
-                  {contentCategory === 'documents' ? <FileText size={16} /> : <PlaySquare size={16} />}
-                  <span className="hidden sm:inline">Manage {contentCategory === 'documents' ? 'Documents' : 'Videos'}</span>
-                  <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : 'Videos'}</span>
+                  {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
+                  <span className="hidden sm:inline">Manage {contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
+                  <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
                 </h3>
                 <div className="relative w-full sm:w-auto">
                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -1364,7 +1398,7 @@ const Admin: React.FC = () => {
                      <div key={item.id} className="border border-zinc-200 rounded-lg p-3 bg-zinc-50/50">
                        <div className="flex items-start gap-3 mb-2">
                          <div className="w-10 h-10 rounded bg-zinc-200 flex items-center justify-center text-zinc-500 flex-shrink-0">
-                           {contentCategory === 'documents' ? <FileText size={18} /> : <PlaySquare size={18} />}
+                           {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={18} /> : <PlaySquare size={18} />}
                          </div>
                          <div className="flex-1 min-w-0">
                            <h4 className="font-medium text-zinc-900 text-sm line-clamp-1">{item.title}</h4>
@@ -1374,20 +1408,20 @@ const Admin: React.FC = () => {
                        <div className="flex items-center justify-between gap-2 mb-2">
                          <div className="flex flex-col gap-1 text-xs">
                            <span className="font-medium text-zinc-700">{item.subject}</span>
-                           <span className="text-zinc-500">Grade {item.grade}</span>
+                           <span className="text-zinc-500">{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
                          </div>
                          <div className="flex items-center gap-1.5">
                            {((item as any).isPremium || (item as any).is_premium) && (
                              <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
                            )}
                            <span className="bg-zinc-100 text-zinc-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
-                             {contentCategory === 'documents' ? (item as Document).file_type : 'Video'}
+                             {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (item as Document).file_type : 'Video'}
                            </span>
                          </div>
                        </div>
                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
                          <button 
-                           onClick={() => contentCategory === 'documents' ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
+                           onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
                          >
                            <Edit2 size={14} /> Edit
@@ -1435,7 +1469,7 @@ const Admin: React.FC = () => {
                        <td className="px-6 py-4 font-medium text-zinc-900">
                           <div className="flex items-center gap-3">
                              <div className="w-8 h-8 rounded bg-zinc-100 flex items-center justify-center text-zinc-500">
-                                {contentCategory === 'documents' ? <FileText size={16} /> : <PlaySquare size={16} />}
+                                {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
                              </div>
                              <div>
                                <p className="line-clamp-1">{item.title}</p>
@@ -1446,7 +1480,7 @@ const Admin: React.FC = () => {
                        <td className="px-6 py-4 text-zinc-500">
                           <div className="flex flex-col gap-1 text-xs">
                              <span className="font-medium text-zinc-700">{item.subject}</span>
-                             <span>Grade {item.grade}</span>
+                             <span>{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
                           </div>
                        </td>
                        <td className="px-6 py-4">
@@ -1455,14 +1489,14 @@ const Admin: React.FC = () => {
                               <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
                             )}
                             <span className="bg-zinc-100 text-zinc-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
-                              {contentCategory === 'documents' ? (item as Document).file_type : 'Video'}
+                              {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (item as Document).file_type : 'Video'}
                             </span>
                           </div>
                        </td>
                        <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                              <button 
-                               onClick={() => contentCategory === 'documents' ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
+                               onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
                                className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
                              >
                                <Edit2 size={16} />

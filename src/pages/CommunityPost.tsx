@@ -435,7 +435,7 @@ const CommunityPost: React.FC = () => {
           <p className="text-xs text-zinc-500 flex items-center gap-1.5 sm:gap-2 mt-1">
             <span>{post.subject}</span>
             <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
-            <span>Grade {post.grade}</span>
+            <span>{post.grade === 0 ? 'General' : `Grade ${post.grade}`}</span>
           </p>
         </div>
         <div className="ml-auto flex gap-1 sm:gap-2 relative">

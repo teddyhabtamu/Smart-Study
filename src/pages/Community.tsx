@@ -137,7 +137,7 @@ const Community: React.FC = () => {
         title: newTitle,
         content: newContent,
         subject: newSubject,
-        grade: parseInt(newGrade),
+        grade: newGrade === 'General' ? 0 : parseInt(newGrade),
         tags: []
       });
 
@@ -561,7 +561,7 @@ const Community: React.FC = () => {
                       {post.subject}
                     </span>
                     <span className="text-xs font-medium text-zinc-500 bg-zinc-100 px-1.5 sm:px-2 py-0.5 rounded border border-zinc-200">
-                      Grade {post.grade}
+                      {post.grade === 0 ? 'General' : `Grade ${post.grade}`}
                     </span>
                     {post.isSolved && (
                       <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1">

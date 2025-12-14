@@ -8,6 +8,7 @@ import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { DocumentCardSkeleton } from '../components/Skeletons';
+import GoogleDriveImage from '../components/GoogleDriveImage';
 
 const INITIAL_LIMIT = 16; // Load 16 documents initially
 const LOAD_MORE_LIMIT = 12; // Load 12 more documents each time
@@ -33,10 +34,11 @@ const Library: React.FC = () => {
     const params: any = {
       limit: INITIAL_LIMIT,
       offset: 0,
+      excludeTag: 'past-exam', // Exclude past exams from library
     };
 
     if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
     if (searchTerm.trim()) params.search = searchTerm;
     if (showSavedOnly) params.bookmarked = true;
     if (sortBy !== 'newest') params.sort = sortBy;
@@ -56,10 +58,11 @@ const Library: React.FC = () => {
     const params: any = {
       limit: LOAD_MORE_LIMIT,
       offset: documents.length,
+      excludeTag: 'past-exam', // Exclude past exams from library
     };
 
     if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
     if (searchTerm.trim()) params.search = searchTerm;
     if (showSavedOnly) params.bookmarked = true;
     if (sortBy !== 'newest') params.sort = sortBy;
@@ -97,8 +100,16 @@ const Library: React.FC = () => {
     };
   }, [hasMore, loadingMore, loading.documents, loadMoreDocuments]);
 
-  // Use documents directly since filtering is now done on the backend
-  const filteredDocs = documents;
+  // Filter documents client-side as additional safety (backend should already filter, but this prevents flicker)
+  const filteredDocs = React.useMemo(() => {
+    let filtered = documents;
+    // Additional client-side filtering to prevent any flicker
+    filtered = filtered.filter(doc => {
+      if (!doc.tags || !Array.isArray(doc.tags)) return true; // Include docs with no tags
+      return !doc.tags.includes('past-exam'); // Always exclude past-exam in Library
+    });
+    return filtered;
+  }, [documents]);
 
   const subjectOptions: Option[] = SUBJECTS.map(s => ({ label: s === 'All' ? 'All Subjects' : s, value: s }));
   const gradeOptions: Option[] = GRADES.map(g => ({ label: g === 'All' ? 'All Grades' : `Grade ${g}`, value: g }));
@@ -303,7 +314,12 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
       <Link to={`/document/${doc.id}`} className="flex flex-col h-full">
         <div className="relative h-32 sm:h-40 bg-zinc-100 overflow-hidden">
           {doc.preview_image ? (
-            <img src={doc.preview_image} alt={doc.title} className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500" />
+            <GoogleDriveImage
+              src={doc.preview_image}
+              alt={doc.title}
+              className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+              fallbackIcon={<BookOpen size={36} className="sm:w-12 sm:h-12 text-zinc-400 opacity-60" />}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200">
               <BookOpen size={36} className="sm:w-12 sm:h-12 text-zinc-400 opacity-60" />
@@ -320,7 +336,7 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
                {doc.subject}
              </span>
              <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
-               Grade {doc.grade}
+               {doc.grade === 0 ? 'General' : `Grade ${doc.grade}`}
              </span>
           </div>
         </div>

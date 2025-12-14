@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import TTSButton from '../components/TTSButton';
 import { VideoWatchSkeleton } from '../components/Skeletons';
+import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
 const VideoWatch: React.FC = () => {
   const { user, toggleBookmark, gainXP } = useAuth();
@@ -565,7 +566,7 @@ const VideoWatch: React.FC = () => {
                         relatedVideos.map((rv) => (
                            <Link key={rv.id} to={`/video/${rv.id}`} className="flex gap-3 group">
                               <div className="relative w-28 aspect-video bg-zinc-200 rounded-lg overflow-hidden flex-shrink-0">
-                                 <img src={rv.thumbnail} alt={rv.title} className="w-full h-full object-cover" />
+                                 <img src={convertGoogleDriveImageUrl(rv.thumbnail)} alt={rv.title} className="w-full h-full object-cover" />
                               </div>
                               <div className="flex flex-col min-w-0">
                                  <h4 className="text-xs font-semibold text-zinc-900 line-clamp-2 leading-snug group-hover:text-zinc-700 transition-colors">

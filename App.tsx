@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Layout from './src/components/Layout';
 import Landing from './src/pages/Landing';
 import Library from './src/pages/Library';
+import PastExams from './src/pages/PastExams';
 import DocumentView from './src/pages/DocumentView';
 import Dashboard from './src/pages/Dashboard';
 import Auth from './src/pages/Auth';
@@ -35,7 +36,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* PUBLIC ROUTES - No Layout wrapper */}
         <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
@@ -46,6 +47,7 @@ const App: React.FC = () => {
 
         {/* ROUTES WITH LAYOUT */}
         <Route path="/library" element={<Layout><Library /></Layout>} />
+        <Route path="/past-exams" element={<Layout><PastExams /></Layout>} />
         <Route path="/document/:id" element={<Layout><DocumentView /></Layout>} />
         
         <Route path="/videos" element={<Layout><VideoLibrary /></Layout>} />

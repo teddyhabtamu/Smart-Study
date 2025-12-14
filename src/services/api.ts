@@ -425,7 +425,7 @@ export const usersAPI = {
 
 // Documents API
 export const documentsAPI = {
-  getAll: (params: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number } = {}): Promise<{
+  getAll: (params: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number } = {}): Promise<{
     documents: Document[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {

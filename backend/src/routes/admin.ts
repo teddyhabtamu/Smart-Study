@@ -22,12 +22,32 @@ const convertGoogleDriveUrl = (url: string): string => {
     return url;
   }
 
-  // Extract file ID from sharing link
-  const match = url.match(/\/d\/([a-zA-Z0-9-_]+)\//) || url.match(/id=([a-zA-Z0-9-_]+)/);
-  const fileId = match ? match[1] : null;
+  // Extract file ID from various Google Drive URL formats:
+  // - https://drive.google.com/file/d/FILE_ID/view
+  // - https://drive.google.com/open?id=FILE_ID
+  // - https://drive.google.com/d/FILE_ID/
+  // - https://drive.google.com/uc?id=FILE_ID
+  let fileId: string | null = null;
+  
+  // Try different patterns
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9-_]+)/,           // /file/d/FILE_ID
+    /\/d\/([a-zA-Z0-9-_]+)/,                  // /d/FILE_ID
+    /[?&]id=([a-zA-Z0-9-_]+)/,                // ?id=FILE_ID or &id=FILE_ID
+    /\/uc\?id=([a-zA-Z0-9-_]+)/               // /uc?id=FILE_ID
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      fileId = match[1];
+      break;
+    }
+  }
 
   if (fileId) {
-    // Convert to direct URL for images
+    // Convert to direct image URL that works in <img> tags
+    // This format works for publicly shared images
     return `https://drive.google.com/uc?export=view&id=${fileId}`;
   }
 
@@ -445,8 +465,14 @@ router.get('/content', requireRole(['ADMIN', 'MODERATOR']), async (req: express.
 router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
-  body('grade').isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
+  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('grade').custom((value) => {
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   body('file_type').isIn(['PDF', 'DOCX', 'PPT']).withMessage('Valid file type required'),
   body('file_url').optional().isURL().withMessage('File URL must be a valid URL'),
   body('preview_image').optional().isURL().withMessage('Thumbnail URL must be a valid URL'),
@@ -509,8 +535,14 @@ router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
 router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
-  body('grade').isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
+  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('grade').custom((value) => {
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   body('video_url').isURL().withMessage('Valid video URL required'),
   body('duration').optional().matches(/^(\d{1,2}:)?\d{1,2}:\d{2}$/).withMessage('Duration must be in format MM:SS or HH:MM:SS'),
   body('instructor').optional().trim().isLength({ max: 255 }),
@@ -528,7 +560,7 @@ router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
       grade,
       video_url,
       instructor,
-      thumbnail,
+      thumbnail: thumbnail ? convertGoogleDriveUrl(thumbnail) : null,
       views: 0,
       likes: 0,
       is_premium,

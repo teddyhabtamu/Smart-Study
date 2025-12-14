@@ -10,7 +10,14 @@ const router = express.Router();
 // Get all videos with optional filtering
 router.get('/', optionalAuth, [
   query('subject').optional().isString(),
-  query('grade').optional().isInt({ min: 9, max: 12 }),
+  query('grade').optional().custom((value) => {
+    if (value === undefined || value === null) return true;
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   query('search').optional().isString(),
   query('bookmarked').optional().isBoolean(),
   query('sort').optional().isIn(['newest', 'popular', 'title']).withMessage('Sort must be newest, popular, or title'),
@@ -398,7 +405,7 @@ router.post('/', [
   requirePremium,
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']).withMessage('Valid subject required'),
+  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
   body('grade').isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
   body('video_url').isURL().withMessage('Valid video URL required'),
   body('duration').optional().matches(/^(\d{1,2}:)?\d{1,2}:\d{2}$/).withMessage('Duration must be in format MM:SS or HH:MM:SS'),
@@ -454,8 +461,15 @@ router.put('/:id', [
   authenticateToken,
   body('title').optional().trim().isLength({ min: 1, max: 500 }),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology']),
-  body('grade').optional().isInt({ min: 9, max: 12 }),
+  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']),
+  body('grade').optional().custom((value) => {
+    if (value === undefined || value === null) return true;
+    const grade = parseInt(value);
+    if (grade === 0 || (grade >= 9 && grade <= 12)) {
+      return true;
+    }
+    throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
+  }),
   body('video_url').optional().isURL(),
   body('duration').optional().matches(/^(\d{1,2}:)?\d{1,2}:\d{2}$/),
   body('instructor').optional().trim().isLength({ max: 255 }),

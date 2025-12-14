@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Library from './pages/Library';
+import PastExams from './pages/PastExams';
 import DocumentView from './pages/DocumentView';
 import Dashboard from './pages/Dashboard';
 import Auth from './pages/Auth';
@@ -64,7 +65,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* RESET PASSWORD - MUST be first, no authentication required, no Layout wrapper */}
         <Route
@@ -77,6 +78,8 @@ const App: React.FC = () => {
         <Route path="/accept-invitation" element={<PublicRoute><AcceptInvitation /></PublicRoute>} />
 
         <Route path="/library" element={<Layout><Library /></Layout>} />
+        <Route path="/past-exams" element={<Layout><PastExams /></Layout>} />
+        <Route path="/past-exam" element={<Layout><PastExams /></Layout>} />
         <Route path="/document/:id" element={<Layout><DocumentView /></Layout>} />
 
         <Route path="/videos" element={<Layout><VideoLibrary /></Layout>} />

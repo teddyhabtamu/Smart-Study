@@ -279,5 +279,5 @@ export const MOCK_FORUM_POSTS: ForumPost[] = [
   }
 ];
 
-export const SUBJECTS = ['All', 'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Civics', 'History', 'Geography'];
-export const GRADES = ['All', '9', '10', '11', '12'];
+export const SUBJECTS = ['All', 'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Civics', 'History', 'Geography', 'Aptitude'];
+export const GRADES = ['All', '9', '10', '11', '12', 'General'];

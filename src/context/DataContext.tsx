@@ -78,8 +78,8 @@ interface DataContextType {
   };
 
   // Data fetching functions
-  fetchDocuments: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
-  fetchMoreDocuments: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
+  fetchDocuments: (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
+  fetchMoreDocuments: (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
   fetchVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
   fetchMoreVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
   fetchForumPosts: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<void>;
@@ -149,34 +149,89 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Data fetching functions
-  const fetchDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => {
+  const fetchDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number; append?: boolean }) => {
     try {
       setLoadingState('documents', true);
       setErrorState('documents', null);
+      
+      // Clear documents first if not appending to prevent flicker
+      if (!params?.append) {
+        setDocuments([]);
+      }
+      
       const response = await documentsAPI.getAll(params);
       
+      // Client-side filtering for excludeTag (safety measure) - filter BEFORE setting state
+      let filteredDocs = response.documents;
+      if (params?.excludeTag) {
+        filteredDocs = filteredDocs.filter(doc => {
+          if (!doc.tags || !Array.isArray(doc.tags)) return true; // Include docs with no tags
+          return !doc.tags.includes(params.excludeTag!);
+        });
+      }
+      
+      // Client-side filtering for tag (safety measure) - filter BEFORE setting state
+      if (params?.tag) {
+        filteredDocs = filteredDocs.filter(doc => {
+          if (!doc.tags || !Array.isArray(doc.tags)) return false; // Exclude docs with no tags when filtering by tag
+          return doc.tags.includes(params.tag!);
+        });
+      }
+      
+      // Only set documents after filtering is complete
       if (params?.append) {
-        // Append new documents to existing ones
-        setDocuments(prev => [...prev, ...response.documents]);
+        // Append new documents to existing ones, avoiding duplicates
+        setDocuments(prev => {
+          const existingIds = new Set(prev.map(doc => doc.id));
+          const newDocs = filteredDocs.filter(doc => !existingIds.has(doc.id));
+          return [...prev, ...newDocs];
+        });
       } else {
-        // Replace documents (initial load or filter change)
-        setDocuments(response.documents);
+        // Replace documents (initial load or filter change) - only set filtered data
+        setDocuments(filteredDocs);
       }
       
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch documents error:', error);
       setErrorState('documents', error.message || 'Failed to fetch documents');
+      // Clear documents on error to prevent showing stale data
+      if (!params?.append) {
+        setDocuments([]);
+      }
     } finally {
       setLoadingState('documents', false);
     }
   }, []);
 
-  const fetchMoreDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => {
+  const fetchMoreDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number }) => {
     try {
       setLoadingState('documents', true);
       const response = await documentsAPI.getAll(params);
-      setDocuments(prev => [...prev, ...response.documents]);
+      
+      // Client-side filtering for excludeTag (safety measure) - filter BEFORE setting state
+      let filteredDocs = response.documents;
+      if (params?.excludeTag) {
+        filteredDocs = filteredDocs.filter(doc => {
+          if (!doc.tags || !Array.isArray(doc.tags)) return true; // Include docs with no tags
+          return !doc.tags.includes(params.excludeTag!);
+        });
+      }
+      
+      // Client-side filtering for tag (safety measure) - filter BEFORE setting state
+      if (params?.tag) {
+        filteredDocs = filteredDocs.filter(doc => {
+          if (!doc.tags || !Array.isArray(doc.tags)) return false; // Exclude docs with no tags when filtering by tag
+          return doc.tags.includes(params.tag!);
+        });
+      }
+      
+      // Avoid duplicates when loading more - only add filtered documents
+      setDocuments(prev => {
+        const existingIds = new Set(prev.map(doc => doc.id));
+        const newDocs = filteredDocs.filter(doc => !existingIds.has(doc.id));
+        return [...prev, ...newDocs];
+      });
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch more documents error:', error);

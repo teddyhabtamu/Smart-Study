@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocation } from 'react-router-dom';
 import { StudyEvent } from '../types';
 import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
+import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -228,9 +229,9 @@ const Dashboard: React.FC = () => {
                    >
                      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-zinc-100 flex-shrink-0 overflow-hidden relative">
                         {item.type === 'video' ? (
-                          <img src={(item as any).thumbnail} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" />
+                          <img src={convertGoogleDriveImageUrl((item as any).thumbnail)} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" />
                         ) : (
-                          <img src={(item as any).previewImage} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" />
+                          <img src={convertGoogleDriveImageUrl((item as any).previewImage)} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" />
                         )}
                         <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                            {item.type === 'video' ? <PlayCircle size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" /> : <Book size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" />}
@@ -240,7 +241,7 @@ const Dashboard: React.FC = () => {
                         <h4 className="font-bold text-zinc-900 truncate text-sm mb-1 group-hover:text-zinc-700 transition-colors">{item.title}</h4>
                         <div className="flex items-center gap-2 text-xs text-zinc-500">
                            <span className="bg-zinc-100 px-1.5 py-0.5 rounded">{item.subject}</span>
-                           <span>Grade {item.grade}</span>
+                           <span>{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
                         </div>
                      </div>
                    </Link>

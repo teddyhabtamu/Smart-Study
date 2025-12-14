@@ -334,6 +334,53 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
           const searchTerm = params[paramIndex].replace(/%/g, '');
           query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
         }
+        // Handle tag filtering - include documents with specific tag
+        // Check for pattern: $X = ANY(tags) where X is the parameter number
+        // Match can be anywhere in the WHERE clause, not just at the start
+        const tagMatch = sql.match(/\$(\d+)\s*=\s*ANY\(tags\)/);
+        if (tagMatch && tagMatch[1] && !sql.includes('NOT')) {
+          const tagParamIndex = parseInt(tagMatch[1]) - 1;
+          if (params[tagParamIndex] !== undefined) {
+            const tagValue = params[tagParamIndex];
+            // Supabase: use filter with cs (contains) operator for array contains check
+            // The value must be in Postgres array format: '{"value"}'
+            query = query.filter('tags', 'cs', `{"${tagValue}"}`);
+          }
+        }
+        // Handle excludeTag filtering - exclude documents with specific tag
+        // Check for pattern: NOT ($X = ANY(tags)) - can appear anywhere in WHERE clause
+        const excludeTagMatch = sql.match(/NOT\s*\(\s*\$(\d+)\s*=\s*ANY\(tags\)\s*\)/);
+        if (excludeTagMatch && excludeTagMatch[1]) {
+          const excludeTagParamIndex = parseInt(excludeTagMatch[1]) - 1;
+          if (params[excludeTagParamIndex] !== undefined) {
+            const excludeTagValue = params[excludeTagParamIndex];
+            // Supabase: use .not() method with 'cs' operator to exclude documents containing the tag
+            // The value must be in Postgres array format: '{"value"}'
+            query = query.not('tags', 'cs', `{"${excludeTagValue}"}`);
+          }
+        }
+        // Handle IN clause for bookmarks
+        if (sql.includes('id IN (')) {
+          // Extract parameter indices for IN clause
+          const inMatch = sql.match(/id IN \(([^)]+)\)/);
+          if (inMatch && inMatch[1]) {
+            const placeholders = inMatch[1].split(',').map((p: string) => p.trim());
+            const ids = placeholders.map((p: string) => {
+              const paramMatch = p.match(/\$(\d+)/);
+              if (paramMatch && paramMatch[1]) {
+                return params[parseInt(paramMatch[1]) - 1];
+              }
+              return null;
+            }).filter((id: any) => id !== null);
+            if (ids.length > 0) {
+              query = query.in('id', ids);
+            }
+          }
+        }
+        // Handle WHERE 1 = 0 (no results condition)
+        if (sql.includes('WHERE 1 = 0')) {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Non-existent ID to return empty
+        }
       }
 
       // Handle ORDER BY
@@ -347,9 +394,43 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
         }
       }
 
+      // Handle LIMIT and OFFSET
+      if (sql.includes('LIMIT $')) {
+        const limitMatch = sql.match(/LIMIT \$(\d+)/);
+        if (limitMatch && limitMatch[1]) {
+          const limitParamIndex = parseInt(limitMatch[1]) - 1;
+          query = query.limit(params[limitParamIndex]);
+        }
+      }
+      if (sql.includes('OFFSET $')) {
+        const offsetMatch = sql.match(/OFFSET \$(\d+)/);
+        if (offsetMatch && offsetMatch[1]) {
+          const offsetParamIndex = parseInt(offsetMatch[1]) - 1;
+          const limitMatch = sql.match(/LIMIT \$(\d+)/);
+          const limitValue = limitMatch && limitMatch[1] ? params[parseInt(limitMatch[1]) - 1] || 20 : 20;
+          query = query.range(params[offsetParamIndex], params[offsetParamIndex] + limitValue - 1);
+        }
+      }
+
       const { data, error } = await query;
       if (error) throw error;
-      return { rows: data || [], rowCount: data?.length || 0 };
+      
+      // Client-side filtering fallback for excludeTag (in case Supabase filter doesn't work)
+      let filteredData = data || [];
+      const excludeTagMatch = sql.match(/NOT\s*\(\s*\$(\d+)\s*=\s*ANY\(tags\)\s*\)/);
+      if (excludeTagMatch && excludeTagMatch[1]) {
+        const excludeTagParamIndex = parseInt(excludeTagMatch[1]) - 1;
+        if (params[excludeTagParamIndex] !== undefined) {
+          const excludeTagValue = params[excludeTagParamIndex];
+          // Filter out documents that contain the excluded tag
+          filteredData = filteredData.filter((doc: any) => {
+            if (!doc.tags || !Array.isArray(doc.tags)) return true; // Include docs with no tags
+            return !doc.tags.includes(excludeTagValue);
+          });
+        }
+      }
+      
+      return { rows: filteredData, rowCount: filteredData.length };
     }
 
     if (sql.includes('insert into documents')) {
@@ -463,12 +544,92 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
           query = supabase.from(tableName).select('*', { count: 'exact', head: true }).eq('video_id', params[0]);
         }
 
+        // Handle documents table COUNT queries with tag filtering
+        if (tableName === 'documents') {
+          // Premium filtering
+          if (sql.includes('is_premium = $1')) {
+            query = query.eq('is_premium', params[0]);
+          }
+          // Subject filtering
+          if (sql.includes('subject = $')) {
+            const subjectIndex = sql.indexOf('subject = $') + 11;
+            const paramIndex = parseInt(sql.charAt(subjectIndex)) - 1;
+            if (params[paramIndex] !== undefined) {
+              query = query.eq('subject', params[paramIndex]);
+            }
+          }
+          // Grade filtering
+          if (sql.includes('grade = $')) {
+            const gradeIndex = sql.indexOf('grade = $') + 9;
+            const paramIndex = parseInt(sql.charAt(gradeIndex)) - 1;
+            if (params[paramIndex] !== undefined) {
+              query = query.eq('grade', params[paramIndex]);
+            }
+          }
+          // Search filtering
+          if (sql.includes('ILIKE')) {
+            const searchIndex = sql.indexOf('ILIKE $') + 7;
+            const paramIndex = parseInt(sql.charAt(searchIndex)) - 1;
+            if (params[paramIndex] !== undefined) {
+              const searchTerm = params[paramIndex].replace(/%/g, '');
+              query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
+            }
+          }
+          // Tag filtering - include documents with specific tag
+          const tagMatch = sql.match(/\$(\d+)\s*=\s*ANY\(tags\)/);
+          if (tagMatch && tagMatch[1] && !sql.includes('NOT')) {
+            const tagParamIndex = parseInt(tagMatch[1]) - 1;
+            if (params[tagParamIndex] !== undefined) {
+              const tagValue = params[tagParamIndex];
+              // Supabase: use filter with cs (contains) operator for array contains check
+              // The value must be in Postgres array format: '{"value"}'
+              query = query.filter('tags', 'cs', `{"${tagValue}"}`);
+            }
+          }
+          // ExcludeTag filtering - exclude documents with specific tag
+          const excludeTagMatch = sql.match(/NOT\s*\(\s*\$(\d+)\s*=\s*ANY\(tags\)\s*\)/);
+          if (excludeTagMatch && excludeTagMatch[1]) {
+            const excludeTagParamIndex = parseInt(excludeTagMatch[1]) - 1;
+            if (params[excludeTagParamIndex] !== undefined) {
+              const excludeTagValue = params[excludeTagParamIndex];
+              // Supabase: use .not() method with 'cs' operator to exclude documents containing the tag
+              // The value must be in Postgres array format: '{"value"}'
+              query = query.not('tags', 'cs', `{"${excludeTagValue}"}`);
+            }
+          }
+          // Handle IN clause for bookmarks
+          if (sql.includes('id IN (')) {
+            const inMatch = sql.match(/id IN \(([^)]+)\)/);
+            if (inMatch && inMatch[1]) {
+              const placeholders = inMatch[1].split(',').map((p: string) => p.trim());
+              const ids = placeholders.map((p: string) => {
+                const paramMatch = p.match(/\$(\d+)/);
+                if (paramMatch && paramMatch[1]) {
+                  return params[parseInt(paramMatch[1]) - 1];
+                }
+                return null;
+              }).filter((id: any) => id !== null);
+              if (ids.length > 0) {
+                query = query.in('id', ids);
+              }
+            }
+          }
+          // Handle WHERE 1 = 0 (no results condition)
+          if (sql.includes('WHERE 1 = 0')) {
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Non-existent ID to return empty
+          }
+        }
+
         const { count, error } = await query;
         if (error) throw error;
 
         // Return count result in expected format - COUNT always returns 1 row
-        const likeCount = typeof count === 'number' ? count : 0;
-        return { rows: [{ like_count: likeCount }], rowCount: 1 };
+        const totalCount = typeof count === 'number' ? count : 0;
+        // For documents table, return as 'total', for others return as 'like_count'
+        if (tableName === 'documents') {
+          return { rows: [{ total: totalCount.toString() }], rowCount: 1 };
+        }
+        return { rows: [{ like_count: totalCount }], rowCount: 1 };
       }
     }
 
