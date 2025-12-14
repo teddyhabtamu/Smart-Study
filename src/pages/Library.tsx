@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, BookOpen, Lock, Filter, ArrowUpDown, Bookmark, Loader2 } from 'lucide-react';
 import { SUBJECTS, GRADES } from '../constants';
@@ -9,18 +9,31 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { DocumentCardSkeleton } from '../components/Skeletons';
 
+const INITIAL_LIMIT = 16; // Load 16 documents initially
+const LOAD_MORE_LIMIT = 12; // Load 12 more documents each time
+
 const Library: React.FC = () => {
-  const { documents, fetchDocuments, loading, errors } = useData();
+  const { documents, fetchDocuments, fetchMoreDocuments, loading, errors } = useData();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
-  // Fetch documents on mount and when filters change
+  // Fetch initial documents on mount and when filters change
   useEffect(() => {
-    const params: any = {};
+    // Reset pagination state when filters change
+    setHasMore(true);
+    setLoadingMore(false);
+    
+    const params: any = {
+      limit: INITIAL_LIMIT,
+      offset: 0,
+    };
 
     if (selectedSubject !== 'All') params.subject = selectedSubject;
     if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
@@ -28,8 +41,61 @@ const Library: React.FC = () => {
     if (showSavedOnly) params.bookmarked = true;
     if (sortBy !== 'newest') params.sort = sortBy;
 
-    fetchDocuments(params);
+    fetchDocuments(params).then((result) => {
+      if (result) {
+        setHasMore(result.hasMore);
+      }
+    });
   }, [fetchDocuments, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
+
+  // Load more documents function
+  const loadMoreDocuments = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    const params: any = {
+      limit: LOAD_MORE_LIMIT,
+      offset: documents.length,
+    };
+
+    if (selectedSubject !== 'All') params.subject = selectedSubject;
+    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (searchTerm.trim()) params.search = searchTerm;
+    if (showSavedOnly) params.bookmarked = true;
+    if (sortBy !== 'newest') params.sort = sortBy;
+
+    try {
+      const result = await fetchMoreDocuments(params);
+      setHasMore(result.hasMore);
+    } catch (error) {
+      console.error('Failed to load more documents:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, documents.length, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy, fetchMoreDocuments]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading.documents) {
+          loadMoreDocuments();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, loadingMore, loading.documents, loadMoreDocuments]);
 
   // Use documents directly since filtering is now done on the backend
   const filteredDocs = documents;
@@ -133,21 +199,46 @@ const Library: React.FC = () => {
       )}
 
       {/* Grid */}
-      {loading.documents ? (
+      {loading.documents && documents.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <DocumentCardSkeleton key={i} />
           ))}
         </div>
       ) : !errors.documents && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {filteredDocs.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {filteredDocs.map((doc) => (
+              <DocumentCard key={doc.id} doc={doc} />
+            ))}
+          </div>
+
+          {/* Loading more indicator */}
+          {loadingMore && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mt-4">
+              {[1, 2, 3, 4].map((i) => (
+                <DocumentCardSkeleton key={`loading-${i}`} />
+              ))}
+            </div>
+          )}
+
+          {/* Intersection Observer target */}
+          {hasMore && !loadingMore && (
+            <div ref={observerTarget} className="h-20 flex items-center justify-center">
+              <div className="text-zinc-400 text-sm">Scroll to load more documents...</div>
+            </div>
+          )}
+
+          {/* End of results message */}
+          {!hasMore && documents.length > 0 && (
+            <div className="text-center py-8 text-zinc-500 text-sm">
+              You've reached the end of the document library
+            </div>
+          )}
+        </>
       )}
 
-      {filteredDocs.length === 0 && (
+      {filteredDocs.length === 0 && !loading.documents && (
         <div className="py-12 sm:py-20 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50 px-4">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-100 rounded-xl flex items-center justify-center mx-auto mb-3 text-zinc-400">
              <Search size={16} className="sm:w-5 sm:h-5" />

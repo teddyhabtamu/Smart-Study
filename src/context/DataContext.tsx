@@ -78,8 +78,10 @@ interface DataContextType {
   };
 
   // Data fetching functions
-  fetchDocuments: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<void>;
-  fetchVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<void>;
+  fetchDocuments: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
+  fetchMoreDocuments: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
+  fetchVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
+  fetchMoreVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
   fetchForumPosts: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<void>;
   fetchStudyEvents: (params?: { date?: string; type?: string; completed?: boolean }) => Promise<void>;
   fetchUsers: (params?: { limit?: number; offset?: number; search?: string }) => Promise<void>;
@@ -147,12 +149,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Data fetching functions
-  const fetchDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => {
+  const fetchDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => {
     try {
       setLoadingState('documents', true);
       setErrorState('documents', null);
       const response = await documentsAPI.getAll(params);
-      setDocuments(response.documents);
+      
+      if (params?.append) {
+        // Append new documents to existing ones
+        setDocuments(prev => [...prev, ...response.documents]);
+      } else {
+        // Replace documents (initial load or filter change)
+        setDocuments(response.documents);
+      }
+      
+      return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch documents error:', error);
       setErrorState('documents', error.message || 'Failed to fetch documents');
@@ -161,16 +172,56 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const fetchVideos = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => {
+  const fetchMoreDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => {
+    try {
+      setLoadingState('documents', true);
+      const response = await documentsAPI.getAll(params);
+      setDocuments(prev => [...prev, ...response.documents]);
+      return { hasMore: response.pagination.hasMore };
+    } catch (error: any) {
+      console.error('Fetch more documents error:', error);
+      setErrorState('documents', error.message || 'Failed to fetch more documents');
+      return { hasMore: false };
+    } finally {
+      setLoadingState('documents', false);
+    }
+  }, []);
+
+  const fetchVideos = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => {
     try {
       setLoadingState('videos', true);
       setErrorState('videos', null);
       const response = await videosAPI.getAll(params);
       const transformedVideos = response.videos.map(transformVideoToVideoLesson);
-      setVideos(transformedVideos);
+      
+      if (params?.append) {
+        // Append new videos to existing ones
+        setVideos(prev => [...prev, ...transformedVideos]);
+      } else {
+        // Replace videos (initial load or filter change)
+        setVideos(transformedVideos);
+      }
+      
+      return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch videos error:', error);
       setErrorState('videos', error.message || 'Failed to fetch videos');
+    } finally {
+      setLoadingState('videos', false);
+    }
+  }, []);
+
+  const fetchMoreVideos = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => {
+    try {
+      setLoadingState('videos', true);
+      const response = await videosAPI.getAll(params);
+      const transformedVideos = response.videos.map(transformVideoToVideoLesson);
+      setVideos(prev => [...prev, ...transformedVideos]);
+      return { hasMore: response.pagination.hasMore };
+    } catch (error: any) {
+      console.error('Fetch more videos error:', error);
+      setErrorState('videos', error.message || 'Failed to fetch more videos');
+      return { hasMore: false };
     } finally {
       setLoadingState('videos', false);
     }
@@ -402,7 +453,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Data fetching
       fetchDocuments,
+      fetchMoreDocuments,
       fetchVideos,
+      fetchMoreVideos,
       fetchForumPosts,
       fetchStudyEvents,
       fetchUsers,

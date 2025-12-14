@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, PlayCircle, Lock, Filter, ArrowUpDown, Bookmark, Loader2 } from 'lucide-react';
 import { SUBJECTS, GRADES } from '../constants';
@@ -8,18 +8,31 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { VideoCardSkeleton } from '../components/Skeletons';
 
+const INITIAL_LIMIT = 16; // Load 16 videos initially
+const LOAD_MORE_LIMIT = 12; // Load 12 more videos each time
+
 const VideoLibrary: React.FC = () => {
-  const { videos, fetchVideos, loading, errors } = useData();
+  const { videos, fetchVideos, fetchMoreVideos, loading, errors } = useData();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
-  // Fetch videos on mount and when filters change
+  // Fetch initial videos on mount and when filters change
   useEffect(() => {
-    const params: any = {};
+    // Reset pagination state when filters change
+    setHasMore(true);
+    setLoadingMore(false);
+    
+    const params: any = {
+      limit: INITIAL_LIMIT,
+      offset: 0,
+    };
 
     if (selectedSubject !== 'All') params.subject = selectedSubject;
     if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
@@ -27,8 +40,61 @@ const VideoLibrary: React.FC = () => {
     if (showSavedOnly) params.bookmarked = true;
     if (sortBy !== 'newest') params.sort = sortBy;
 
-    fetchVideos(params);
+    fetchVideos(params).then((result) => {
+      if (result) {
+        setHasMore(result.hasMore);
+      }
+    });
   }, [fetchVideos, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
+
+  // Load more videos function
+  const loadMoreVideos = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    const params: any = {
+      limit: LOAD_MORE_LIMIT,
+      offset: videos.length,
+    };
+
+    if (selectedSubject !== 'All') params.subject = selectedSubject;
+    if (selectedGrade !== 'All') params.grade = parseInt(selectedGrade);
+    if (searchTerm.trim()) params.search = searchTerm;
+    if (showSavedOnly) params.bookmarked = true;
+    if (sortBy !== 'newest') params.sort = sortBy;
+
+    try {
+      const result = await fetchMoreVideos(params);
+      setHasMore(result.hasMore);
+    } catch (error) {
+      console.error('Failed to load more videos:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, videos.length, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy, fetchMoreVideos]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading.videos) {
+          loadMoreVideos();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, loadingMore, loading.videos, loadMoreVideos]);
 
   // Use videos directly since filtering is now done on the backend
   const filteredVideos = videos;
@@ -132,18 +198,43 @@ const VideoLibrary: React.FC = () => {
       )}
 
       {/* Grid */}
-      {loading.videos ? (
+      {loading.videos && videos.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <VideoCardSkeleton key={i} />
           ))}
         </div>
       ) : !errors.videos && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {filteredVideos.map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {filteredVideos.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+
+          {/* Loading more indicator */}
+          {loadingMore && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 mt-4">
+              {[1, 2, 3, 4].map((i) => (
+                <VideoCardSkeleton key={`loading-${i}`} />
+              ))}
+            </div>
+          )}
+
+          {/* Intersection Observer target */}
+          {hasMore && !loadingMore && (
+            <div ref={observerTarget} className="h-20 flex items-center justify-center">
+              <div className="text-zinc-400 text-sm">Scroll to load more videos...</div>
+            </div>
+          )}
+
+          {/* End of results message */}
+          {!hasMore && videos.length > 0 && (
+            <div className="text-center py-8 text-zinc-500 text-sm">
+              You've reached the end of the video library
+            </div>
+          )}
+        </>
       )}
 
       {filteredVideos.length === 0 && !loading.videos && (
