@@ -17,12 +17,7 @@ const app = express();
 // This allows Express to correctly identify the client IP from X-Forwarded-For headers
 app.set('trust proxy', true);
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-// CORS configuration
+// CORS configuration - MUST be before other middleware
 const allowedOrigins = [
   'http://localhost:5173', // Development frontend
   'https://smart-study-navy.vercel.app', // Production frontend (old)
@@ -32,9 +27,9 @@ const allowedOrigins = [
     : [])
 ];
 
-// CORS middleware with explicit OPTIONS handling
-app.use(cors({
-  origin: function (origin, callback) {
+// CORS middleware - handles preflight OPTIONS automatically
+const corsOptions = {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Allow requests with no origin (like mobile apps or curl requests) - but only in development
     if (!origin) {
       if (config.server.nodeEnv === 'development') {
@@ -54,11 +49,15 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400 // 24 hours - cache preflight requests
-}));
+  maxAge: 86400, // 24 hours - cache preflight requests
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
 
-// Explicit OPTIONS handler for all API routes (additional safety for Vercel)
-app.options('/api/*', (req, res) => {
+app.use(cors(corsOptions));
+
+// Explicit OPTIONS handler for all routes (catch-all for Vercel)
+app.options('*', (req, res) => {
   const origin = req.headers.origin;
   
   if (origin && allowedOrigins.includes(origin)) {
@@ -68,6 +67,9 @@ app.options('/api/*', (req, res) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400');
     res.status(204).end();
+  } else if (!origin && config.server.nodeEnv === 'development') {
+    // Allow in development
+    res.status(204).end();
   } else {
     res.status(403).json({
       success: false,
@@ -75,6 +77,12 @@ app.options('/api/*', (req, res) => {
     });
   }
 });
+
+// Security middleware - configured to not interfere with CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
 
 // Passport middleware
 app.use(passport.initialize());
@@ -152,14 +160,30 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Error handling middleware
+// Error handling middleware - ensure CORS headers on errors
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction): void => {
   console.error('Error:', err);
+
+  // Set CORS headers on error responses
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
 
   if (err.type === 'entity.parse.failed') {
     res.status(400).json({
       success: false,
       message: 'Invalid JSON payload'
+    });
+    return;
+  }
+
+  // Handle CORS errors
+  if (err.message && err.message.includes('CORS')) {
+    res.status(403).json({
+      success: false,
+      message: err.message
     });
     return;
   }
@@ -170,8 +194,15 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// 404 handler
+// 404 handler - ensure CORS headers on 404
 app.use((req, res) => {
+  // Set CORS headers on 404 responses
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  
   res.status(404).json({
     success: false,
     message: 'API endpoint not found'
