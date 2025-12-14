@@ -209,12 +209,24 @@ app.use((req, res) => {
   });
 });
 
-app.listen(config.server.port, () => {
-  console.log(`🚀 SmartStudy API server running on port ${config.server.port}`);
-  console.log(`📊 Environment: ${config.server.nodeEnv}`);
+// Only start the server if NOT in serverless environment (Vercel)
+// Vercel sets VERCEL=1 environment variable
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 
-  // Start the notification scheduler
-  SchedulerService.start();
-});
+if (!isVercel) {
+  // Traditional server mode - start listening
+  app.listen(config.server.port, () => {
+    console.log(`🚀 SmartStudy API server running on port ${config.server.port}`);
+    console.log(`📊 Environment: ${config.server.nodeEnv}`);
 
+    // Start the notification scheduler (only in traditional server mode)
+    // In serverless, use Vercel Cron Jobs or similar for scheduled tasks
+    SchedulerService.start();
+  });
+} else {
+  console.log('🚀 Running in Vercel serverless mode');
+  // Don't start scheduler in serverless - use Vercel Cron Jobs instead
+}
+
+// Export the app for Vercel serverless functions
 export default app;
