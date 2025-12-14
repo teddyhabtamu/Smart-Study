@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Compiled API files (Vercel compiles these automatically)
+backend/api/*.js
+backend/api/*.js.map
+backend/api/*.d.ts
+backend/api/*.d.ts.map
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

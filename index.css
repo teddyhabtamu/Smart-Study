@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    font-size: 75%; /* Reduce font size by 25% (from 100% to 75%) */
+  }
   body { 
     font-family: 'Inter', sans-serif; 
     background-color: #FAFAFA;
