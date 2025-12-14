@@ -54,11 +54,27 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-app.use(cors(corsOptions));
+// CORS middleware - but allow OAuth routes to pass through (they're redirects, not JSON)
+app.use((req, res, next) => {
+  // Skip CORS for OAuth routes - they're server-side redirects
+  // Check both the full path and the path after mount point
+  const path = req.path || req.url?.split('?')[0] || '';
+  if (path.includes('/auth/google') || path.includes('/google')) {
+    return next();
+  }
+  // Apply CORS for all other routes
+  cors(corsOptions)(req, res, next);
+});
 
 // Explicit OPTIONS handler for all API routes (catch-all for Vercel)
 // Use a middleware function instead of app.options('*') which doesn't work in Express 5
 app.use((req, res, next) => {
+  // Skip OPTIONS handling for OAuth routes
+  const path = req.path || req.url?.split('?')[0] || '';
+  if (path.includes('/auth/google') || path.includes('/google')) {
+    return next();
+  }
+  
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin;
     
