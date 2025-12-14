@@ -155,7 +155,7 @@ const Dashboard: React.FC = () => {
   const completedToday = dashboardData?.progress.todayCompleted || 0;
   const totalToday = dashboardData?.progress.todayTotal || 0;
   const progressPercentage = dashboardData?.progress.todayPercentage || 0;
-  const recentSaved = dashboardData?.recentBookmarks.slice(0, 3) || [];
+  const recentSaved = dashboardData?.recentBookmarks.slice(0, 5) || [];
   const progressToNextLevel = dashboardData?.progress.levelProgress || Math.min(100, Math.round(((user.xp - (user.level - 1) * 1000) / 1000) * 100));
   const xpToNextLevel = dashboardData?.progress.xpToNextLevel || (user.level * 1000 - user.xp);
 

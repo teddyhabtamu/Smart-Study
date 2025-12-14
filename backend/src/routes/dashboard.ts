@@ -33,10 +33,10 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
         String(today.getUTCDate()).padStart(2, '0');
     }
 
-    // Get user profile with bookmarks
+    // Get user profile with bookmarks (ordered by most recent first)
     const userResult = await query(`
       SELECT u.id, u.name, u.xp, u.level, u.streak, u.is_premium,
-             COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks
+             COALESCE(array_agg(b.item_id ORDER BY b.created_at DESC) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks
       FROM users u
       LEFT JOIN bookmarks b ON u.id = b.user_id
       WHERE u.id = $1
@@ -67,7 +67,8 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     const recentBookmarks = [];
     if (user.bookmarks && user.bookmarks.length > 0) {
       // For each bookmark, try to find it as a document first, then as a video
-      for (const bookmarkId of user.bookmarks.slice(0, 6)) {
+      // Show up to 12 most recent bookmarks
+      for (const bookmarkId of user.bookmarks.slice(0, 12)) {
         let itemResult = null;
         let itemType = null;
 
