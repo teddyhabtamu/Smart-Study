@@ -727,25 +727,51 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
         query = query.eq('id', params[0]);
       } else {
         // Handle complex filtering
+        // Extract all parameter indices first to understand the structure
+        const paramMap = new Map<string, number>();
+        
         // Premium filtering - only show premium content to premium users
         if (sql.includes('is_premium = $1')) {
           query = query.eq('is_premium', params[0]);
+          paramMap.set('is_premium', 0);
         }
-        if (sql.includes('subject = $')) {
-          const subjectIndex = sql.indexOf('subject = $') + 11;
-          const paramIndex = parseInt(sql.charAt(subjectIndex)) - 1;
-          query = query.eq('subject', params[paramIndex]);
+        
+        // Subject filter
+        const subjectMatch = sql.match(/subject\s*=\s*\$(\d+)/);
+        if (subjectMatch && subjectMatch[1]) {
+          const paramIndex = parseInt(subjectMatch[1]) - 1;
+          if (params[paramIndex] !== undefined) {
+            query = query.eq('subject', params[paramIndex]);
+          }
         }
-        if (sql.includes('grade = $')) {
-          const gradeIndex = sql.indexOf('grade = $') + 9;
-          const paramIndex = parseInt(sql.charAt(gradeIndex)) - 1;
-          query = query.eq('grade', params[paramIndex]);
+        
+        // Grade filter
+        const gradeMatch = sql.match(/grade\s*=\s*\$(\d+)/);
+        if (gradeMatch && gradeMatch[1]) {
+          const paramIndex = parseInt(gradeMatch[1]) - 1;
+          if (params[paramIndex] !== undefined) {
+            query = query.eq('grade', params[paramIndex]);
+          }
         }
+        
+        // Search filter - find first ILIKE parameter and extract search term
         if (sql.includes('ILIKE')) {
-          const searchIndex = sql.indexOf('ILIKE $') + 7;
-          const paramIndex = parseInt(sql.charAt(searchIndex)) - 1;
-          const searchTerm = params[paramIndex].replace(/%/g, '');
-          query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,instructor.ilike.%${searchTerm}%`);
+          const ilikePattern = /ILIKE\s+\$(\d+)/;
+          const firstMatch = sql.match(ilikePattern);
+          if (firstMatch && firstMatch[1]) {
+            const paramIndex = parseInt(firstMatch[1]) - 1;
+            if (params[paramIndex] !== undefined) {
+              const rawTerm = String(params[paramIndex]);
+              const searchTerm = rawTerm.replace(/%/g, '').trim();
+              if (searchTerm) {
+                // Use PostgREST syntax for OR with ILIKE
+                // Format: column.operator.value,column2.operator.value
+                // The .or() method combines with previous .eq() filters using AND logic
+                const orFilter = `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,instructor.ilike.%${searchTerm}%`;
+                query = query.or(orFilter);
+              }
+            }
+          }
         }
       }
 

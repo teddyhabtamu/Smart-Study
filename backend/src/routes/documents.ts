@@ -89,48 +89,6 @@ router.get('/', optionalAuth, [
     const userId = req.user?.id;
     const isPremium = req.user?.is_premium || false;
 
-    // Build query conditions
-    let conditions = [];
-    let params: any[] = [];
-    let paramCount = 1;
-
-    // Only show premium content to premium users
-    if (!isPremium) {
-      conditions.push(`is_premium = $${paramCount++}`);
-      params.push(false);
-    }
-
-    if (subject) {
-      conditions.push(`subject = $${paramCount++}`);
-      params.push(subject);
-    }
-
-    if (grade) {
-      conditions.push(`grade = $${paramCount++}`);
-      params.push(parseInt(grade as string));
-    }
-
-    if (search) {
-      conditions.push(`(title ILIKE $${paramCount++} OR description ILIKE $${paramCount++} OR author ILIKE $${paramCount++})`);
-      const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
-    }
-
-    // Filter by tag at SQL level (include only documents with this tag)
-    // Using array contains operator for PostgreSQL/Supabase text arrays
-    if (tag) {
-      conditions.push(`$${paramCount++} = ANY(tags)`);
-      params.push(tag);
-    }
-
-    // Exclude documents with specific tag at SQL level
-    if (excludeTag) {
-      conditions.push(`NOT ($${paramCount++} = ANY(tags))`);
-      params.push(excludeTag);
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
     // Handle bookmarked filter separately (client-side filtering since it's user-specific)
     let bookmarkedDocIds: string[] = [];
     if (bookmarked === 'true') {
@@ -147,64 +105,126 @@ router.get('/', optionalAuth, [
     }
 
     // Determine sort order
-    let orderBy = 'created_at DESC'; // default: newest
+    let orderByField = 'created_at';
+    let orderByAsc = false;
     if (sort === 'popular') {
-      orderBy = 'downloads DESC';
+      orderByField = 'downloads';
+      orderByAsc = false;
     } else if (sort === 'title') {
-      orderBy = 'title ASC';
+      orderByField = 'title';
+      orderByAsc = true;
     }
 
-    // Handle bookmarked filter - need to apply before SQL query if bookmarked
-    let finalWhereClause = whereClause;
-    if (bookmarked === 'true' && bookmarkedDocIds.length > 0) {
-      const bookmarkPlaceholders = bookmarkedDocIds.map((_, i) => `$${paramCount + i}`).join(',');
-      const bookmarkCondition = `id IN (${bookmarkPlaceholders})`;
-      finalWhereClause = whereClause 
-        ? `${whereClause} AND ${bookmarkCondition}`
-        : `WHERE ${bookmarkCondition}`;
-      params.push(...bookmarkedDocIds);
-      paramCount += bookmarkedDocIds.length;
-    } else if (bookmarked === 'true' && bookmarkedDocIds.length === 0) {
-      // No bookmarks, return empty result
-      finalWhereClause = 'WHERE 1 = 0'; // Always false condition
+    // Use Supabase directly for better search support
+    // Build all filter conditions
+    const andConditions: string[] = [];
+    
+    if (!isPremium) {
+      andConditions.push('is_premium.eq.false');
     }
 
-    // Get total count for pagination (before pagination, for accurate pagination info)
-    const countParams = [...params];
-    const countResult = await dbQuery(`
-      SELECT COUNT(*) as total
-      FROM documents
-      ${finalWhereClause}
-    `, countParams);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    // Get documents with pagination at SQL level (efficient - only fetches what we need)
-    const documentsResult = await dbQuery(`
-      SELECT id, title, description, subject, grade, file_type, file_size, file_url, is_premium,
-             downloads, preview_image, tags, author, created_at, updated_at
-      FROM documents
-      ${finalWhereClause}
-      ORDER BY ${orderBy}
-      LIMIT $${paramCount++} OFFSET $${paramCount++}
-    `, [...params, limit, offset]);
-
-    let paginatedDocuments = documentsResult.rows;
-
-    // PRIMARY filtering for excludeTag - always apply this filter to ensure correctness
-    if (excludeTag) {
-      paginatedDocuments = paginatedDocuments.filter((doc: any) => {
-        if (!doc.tags || !Array.isArray(doc.tags)) return true; // Include docs with no tags
-        return !doc.tags.includes(excludeTag);
-      });
+    if (subject) {
+      andConditions.push(`subject.eq.${subject}`);
     }
 
-    // PRIMARY filtering for tag - always apply this filter to ensure correctness
+    if (grade) {
+      andConditions.push(`grade.eq.${parseInt(grade)}`);
+    }
+
+    // Filter by tag - Supabase uses cs (contains) for array contains
     if (tag) {
-      paginatedDocuments = paginatedDocuments.filter((doc: any) => {
-        if (!doc.tags || !Array.isArray(doc.tags)) return false; // Exclude docs with no tags when filtering by tag
-        return doc.tags.includes(tag);
-      });
+      andConditions.push(`tags.cs.{"${tag}"}`);
     }
+
+    // Exclude documents with specific tag - use ncs (not contains)
+    if (excludeTag) {
+      andConditions.push(`tags.ncs.{"${excludeTag}"}`);
+    }
+
+    // Handle bookmarked filter
+    if (bookmarked === 'true') {
+      if (bookmarkedDocIds.length === 0) {
+        // No bookmarks, return empty result
+        andConditions.push('id.eq.00000000-0000-0000-0000-000000000000');
+      } else {
+        // Use in operator for multiple IDs
+        const ids = bookmarkedDocIds.join(',');
+        andConditions.push(`id.in.(${ids})`);
+      }
+    }
+
+    // Build the query
+    let query = supabaseAdmin
+      .from('documents')
+      .select('id, title, description, subject, grade, file_type, file_size, file_url, is_premium, downloads, preview_image, tags, author, created_at, updated_at', { count: 'exact' });
+
+    // Apply AND filters individually (Supabase combines these with AND)
+    if (!isPremium) {
+      query = query.eq('is_premium', false);
+    }
+    if (subject) {
+      query = query.eq('subject', subject);
+    }
+    if (grade) {
+      query = query.eq('grade', parseInt(grade));
+    }
+    if (tag) {
+      query = query.filter('tags', 'cs', `{"${tag}"}`);
+    }
+    if (excludeTag) {
+      query = query.not('tags', 'cs', `{"${excludeTag}"}`);
+    }
+    if (bookmarked === 'true') {
+      if (bookmarkedDocIds.length === 0) {
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+      } else {
+        query = query.in('id', bookmarkedDocIds);
+      }
+    }
+
+    // Apply search filter - Supabase should combine this with previous AND filters
+    // The .or() method when chained after .eq() should create: (AND filters) AND (search OR)
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,author.ilike.%${search}%`);
+    }
+
+    // Apply sorting
+    query = query.order(orderByField, { ascending: orderByAsc });
+
+    // Apply pagination
+    query = query.range(offset, offset + limit - 1);
+
+    // Execute query
+    const { data: documentsData, error: documentsError, count } = await query;
+
+    if (documentsError) {
+      console.error('Error fetching documents:', documentsError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get documents'
+      } as ApiResponse);
+      return;
+    }
+
+    let paginatedDocuments = (documentsData || []).map((doc: any) => ({
+      id: doc.id,
+      title: doc.title,
+      description: doc.description,
+      subject: doc.subject,
+      grade: doc.grade,
+      file_type: doc.file_type,
+      file_size: doc.file_size,
+      file_url: doc.file_url,
+      is_premium: doc.is_premium,
+      downloads: doc.downloads || 0,
+      preview_image: doc.preview_image,
+      tags: doc.tags || [],
+      author: doc.author,
+      created_at: doc.created_at,
+      updated_at: doc.updated_at
+    }));
+
+    const total = count || 0;
 
     res.json({
       success: true,

@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, query } from 'express-validator';
-import { query as dbQuery, dbAdmin } from '../database/config';
+import { query as dbQuery, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Video, User } from '../types';
 import { EmailService } from '../services/emailService';
@@ -38,35 +38,6 @@ router.get('/', optionalAuth, [
     const userId = req.user?.id;
     const isPremium = req.user?.is_premium || false;
 
-    // Build query conditions
-    let conditions = [];
-    let params: any[] = [];
-    let paramCount = 1;
-
-    // Only show premium content to premium users
-    if (!isPremium) {
-      conditions.push(`is_premium = $${paramCount++}`);
-      params.push(false);
-    }
-
-    if (subject) {
-      conditions.push(`subject = $${paramCount++}`);
-      params.push(subject);
-    }
-
-    if (grade) {
-      conditions.push(`grade = $${paramCount++}`);
-      params.push(parseInt(grade as string));
-    }
-
-    if (search) {
-      conditions.push(`(title ILIKE $${paramCount++} OR description ILIKE $${paramCount++} OR instructor ILIKE $${paramCount++})`);
-      const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
     // Handle bookmarked filter separately (client-side filtering since it's user-specific)
     let bookmarkedVideoIds: string[] = [];
     if (bookmarked === 'true') {
@@ -83,23 +54,71 @@ router.get('/', optionalAuth, [
     }
 
     // Determine sort order
-    let orderBy = 'created_at DESC'; // default: newest
+    let orderByField = 'created_at';
+    let orderByAsc = false;
     if (sort === 'popular') {
-      orderBy = 'views DESC';
+      orderByField = 'views';
+      orderByAsc = false;
     } else if (sort === 'title') {
-      orderBy = 'title ASC';
+      orderByField = 'title';
+      orderByAsc = true;
     }
 
-    // Get videos
-    const videosResult = await dbQuery(`
-      SELECT id, title, description, subject, grade, thumbnail, video_url,
-             instructor, views, likes, is_premium, uploaded_by, created_at, updated_at
-      FROM videos
-      ${whereClause}
-      ORDER BY ${orderBy}
-    `, params);
+    // Use Supabase directly for better search support
+    let query = supabaseAdmin
+      .from('videos')
+      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at');
 
-    let videos = videosResult.rows;
+    // Apply filters
+    if (!isPremium) {
+      query = query.eq('is_premium', false);
+    }
+
+    if (subject) {
+      query = query.eq('subject', subject);
+    }
+
+    if (grade) {
+      query = query.eq('grade', parseInt(grade));
+    }
+
+    // Apply search filter using OR logic
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,instructor.ilike.%${search}%`);
+    }
+
+    // Apply sorting
+    query = query.order(orderByField, { ascending: orderByAsc });
+
+    // Execute query
+    const { data: videosData, error: videosError } = await query;
+
+    if (videosError) {
+      console.error('Error fetching videos:', videosError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch videos'
+      } as ApiResponse);
+      return;
+    }
+
+    let videos = (videosData || []).map((v: any) => ({
+      id: v.id,
+      title: v.title,
+      description: v.description,
+      subject: v.subject,
+      grade: v.grade,
+      thumbnail: v.thumbnail,
+      video_url: v.video_url,
+      instructor: v.instructor,
+      views: v.views || 0,
+      likes: v.likes || 0,
+      uploadedAt: v.created_at,
+      isPremium: v.is_premium,
+      uploaded_by: v.uploaded_by,
+      created_at: v.created_at,
+      updated_at: v.updated_at
+    }));
 
     // Apply bookmarked filter if requested
     if (bookmarked === 'true') {
