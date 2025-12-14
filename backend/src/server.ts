@@ -56,26 +56,33 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Explicit OPTIONS handler for all routes (catch-all for Vercel)
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    res.status(204).end();
-  } else if (!origin && config.server.nodeEnv === 'development') {
-    // Allow in development
-    res.status(204).end();
-  } else {
-    res.status(403).json({
-      success: false,
-      message: 'Not allowed by CORS'
-    });
+// Explicit OPTIONS handler for all API routes (catch-all for Vercel)
+// Use a middleware function instead of app.options('*') which doesn't work in Express 5
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Max-Age', '86400');
+      res.status(204).end();
+      return;
+    } else if (!origin && config.server.nodeEnv === 'development') {
+      // Allow in development
+      res.status(204).end();
+      return;
+    } else {
+      res.status(403).json({
+        success: false,
+        message: 'Not allowed by CORS'
+      });
+      return;
+    }
   }
+  next();
 });
 
 // Security middleware - configured to not interfere with CORS
