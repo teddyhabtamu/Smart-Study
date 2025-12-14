@@ -311,7 +311,7 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
     const result = await dbQuery(`
       SELECT id, title, description, subject, grade, file_type, file_size, file_url, is_premium,
              downloads, preview_image, tags, author, created_at, updated_at
-      FROM documents WHERE id = $1
+      FROM documents WHERE id::text = $1
     `, [id]);
 
     if (result.rows.length === 0) {

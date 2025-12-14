@@ -1,5 +1,5 @@
 import express from 'express';
-import { query } from '../database/config';
+import { query, supabaseAdmin } from '../database/config';
 import { authenticateToken } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
 
@@ -63,52 +63,93 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 
 
 
-    // Use bookmarks from user profile and get details
+    // Get bookmarks with their item details - use Supabase directly for reliable ordering
     const recentBookmarks = [];
-    if (user.bookmarks && user.bookmarks.length > 0) {
-      // For each bookmark, try to find it as a document first, then as a video
-      // Show up to 12 most recent bookmarks
-      for (const bookmarkId of user.bookmarks.slice(0, 12)) {
-        let itemResult = null;
-        let itemType = null;
+    const seenItemIds = new Set(); // Track which item IDs we've added to avoid duplicates
+    
+    try {
+      // Get bookmarks directly from Supabase with proper ordering
+      // Use admin client to bypass RLS if needed
+      const { data: bookmarks, error: bookmarksError } = await supabaseAdmin
+        .from('bookmarks')
+        .select('item_id, item_type')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10); // Get more than 5 to ensure we find 5 that exist
+      
+      if (bookmarksError) throw bookmarksError;
+      
+      if (bookmarks && bookmarks.length > 0) {
+        // Process bookmarks in order (most recent first) until we have 5 unique items
+        for (const bookmark of bookmarks) {
+          if (recentBookmarks.length >= 5) break;
+          
+          const { item_id, item_type } = bookmark;
+          
+          // Skip if we've already added this item
+          if (seenItemIds.has(item_id)) continue;
+          
+          let itemData = null;
 
-        // Try to find as document first
-        const docResult = await query(`
-          SELECT id, title, subject, grade, preview_image as "previewImage", is_premium as "isPremium"
-          FROM documents
-          WHERE id = $1
-        `, [bookmarkId]);
+          // Query the appropriate table based on item_type
+          if (item_type === 'document') {
+            try {
+              const docResult = await query(`
+                SELECT id, title, subject, grade, preview_image, is_premium
+                FROM documents
+                WHERE id = $1
+              `, [item_id]);
+              
+              if (docResult.rows.length > 0) {
+                const doc = docResult.rows[0];
+                itemData = {
+                  id: doc.id,
+                  type: 'document',
+                  title: doc.title,
+                  subject: doc.subject,
+                  grade: doc.grade,
+                  previewImage: doc.preview_image,
+                  isPremium: doc.is_premium
+                };
+              }
+            } catch (docError) {
+              // Document not found, skip
+            }
+          } else if (item_type === 'video') {
+            try {
+              const videoResult = await query(`
+                SELECT id, title, subject, grade, thumbnail, is_premium
+                FROM videos
+                WHERE id = $1
+              `, [item_id]);
+              
+              if (videoResult.rows.length > 0) {
+                const video = videoResult.rows[0];
+                itemData = {
+                  id: video.id,
+                  type: 'video',
+                  title: video.title,
+                  subject: video.subject,
+                  grade: video.grade,
+                  previewImage: video.thumbnail,
+                  isPremium: video.is_premium
+                };
+              }
+            } catch (videoError) {
+              // Video not found, skip
+            }
+          }
 
-        if (docResult.rows.length > 0) {
-          itemResult = docResult;
-          itemType = 'document';
-        } else {
-          // Try to find as video
-          const videoResult = await query(`
-            SELECT id, title, subject, grade, thumbnail as "previewImage", is_premium as "isPremium"
-            FROM videos
-            WHERE id = $1
-          `, [bookmarkId]);
-
-          if (videoResult.rows.length > 0) {
-            itemResult = videoResult;
-            itemType = 'video';
+          // Add the item if found and unique
+          if (itemData) {
+            seenItemIds.add(itemData.id);
+            recentBookmarks.push(itemData);
           }
         }
-
-        if (itemResult && itemType) {
-          const item = itemResult.rows[0];
-          recentBookmarks.push({
-            id: bookmarkId,
-            type: itemType,
-            title: item.title,
-            subject: item.subject,
-            grade: item.grade,
-            previewImage: item.previewImage,
-            isPremium: item.isPremium
-          });
-        }
       }
+    } catch (bookmarkError) {
+      console.error('Error fetching bookmarks for dashboard:', bookmarkError);
+      // Continue without bookmarks if there's an error
     }
 
     // Calculate today's progress

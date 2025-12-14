@@ -273,6 +273,8 @@ const Dashboard: React.FC = () => {
                    <BookmarkCardSkeleton />
                    <BookmarkCardSkeleton />
                    <BookmarkCardSkeleton />
+                   <BookmarkCardSkeleton />
+                   <BookmarkCardSkeleton />
                  </>
                ) : recentSaved.length > 0 ? (
                  recentSaved.map((item) => (
