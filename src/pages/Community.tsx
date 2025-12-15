@@ -478,23 +478,27 @@ const Community: React.FC = () => {
                  </>
                ) : leaderboard.length > 0 ? (
                  leaderboard.map((learner) => (
-                   <div key={learner.id} className={`flex items-center justify-between p-3 rounded-lg transition-colors ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'hover:bg-zinc-50'}`}>
-                      <div className="flex items-center gap-3">
-                         <div className="w-6 h-6 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-bold text-zinc-600">
+                   <div key={learner.id} className={`flex items-start gap-2 p-2 rounded-lg transition-colors ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'hover:bg-zinc-50'}`}>
+                      <div className="flex-shrink-0 pt-0.5">
+                         <div className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[9px] font-bold text-zinc-600">
                             {learner.rank}
                          </div>
-                         <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600 border border-zinc-200">
-                            {learner.initial}
-                         </div>
-                         <div>
-                            <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-zinc-900'}`}>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                         <div className="flex items-center gap-2 mb-1">
+                            <div className="w-6 h-6 flex-shrink-0 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600 border border-zinc-200">
+                               {learner.initial}
+                            </div>
+                            <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-zinc-900'} truncate flex-1`} title={learner.name}>
                                {learner.name}
                             </p>
-                            <p className="text-xs text-zinc-500">Level {learner.level}</p>
                          </div>
-                      </div>
-                      <div className="text-sm font-mono font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
-                         {learner.xp.toLocaleString()} XP
+                         <div className="flex items-center justify-between gap-2 pl-8">
+                            <p className="text-[10px] text-zinc-500">Level {learner.level}</p>
+                            <div className="text-[10px] font-mono font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                               {learner.xp.toLocaleString()} XP
+                            </div>
+                         </div>
                       </div>
                    </div>
                  ))
