@@ -55,12 +55,12 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-// CORS middleware - but allow OAuth routes to pass through (they're redirects, not JSON)
+// CORS middleware - but allow OAuth routes and image-proxy to pass through
 app.use((req, res, next) => {
   // Skip CORS for OAuth routes - they're server-side redirects
-  // Check both the full path and the path after mount point
+  // Skip CORS for image-proxy - it's a public resource that should be accessible from anywhere
   const path = req.path || req.url?.split('?')[0] || '';
-  if (path.includes('/auth/google') || path.includes('/google')) {
+  if (path.includes('/auth/google') || path.includes('/google') || path.includes('/image-proxy')) {
     return next();
   }
   // Apply CORS for all other routes
@@ -70,10 +70,21 @@ app.use((req, res, next) => {
 // Explicit OPTIONS handler for all API routes (catch-all for Vercel)
 // Use a middleware function instead of app.options('*') which doesn't work in Express 5
 app.use((req, res, next) => {
-  // Skip OPTIONS handling for OAuth routes
+  // Skip OPTIONS handling for OAuth routes and image-proxy (public resource)
   const path = req.path || req.url?.split('?')[0] || '';
   if (path.includes('/auth/google') || path.includes('/google')) {
     return next();
+  }
+  
+  // For image-proxy, allow all origins (it's a public resource)
+  if (path.includes('/image-proxy') && req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
+    return;
   }
   
   if (req.method === 'OPTIONS') {
