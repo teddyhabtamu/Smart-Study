@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
-import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
@@ -28,9 +28,42 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Password strength checker
+  const getPasswordStrength = (pwd: string): { strength: 'weak' | 'medium' | 'strong'; score: number; checks: { label: string; met: boolean }[] } => {
+    const checks = [
+      { label: 'At least 8 characters', met: pwd.length >= 8 },
+      { label: 'Contains uppercase letter', met: /[A-Z]/.test(pwd) },
+      { label: 'Contains lowercase letter', met: /[a-z]/.test(pwd) },
+      { label: 'Contains number', met: /[0-9]/.test(pwd) },
+      { label: 'Contains special character', met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd) },
+    ];
+    
+    const metCount = checks.filter(c => c.met).length;
+    let strength: 'weak' | 'medium' | 'strong' = 'weak';
+    let score = 0;
+    
+    if (metCount <= 2) {
+      strength = 'weak';
+      score = metCount;
+    } else if (metCount <= 4) {
+      strength = 'medium';
+      score = metCount;
+    } else {
+      strength = 'strong';
+      score = metCount;
+    }
+    
+    return { strength, score, checks };
+  };
+
+  const passwordStrength = password ? getPasswordStrength(password) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +95,18 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
       // REGISTER FLOW
       else if (view === 'register') {
+        if (password !== confirmPassword) {
+          addToast("Passwords do not match. Please try again.", "error");
+          setIsLoading(false);
+          return;
+        }
+        
+        if (passwordStrength && passwordStrength.strength === 'weak') {
+          addToast("Password is too weak. Please use a stronger password.", "error");
+          setIsLoading(false);
+          return;
+        }
+        
         await register(name, email, password);
         addToast("Registration successful! Welcome to SmartStudy!", "success");
         
@@ -187,38 +232,137 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               </div>
 
               {view !== 'forgot' && (
-                <div>
-                  <div className="flex justify-between items-center mb-1.5 ml-1">
-                    <label className="block text-xs font-semibold text-zinc-700">Password</label>
-                    {view === 'login' && (
-                      <button 
-                        type="button" 
-                        onClick={() => setView('forgot')} 
-                        className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
+                <>
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5 ml-1">
+                      <label className="block text-xs font-semibold text-zinc-700">Password</label>
+                      {view === 'login' && (
+                        <button 
+                          type="button" 
+                          onClick={() => setView('forgot')} 
+                          className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
+                        >
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                        <Lock size={18} />
+                      </div>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        className="block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                       >
-                        Forgot password?
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
+                    </div>
+                    {view === 'register' && password && (
+                      <div className="mt-2 space-y-2">
+                        {/* Strength Indicator */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                passwordStrength?.strength === 'weak'
+                                  ? 'bg-red-500 w-1/3'
+                                  : passwordStrength?.strength === 'medium'
+                                  ? 'bg-amber-500 w-2/3'
+                                  : 'bg-emerald-500 w-full'
+                              }`}
+                            />
+                          </div>
+                          <span
+                            className={`text-xs font-medium ${
+                              passwordStrength?.strength === 'weak'
+                                ? 'text-red-600'
+                                : passwordStrength?.strength === 'medium'
+                                ? 'text-amber-600'
+                                : 'text-emerald-600'
+                            }`}
+                          >
+                            {passwordStrength?.strength === 'weak' ? 'Weak' : passwordStrength?.strength === 'medium' ? 'Medium' : 'Strong'}
+                          </span>
+                        </div>
+                        {/* Requirements Checklist */}
+                        <div className="space-y-1">
+                          {passwordStrength?.checks.map((check, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs">
+                              <div
+                                className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                  check.met ? 'bg-emerald-500' : 'bg-zinc-200'
+                                }`}
+                              >
+                                {check.met && (
+                                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={check.met ? 'text-zinc-600' : 'text-zinc-400'}>
+                                {check.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                      <Lock size={18} />
+
+                  {view === 'register' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Confirm Password</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                          <Lock size={18} />
+                        </div>
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          className={`block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
+                            confirmPassword && password !== confirmPassword
+                              ? 'border-red-300 focus:border-red-500'
+                              : 'border-zinc-200 focus:border-zinc-900'
+                          }`}
+                          placeholder="••••••••"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        >
+                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {confirmPassword && password !== confirmPassword && (
+                        <p className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
+                      )}
                     </div>
-                    <input
-                      type="password"
-                      required
-                      className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
+                  )}
+                </>
               )}
 
               <button
                 type="submit"
-                disabled={isLoading || isGoogleLoading}
+                disabled={
+                  isLoading || 
+                  isGoogleLoading || 
+                  (view === 'register' && password !== confirmPassword) ||
+                  (view === 'register' && passwordStrength !== null && passwordStrength.strength === 'weak')
+                }
                 className="w-full flex justify-center py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
               >
                 {isLoading ? (

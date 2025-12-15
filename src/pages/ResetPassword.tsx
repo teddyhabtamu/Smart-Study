@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { GraduationCap, Lock, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { GraduationCap, Lock, CheckCircle2, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
@@ -14,6 +14,8 @@ const ResetPassword: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     const tokenParam = searchParams.get('token');
@@ -116,15 +118,24 @@ const ResetPassword: React.FC = () => {
                 </div>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
+                  className="block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                   placeholder="Enter your new password"
                   disabled={isLoading || !token}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  disabled={isLoading || !token}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
               <p className="mt-1 text-xs text-zinc-500 ml-1">Must be at least 6 characters</p>
             </div>
@@ -139,12 +150,12 @@ const ResetPassword: React.FC = () => {
                 </div>
                 <input
                   id="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
-                  className={`block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
+                  className={`block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
                     confirmPassword && password !== confirmPassword
                       ? 'border-red-300 focus:border-red-500'
                       : 'border-zinc-200 focus:border-zinc-900'
@@ -152,6 +163,15 @@ const ResetPassword: React.FC = () => {
                   placeholder="Confirm your new password"
                   disabled={isLoading || !token}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  disabled={isLoading || !token}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
               {confirmPassword && password !== confirmPassword && (
                 <p className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
