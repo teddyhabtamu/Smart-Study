@@ -21,6 +21,7 @@ app.set('trust proxy', true);
 const allowedOrigins = [
   'http://localhost:5173', // Development frontend
   'https://smart-study-navy.vercel.app', // Production frontend (old)
+  'https://smart-study-ncwi.vercel.app', // Production frontend (current)
   'https://smartstudy.tewodroshabtamu.me', // Production frontend (new)
   ...(config.server.frontendUrl && config.server.frontendUrl !== 'http://localhost:5173'
     ? [config.server.frontendUrl]
