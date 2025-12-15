@@ -22,7 +22,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     // Fetch user from database to ensure they still exist and get latest data
     const result = await query(
-      'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -35,6 +35,15 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     }
 
     const user = result.rows[0] as User;
+
+    // Check if user is banned or suspended
+    if (user.status === 'Banned' || user.status === 'Suspended') {
+      res.status(403).json({
+        success: false,
+        message: `Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`
+      });
+      return;
+    }
 
     // Get bookmarks for this user (same as login does)
     const bookmarksResult = await query(
@@ -103,12 +112,15 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
       // Fetch user from database to ensure they still exist and get latest data
       const result = await query(
-        'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
         [decoded.userId]
       );
 
       if (result.rows.length > 0) {
-        req.user = result.rows[0] as User;
+        const user = result.rows[0] as User;
+        // For optionalAuth, we don't block banned users (it's for public routes)
+        // But we still set the user so routes can check status if needed
+        req.user = user;
       }
     }
   } catch (error) {

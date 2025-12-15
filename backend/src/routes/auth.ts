@@ -83,7 +83,7 @@ router.post('/login', [
 
     // Find user
     const result = await query(`
-      SELECT id, name, email, password_hash, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
+      SELECT id, name, email, password_hash, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
       FROM users WHERE email = $1
     `, [email]);
 
@@ -97,10 +97,20 @@ router.post('/login', [
 
     const user = result.rows[0];
     
+    // Check if user is banned or suspended
+    if (user.status === 'Banned' || user.status === 'Suspended') {
+      res.status(403).json({
+        success: false,
+        message: `Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`
+      } as AuthResponse);
+      return;
+    }
+    
     // Log user role on login for debugging
     console.log('🔐 User login - Role check:', {
       email: user.email,
       role: user.role,
+      status: user.status,
       is_premium: user.is_premium
     });
 
@@ -257,15 +267,31 @@ router.get('/google',
 
 router.get('/google/callback',
   passport.authenticate('google', { failureRedirect: '/login', session: false }),
-  (req: express.Request, res: express.Response): void => {
-    // Generate JWT token for the authenticated user
-    // req.user is guaranteed to exist here due to successful authentication
-    const token = generateToken(req.user as User);
+  async (req: express.Request, res: express.Response): Promise<void> => {
+    try {
+      // req.user is guaranteed to exist here due to successful authentication
+      const user = req.user as User;
+      
+      // Check if user is banned or suspended
+      if (user.status === 'Banned' || user.status === 'Suspended') {
+        const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+        const redirectUrl = `${frontendUrl}/login?error=${encodeURIComponent(`Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`)}`;
+        res.redirect(redirectUrl);
+        return;
+      }
+      
+      // Generate JWT token for the authenticated user
+      const token = generateToken(user);
 
-    // Redirect to frontend auth callback with token
-    const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-    const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&success=true`;
-    res.redirect(redirectUrl);
+      // Redirect to frontend auth callback with token
+      const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&success=true`;
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/login?error=Authentication failed`);
+    }
   }
 );
 

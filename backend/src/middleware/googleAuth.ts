@@ -36,6 +36,7 @@ passport.use(new GoogleStrategy({
         password_hash: 'oauth_user_no_password',
         avatar: avatar || null,
         role: 'STUDENT',
+        status: 'Active', // Default status for new users
         preferences: { emailNotifications: true, studyReminders: true },
         unlocked_badges: ['b1'],
         is_premium: false,
@@ -95,8 +96,13 @@ passport.use(new GoogleStrategy({
         // Don't fail authentication if email fails
       });
     } else {
-      // User exists, update Google info if needed
+      // User exists, check if banned or suspended
       user = existingUser;
+      
+      // Check if user is banned or suspended
+      if (user.status === 'Banned' || user.status === 'Suspended') {
+        return done(new Error(`Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`), undefined);
+      }
       
       // Send login success email for existing users logging in via OAuth (non-blocking)
       const loginTime = new Date().toLocaleString('en-US', {
@@ -292,6 +298,11 @@ passport.deserializeUser(async (id: string, done: (err: any, user?: any) => void
 
     if (userError?.code === 'PGRST116' || !user) {
       return done(null, false);
+    }
+
+    // Check if user is banned or suspended
+    if (user.status === 'Banned' || user.status === 'Suspended') {
+      return done(new Error(`Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`), undefined);
     }
 
     // Get bookmarks
