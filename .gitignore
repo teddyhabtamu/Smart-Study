@@ -17,7 +17,8 @@ backend/api/*.js
 backend/api/*.js.map
 backend/api/*.d.ts
 backend/api/*.d.ts.map
-
+backend/*.md
+backend/email-templates/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

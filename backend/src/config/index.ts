@@ -52,7 +52,8 @@ export const config = {
   },
   email: {
     brevo: {
-      apiKey: process.env.BREVO_API_KEY
+      apiKey: process.env.BREVO_API_KEY,
+      verificationTemplateId: parseInt(process.env.BREVO_VERIFICATION_TEMPLATE_ID || '26')
     },
     sender: {
       email: process.env.BREVO_SENDER_EMAIL || 'noreply@smartstudy.com',

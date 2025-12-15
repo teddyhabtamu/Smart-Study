@@ -391,9 +391,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string): Promise<void> => {
     try {
       const response = await authAPI.register(name, email, password);
+      
+      // If no token is returned, email verification is required
+      if (!response.token) {
+        // Don't set user or token - user needs to verify email first
+        // The response.message will contain the verification message
+        return;
+      }
+      
+      // Token exists - email already verified (shouldn't happen in normal flow, but handle it)
       localStorage.setItem('auth_token', response.token);
       // Transform snake_case fields to camelCase to match User interface
       const transformedUser = {

@@ -9,6 +9,7 @@ import Dashboard from './src/pages/Dashboard';
 import Auth from './src/pages/Auth';
 import AuthCallback from './src/pages/AuthCallback';
 import ResetPassword from './src/pages/ResetPassword';
+import VerifyEmail from './src/pages/VerifyEmail';
 import AcceptInvitation from './src/pages/AcceptInvitation';
 import Subscription from './src/pages/Subscription';
 import Admin from './src/pages/Admin';
@@ -40,6 +41,7 @@ const App: React.FC = () => {
       <Routes>
         {/* PUBLIC ROUTES - No Layout wrapper */}
         <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
+        <Route path="/verify-email" element={<PublicRoute><VerifyEmail /></PublicRoute>} />
         <Route path="/login" element={<PublicRoute><Auth type="login" /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Auth type="register" /></PublicRoute>} />
         <Route path="/auth/callback" element={<PublicRoute><AuthCallback /></PublicRoute>} />

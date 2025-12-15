@@ -308,7 +308,7 @@ export const authAPI = {
       body: JSON.stringify({ email, password }),
     }, false),
 
-  register: (name: string, email: string, password: string): Promise<{ user: User; token: string }> =>
+  register: (name: string, email: string, password: string): Promise<{ user: User; token?: string; message?: string }> =>
     apiRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
@@ -330,6 +330,17 @@ export const authAPI = {
     apiRequest('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ token, password }),
+    }, false),
+
+  verifyEmail: (token: string): Promise<{ success: boolean; user?: User; token?: string; message?: string }> =>
+    apiRequest(`/auth/verify-email?token=${encodeURIComponent(token)}`, {
+      method: 'GET',
+    }, false),
+
+  resendVerification: (email: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     }, false),
 
   acceptInvitation: (token: string, password: string): Promise<{ user: User; token: string }> =>

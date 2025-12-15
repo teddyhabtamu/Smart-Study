@@ -108,10 +108,20 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
         }
         
         await register(name, email, password);
-        addToast("Registration successful! Welcome to SmartStudy!", "success");
         
-        // After registration, redirect to dashboard (new users are always students)
-        navigate('/dashboard');
+        // Registration now requires email verification
+        // The register function doesn't set user/token when email verification is required
+        // Show verification message
+        addToast("Registration successful! Please check your email to verify your account before logging in.", "success");
+        
+        // Clear form
+        setName('');
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+        
+        // Switch to login view so user can see the message and try to login after verification
+        setView('login');
       }
 
     } catch (error: any) {

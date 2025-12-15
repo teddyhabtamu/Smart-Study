@@ -6,6 +6,7 @@ export interface User {
   password_hash?: string; // Only used in database operations
   role: 'STUDENT' | 'ADMIN' | 'MODERATOR' | 'TUTOR';
   status?: 'Active' | 'Banned' | 'Suspended' | 'Inactive';
+  email_verified?: boolean;
   is_premium: boolean;
   avatar?: string;
   preferences: {

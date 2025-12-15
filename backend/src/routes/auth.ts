@@ -36,33 +36,52 @@ router.post('/register', [
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
-    // Create user
+    // Create user (email_verified will be false by default)
     const result = await query(`
-      INSERT INTO users (name, email, password_hash, role, preferences, unlocked_badges)
-      VALUES ($1, $2, $3, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'])
+      INSERT INTO users (name, email, password_hash, role, preferences, unlocked_badges, email_verified)
+      VALUES ($1, $2, $3, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], false)
       RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
     `, [name, email, password_hash]);
 
     const user = result.rows[0];
     // Add bookmarks array (empty for new users)
     user.bookmarks = [];
-    const token = generateToken(user);
+    user.email_verified = false;
 
-    // Create welcome notification
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // Token expires in 24 hours
+
+    // Store verification token in database
+    await query(
+      'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
+      [verificationToken, user.id, 'email-verification', expiresAt]
+    );
+
+    // Generate verification URL
+    const verificationUrl = `${config.server.frontendUrl}/verify-email?token=${verificationToken}`;
+
+    // Send verification email via Brevo (non-blocking)
+    const templateId = config.email.brevo.verificationTemplateId;
+    if (templateId > 0) {
+      console.log('📧 Triggering verification email for new user:', { email: user.email, name: user.name });
+      EmailService.sendVerificationEmail(user.email, user.name, verificationUrl, templateId).catch(error => {
+        console.error('❌ Failed to send verification email:', error);
+        // Don't fail registration if email fails
+      });
+    } else {
+      console.warn('⚠️ BREVO_VERIFICATION_TEMPLATE_ID not configured. Verification email not sent.');
+    }
+
+    // Don't generate auth token yet - user needs to verify email first
+    // Create welcome notification (but user can't see it until verified)
     await NotificationService.createWelcomeNotification(user.id);
-
-    // Send welcome email via Brevo (non-blocking)
-    console.log('📧 Triggering welcome email for new user:', { email: user.email, name: user.name });
-    EmailService.sendWelcomeEmail(user.email, user.name).catch(error => {
-      console.error('❌ Failed to send welcome email:', error);
-      // Don't fail registration if email fails
-    });
 
     res.status(201).json({
       success: true,
       user,
-      token,
-      message: 'User registered successfully'
+      message: 'Registration successful! Please check your email to verify your account.'
     } as AuthResponse);
   } catch (error) {
     console.error('Registration error:', error);
@@ -83,7 +102,7 @@ router.post('/login', [
 
     // Find user
     const result = await query(`
-      SELECT id, name, email, password_hash, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
+      SELECT id, name, email, password_hash, role, status, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at
       FROM users WHERE email = $1
     `, [email]);
 
@@ -102,6 +121,15 @@ router.post('/login', [
       res.status(403).json({
         success: false,
         message: `Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`
+      } as AuthResponse);
+      return;
+    }
+
+    // Check if email is verified
+    if (!user.email_verified) {
+      res.status(403).json({
+        success: false,
+        message: 'Please verify your email address before logging in. Check your inbox for the verification email.'
       } as AuthResponse);
       return;
     }
@@ -618,6 +646,180 @@ router.post('/accept-invitation', [
     res.status(500).json({
       success: false,
       message: 'Failed to accept invitation'
+    } as ApiResponse);
+  }
+});
+
+// Verify email endpoint
+router.get('/verify-email', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Verification token is required'
+      } as ApiResponse);
+      return;
+    }
+
+    // Verify token from database
+    const tokenResult = await query(
+      'SELECT token, user_id, type, expires_at, used_at FROM tokens WHERE token = $1 AND type = $2',
+      [token, 'email-verification']
+    );
+
+    if (tokenResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid verification token'
+      } as ApiResponse);
+      return;
+    }
+
+    const tokenRecord = tokenResult.rows[0];
+
+    // Check if token has been used
+    if (tokenRecord.used_at) {
+      res.status(400).json({
+        success: false,
+        message: 'This verification token has already been used'
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if token has expired
+    const expiresAt = new Date(tokenRecord.expires_at);
+    if (expiresAt < new Date()) {
+      res.status(400).json({
+        success: false,
+        message: 'Verification token has expired. Please request a new verification email.'
+      } as ApiResponse);
+      return;
+    }
+
+    // Update user's email_verified status
+    await query(
+      'UPDATE users SET email_verified = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [tokenRecord.user_id]
+    );
+
+    // Mark token as used
+    await query(
+      'UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1',
+      [token]
+    );
+
+    // Get user data
+    const userResult = await query(
+      'SELECT id, name, email, role, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      [tokenRecord.user_id]
+    );
+
+    if (userResult.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    const user = userResult.rows[0];
+    user.bookmarks = [];
+    user.email_verified = true;
+
+    // Generate auth token now that email is verified
+    const authToken = generateToken(user);
+
+    // Send welcome email after verification (non-blocking)
+    console.log('📧 Triggering welcome email for verified user:', { email: user.email, name: user.name });
+    EmailService.sendWelcomeEmail(user.email, user.name).catch(error => {
+      console.error('❌ Failed to send welcome email:', error);
+    });
+
+    res.json({
+      success: true,
+      user,
+      token: authToken,
+      message: 'Email verified successfully! You can now log in.'
+    } as AuthResponse);
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify email'
+    } as ApiResponse);
+  }
+});
+
+// Resend verification email endpoint
+router.post('/resend-verification', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    // Check if user exists
+    const userResult = await query(
+      'SELECT id, name, email, email_verified FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      // Don't reveal if email exists for security
+      res.json({
+        success: true,
+        message: 'If an account with that email exists and is not verified, a verification email has been sent.'
+      } as ApiResponse);
+      return;
+    }
+
+    const user = userResult.rows[0];
+
+    // Check if already verified
+    if (user.email_verified) {
+      res.json({
+        success: true,
+        message: 'This email is already verified.'
+      } as ApiResponse);
+      return;
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    // Delete old verification tokens for this user
+    await query(
+      'DELETE FROM tokens WHERE user_id = $1 AND type = $2',
+      [user.id, 'email-verification']
+    );
+
+    // Store new verification token
+    await query(
+      'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
+      [verificationToken, user.id, 'email-verification', expiresAt]
+    );
+
+    // Generate verification URL
+    const verificationUrl = `${config.server.frontendUrl}/verify-email?token=${verificationToken}`;
+
+    // Send verification email
+    const templateId = config.email.brevo.verificationTemplateId;
+    if (templateId > 0) {
+      await EmailService.sendVerificationEmail(user.email, user.name, verificationUrl, templateId);
+    }
+
+    res.json({
+      success: true,
+      message: 'Verification email has been sent. Please check your inbox.'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resend verification email'
     } as ApiResponse);
   }
 });

@@ -260,6 +260,12 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
               if (params[placeholderIndex] !== undefined) {
                 updates[column] = params[placeholderIndex];
               }
+            } else if (value === 'true') {
+              // Handle boolean true
+              updates[column] = true;
+            } else if (value === 'false') {
+              // Handle boolean false
+              updates[column] = false;
             } else if (value === 'CURRENT_TIMESTAMP' || value === 'NOW()') {
               // Handle SQL functions
               updates[column] = new Date().toISOString();
@@ -274,15 +280,32 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
         const whereParamIndex = parseInt(whereMatch[1]) - 1;
         const id = params[whereParamIndex];
 
-        const { data, error } = await supabase
-          .from('users')
-          .update(updates)
-          .eq('id', id)
-          .select()
-          .single();
+        // Check if query has RETURNING clause - if not, don't use .single()
+        const hasReturning = sql.includes('RETURNING');
+        
+        if (hasReturning) {
+          // Query expects to return data
+          const { data, error } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
 
-        if (error) throw error;
-        return { rows: data ? [data] : [], rowCount: data ? 1 : 0 };
+          if (error) throw error;
+          return { rows: data ? [data] : [], rowCount: data ? 1 : 0 };
+        } else {
+          // Query doesn't return data, just update
+          const { data, error, count } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', id)
+            .select();
+
+          if (error) throw error;
+          // Return empty rows but indicate success if count > 0
+          return { rows: data || [], rowCount: count || 0 };
+        }
       }
     }
 

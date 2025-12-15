@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Auth from './pages/Auth';
 import AuthCallback from './pages/AuthCallback';
 import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import AcceptInvitation from './pages/AcceptInvitation';
 import Subscription from './pages/Subscription';
 import Admin from './pages/Admin';
@@ -71,6 +72,10 @@ const App: React.FC = () => {
         <Route
           path="/reset-password"
           element={<PublicRoute><ResetPassword /></PublicRoute>}
+        />
+        <Route
+          path="/verify-email"
+          element={<PublicRoute><VerifyEmail /></PublicRoute>}
         />
         <Route path="/login" element={<PublicRoute><Auth type="login" /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Auth type="register" /></PublicRoute>} />

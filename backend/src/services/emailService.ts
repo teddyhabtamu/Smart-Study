@@ -298,6 +298,55 @@ export class EmailService {
   }
 
   /**
+   * Send email verification email to new users using Brevo template
+   * @param email - User's email address
+   * @param name - User's name
+   * @param verificationUrl - Full URL with verification token
+   * @param templateId - Brevo template ID for email verification
+   */
+  static async sendVerificationEmail(
+    email: string,
+    name: string,
+    verificationUrl: string,
+    templateId: number
+  ): Promise<boolean> {
+    try {
+      console.log('📧 Attempting to send verification email:', { email, name });
+      
+      const params = {
+        userName: name,
+        userEmail: email,
+        verificationUrl: verificationUrl,
+        platformName: 'SmartStudy',
+        frontendUrl: config.email.frontendUrl,
+        supportEmail: config.email.supportEmail,
+        currentYear: new Date().getFullYear().toString()
+      };
+
+      console.log('📧 Verification email params:', params);
+      console.log('📧 Using template ID:', templateId);
+
+      const result = await this.sendTemplateEmail(email, templateId, params);
+      
+      if (result) {
+        console.log('✅ Verification email sent successfully to:', email);
+      } else {
+        console.warn('⚠️ Verification email sending returned false for:', email);
+      }
+      
+      return result;
+    } catch (error: any) {
+      console.error('❌ Failed to send verification email:', {
+        email,
+        name,
+        error: error.message || error,
+        stack: error.stack
+      });
+      return false;
+    }
+  }
+
+  /**
    * Send login success notification email
    */
   static async sendLoginSuccessEmail(
