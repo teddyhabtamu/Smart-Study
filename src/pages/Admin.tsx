@@ -428,6 +428,28 @@ const Admin: React.FC = () => {
     type: null
   });
 
+  // Team Member Removal Confirmation Modal State
+  const [removeTeamMemberConfirmation, setRemoveTeamMemberConfirmation] = useState<{
+    isOpen: boolean;
+    id: string | null;
+    name: string | null;
+  }>({
+    isOpen: false,
+    id: null,
+    name: null
+  });
+
+  // Delete Post Confirmation Modal State
+  const [deletePostConfirmation, setDeletePostConfirmation] = useState<{
+    isOpen: boolean;
+    id: string | null;
+    title: string | null;
+  }>({
+    isOpen: false,
+    id: null,
+    title: null
+  });
+
   // Options
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
   const subjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
@@ -715,11 +737,31 @@ const Admin: React.FC = () => {
     setDeleteConfirmation({ isOpen: false, id: null, title: null, type: null });
   };
 
-  const handleDeletePost = (id: string) => {
-    if (window.confirm("Delete this community post and all its comments?")) {
-      deleteForumPost(id);
-      addToast('Discussion post deleted', 'info');
+  const handleDeletePost = (id: string, title: string) => {
+    setDeletePostConfirmation({
+      isOpen: true,
+      id: id,
+      title: title
+    });
+  };
+
+  const confirmDeletePost = async () => {
+    if (!deletePostConfirmation.id) return;
+
+    try {
+      await deleteForumPost(deletePostConfirmation.id);
+      await fetchForumPosts(); // Refresh posts list
+      addToast('Discussion post deleted successfully', 'success');
+      setDeletePostConfirmation({ isOpen: false, id: null, title: null });
+    } catch (error: any) {
+      console.error('Delete post error:', error);
+      const errorMessage = error?.message || 'Failed to delete post. Please try again.';
+      addToast(errorMessage, 'error');
     }
+  };
+
+  const closeDeletePostConfirmation = () => {
+    setDeletePostConfirmation({ isOpen: false, id: null, title: null });
   };
 
   // --- Student Handlers ---
@@ -933,19 +975,35 @@ const Admin: React.FC = () => {
     setEditingPositionId(null);
   };
 
-  const handleRemoveAdmin = async (id: string) => {
-    if (window.confirm("Remove this user from the admin team?")) {
-      setIsRemovingAdmin(id);
-      try {
-        await adminAPI.removeAdmin(id);
-        await fetchAdmins(); // Refresh admin list
-        addToast('Team member removed', 'info');
-      } catch (error: any) {
-        addToast(error.message || 'Failed to remove admin', 'error');
-      } finally {
-        setIsRemovingAdmin(null);
-      }
+  const handleRemoveAdmin = (id: string, name: string) => {
+    setRemoveTeamMemberConfirmation({
+      isOpen: true,
+      id: id,
+      name: name
+    });
+  };
+
+  const confirmRemoveTeamMember = async () => {
+    if (!removeTeamMemberConfirmation.id) return;
+
+    setIsRemovingAdmin(removeTeamMemberConfirmation.id);
+    try {
+      await adminAPI.removeAdmin(removeTeamMemberConfirmation.id);
+      await fetchAdmins(); // Refresh admin list
+      addToast('Team member removed successfully', 'success');
+      setRemoveTeamMemberConfirmation({ isOpen: false, id: null, name: null });
+    } catch (error: any) {
+      console.error('Remove admin error:', error);
+      // Extract error message - could be in error.message or error.response.data.message
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to remove team member. Please try again.';
+      addToast(errorMessage, 'error');
+    } finally {
+      setIsRemovingAdmin(null);
     }
+  };
+
+  const closeRemoveTeamMemberConfirmation = () => {
+    setRemoveTeamMemberConfirmation({ isOpen: false, id: null, name: null });
   };
 
   // Filtering
@@ -1705,7 +1763,7 @@ const Admin: React.FC = () => {
                          <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-2">
                             <h3 className="font-bold text-zinc-900 text-sm flex-1 min-w-0 line-clamp-1">{post.title}</h3>
                             <button
-                              onClick={() => handleDeletePost(post.id)}
+                              onClick={() => handleDeletePost(post.id, post.title)}
                               className="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-colors whitespace-nowrap"
                             >
                               Delete
@@ -2168,7 +2226,7 @@ const Admin: React.FC = () => {
                                    </div>
                                  </div>
                                  <button
-                                   onClick={() => handleRemoveAdmin(member.id)}
+                                   onClick={() => handleRemoveAdmin(member.id, member.name)}
                                    disabled={isRemovingAdmin === member.id}
                                    className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                  >
@@ -2250,7 +2308,7 @@ const Admin: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <button
-                                         onClick={() => handleRemoveAdmin(member.id)}
+                                         onClick={() => handleRemoveAdmin(member.id, member.name)}
                                          disabled={isRemovingAdmin === member.id}
                                          className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                        >
@@ -2299,7 +2357,7 @@ const Admin: React.FC = () => {
                                    </div>
                                  </div>
                                  <button
-                                   onClick={() => handleRemoveAdmin(member.id)}
+                                   onClick={() => handleRemoveAdmin(member.id, member.name)}
                                    disabled={isRemovingAdmin === member.id}
                                    className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                  >
@@ -2377,7 +2435,7 @@ const Admin: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <button
-                                         onClick={() => handleRemoveAdmin(member.id)}
+                                         onClick={() => handleRemoveAdmin(member.id, member.name)}
                                          disabled={isRemovingAdmin === member.id}
                                          className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                        >
@@ -2588,6 +2646,90 @@ const Admin: React.FC = () => {
                   ) : (
                     'Delete Forever'
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Remove Team Member Confirmation Modal */}
+      {removeTeamMemberConfirmation.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                    Remove Team Member?
+                  </h3>
+                  <p className="text-sm text-zinc-600">
+                    Are you sure you want to remove <strong>"{removeTeamMemberConfirmation.name}"</strong> from the admin team? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={closeRemoveTeamMemberConfirmation}
+                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRemoveTeamMember}
+                  disabled={isRemovingAdmin === removeTeamMemberConfirmation.id}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRemovingAdmin === removeTeamMemberConfirmation.id ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    'Remove Member'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Post Confirmation Modal */}
+      {deletePostConfirmation.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                    Delete Community Post?
+                  </h3>
+                  <p className="text-sm text-zinc-600">
+                    Are you sure you want to delete <strong>"{deletePostConfirmation.title}"</strong>? This will also delete all comments associated with this post. This action is permanent and cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={closeDeletePostConfirmation}
+                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeletePost}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  Delete Forever
                 </button>
               </div>
             </div>

@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Request deduplication - prevent multiple simultaneous calls
   const profileRequestRef = useRef<Promise<any> | null>(null);
   const lastProfileFetchRef = useRef<Date | null>(null);
-  const PROFILE_CACHE_DURATION = 5000; // 5 seconds cache
+  const PROFILE_CACHE_DURATION = 30000; // 30 seconds cache (increased to reduce API calls)
   const networkErrorShownRef = useRef(false); // Track if we've shown network error notification
 
   // Check authentication on mount
@@ -205,28 +205,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isPolling = true;
 
       try {
-        // Check if we need fresh data (more than 20 seconds since last fetch)
+        // Check if we need fresh data (more than 60 seconds since last fetch)
         const now = new Date();
         const shouldFetchFresh = !lastProfileFetchRef.current || 
-          (now.getTime() - lastProfileFetchRef.current.getTime()) > 20000; // 20 seconds
+          (now.getTime() - lastProfileFetchRef.current.getTime()) > 60000; // 60 seconds
         
         const currentNotifications = user.notifications || [];
         let newNotifications = currentNotifications;
         
         if (shouldFetchFresh) {
-          // For notification polling, check if there's a pending profile request
-          if (profileRequestRef.current) {
-            // Wait for existing request to complete
-            await profileRequestRef.current;
-            // Get updated notifications from user state (refreshUser updates it)
-            newNotifications = user.notifications || [];
-          } else {
-            // Make fresh call for notifications
-            const response = await usersAPI.getProfile();
-            newNotifications = response.notifications || [];
-            // Update user state with fresh notifications
-            setUser(prev => prev ? { ...prev, notifications: newNotifications } : null);
-            lastProfileFetchRef.current = new Date();
+          // Use refreshUser which has built-in caching and request deduplication
+          // This prevents multiple simultaneous API calls
+          try {
+            await refreshUser(false); // false = use cache if available
+            // Note: refreshUser updates user state via setUser, but we can't access it synchronously here
+            // The updated notifications will be available in the next poll cycle
+            // For now, keep using current notifications to avoid stale comparisons
+            newNotifications = currentNotifications;
+          } catch (error) {
+            // If refresh fails, use existing notifications
+            console.warn('Failed to refresh user during notification poll:', error);
+            newNotifications = currentNotifications;
           }
         }
 
@@ -286,8 +285,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       isPolling = false;
       
-      // Poll every 20 seconds (reduced from 30 for better responsiveness)
-      pollTimeout = setTimeout(pollNotifications, 20000);
+      // Poll every 60 seconds (increased to reduce API calls)
+      pollTimeout = setTimeout(pollNotifications, 60000);
     };
 
     // Helper function to show browser notification
@@ -570,6 +569,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       setUser(transformedUser);
       localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
+      // Update last fetch time after successful fetch
+      lastProfileFetchRef.current = new Date();
     } catch (error: any) {
       console.error('Refresh user error:', error);
       // If refresh fails due to auth error, user might be logged out

@@ -760,28 +760,59 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
     const { userId } = req.params;
     const targetUserId = userId;
 
-    const user = dbAdmin.findOne('users', (u: any) => u.id === targetUserId);
+    console.log('Attempting to remove admin with ID:', targetUserId);
+
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === targetUserId);
     if (!user) {
+      console.log('User not found:', targetUserId);
       res.status(404).json({
         success: false,
         message: 'User not found'
       } as ApiResponse);
+      return;
     }
 
-    // Don't allow removing the last admin
-    const admins = (await dbAdmin.get('users')).filter((u: any) => u.role === 'ADMIN');
-    if (admins.length <= 1) {
+    console.log('Found user:', { id: user.id, name: user.name, role: user.role });
+
+    // Check if user is actually an admin or moderator
+    if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
+      console.log('User is not an admin or moderator:', user.role);
+      res.status(400).json({
+        success: false,
+        message: 'User is not an admin or moderator'
+      } as ApiResponse);
+      return;
+    }
+
+    // Don't allow removing the last admin (but allow removing moderators)
+    const allUsers = await dbAdmin.get('users');
+    const admins = allUsers.filter((u: any) => u.role === 'ADMIN');
+    console.log('Total admins found:', admins.length);
+    
+    if (user.role === 'ADMIN' && admins.length <= 1) {
+      console.log('Cannot remove the last admin');
       res.status(400).json({
         success: false,
         message: 'Cannot remove the last admin'
       } as ApiResponse);
+      return;
     }
 
-    dbAdmin.update('users', targetUserId, {
+    const updateResult = await dbAdmin.update('users', targetUserId, {
       role: 'STUDENT',
       updated_at: new Date().toISOString()
     });
 
+    if (!updateResult) {
+      console.log('Update failed - user may not exist');
+      res.status(404).json({
+        success: false,
+        message: 'User not found or update failed'
+      } as ApiResponse);
+      return;
+    }
+
+    console.log('Admin privileges removed successfully for user:', targetUserId);
     res.json({
       success: true,
       message: 'Admin privileges removed successfully'
