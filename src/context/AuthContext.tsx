@@ -196,7 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
 
     let isPolling = false;
-    let pollTimeout: NodeJS.Timeout;
+    let pollTimeout: ReturnType<typeof setTimeout>;
     const shownNotifications = new Set<string>(); // Track notifications that have been shown
 
     const pollNotifications = async () => {

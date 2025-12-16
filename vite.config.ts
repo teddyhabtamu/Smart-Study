@@ -10,5 +10,14 @@ export default defineConfig({
   },
   define: {
     'process.env': process.env
+  },
+  optimizeDeps: {
+    include: ['tesseract.js']
+  },
+  server: {
+    fs: {
+      // Allow serving files from one level up to the project root
+      allow: ['..']
+    }
   }
 });

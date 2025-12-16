@@ -19,7 +19,8 @@
     "rehype-katex": "^7.0.0",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
-    "tailwind-merge": "^2.2.2"
+    "tailwind-merge": "^2.2.2",
+    "tesseract.js": "^5.0.4"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

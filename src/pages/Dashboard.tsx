@@ -116,7 +116,7 @@ const Dashboard: React.FC = () => {
 
   // Refresh dashboard when bookmarks change - with debounce
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     const handleBookmarksChanged = () => {
       if (user) {
         // Debounce to prevent multiple rapid calls
