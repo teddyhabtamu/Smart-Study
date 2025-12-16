@@ -290,12 +290,26 @@ router.post('/generate-study-plan', authenticateToken, async (req: express.Reque
 });
 
 // Image upload with OCR endpoint
+// Note: Tesseract.js can be slow on serverless platforms. Consider using a cloud OCR API
+// (Google Cloud Vision, AWS Textract) or client-side OCR for better performance.
 router.post('/ocr', optionalAuth, upload.single('image'), async (req: express.Request, res: express.Response): Promise<void> => {
+  // Set a longer timeout for this endpoint
+  req.setTimeout(60000); // 60 seconds
+  
   try {
     if (!req.file) {
       res.status(400).json({
         success: false,
         message: 'No image file provided'
+      } as ApiResponse);
+      return;
+    }
+
+    // Check file size - reject very large images to prevent timeouts
+    if (req.file.buffer.length > 5 * 1024 * 1024) { // 5MB
+      res.status(400).json({
+        success: false,
+        message: 'Image too large. Please use an image smaller than 5MB for faster processing.'
       } as ApiResponse);
       return;
     }
@@ -313,9 +327,20 @@ router.post('/ocr', optionalAuth, upload.single('image'), async (req: express.Re
     return;
   } catch (error) {
     console.error('OCR error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to extract text from image';
+    
+    // Provide helpful error messages
+    if (errorMessage.includes('timeout')) {
+      res.status(504).json({
+        success: false,
+        message: 'OCR processing timed out. The image may be too large or complex. Please try with a smaller or clearer image, or use a cloud OCR service for better performance.'
+      } as ApiResponse);
+      return;
+    }
+    
     res.status(500).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to extract text from image'
+      message: errorMessage
     } as ApiResponse);
     return;
   }
