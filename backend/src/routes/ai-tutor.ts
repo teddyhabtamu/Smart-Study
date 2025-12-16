@@ -1,9 +1,27 @@
 import express from 'express';
+import multer from 'multer';
 import { dbAdmin } from '../database/config';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
+import { extractTextFromImage } from '../services/ocrService';
 
 const router = express.Router();
+
+// Configure multer for image uploads (memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 // Get user's chat sessions
 router.get('/sessions', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
@@ -271,8 +289,41 @@ router.post('/generate-study-plan', authenticateToken, async (req: express.Reque
   }
 });
 
+// Image upload with OCR endpoint
+router.post('/ocr', optionalAuth, upload.single('image'), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      } as ApiResponse);
+      return;
+    }
+
+    // Extract text from image using OCR
+    const extractedText = await extractTextFromImage(req.file.buffer);
+
+    res.json({
+      success: true,
+      data: {
+        text: extractedText
+      },
+      message: 'Text extracted successfully'
+    } as ApiResponse);
+    return;
+  } catch (error) {
+    console.error('OCR error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to extract text from image'
+    } as ApiResponse);
+    return;
+  }
+});
+
 // AI Chat endpoint using Groq with Llama 3.1
 // Use optionalAuth so authenticated users get sessions saved; guests still allowed
+// Now accepts both text messages and OCR text
 router.post('/chat', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { message, subject, grade, sessionId } = req.body;

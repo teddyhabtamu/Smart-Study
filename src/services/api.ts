@@ -644,6 +644,36 @@ export const aiTutorAPI = {
       body: JSON.stringify({ message, subject, grade, sessionId }),
     }),
 
+  extractTextFromImage: (imageFile: File): Promise<{ text: string }> => {
+    // Use the same pattern as other endpoints - apiRequest adds /api if needed
+    // But since we need FormData, we construct the URL manually
+    // Check if API_BASE_URL already includes /api
+    const baseUrl = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+    const url = `${baseUrl}/ai-tutor/ocr`;
+    const token = getAuthToken();
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        // Don't set Content-Type header - let browser set it with boundary for FormData
+      },
+      body: formData,
+    }).then(async (response) => {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to extract text from image' }));
+        throw new Error(errorData.message || 'Failed to extract text from image');
+      }
+      const data = await response.json();
+      if (data.success === false) {
+        throw new Error(data.message || 'Failed to extract text from image');
+      }
+      return data.data; // Return { text: string }
+    });
+  },
+
   generateStudyPlan: (prompt: string, grade?: number): Promise<{ plan: any[]; xpGained: number }> =>
     apiRequest('/ai-tutor/generate-study-plan', {
       method: 'POST',

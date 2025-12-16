@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, ExternalLink, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2 } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, ExternalLink, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { videosAPI, aiTutorAPI } from '../services/api';
 import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -30,6 +30,17 @@ const VideoWatch: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        // Reset state when switching videos to prevent showing old video data
+        setVideo(null);
+        setChatHistory([]);
+        setChatInput('');
+        setNotes('');
+        setQuizContent(null);
+        setActiveTab('upNext');
+        if (imagePreview) {
+          URL.revokeObjectURL(imagePreview);
+          setImagePreview(null);
+        }
 
         // Fetch the main video
         const videoData = await videosAPI.getById(id);
@@ -67,28 +78,18 @@ const VideoWatch: React.FC = () => {
     };
 
     fetchVideoData();
-  }, [id]);
+  }, [id, user?.id]); // Only depend on user ID, not the entire user object
 
-  // Update completion/like status when user changes
+  // Update completion/like status when user changes (only if video is already loaded)
   useEffect(() => {
-    if (user && video && id) {
-      // Re-fetch just the user-specific data for this video
-      const updateUserData = async () => {
-        try {
-          const videoData = await videosAPI.getById(id);
-          setHasLiked(videoData.user_has_liked || false);
-          setIsCompleted(videoData.user_has_completed || false);
-        } catch (error) {
-          console.error('Failed to update user data:', error);
-        }
-      };
-      updateUserData();
-    } else if (!user) {
+    if (!user) {
       // Reset user-specific data when logged out
       setHasLiked(false);
       setIsCompleted(false);
     }
-  }, [user?.id, id]);
+    // Note: User-specific data (liked/completed) is already fetched in the main useEffect
+    // This effect only handles the logout case to avoid duplicate API calls
+  }, [user?.id]);
   const [activeTab, setActiveTab] = useState<'upNext' | 'notes' | 'chat' | 'quiz'>('upNext');
   const [notes, setNotes] = useState('');
   const [isRestricted, setIsRestricted] = useState(false);
@@ -97,6 +98,8 @@ const VideoWatch: React.FC = () => {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: string, text: string }[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [quizContent, setQuizContent] = useState<string | null>(null);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -116,7 +119,7 @@ const VideoWatch: React.FC = () => {
     } else {
       setIsRestricted(false);
     }
-  }, [user, id]);
+  }, [user?.id, id]); // Only depend on user ID, not the entire user object
 
   useEffect(() => {
     setQuizContent(null);
@@ -158,11 +161,53 @@ const VideoWatch: React.FC = () => {
     }
   };
 
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast('Please upload an image file', 'error');
+      return;
+    }
+
+    if (!video) return;
+
+    setIsProcessingImage(true);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+
+    try {
+      // Extract text from image using OCR
+      const { text } = await aiTutorAPI.extractTextFromImage(file);
+      
+      // Put extracted text in input field instead of auto-sending
+      if (text && text.trim()) {
+        setChatInput(`[Image with text]\n\n${text}`);
+        addToast('Text extracted from image. You can edit and send it.', 'success');
+      } else {
+        setChatInput('[Image uploaded - no text detected]');
+        addToast('No text could be extracted from the image. You can still add a question.', 'info');
+      }
+    } catch (error: any) {
+      console.error('OCR error:', error);
+      addToast(error.message || 'Failed to extract text from image', 'error');
+      setImagePreview(null);
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  // Clear image preview
+  const clearImagePreview = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+  };
+
   const handleAskAI = async () => {
     if (!chatInput.trim() || !video) return;
 
     const userMsg = chatInput;
     setChatInput('');
+    clearImagePreview(); // Clear image preview when sending
     setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsChatLoading(true);
 
@@ -199,6 +244,56 @@ const VideoWatch: React.FC = () => {
       setIsQuizLoading(false);
     }
   };
+
+  // Handle paste event for images
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Check if the pasted item is an image
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        
+        const blob = item.getAsFile();
+        if (blob) {
+          // Convert blob to File object
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
+          await handleImageUpload(file);
+        }
+        return;
+      }
+    }
+  };
+
+  // Cleanup image preview on unmount
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  // Helper function to extract video ID from URL
+  const getVideoId = (url: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  // Memoize videoId and embedUrl to prevent unnecessary iframe re-renders
+  // These must be called before any early returns to follow Rules of Hooks
+  const videoId = useMemo(() => {
+    return video ? getVideoId(video.video_url) : null;
+  }, [video?.video_url]);
+  
+  const embedUrl = useMemo(() => {
+    if (!videoId) return '';
+    return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&origin=${window.location.origin}`;
+  }, [videoId]);
 
   // Loading state
   if (loading) {
@@ -261,19 +356,6 @@ const VideoWatch: React.FC = () => {
 
   const canWatch = !video.is_premium || (user && user.isPremium);
   const isBookmarked = user?.bookmarks?.includes(video.id);
-
-  const getVideoId = (url: string) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
-
-  const videoId = getVideoId(video.video_url);
-  
-  const embedUrl = videoId 
-    ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&origin=${window.location.origin}`
-    : '';
 
   const handleLike = async () => {
     if (!user) {
@@ -378,6 +460,7 @@ const VideoWatch: React.FC = () => {
              <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-lg relative">
                 {canWatch && videoId ? (
                    <iframe
+                     key={videoId} // Key prevents unnecessary iframe recreation
                      width="100%"
                      height="100%"
                      src={embedUrl}
@@ -654,19 +737,63 @@ const VideoWatch: React.FC = () => {
                        )}
                     </div>
 
-                    <div className="pt-2 border-t border-zinc-100">
-                       <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative">
+                    <div className="pt-2 border-t border-zinc-100 relative">
+                       {/* Image Preview */}
+                       {imagePreview && (
+                         <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
+                           <div className="relative">
+                             <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
+                             <button
+                               type="button"
+                               onClick={clearImagePreview}
+                               className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                               title="Remove image"
+                             >
+                               <X size={14} />
+                             </button>
+                           </div>
+                         </div>
+                       )}
+                       <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-center gap-1">
+                          <input
+                             type="file"
+                             accept="image/*"
+                             onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if (file) handleImageUpload(file);
+                               e.target.value = ''; // Reset input
+                             }}
+                             className="hidden"
+                             id="video-image-upload-input"
+                             disabled={isChatLoading || isProcessingImage}
+                          />
+                          <label
+                             htmlFor="video-image-upload-input"
+                             className={`p-1.5 rounded-lg transition-colors flex items-center justify-center cursor-pointer ${
+                               isProcessingImage
+                                 ? 'bg-blue-50 text-blue-600'
+                                 : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                             } ${isChatLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                             title="Upload Image with Text"
+                          >
+                             {isProcessingImage ? (
+                               <Loader2 size={14} className="animate-spin" />
+                             ) : (
+                               <ImageIcon size={14} />
+                             )}
+                          </label>
                           <input
                              type="text"
-                             className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-xs focus:outline-none focus:border-zinc-900 transition-all placeholder-zinc-400"
-                             placeholder="Ask a question..."
+                             className="flex-1 pl-3 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-xs focus:outline-none focus:border-zinc-900 transition-all placeholder-zinc-400"
+                             placeholder={isProcessingImage ? "Extracting text from image..." : "Ask a question or paste an image..."}
                              value={chatInput}
                              onChange={(e) => setChatInput(e.target.value)}
-                             disabled={isChatLoading}
+                             onPaste={handlePaste}
+                             disabled={isChatLoading || isProcessingImage}
                           />
                           <button 
                              type="submit" 
-                             disabled={!chatInput.trim() || isChatLoading}
+                             disabled={!chatInput.trim() || isChatLoading || isProcessingImage}
                              className="absolute right-2 top-2 p-1 text-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                           >
                              {isChatLoading ? (

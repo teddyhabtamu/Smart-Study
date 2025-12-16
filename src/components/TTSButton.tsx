@@ -13,11 +13,16 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   
   // Refs
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+  const wasManuallyStoppedRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (quality === 'standard' && !('speechSynthesis' in window)) {
@@ -68,17 +73,37 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
   }
 
   const handleStandardToggle = () => {
-    if (isPlaying) {
+    // Check both state and actual speaking status
+    const isActuallyPlaying = isPlaying || isPaused || window.speechSynthesis.speaking || window.speechSynthesis.pending;
+    
+    if (isActuallyPlaying) {
+      // Stop completely (not pause) - be aggressive about stopping
       window.speechSynthesis.cancel();
+      // Call cancel again to ensure it stops (some browsers need this)
+      setTimeout(() => {
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
+      }, 10);
+      
       setIsPlaying(false);
+      setIsPaused(false);
+      utteranceRef.current = null;
     } else {
+      // Start new
       window.speechSynthesis.cancel();
       const cleanText = text.replace(/[#*`_]/g, '');
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utteranceRef.current = utterance;
 
-      utterance.onend = () => setIsPlaying(false);
-      utterance.onerror = () => setIsPlaying(false);
+      utterance.onend = () => {
+        setIsPlaying(false);
+        setIsPaused(false);
+      };
+      utterance.onerror = () => {
+        setIsPlaying(false);
+        setIsPaused(false);
+      };
 
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('en')) || 
@@ -89,19 +114,50 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
 
       window.speechSynthesis.speak(utterance);
       setIsPlaying(true);
+      setIsPaused(false);
     }
   };
 
   const handleHighQualityToggle = async () => {
-    if (isPlaying) {
+    if (isPlaying || isPaused) {
+      // Stop completely (not pause)
+      wasManuallyStoppedRef.current = true; // Mark as manually stopped
+      
       if (sourceNodeRef.current) {
-        try { sourceNodeRef.current.stop(); } catch (e) {}
+        try { 
+          // Disconnect and stop immediately
+          sourceNodeRef.current.disconnect();
+          sourceNodeRef.current.stop(0); // Stop immediately
+        } catch (e) {
+          // Source might already be stopped or disconnected
+          console.error('Error stopping audio:', e);
+        }
         sourceNodeRef.current = null;
       }
+      // Also disconnect the audio context destination to ensure no audio continues
+      if (audioContextRef.current) {
+        try {
+          // Close any active connections
+          if (audioContextRef.current.state !== 'closed') {
+            // Don't close the context, just ensure it's stopped
+            const ctx = audioContextRef.current;
+            if (ctx.state === 'running') {
+              await ctx.suspend();
+              await ctx.resume(); // Reset state
+            }
+          }
+        } catch (e) {
+          console.error('Error managing audio context:', e);
+        }
+      }
       setIsPlaying(false);
+      setIsPaused(false);
+      pausedAtRef.current = 0;
+      audioBufferRef.current = null;
       return;
     }
 
+    // Start new playback
     setIsLoading(true);
     try {
       // Clean text slightly
@@ -126,21 +182,33 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
         // Decode PCM
         const pcmData = decode(base64Audio);
         const audioBuffer = await decodeAudioData(pcmData, ctx, 24000, 1);
+        audioBufferRef.current = audioBuffer; // Store for resume
         
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(ctx.destination);
         
+        // Reset manual stop flag
+        wasManuallyStoppedRef.current = false;
+        
         source.onended = () => {
-            setIsPlaying(false);
-            sourceNodeRef.current = null;
+            // Only update state if we didn't manually stop
+            if (!wasManuallyStoppedRef.current) {
+              setIsPlaying(false);
+              setIsPaused(false);
+              sourceNodeRef.current = null;
+              pausedAtRef.current = 0;
+            }
         };
         
+        startTimeRef.current = ctx.currentTime;
+        pausedAtRef.current = 0;
         source.start();
         sourceNodeRef.current = source;
         
         setIsLoading(false);
         setIsPlaying(true);
+        setIsPaused(false);
       } else {
         // Fallback to standard if HQ fails
         console.warn("HQ Audio generation returned empty. Falling back to standard TTS.");

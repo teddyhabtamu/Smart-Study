@@ -2,7 +2,7 @@
 // src/pages/AITutor.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2 } from 'lucide-react';
+import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { ChatSession } from '../types';
@@ -35,6 +35,8 @@ const AITutor: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
@@ -126,6 +128,15 @@ const AITutor: React.FC = () => {
 
     loadUserGrade();
   }, [user]);
+
+  // Cleanup image preview on unmount
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   // Handle Initial Prompt from Dashboard
   useEffect(() => {
@@ -260,6 +271,68 @@ const AITutor: React.FC = () => {
     }
   };
 
+  // Handle image upload and OCR
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast('Please upload an image file', 'error');
+      return;
+    }
+
+    setIsProcessingImage(true);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+
+    try {
+      // Extract text from image using OCR
+      const { text } = await aiTutorAPI.extractTextFromImage(file);
+      
+      // Put extracted text in input field instead of auto-sending
+      if (text && text.trim()) {
+        setInput(`[Image with text]\n\n${text}`);
+        addToast('Text extracted from image. You can edit and send it.', 'success');
+      } else {
+        setInput('[Image uploaded - no text detected]');
+        addToast('No text could be extracted from the image. You can still add a question.', 'info');
+      }
+    } catch (error: any) {
+      console.error('OCR error:', error);
+      addToast(error.message || 'Failed to extract text from image', 'error');
+      setImagePreview(null);
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  // Clear image preview
+  const clearImagePreview = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+  };
+
+  // Handle paste event for images
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Check if the pasted item is an image
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        
+        const blob = item.getAsFile();
+        if (blob) {
+          // Convert blob to File object
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
+          await handleImageUpload(file);
+        }
+        return;
+      }
+    }
+  };
+
   // Send message
   const handleSend = async (text: string = input) => {
     if (!text.trim()) return;
@@ -271,6 +344,7 @@ const AITutor: React.FC = () => {
 
     const userMsg = text;
     setInput('');
+    clearImagePreview(); // Clear image preview when sending
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -623,18 +697,62 @@ const AITutor: React.FC = () => {
                 onSubmit={(e) => { e.preventDefault(); handleSend(); }}
                 className="relative flex gap-1.5 sm:gap-2 items-center"
               >
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
+                    <div className="relative">
+                      <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
+                      <button
+                        type="button"
+                        onClick={clearImagePreview}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                        title="Remove image"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="relative flex-1">
                   <input
                     ref={inputRef}
                     type="text"
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-3 sm:pl-4 pr-10 sm:pr-12 py-3 sm:py-3.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-all font-medium text-sm placeholder-zinc-400 shadow-sm"
-                    placeholder={isListening ? "Listening..." : "Ask a question..."}
+                    placeholder={isListening ? "Listening..." : isProcessingImage ? "Extracting text from image..." : "Ask a question or paste an image..."}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    disabled={isLoading}
+                    onPaste={handlePaste}
+                    disabled={isLoading || isProcessingImage}
                     autoFocus
                   />
                   <div className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 flex gap-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file);
+                        e.target.value = ''; // Reset input
+                      }}
+                      className="hidden"
+                      id="image-upload-input"
+                      disabled={isLoading || isProcessingImage}
+                    />
+                    <label
+                      htmlFor="image-upload-input"
+                      className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
+                        isProcessingImage
+                          ? 'bg-blue-50 text-blue-600 animate-pulse'
+                          : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                      } ${isLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title="Upload Image with Text"
+                    >
+                      {isProcessingImage ? (
+                        <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
+                      ) : (
+                        <ImageIcon size={14} className="sm:w-4 sm:h-4" />
+                      )}
+                    </label>
                     <button
                       type="button"
                       onClick={toggleListening}

@@ -12,17 +12,28 @@ You are SmartStudy AI Tutor for Ethiopian students (Grade 9–12).
 
 CRITICAL: You MUST respond ONLY in ENGLISH. Do not use Amharic, Arabic, or any other language. All responses must be in English.
 
-You must:
-- explain concepts simply and clearly in ENGLISH only
-- break down complex topics into steps in ENGLISH
-- give relevant examples from Ethiopian context when appropriate, but explain in ENGLISH
-- avoid complex English, use simple and clear language
-- give formulas and equations when needed for math/science
-- give final answers clearly in ENGLISH
-- be encouraging and patient in ENGLISH
-- focus on helping students understand and learn
+MOST IMPORTANT: ACCURACY IS CRITICAL. You must provide CORRECT and ACCURATE answers. If you are unsure, say so rather than guessing.
 
-Always provide direct, helpful answers to questions in ENGLISH only. Do not give generic educational support messages. Respond in English regardless of the student's question language.
+You must:
+- Provide ACCURATE and CORRECT answers - double-check your reasoning before responding
+- For grammar, punctuation, and language questions: Apply standard English grammar rules correctly
+- For multiple choice questions: Carefully analyze each option and identify the CORRECT answer based on established rules
+- Explain concepts simply and clearly in ENGLISH only
+- Break down complex topics into steps in ENGLISH
+- Give relevant examples from Ethiopian context when appropriate, but explain in ENGLISH
+- Avoid complex English, use simple and clear language
+- Give formulas and equations when needed for math/science
+- Give final answers clearly and CORRECTLY in ENGLISH
+- Be encouraging and patient in ENGLISH
+- Focus on helping students understand and learn with ACCURATE information
+
+When answering questions:
+1. Read the question carefully
+2. Apply the correct rules (grammar, math, science, etc.)
+3. Verify your answer is correct before responding
+4. Explain why the correct answer is correct and why incorrect options are wrong
+
+Always provide direct, helpful, and ACCURATE answers to questions in ENGLISH only. Do not give generic educational support messages. Respond in English regardless of the student's question language.
 `;
 
   // Map history roles to valid Groq roles ('system' | 'user' | 'assistant')
@@ -32,20 +43,41 @@ Always provide direct, helpful answers to questions in ENGLISH only. Do not give
     return 'assistant'; // treat anything else (e.g., 'model') as assistant
   };
 
+  // Detect if this is a grammar/punctuation question
+  const isGrammarQuestion = message.toLowerCase().includes('punctuation') || 
+                            message.toLowerCase().includes('capitalization') ||
+                            message.toLowerCase().includes('grammar') ||
+                            message.toLowerCase().includes('correctly punctuated') ||
+                            (subject.toLowerCase() === 'english' && message.includes('A.') && message.includes('B.'));
+
+  // Add specific instructions for grammar questions
+  let userMessage = `Subject: ${subject}, Grade: ${grade}\nQuestion: ${message}`;
+  if (isGrammarQuestion) {
+    userMessage += `\n\nIMPORTANT: This is a grammar/punctuation question. Apply standard English grammar rules strictly. For punctuation questions:
+- Two independent clauses must be separated by a period (.), semicolon (;), or joined with a comma + conjunction
+- A comma alone cannot join two independent clauses (this is a comma splice error)
+- After a semicolon, the next clause should start with a lowercase letter unless it's a proper noun
+- Carefully analyze each option and identify which follows correct grammar rules`;
+  }
+
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     ...history.map((m: any) => ({
       role: normalizeRole(m.role) as "system" | "user" | "assistant",
       content: String(m.text ?? "")
     })),
-    { role: "user", content: `Subject: ${subject}, Grade: ${grade}\nQuestion: ${message}` }
+    { role: "user", content: userMessage }
   ];
 
   try {
+    // Use lower temperature for more accurate, deterministic responses
+    // Lower temperature = more focused and accurate answers
+    // Try to use 70B model if available for better accuracy, fallback to 8B
+    const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
     const chatCompletion = await groq.chat.completions.create({
       messages,
-      model: "llama-3.1-8b-instant",
-      temperature: 0.7,
+      model: model,
+      temperature: 0.3, // Reduced from 0.7 for better accuracy
       max_tokens: 2048,
     });
 

@@ -3,7 +3,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   Download, MessageSquare, ChevronLeft, Lock, FileText, Send, Bot,
   HelpCircle, Bookmark, LogIn, UserPlus, Sparkles, Eye,
-  Maximize, Minimize, Share2, MoreHorizontal, CheckCircle, Loader2
+  Maximize, Minimize, Share2, MoreHorizontal, CheckCircle, Loader2, Image as ImageIcon, X
 } from 'lucide-react';
 import { documentsAPI, aiTutorAPI } from '../services/api';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -67,6 +67,8 @@ const DocumentView: React.FC = () => {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: string, text: string }[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [quizContent, setQuizContent] = useState<string | null>(null);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
@@ -177,11 +179,84 @@ const DocumentView: React.FC = () => {
     }
   }, [chatHistory, quizContent, activeTab, isChatLoading]);
 
+  // Cleanup image preview on unmount
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
   // --- HANDLERS ---
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast('Please upload an image file', 'error');
+      return;
+    }
+
+    if (!doc) return;
+
+    setIsProcessingImage(true);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+
+    try {
+      // Extract text from image using OCR
+      const { text } = await aiTutorAPI.extractTextFromImage(file);
+      
+      // Put extracted text in input field instead of auto-sending
+      if (text && text.trim()) {
+        setChatInput(`[Image with text]\n\n${text}`);
+        addToast('Text extracted from image. You can edit and send it.', 'success');
+      } else {
+        setChatInput('[Image uploaded - no text detected]');
+        addToast('No text could be extracted from the image. You can still add a question.', 'info');
+      }
+    } catch (error: any) {
+      console.error('OCR error:', error);
+      addToast(error.message || 'Failed to extract text from image', 'error');
+      setImagePreview(null);
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  // Clear image preview
+  const clearImagePreview = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+  };
+
+  // Handle paste event for images
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Check if the pasted item is an image
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        
+        const blob = item.getAsFile();
+        if (blob) {
+          // Convert blob to File object
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
+          await handleImageUpload(file);
+        }
+        return;
+      }
+    }
+  };
+
   const handleAskAI = async () => {
     if (!chatInput.trim() || !doc) return;
     const userMsg = chatInput;
     setChatInput('');
+    clearImagePreview(); // Clear image preview when sending
     setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsChatLoading(true);
 
@@ -644,24 +719,68 @@ const DocumentView: React.FC = () => {
           {activeTab === 'chat' && (
             <div className="p-4 bg-white border-t border-zinc-100 flex-shrink-0">
               <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-2 bg-zinc-50 border border-zinc-200 rounded-xl p-2 transition-shadow focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-300">
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
+                    <div className="relative">
+                      <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
+                      <button
+                        type="button"
+                        onClick={clearImagePreview}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                        title="Remove image"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                    e.target.value = ''; // Reset input
+                  }}
+                  className="hidden"
+                  id="document-image-upload-input"
+                  disabled={isChatLoading || isProcessingImage}
+                />
+                <label
+                  htmlFor="document-image-upload-input"
+                  className={`p-2 mb-0.5 rounded-lg transition-colors flex items-center justify-center cursor-pointer ${
+                    isProcessingImage
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                  } ${isChatLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title="Upload Image with Text"
+                >
+                  {isProcessingImage ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <ImageIcon size={16} />
+                  )}
+                </label>
                 <textarea
                   rows={1}
                   className="w-full bg-transparent text-sm p-2 focus:outline-none resize-none max-h-32 text-zinc-700 placeholder-zinc-400"
-                  placeholder="Ask follow-up question..."
+                  placeholder={isProcessingImage ? "Extracting text from image..." : "Ask follow-up question or paste an image..."}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
+                  onPaste={handlePaste}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       handleAskAI();
                     }
                   }}
-                  disabled={isChatLoading}
+                  disabled={isChatLoading || isProcessingImage}
                   style={{ minHeight: '40px' }}
                 />
                 <button
                   type="submit"
-                  disabled={!chatInput.trim() || isChatLoading}
+                  disabled={!chatInput.trim() || isChatLoading || isProcessingImage}
                   className="p-2 mb-0.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                 >
                   {isChatLoading ? (

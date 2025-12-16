@@ -746,7 +746,7 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
     if (sql.includes('select') && sql.includes('from videos')) {
       let query = supabase.from('videos').select('*');
 
-      if (sql.includes('where id = $1')) {
+      if (sql.includes('where id = $1') || sql.includes('where id::text = $1')) {
         query = query.eq('id', params[0]);
       } else {
         // Handle complex filtering
