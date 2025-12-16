@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp } from 'lucide-react';
+import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -25,7 +25,8 @@ const Planner: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [isArchivingEvent, setIsArchivingEvent] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'archived'>('all');
   const [mounted, setMounted] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
@@ -99,7 +100,18 @@ const Planner: React.FC = () => {
       fetchStudyEvents();
     }
   }, [fetchStudyEvents]);
-  
+
+  // Fetch events when archive filter changes
+  useEffect(() => {
+    if (!hasFetchedEventsRef.current) return; // Don't run on initial mount
+    
+    if (statusFilter === 'archived') {
+      fetchStudyEvents({ archived: true });
+    } else {
+      fetchStudyEvents({ archived: false });
+    }
+  }, [statusFilter, fetchStudyEvents]);
+
   // Separate effect for click outside handler
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -127,14 +139,15 @@ const Planner: React.FC = () => {
   // Derived State
   const sortedEvents = [...studyEvents]
     .filter(event => {
-      if (statusFilter === 'pending') return !event.isCompleted;
-      if (statusFilter === 'completed') return event.isCompleted;
-      return true;
+      if (statusFilter === 'pending') return !event.isCompleted && !event.isArchived;
+      if (statusFilter === 'completed') return event.isCompleted && !event.isArchived;
+      if (statusFilter === 'archived') return event.isArchived;
+      return !event.isArchived; // 'all' shows non-archived events
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-  const upcomingEvents = studyEvents.filter(e => !e.isCompleted && new Date(e.date) >= new Date(new Date().setHours(0,0,0,0))).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const completedCount = studyEvents.filter(e => e.isCompleted).length;
+  const upcomingEvents = studyEvents.filter(e => !e.isCompleted && !e.isArchived && new Date(e.date) >= new Date(new Date().setHours(0,0,0,0))).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const completedCount = studyEvents.filter(e => e.isCompleted && !e.isArchived).length;
   
   // Group events by date
   const groupedEvents: { [key: string]: StudyEvent[] } = {};
@@ -159,6 +172,25 @@ const Planner: React.FC = () => {
     }
   };
 
+  const handleArchiveToggle = async (id: string, isArchived: boolean) => {
+    setIsArchivingEvent(id);
+    try {
+      await updateStudyEvent(id, { isArchived: !isArchived });
+      addToast(isArchived ? "Event unarchived" : "Event archived", "success");
+      // Refresh events to update the view based on current filter
+      if (statusFilter === 'archived') {
+        await fetchStudyEvents({ archived: true });
+      } else {
+        await fetchStudyEvents({ archived: false });
+      }
+    } catch (error) {
+      console.error('Failed to archive/unarchive event:', error);
+      addToast("Failed to update archive status", "error");
+    } finally {
+      setIsArchivingEvent(null);
+    }
+  };
+
   const handleAddManual = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
@@ -171,6 +203,7 @@ const Planner: React.FC = () => {
         date,
         type,
         isCompleted: false,
+        isArchived: false,
         notes: ''
       });
 
@@ -220,6 +253,7 @@ const Planner: React.FC = () => {
             date: item.date,
             type: item.type,
             isCompleted: false,
+            isArchived: false,
             notes: item.notes || ''
           });
         }
@@ -565,6 +599,16 @@ const Planner: React.FC = () => {
              >
                Completed
              </button>
+             <button
+               onClick={() => setStatusFilter('archived')}
+               className={`px-3 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
+                 statusFilter === 'archived'
+                   ? 'bg-zinc-900 text-white border-zinc-900'
+                   : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+               }`}
+             >
+               Archived
+             </button>
            </div>
 
            {loading.studyEvents ? (
@@ -648,28 +692,57 @@ const Planner: React.FC = () => {
                             </p>
                          </div>
 
-                        <button
-                          onClick={async () => {
-                            setIsDeletingEvent(event.id);
-                            try {
-                              await deleteStudyEvent(event.id);
-                              addToast("Study event deleted", "success");
-                            } catch (error) {
-                              console.error('Failed to delete event:', error);
-                              addToast("Failed to delete event", "error");
-                            } finally {
-                              setIsDeletingEvent(null);
-                            }
-                          }}
-                          disabled={isDeletingEvent === event.id}
-                          className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        >
-                          {isDeletingEvent === event.id ? (
-                            <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
-                          ) : (
-                            <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                          )}
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {statusFilter === 'archived' ? (
+                            <button
+                              onClick={() => handleArchiveToggle(event.id, event.isArchived)}
+                              disabled={isArchivingEvent === event.id}
+                              className="p-1.5 sm:p-2 text-zinc-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                              title="Unarchive"
+                            >
+                              {isArchivingEvent === event.id ? (
+                                <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+                              ) : (
+                                <ArchiveRestore size={16} className="sm:w-[18px] sm:h-[18px]" />
+                              )}
+                            </button>
+                          ) : event.isCompleted ? (
+                            <button
+                              onClick={() => handleArchiveToggle(event.id, event.isArchived)}
+                              disabled={isArchivingEvent === event.id}
+                              className="p-1.5 sm:p-2 text-zinc-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                              title="Archive"
+                            >
+                              {isArchivingEvent === event.id ? (
+                                <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+                              ) : (
+                                <Archive size={16} className="sm:w-[18px] sm:h-[18px]" />
+                              )}
+                            </button>
+                          ) : null}
+                          <button
+                            onClick={async () => {
+                              setIsDeletingEvent(event.id);
+                              try {
+                                await deleteStudyEvent(event.id);
+                                addToast("Study event deleted", "success");
+                              } catch (error) {
+                                console.error('Failed to delete event:', error);
+                                addToast("Failed to delete event", "error");
+                              } finally {
+                                setIsDeletingEvent(null);
+                              }
+                            }}
+                            disabled={isDeletingEvent === event.id}
+                            className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          >
+                            {isDeletingEvent === event.id ? (
+                              <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+                            ) : (
+                              <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     )})}
                   </div>

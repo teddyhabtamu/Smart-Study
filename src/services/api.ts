@@ -728,7 +728,7 @@ export const aiTutorAPI = {
 
 // Planner API
 export const plannerAPI = {
-  getEvents: (params: { date?: string; type?: string; completed?: boolean } = {}): Promise<StudyEvent[]> => {
+  getEvents: (params: { date?: string; type?: string; completed?: boolean; archived?: boolean | 'all' } = {}): Promise<StudyEvent[]> => {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -744,6 +744,7 @@ export const plannerAPI = {
         date: event.event_date,
         type: event.event_type,
         isCompleted: event.is_completed,
+        isArchived: event.is_archived || false,
         notes: event.notes,
         created_at: event.created_at,
         updated_at: event.updated_at
@@ -771,6 +772,7 @@ export const plannerAPI = {
       date: createdEvent.event_date,
       type: createdEvent.event_type,
       isCompleted: createdEvent.is_completed,
+      isArchived: createdEvent.is_archived || false,
       notes: createdEvent.notes,
       created_at: createdEvent.created_at,
       updated_at: createdEvent.updated_at
@@ -792,6 +794,10 @@ export const plannerAPI = {
       apiUpdates.is_completed = updates.isCompleted;
       delete apiUpdates.isCompleted;
     }
+    if (updates.isArchived !== undefined) {
+      apiUpdates.is_archived = updates.isArchived;
+      delete apiUpdates.isArchived;
+    }
 
     return apiRequest(`/planner/events/${id}`, {
       method: 'PUT',
@@ -803,6 +809,7 @@ export const plannerAPI = {
       date: updatedEvent.event_date,
       type: updatedEvent.event_type,
       isCompleted: updatedEvent.is_completed,
+      isArchived: updatedEvent.is_archived || false,
       notes: updatedEvent.notes,
       created_at: updatedEvent.created_at,
       updated_at: updatedEvent.updated_at
@@ -1037,6 +1044,7 @@ export const dashboardAPI = {
       subject: string;
       type: 'Exam' | 'Revision' | 'Assignment';
       isCompleted: boolean;
+      isArchived?: boolean;
       notes?: string;
     }>;
     recentBookmarks: Array<{

@@ -164,6 +164,7 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
       subject: e.subject,
       type: e.type || e.event_type,
       isCompleted: e.is_completed === true || e.is_completed === 'true',
+      isArchived: e.is_archived || false,
       notes: e.notes,
       date: e.event_date
     }));

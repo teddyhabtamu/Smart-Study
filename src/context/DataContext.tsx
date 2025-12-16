@@ -83,7 +83,7 @@ interface DataContextType {
   fetchVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
   fetchMoreVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
   fetchForumPosts: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<void>;
-  fetchStudyEvents: (params?: { date?: string; type?: string; completed?: boolean }) => Promise<void>;
+  fetchStudyEvents: (params?: { date?: string; type?: string; completed?: boolean; archived?: boolean | 'all' }) => Promise<void>;
   fetchUsers: (params?: { limit?: number; offset?: number; search?: string }) => Promise<void>;
   fetchDashboard: () => Promise<void>;
 
@@ -301,7 +301,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const fetchStudyEvents = useCallback(async (params?: { date?: string; type?: string; completed?: boolean }) => {
+  const fetchStudyEvents = useCallback(async (params?: { date?: string; type?: string; completed?: boolean; archived?: boolean | 'all' }) => {
     try {
       setLoadingState('studyEvents', true);
       setErrorState('studyEvents', null);
@@ -343,6 +343,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         date: new Date().toISOString().split('T')[0], // Today's date
         type: event.type,
         isCompleted: event.isCompleted,
+        isArchived: event.isArchived || false,
         notes: event.notes
       }));
 

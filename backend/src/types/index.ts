@@ -129,6 +129,7 @@ export interface StudyEvent {
   event_date: string;
   event_type: 'Exam' | 'Revision' | 'Assignment';
   is_completed: boolean;
+  is_archived: boolean;
   notes?: string;
   created_at: string;
   updated_at: string;

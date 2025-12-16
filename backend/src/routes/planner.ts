@@ -34,10 +34,18 @@ const normalizeSubject = (subject: string): string | null => {
 router.get('/events', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { date, type, completed } = req.query;
+    const { date, type, completed, archived } = req.query;
 
     let events = await dbAdmin.get('study_events');
     events = events.filter((e: any) => e.user_id === userId);
+
+    // Filter archived events: by default exclude archived, unless explicitly requested
+    if (archived === undefined || archived === 'false') {
+      events = events.filter((e: any) => !e.is_archived);
+    } else if (archived === 'true') {
+      events = events.filter((e: any) => e.is_archived);
+    }
+    // If archived is 'all', show both archived and non-archived
 
     // Apply filters
     if (date) {
@@ -174,6 +182,7 @@ router.put('/events/:id', [
   body('event_date').optional().isString().isLength({ min: 10, max: 10 }).withMessage('Valid date required'),
   body('event_type').optional().isIn(['Exam', 'Revision', 'Assignment']),
   body('is_completed').optional().isBoolean(),
+  body('is_archived').optional().isBoolean(),
   body('notes').optional().trim().isLength({ max: 1000 })
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
@@ -231,9 +240,11 @@ router.put('/events/:id', [
     } as ApiResponse<StudyEvent>);
   } catch (error) {
     console.error('Update study event error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({
       success: false,
-      message: 'Failed to update study event'
+      message: 'Failed to update study event',
+      error: errorMessage
     } as ApiResponse);
   }
 });

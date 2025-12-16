@@ -167,5 +167,6 @@ export interface StudyEvent {
   date: string; // YYYY-MM-DD
   type: 'Exam' | 'Revision' | 'Assignment';
   isCompleted: boolean;
+  isArchived: boolean;
   notes?: string;
 }
