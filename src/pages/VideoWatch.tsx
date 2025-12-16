@@ -5,6 +5,7 @@ import { videosAPI, aiTutorAPI } from '../services/api';
 import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useData } from '../context/DataContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import TTSButton from '../components/TTSButton';
 import { VideoWatchSkeleton } from '../components/Skeletons';
@@ -15,12 +16,14 @@ const VideoWatch: React.FC = () => {
   const { id } = useParams();
   const location = useLocation();
   const { addToast } = useToast();
+  const { updateVideoStats } = useData();
 
   const [video, setVideo] = useState<Video | null>(null);
   const [relatedVideos, setRelatedVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLiked, setHasLiked] = useState(false);
+  const viewRecordedRef = useRef<string | null>(null); // Track which video ID has had its view recorded
 
   // Fetch video and related videos on mount
   useEffect(() => {
@@ -37,6 +40,7 @@ const VideoWatch: React.FC = () => {
         setNotes('');
         setQuizContent(null);
         setActiveTab('upNext');
+        viewRecordedRef.current = null; // Reset view recording tracker when switching videos
         if (imagePreview) {
           URL.revokeObjectURL(imagePreview);
           setImagePreview(null);
@@ -48,15 +52,43 @@ const VideoWatch: React.FC = () => {
         setHasLiked(videoData.user_has_liked || false);
         setIsCompleted(videoData.user_has_completed || false);
 
-        // Record view if user is authenticated
-        if (user) {
-          try {
-            await videosAPI.recordView(id);
-            // Update local video state with incremented views
-            setVideo((prev: any) => ({ ...prev, views: (prev?.views || 0) + 1 }));
-          } catch (err) {
-            console.error('Failed to record view:', err);
-            // Don't show error to user, just log it
+        // Record view (guests + authenticated), only once per video load.
+        // - Authenticated users are deduped on the backend (1 view per user per video)
+        // - Guests are deduped best-effort with localStorage (1 view per browser per video)
+        if (id && viewRecordedRef.current !== id) {
+          // Guest dedupe (browser-local)
+          const isGuest = !user && typeof window !== 'undefined';
+          const guestKey = isGuest ? `smartstudy_guest_viewed_video_${id}` : null;
+
+          if (isGuest && guestKey && window.localStorage.getItem(guestKey) === '1') {
+            // Already counted for this guest in this browser
+            viewRecordedRef.current = id;
+          } else {
+            try {
+              const viewResponse = await videosAPI.recordView(id);
+              viewRecordedRef.current = id; // Mark this video as having its view recorded
+
+              // Persist guest view marker after a successful call
+              if (isGuest && guestKey) {
+                window.localStorage.setItem(guestKey, '1');
+              }
+
+              // Update local video state with the updated view count from server
+              if (viewResponse && typeof viewResponse === 'object' && 'views' in viewResponse) {
+                const updatedViews = (viewResponse as { views: number }).views;
+                setVideo((prev: any) => prev ? { ...prev, views: updatedViews } : prev);
+                // Also update the video in the list
+                updateVideoStats(id, { views: updatedViews });
+              } else {
+                // Fallback: refetch video if response doesn't include views
+                const updatedVideoData = await videosAPI.getById(id);
+                setVideo(updatedVideoData);
+                updateVideoStats(id, { views: updatedVideoData.views });
+              }
+            } catch (err) {
+              console.error('Failed to record view:', err);
+              // Don't show error to user, just log it
+            }
           }
         }
 
@@ -376,6 +408,8 @@ const VideoWatch: React.FC = () => {
           user_has_liked: newLikedState
         }));
         setHasLiked(newLikedState);
+        // Also update the video in the list
+        updateVideoStats(video.id, { likes: response.likes });
         addToast(newLikedState ? 'Video liked!' : 'Video unliked', 'success');
       }
     } catch (error: any) {

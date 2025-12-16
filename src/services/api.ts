@@ -491,7 +491,7 @@ export const videosAPI = {
   getById: (id: string): Promise<Video> =>
     apiRequest(`/videos/${id}`),
 
-  recordView: (id: string): Promise<void> =>
+  recordView: (id: string): Promise<{ views: number } | void> =>
     apiRequest(`/videos/${id}/view`, {
       method: 'POST',
     }),

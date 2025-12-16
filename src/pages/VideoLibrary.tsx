@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Search, PlayCircle, Lock, Filter, ArrowUpDown, Bookmark, Loader2 } from 'lucide-react';
 import { SUBJECTS, GRADES } from '../constants';
 import { VideoLesson } from '../types';
@@ -15,6 +15,7 @@ const LOAD_MORE_LIMIT = 12; // Load 12 more videos each time
 const VideoLibrary: React.FC = () => {
   const { videos, fetchVideos, fetchMoreVideos, loading, errors } = useData();
   const { user } = useAuth();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [selectedGrade, setSelectedGrade] = useState('All');
@@ -23,6 +24,7 @@ const VideoLibrary: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const prevLocationRef = useRef<string>('');
 
   // Fetch initial videos on mount and when filters change
   useEffect(() => {
@@ -47,6 +49,34 @@ const VideoLibrary: React.FC = () => {
       }
     });
   }, [fetchVideos, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
+
+  // Refresh videos when navigating back from a video page
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const prevPath = prevLocationRef.current;
+    
+    // If we're on /videos and came from a video page (/video/:id), refresh the list
+    if (currentPath === '/videos' && prevPath.startsWith('/video/')) {
+      const params: any = {
+        limit: INITIAL_LIMIT,
+        offset: 0,
+      };
+
+      if (selectedSubject !== 'All') params.subject = selectedSubject;
+      if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
+      if (searchTerm.trim()) params.search = searchTerm;
+      if (showSavedOnly) params.bookmarked = true;
+      if (sortBy !== 'newest') params.sort = sortBy;
+
+      fetchVideos(params).then((result) => {
+        if (result) {
+          setHasMore(result.hasMore);
+        }
+      });
+    }
+    
+    prevLocationRef.current = currentPath;
+  }, [location.pathname, fetchVideos, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
 
   // Load more videos function
   const loadMoreVideos = useCallback(async () => {

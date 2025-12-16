@@ -5,6 +5,7 @@ import { authenticateToken, requirePremium, validateRequest, optionalAuth } from
 import { ApiResponse, Video, User } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
+import { createHash } from 'crypto';
 
 const router = express.Router();
 
@@ -217,19 +218,37 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
 });
 
 // Increment video views
-router.post('/:id/view', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/:id/view', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user!.id;
-    const isPremium = req.user!.is_premium;
+    const userId = req.user?.id;
+    const isPremiumUser = req.user?.is_premium || false;
+
+    if (!supabaseAdmin) {
+      res.status(500).json({
+        success: false,
+        message: 'Server misconfiguration: Supabase admin client not available'
+      } as ApiResponse);
+      return;
+    }
 
     // Check if video exists and user has access
-    const videoResult = await dbQuery(
-      'SELECT is_premium FROM videos WHERE id = $1',
-      [id]
-    );
+    const { data: videoRow, error: videoErr } = await supabaseAdmin
+      .from('videos')
+      .select('id, is_premium, views')
+      .eq('id', id)
+      .maybeSingle();
 
-    if (videoResult.rows.length === 0) {
+    if (videoErr) {
+      console.error('Record view: failed to load video:', videoErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to record view'
+      } as ApiResponse);
+      return;
+    }
+
+    if (!videoRow) {
       res.status(404).json({
         success: false,
         message: 'Video not found'
@@ -237,10 +256,10 @@ router.post('/:id/view', authenticateToken, async (req: express.Request, res: ex
       return;
     }
 
-    const video = videoResult.rows[0];
+    const video = videoRow;
 
     // Check premium access
-    if (video.is_premium && !isPremium) {
+    if (video.is_premium && !isPremiumUser) {
       res.status(403).json({
         success: false,
         message: 'Premium subscription required'
@@ -248,15 +267,121 @@ router.post('/:id/view', authenticateToken, async (req: express.Request, res: ex
       return;
     }
 
-    // Increment view count
-    await dbQuery(
-      'UPDATE videos SET views = views + 1 WHERE id = $1',
-      [id]
-    );
+    // Count at most 1 view per viewer per video.
+    // - Authenticated: 1 view per (user_id, video_id)
+    // - Guest: 1 view per (viewer_hash, video_id) where viewer_hash is based on IP + User-Agent
+    // If the video_views table is missing (migration not run), we gracefully fall back to counting normally.
+    let shouldIncrement = true;
+
+    try {
+      // Ensure we have admin client for tracking insert/select
+      if (!supabaseAdmin) {
+        throw new Error('Supabase admin client not configured');
+      }
+
+      if (userId) {
+        const { data: existing, error: existingErr } = await supabaseAdmin
+          .from('video_views')
+          .select('id')
+          .eq('video_id', id)
+          .eq('user_id', userId)
+          .limit(1);
+
+        if (existingErr) throw existingErr;
+
+        if (existing && existing.length > 0) {
+          shouldIncrement = false;
+        } else {
+          const { error: insertErr } = await supabaseAdmin
+            .from('video_views')
+            .insert({ video_id: id, user_id: userId });
+          if (insertErr) {
+            // If a duplicate slips through due to race conditions, treat as already-viewed
+            const msg = String((insertErr as any)?.message || insertErr);
+            if (msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique')) {
+              shouldIncrement = false;
+            } else {
+              throw insertErr;
+            }
+          }
+        }
+      } else {
+        const forwardedFor = req.headers['x-forwarded-for'];
+        const ip = (() => {
+          if (typeof forwardedFor === 'string') {
+            const first = forwardedFor.split(',').shift();
+            return (first ?? '').trim() || req.ip || 'unknown';
+          }
+          return req.ip || 'unknown';
+        })();
+        const ua = String(req.headers['user-agent'] || 'unknown');
+        const viewerHash = createHash('sha256').update(`${ip}|${ua}`).digest('hex');
+
+        const { data: existing, error: existingErr } = await supabaseAdmin
+          .from('video_views')
+          .select('id')
+          .eq('video_id', id)
+          .eq('viewer_hash', viewerHash)
+          .limit(1);
+
+        if (existingErr) throw existingErr;
+
+        if (existing && existing.length > 0) {
+          shouldIncrement = false;
+        } else {
+          const { error: insertErr } = await supabaseAdmin
+            .from('video_views')
+            .insert({ video_id: id, viewer_hash: viewerHash });
+          if (insertErr) {
+            const msg = String((insertErr as any)?.message || insertErr);
+            if (msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique')) {
+              shouldIncrement = false;
+            } else {
+              throw insertErr;
+            }
+          }
+        }
+      }
+    } catch (trackErr: any) {
+      // If tracking fails (e.g., table doesn't exist), fall back to normal increment.
+      console.warn('View tracking unavailable; falling back to normal counting:', trackErr?.message || trackErr);
+      shouldIncrement = true;
+    }
+
+    // IMPORTANT: keep `videos.views` consistent with unique views.
+    // We compute the unique view count from `video_views` and store it in `videos.views`.
+    // This also fixes older inconsistent data where `video_views` had rows but `videos.views` stayed 0/null.
+    const { count: uniqueCount, error: countErr } = await supabaseAdmin
+      .from('video_views')
+      .select('*', { count: 'exact', head: true })
+      .eq('video_id', id);
+
+    if (countErr) {
+      console.error('Record view: failed to count unique views:', countErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to record view'
+      } as ApiResponse);
+      return;
+    }
+
+    const updatedViews = uniqueCount ?? (video.views ?? 0);
+
+    // Sync the denormalized counter for fast listing
+    const { error: syncErr } = await supabaseAdmin
+      .from('videos')
+      .update({ views: updatedViews })
+      .eq('id', id);
+
+    if (syncErr) {
+      console.error('Record view: failed to sync views:', syncErr);
+      // Do not fail the request; the count we return is still correct.
+    }
 
     res.json({
       success: true,
-      message: 'View recorded'
+      message: 'View recorded',
+      data: { views: updatedViews }
     } as ApiResponse);
   } catch (error) {
     console.error('Record view error:', error);

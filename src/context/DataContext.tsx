@@ -94,6 +94,7 @@ interface DataContextType {
 
   createVideo: (video: Omit<VideoLesson, 'id' | 'uploadedAt'>) => Promise<VideoLesson>;
   updateVideo: (id: string, updates: Partial<VideoLesson>) => Promise<VideoLesson>;
+  updateVideoStats: (id: string, updates: { views?: number; likes?: number }) => void;
   deleteVideo: (id: string) => Promise<void>;
 
   createForumPost: (post: { title: string; content: string; subject: string; grade: number; tags?: string[] }) => Promise<ForumPost>;
@@ -429,6 +430,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return transformedVideo;
   };
 
+  const updateVideoStats = (id: string, updates: { views?: number; likes?: number }): void => {
+    // Update video views/likes in the list without API call (for real-time updates)
+    setVideos(prev => prev.map(vid => {
+      if (String(vid.id) === String(id)) {
+        return {
+          ...vid,
+          ...(updates.views !== undefined && { views: updates.views }),
+          ...(updates.likes !== undefined && { likes: updates.likes })
+        };
+      }
+      return vid;
+    }));
+  };
+
   const deleteVideo = async (id: string): Promise<void> => {
     await videosAPI.delete(id);
     setVideos(prev => prev.filter(vid => vid.id !== id));
@@ -528,6 +543,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deleteDocument,
       createVideo,
       updateVideo,
+      updateVideoStats,
       deleteVideo,
       createForumPost,
       updateForumPost,
