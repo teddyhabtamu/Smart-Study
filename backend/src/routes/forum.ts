@@ -834,34 +834,12 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
     const { id } = req.params;
     const userId = req.user!.id;
 
-    // Get comment and check if user is post author
-    const commentResult = await query(`
-      SELECT c.post_id, p.author_id as post_author_id
-      FROM forum_comments c
-      JOIN forum_posts p ON c.post_id = p.id
-      WHERE c.id = $1
-    `, [id]);
+    // IMPORTANT:
+    // Do not use the `query()` helper here with JOINs — it doesn't support complex SQL and can
+    // incorrectly return empty rows in production. Use direct table reads instead.
 
-    if (commentResult.rows.length === 0) {
-      res.status(404).json({
-        success: false,
-        message: 'Comment not found'
-      } as ApiResponse);
-      return;
-    }
-
-    const { post_id, post_author_id } = commentResult.rows[0];
-
-    if (post_author_id !== userId) {
-      res.status(403).json({
-        success: false,
-        message: 'Only the post author can accept answers'
-      } as ApiResponse);
-      return;
-    }
-
-    // Get the comment first to get author_id
-    const comment = await dbAdmin.findOne('forum_comments', (c: any) => c.id === id);
+    // Get the comment (and post_id)
+    const comment = await dbAdmin.findOne('forum_comments', (c: any) => String(c.id) === String(id));
     if (!comment) {
       res.status(404).json({
         success: false,
@@ -870,14 +848,24 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
       return;
     }
 
+    const post_id = comment.post_id;
     const commentAuthorId = comment.author_id;
 
     // Get post details
-    const post = await dbAdmin.findOne('forum_posts', (p: any) => p.id === post_id);
+    const post = await dbAdmin.findOne('forum_posts', (p: any) => String(p.id) === String(post_id));
     if (!post) {
       res.status(404).json({
         success: false,
         message: 'Post not found'
+      } as ApiResponse);
+      return;
+    }
+
+    // Permission: only post author can accept answers
+    if (String(post.author_id) !== String(userId)) {
+      res.status(403).json({
+        success: false,
+        message: 'Only the post author can accept answers'
       } as ApiResponse);
       return;
     }
