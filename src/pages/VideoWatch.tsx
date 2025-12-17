@@ -386,7 +386,8 @@ const VideoWatch: React.FC = () => {
     );
   }
 
-  const canWatch = !video.is_premium || (user && user.isPremium);
+  const isPremiumVideo = (video as any).is_premium ?? (video as any).isPremium ?? false;
+  const canWatch = !isPremiumVideo || (user && user.isPremium);
   const isBookmarked = user?.bookmarks?.includes(video.id);
 
   const handleLike = async () => {
@@ -534,7 +535,14 @@ const VideoWatch: React.FC = () => {
              <div>
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
                   <div>
-                    <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 leading-tight mb-2">{video.title}</h1>
+                    <div className="flex items-start gap-2 flex-wrap mb-2">
+                      <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 leading-tight">{video.title}</h1>
+                      {isPremiumVideo && (
+                        <div className="mt-0.5 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+                          <Lock size={8} className="sm:w-2.5 sm:h-2.5" /> Premium
+                        </div>
+                      )}
+                    </div>
                     {canWatch && videoId && (
                       <div className="flex gap-4">
                         <a
@@ -684,6 +692,11 @@ const VideoWatch: React.FC = () => {
                            <Link key={rv.id} to={`/video/${rv.id}`} className="flex gap-3 group">
                               <div className="relative w-28 aspect-video bg-zinc-200 rounded-lg overflow-hidden flex-shrink-0">
                                  <img src={convertGoogleDriveImageUrl(rv.thumbnail)} alt={rv.title} className="w-full h-full object-cover" />
+                                 {((rv as any).isPremium ?? (rv as any).is_premium) && (
+                                   <div className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-white px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+                                     <Lock size={8} /> Premium
+                                   </div>
+                                 )}
                               </div>
                               <div className="flex flex-col min-w-0">
                                  <h4 className="text-xs font-semibold text-zinc-900 line-clamp-2 leading-snug group-hover:text-zinc-700 transition-colors">

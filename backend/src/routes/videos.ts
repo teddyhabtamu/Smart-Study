@@ -115,7 +115,9 @@ router.get('/', optionalAuth, [
       views: v.views || 0,
       likes: v.likes || 0,
       uploadedAt: v.created_at,
+      // Return both shapes for backward/forward compatibility across clients
       isPremium: v.is_premium,
+      is_premium: v.is_premium,
       uploaded_by: v.uploaded_by,
       created_at: v.created_at,
       updated_at: v.updated_at
@@ -162,13 +164,34 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
     const userId = req.user?.id;
     const isPremium = req.user?.is_premium || false;
 
-    const result = await dbQuery(`
-      SELECT id, title, description, subject, grade, thumbnail, video_url,
-             instructor, views, likes, is_premium, uploaded_by, created_at, updated_at
-      FROM videos WHERE id::text = $1
-    `, [id]);
+    // IMPORTANT:
+    // Use the Supabase *admin* client for video fetches. In production, Row Level Security (RLS)
+    // can prevent the anon client from selecting premium rows, which would incorrectly return 404
+    // even for authenticated premium users.
+    if (!supabaseAdmin) {
+      res.status(500).json({
+        success: false,
+        message: 'Server misconfiguration: Supabase admin client not available'
+      } as ApiResponse);
+      return;
+    }
 
-    if (result.rows.length === 0) {
+    const { data: videoRow, error: videoErr } = await supabaseAdmin
+      .from('videos')
+      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (videoErr) {
+      console.error('Get video error: failed to load video:', videoErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get video'
+      } as ApiResponse);
+      return;
+    }
+
+    if (!videoRow) {
       res.status(404).json({
         success: false,
         message: 'Video not found'
@@ -176,7 +199,15 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
       return;
     }
 
-    let video = result.rows[0];
+    // Normalize the response shape for the watch page (expects snake_case `is_premium`)
+    let video: any = {
+      ...videoRow,
+      views: videoRow.views || 0,
+      likes: videoRow.likes || 0,
+      uploadedAt: videoRow.created_at,
+      // Include camelCase too for compatibility with any consumers that expect it
+      isPremium: videoRow.is_premium
+    };
 
     // Check premium access
     if (video.is_premium && !isPremium) {
@@ -189,17 +220,32 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
 
     // Check if user has liked this video and completed it
     if (userId) {
-      const likeResult = await dbQuery(
-        'SELECT id FROM video_likes WHERE user_id = $1 AND video_id = $2',
-        [userId, id]
-      );
-      video = { ...video, user_has_liked: likeResult.rows.length > 0 };
+      // Use admin client to avoid RLS issues in server-side context
+      const [{ data: likeRow, error: likeErr }, { data: completionRow, error: completionErr }] = await Promise.all([
+        supabaseAdmin
+          .from('video_likes')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('video_id', id)
+          .limit(1)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('video_completions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('video_id', id)
+          .limit(1)
+          .maybeSingle()
+      ]);
 
-      const completionResult = await dbQuery(
-        'SELECT id FROM video_completions WHERE user_id = $1 AND video_id = $2',
-        [userId, id]
-      );
-      video = { ...video, user_has_completed: completionResult.rows.length > 0 };
+      if (likeErr) console.warn('Get video: failed to check like status:', likeErr);
+      if (completionErr) console.warn('Get video: failed to check completion status:', completionErr);
+
+      video = {
+        ...video,
+        user_has_liked: !!likeRow,
+        user_has_completed: !!completionRow
+      };
     } else {
       video = { ...video, user_has_liked: false, user_has_completed: false };
     }
@@ -399,9 +445,31 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
     const userId = req.user!.id;
     const { completed } = req.body; // true to complete, false to mark incomplete
 
-    // Check if video exists
-    const videoCheck = await dbQuery('SELECT id FROM videos WHERE id = $1', [id]);
-    if (videoCheck.rows.length === 0) {
+    if (!supabaseAdmin) {
+      res.status(500).json({
+        success: false,
+        message: 'Server misconfiguration: Supabase admin client not available'
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if video exists and user has access (RLS-safe)
+    const { data: videoRow, error: videoErr } = await supabaseAdmin
+      .from('videos')
+      .select('id, is_premium')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (videoErr) {
+      console.error('Complete lesson: failed to load video:', videoErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update lesson completion'
+      } as ApiResponse);
+      return;
+    }
+
+    if (!videoRow) {
       res.status(404).json({
         success: false,
         message: 'Video not found'
@@ -409,20 +477,48 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
       return;
     }
 
+    // Premium gating (server-side)
+    if (videoRow.is_premium && !req.user!.is_premium) {
+      res.status(403).json({
+        success: false,
+        message: 'Premium subscription required'
+      } as ApiResponse);
+      return;
+    }
+
     if (completed) {
       // Check if already completed to avoid duplicate XP
-      const existingCompletion = await dbQuery(
-        'SELECT id FROM video_completions WHERE user_id = $1 AND video_id = $2',
-        [userId, id]
-      );
-      
-      const isNewCompletion = existingCompletion.rows.length === 0;
-      
-      // Mark as complete (ignore if already exists due to unique constraint)
-      await dbQuery(
-        'INSERT INTO video_completions (user_id, video_id, xp_awarded) VALUES ($1, $2, $3) ON CONFLICT (user_id, video_id) DO NOTHING',
-        [userId, id, 100]
-      );
+      const { data: existingCompletion, error: existingErr } = await supabaseAdmin
+        .from('video_completions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('video_id', id)
+        .limit(1);
+
+      if (existingErr) {
+        console.error('Complete lesson: failed to check existing completion:', existingErr);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to update lesson completion'
+        } as ApiResponse);
+        return;
+      }
+
+      const isNewCompletion = !existingCompletion || existingCompletion.length === 0;
+
+      // Mark as complete (idempotent)
+      const { error: upsertErr } = await supabaseAdmin
+        .from('video_completions')
+        .upsert({ user_id: userId, video_id: id, xp_awarded: 100 }, { onConflict: 'user_id,video_id' });
+
+      if (upsertErr) {
+        console.error('Complete lesson: failed to upsert completion:', upsertErr);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to update lesson completion'
+        } as ApiResponse);
+        return;
+      }
       
       // Record XP history only if this is a new completion
       // Note: XP is also awarded via frontend gainXP call, but we record it here too for tracking
@@ -442,27 +538,56 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
       }
     } else {
       // Mark as incomplete (remove completion)
-      await dbQuery(
-        'DELETE FROM video_completions WHERE user_id = $1 AND video_id = $2',
-        [userId, id]
-      );
+      const { error: delErr } = await supabaseAdmin
+        .from('video_completions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('video_id', id);
+      if (delErr) {
+        console.error('Complete lesson: failed to delete completion:', delErr);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to update lesson completion'
+        } as ApiResponse);
+        return;
+      }
     }
 
     // Get updated video with completion status
-    const updatedVideo = await dbQuery(
-      'SELECT id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at FROM videos WHERE id = $1',
-      [id]
-    );
+    const { data: updatedVideoRow, error: updatedErr } = await supabaseAdmin
+      .from('videos')
+      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
+      .eq('id', id)
+      .single();
 
-    // Check completion status
-    const completionCheck = await dbQuery(
-      'SELECT id FROM video_completions WHERE user_id = $1 AND video_id = $2',
-      [userId, id]
-    );
+    if (updatedErr) {
+      console.error('Complete lesson: failed to load updated video:', updatedErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update lesson completion'
+      } as ApiResponse);
+      return;
+    }
 
-    const videoWithStatus = {
-      ...updatedVideo.rows[0],
-      user_has_completed: completionCheck.rows.length > 0
+    const { data: completionRow, error: completionErr } = await supabaseAdmin
+      .from('video_completions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('video_id', id)
+      .limit(1)
+      .maybeSingle();
+
+    if (completionErr) {
+      console.warn('Complete lesson: failed to check completion status:', completionErr);
+    }
+
+    const videoWithStatus: any = {
+      ...updatedVideoRow,
+      views: updatedVideoRow.views || 0,
+      likes: updatedVideoRow.likes || 0,
+      uploadedAt: updatedVideoRow.created_at,
+      isPremium: updatedVideoRow.is_premium,
+      user_has_completed: !!completionRow
     };
 
     res.json({
@@ -486,9 +611,31 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
     const userId = req.user!.id;
     const { liked } = req.body; // true to like, false to unlike
 
-    // Check if video exists
-    const videoCheck = await dbQuery('SELECT id FROM videos WHERE id = $1', [id]);
-    if (videoCheck.rows.length === 0) {
+    if (!supabaseAdmin) {
+      res.status(500).json({
+        success: false,
+        message: 'Server misconfiguration: Supabase admin client not available'
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if video exists and user has access (RLS-safe)
+    const { data: videoRow, error: videoErr } = await supabaseAdmin
+      .from('videos')
+      .select('id, is_premium')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (videoErr) {
+      console.error('Like video: failed to load video:', videoErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to like video'
+      } as ApiResponse);
+      return;
+    }
+
+    if (!videoRow) {
       res.status(404).json({
         success: false,
         message: 'Video not found'
@@ -496,43 +643,102 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
       return;
     }
 
+    // Premium gating (server-side)
+    if (videoRow.is_premium && !req.user!.is_premium) {
+      res.status(403).json({
+        success: false,
+        message: 'Premium subscription required'
+      } as ApiResponse);
+      return;
+    }
+
     if (liked) {
       // Add like (ignore if already exists due to unique constraint)
-      await dbQuery(
-        'INSERT INTO video_likes (user_id, video_id) VALUES ($1, $2) ON CONFLICT (user_id, video_id) DO NOTHING',
-        [userId, id]
-      );
+      const { error: likeErr } = await supabaseAdmin
+        .from('video_likes')
+        .upsert({ user_id: userId, video_id: id }, { onConflict: 'user_id,video_id' });
+      if (likeErr) {
+        console.error('Like video: failed to upsert like:', likeErr);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to like video'
+        } as ApiResponse);
+        return;
+      }
     } else {
       // Remove like
-      await dbQuery(
-        'DELETE FROM video_likes WHERE user_id = $1 AND video_id = $2',
-        [userId, id]
-      );
+      const { error: delErr } = await supabaseAdmin
+        .from('video_likes')
+        .delete()
+        .eq('user_id', userId)
+        .eq('video_id', id);
+      if (delErr) {
+        console.error('Like video: failed to delete like:', delErr);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to like video'
+        } as ApiResponse);
+        return;
+      }
     }
 
     // Get updated like count
-    const likeCountResult = await dbQuery(
-      'SELECT COUNT(*) as like_count FROM video_likes WHERE video_id = $1',
-      [id]
-    );
+    const { count: likeCount, error: countErr } = await supabaseAdmin
+      .from('video_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('video_id', id);
 
-    const likeCount = likeCountResult.rows.length > 0 ? parseInt(likeCountResult.rows[0].like_count) : 0;
+    if (countErr) {
+      console.error('Like video: failed to count likes:', countErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to like video'
+      } as ApiResponse);
+      return;
+    }
+
+    const safeLikeCount = likeCount ?? 0;
 
     // Update video likes count
-    await dbQuery(
-      'UPDATE videos SET likes = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [likeCount, id]
-    );
+    const { error: updErr } = await supabaseAdmin
+      .from('videos')
+      .update({ likes: safeLikeCount, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (updErr) {
+      console.error('Like video: failed to update likes counter:', updErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to like video'
+      } as ApiResponse);
+      return;
+    }
 
     // Get updated video
-    const updatedVideo = await dbQuery(
-      'SELECT id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at FROM videos WHERE id = $1',
-      [id]
-    );
+    const { data: updatedVideoRow, error: loadErr } = await supabaseAdmin
+      .from('videos')
+      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
+      .eq('id', id)
+      .single();
+
+    if (loadErr) {
+      console.error('Like video: failed to load updated video:', loadErr);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to like video'
+      } as ApiResponse);
+      return;
+    }
 
     res.json({
       success: true,
-      data: updatedVideo.rows[0],
+      data: {
+        ...updatedVideoRow,
+        views: updatedVideoRow.views || 0,
+        likes: updatedVideoRow.likes || 0,
+        uploadedAt: updatedVideoRow.created_at,
+        isPremium: updatedVideoRow.is_premium
+      },
       message: liked ? 'Video liked' : 'Video unliked'
     } as ApiResponse<Video>);
   } catch (error) {

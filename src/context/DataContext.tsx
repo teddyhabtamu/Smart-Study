@@ -3,7 +3,17 @@ import { Document, VideoLesson, Video, ForumPost, StudyEvent, User } from '../ty
 import { documentsAPI, videosAPI, forumAPI, plannerAPI, adminAPI, dashboardAPI } from '../services/api';
 
 // Helper function to transform Video API response to VideoLesson format
-const transformVideoToVideoLesson = (video: Video): VideoLesson => ({
+const transformVideoToVideoLesson = (video: Video): VideoLesson => {
+  // Backend responses have been inconsistent historically:
+  // - some endpoints return `is_premium`
+  // - others return `isPremium`
+  // Make this mapping resilient so premium badges and gating work reliably.
+  const isPremium =
+    (video as any).is_premium ??
+    (video as any).isPremium ??
+    false;
+
+  return ({
   id: video.id,
   title: video.title,
   description: video.description || '',
@@ -19,8 +29,9 @@ const transformVideoToVideoLesson = (video: Video): VideoLesson => ({
     month: 'short',
     day: 'numeric'
   }),
-  isPremium: video.is_premium
-});
+  isPremium
+  });
+};
 
 interface DataContextType {
   // Data state
