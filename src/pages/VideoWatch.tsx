@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, ExternalLink, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { videosAPI, aiTutorAPI } from '../services/api';
 import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -543,18 +543,6 @@ const VideoWatch: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {canWatch && videoId && (
-                      <div className="flex gap-4">
-                        <a
-                          href={`https://www.youtube.com/watch?v=${videoId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium text-zinc-500 hover:text-zinc-800 flex items-center gap-1"
-                        >
-                          <ExternalLink size={12} /> <span className="hidden xs:inline">Watch directly on YouTube</span><span className="xs:hidden">YouTube</span>
-                        </a>
-                      </div>
-                    )}
                   </div>
                   <div className="flex gap-2">
                      {user && canWatch && (
