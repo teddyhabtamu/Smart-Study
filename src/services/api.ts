@@ -932,6 +932,20 @@ export const adminAPI = {
   getSystemLogs: (): Promise<{ timestamp: string; level: string; message: string }[]> =>
     apiRequest('/admin/logs'),
 
+  getAuditLogs: (params: { limit?: number; offset?: number; actor?: string; action?: string; targetType?: string; targetId?: string; search?: string } = {}): Promise<{
+    logs: any[];
+    pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+  }> => {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).length > 0) {
+        queryParams.append(key, String(value));
+      }
+    });
+    const qs = queryParams.toString();
+    return apiRequest(`/admin/audit-logs${qs ? `?${qs}` : ''}`);
+  },
+
   // Admin stats
   getAdminStats: (): Promise<{
     total_users: number;

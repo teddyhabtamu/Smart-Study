@@ -5,6 +5,7 @@ import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, ForumPost, ForumComment, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
+import { logAdminActivity } from '../services/adminAuditLog';
 
 const router = express.Router();
 
@@ -541,7 +542,7 @@ router.post('/posts/:id/generate-ai-answer', authenticateToken, async (req: expr
   }
 });
 
-// Delete forum post (only by author or admin)
+// Delete forum post (only by author, admin, or moderator)
 router.delete('/posts/:id', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -566,7 +567,10 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
 
     console.log('Post author_id:', postCheck[0].author_id, 'userId:', userId, 'userRole:', userRole);
 
-    if (postCheck[0].author_id !== userId && userRole !== 'ADMIN') {
+    const roleStr = String(userRole || '').toUpperCase();
+    const isTeam = roleStr === 'ADMIN' || roleStr === 'MODERATOR';
+
+    if (postCheck[0].author_id !== userId && !isTeam) {
       res.status(403).json({
         success: false,
         message: 'You can only delete your own posts'
@@ -575,8 +579,26 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
     }
 
     console.log('Deleting post:', id);
+    const beforePost = postCheck[0];
     await dbAdmin.delete('forum_posts', id);
     console.log('Post deleted successfully');
+
+    // Audit log for admin/moderator deletions (non-blocking)
+    if (isTeam) {
+      logAdminActivity(req, {
+        action: 'forum.post.delete',
+        target_type: 'forum_post',
+        target_id: String(id),
+        summary: `Deleted forum post "${beforePost?.title || id}"`,
+        before: {
+          id: beforePost?.id,
+          title: beforePost?.title,
+          subject: beforePost?.subject,
+          grade: beforePost?.grade,
+          author_id: beforePost?.author_id
+        }
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,
@@ -936,6 +958,8 @@ router.delete('/comments/:id', authenticateToken, async (req: express.Request, r
     const { id } = req.params;
     const userId = req.user!.id;
     const userRole = req.user!.role;
+    const roleStr = String(userRole || '').toUpperCase();
+    const isTeam = roleStr === 'ADMIN' || roleStr === 'MODERATOR';
 
     // Check if comment exists and user has permission
     const comments = await dbAdmin.get('forum_comments');
@@ -949,7 +973,7 @@ router.delete('/comments/:id', authenticateToken, async (req: express.Request, r
       return;
     }
 
-    if (comment.author_id !== userId && userRole !== 'ADMIN') {
+    if (comment.author_id !== userId && !isTeam) {
       res.status(403).json({
         success: false,
         message: 'You can only delete your own comments'
@@ -958,6 +982,23 @@ router.delete('/comments/:id', authenticateToken, async (req: express.Request, r
     }
 
     await dbAdmin.delete('forum_comments', id);
+
+    // Audit log for admin/moderator deletions (non-blocking)
+    if (isTeam) {
+      logAdminActivity(req, {
+        action: 'forum.comment.delete',
+        target_type: 'forum_comment',
+        target_id: String(id),
+        summary: `Deleted forum comment ${id}`,
+        before: {
+          id: comment.id,
+          post_id: comment.post_id,
+          author_id: comment.author_id,
+          // keep it short-ish
+          content_preview: typeof comment.content === 'string' ? comment.content.slice(0, 200) : null
+        }
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,

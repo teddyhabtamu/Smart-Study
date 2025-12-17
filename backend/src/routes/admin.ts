@@ -8,6 +8,8 @@ import { config } from '../config';
 import { ApiResponse, User, Document, Video, ForumPost } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
+import { logAdminActivity } from '../services/adminAuditLog';
+import { supabaseAdmin } from '../database/config';
 
 const router = express.Router();
 
@@ -293,6 +295,16 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
       }
     }
 
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'user.premium.update',
+      target_type: 'user',
+      target_id: String(targetUserId),
+      summary: `Set premium=${isPremium} for user ${user.email}`,
+      before: { id: user.id, email: user.email, name: user.name, role: user.role, is_premium: wasPremium },
+      after: { id: user.id, email: user.email, name: user.name, role: user.role, is_premium: isPremium },
+    }).catch(() => {});
+
     res.json({
       success: true,
       message: `User ${isPremium ? 'upgraded to' : 'downgraded from'} premium`
@@ -325,6 +337,7 @@ router.put('/users/:userId/status', requireRole(['ADMIN']), [
       return;
     }
 
+    const beforeStatus = user.status;
     await dbAdmin.update('users', targetUserId, {
       status,
       updated_at: new Date().toISOString()
@@ -363,6 +376,17 @@ router.put('/users/:userId/status', requireRole(['ADMIN']), [
       }
     }
 
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'user.status.update',
+      target_type: 'user',
+      target_id: String(targetUserId),
+      summary: `Set status=${status} for user ${user.email}`,
+      before: { id: user.id, email: user.email, name: user.name, role: user.role, status: beforeStatus },
+      after: { id: user.id, email: user.email, name: user.name, role: user.role, status },
+      meta: reason ? { reason } : undefined,
+    }).catch(() => {});
+
     res.json({
       success: true,
       message: `User status updated to ${status}`
@@ -377,24 +401,37 @@ router.put('/users/:userId/status', requireRole(['ADMIN']), [
 });
 
 // Delete user (soft delete by marking as inactive)
-router.delete('/users/:userId', async (req: express.Request, res: express.Response): Promise<void> => {
+router.delete('/users/:userId', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { userId } = req.params;
     const targetUserId = userId;
 
-    const user = dbAdmin.findOne('users', (u: any) => u.id === targetUserId);
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === targetUserId);
     if (!user) {
       res.status(404).json({
         success: false,
         message: 'User not found'
       } as ApiResponse);
+      return;
     }
 
-    // Mark user as inactive (you could add an 'active' field to the schema)
-    dbAdmin.update('users', targetUserId, {
-      role: 'INACTIVE', // Change role to indicate inactive
+    const before = { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, is_premium: user.is_premium };
+
+    // Mark user as inactive using the `status` column (role is an enum; do not set role to INACTIVE)
+    await dbAdmin.update('users', targetUserId, {
+      status: 'Inactive',
       updated_at: new Date().toISOString()
     });
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'user.deactivate',
+      target_type: 'user',
+      target_id: String(targetUserId),
+      summary: `Deactivated user ${user.email}`,
+      before,
+      after: { ...before, status: 'Inactive' }
+    }).catch(() => {});
 
     res.json({
       success: true,
@@ -502,6 +539,22 @@ router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
 
     const inserted = await dbAdmin.insert('documents', documentData);
 
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'document.create',
+      target_type: 'document',
+      target_id: String(inserted?.id || ''),
+      summary: `Created document "${inserted?.title}"`,
+      after: {
+        id: inserted?.id,
+        title: inserted?.title,
+        subject: inserted?.subject,
+        grade: inserted?.grade,
+        is_premium: inserted?.is_premium,
+        uploaded_by
+      }
+    }).catch(() => {});
+
     // Notify users about new document (in-app notification only, no emails)
     if (inserted && inserted.id) {
       console.log('🔔 Triggering new document notification for users (in-app only)');
@@ -563,6 +616,22 @@ router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
 
     const inserted = await dbAdmin.insert('videos', videoData);
 
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'video.create',
+      target_type: 'video',
+      target_id: String(inserted?.id || ''),
+      summary: `Created video "${inserted?.title}"`,
+      after: {
+        id: inserted?.id,
+        title: inserted?.title,
+        subject: inserted?.subject,
+        grade: inserted?.grade,
+        is_premium: inserted?.is_premium,
+        uploaded_by
+      }
+    }).catch(() => {});
+
     // Notify users about new video (in-app notification only, no emails)
     if (inserted && inserted.id) {
       console.log('🔔 Triggering new video notification for users (in-app only)');
@@ -590,17 +659,33 @@ router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
 router.delete('/forum/posts/:postId', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { postId } = req.params;
-    const id = parseInt(postId || '0');
+    const id = postId;
 
-    const post = dbAdmin.findOne('forum_posts', (p: any) => p.id === id);
+    const post = await dbAdmin.findOne('forum_posts', (p: any) => String(p.id) === String(id));
     if (!post) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'
       } as ApiResponse);
+      return;
     }
 
-    dbAdmin.delete('forum_posts', id);
+    await dbAdmin.delete('forum_posts', id);
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'forum.post.delete',
+      target_type: 'forum_post',
+      target_id: String(id),
+      summary: `Deleted forum post "${post.title || id}"`,
+      before: {
+        id: post.id,
+        title: post.title,
+        subject: post.subject,
+        grade: post.grade,
+        author_id: post.author_id
+      }
+    }).catch(() => {});
 
     res.json({
       success: true,
@@ -735,6 +820,16 @@ router.post('/admins/invite', requireRole(['ADMIN']), [
       // Don't fail the request if email fails
     });
 
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'admin.invite',
+      target_type: 'admin_team',
+      target_id: String(inserted?.id || ''),
+      summary: `Invited ${email} as ${role}`,
+      after: { id: inserted?.id, email, name, role, status: 'Inactive' },
+      meta: { invited_email: email, invited_role: role },
+    }).catch(() => {});
+
     res.status(201).json({
       success: true,
       message: 'Admin invitation sent successfully. They will receive an email with instructions to accept the invitation.',
@@ -798,6 +893,7 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
       return;
     }
 
+    const beforeRole = user.role;
     const updateResult = await dbAdmin.update('users', targetUserId, {
       role: 'STUDENT',
       updated_at: new Date().toISOString()
@@ -813,6 +909,17 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
     }
 
     console.log('Admin privileges removed successfully for user:', targetUserId);
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'admin.remove',
+      target_type: 'admin_team',
+      target_id: String(targetUserId),
+      summary: `Removed admin privileges from ${user.email} (role ${beforeRole} -> STUDENT)`,
+      before: { id: user.id, email: user.email, name: user.name, role: beforeRole },
+      after: { id: user.id, email: user.email, name: user.name, role: 'STUDENT' },
+    }).catch(() => {});
+
     res.json({
       success: true,
       message: 'Admin privileges removed successfully'
@@ -846,6 +953,73 @@ router.get('/logs', requireRole(['ADMIN']), async (req: express.Request, res: ex
       success: false,
       message: 'Failed to get system logs'
     } as ApiResponse);
+  }
+});
+
+// Admin audit logs (who changed what)
+router.get('/audit-logs', requireRole(['ADMIN', 'MODERATOR']), [
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+  query('offset').optional().isInt({ min: 0 }).toInt(),
+  query('actor').optional().isUUID(),
+  query('action').optional().isString(),
+  query('targetType').optional().isString(),
+  query('targetId').optional().isString(),
+  query('search').optional().isString()
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    if (!supabaseAdmin) {
+      res.status(500).json({ success: false, message: 'Server misconfiguration: Supabase admin client not available' } as ApiResponse);
+      return;
+    }
+
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+    const actor = req.query.actor as string | undefined;
+    const action = req.query.action as string | undefined;
+    const targetType = req.query.targetType as string | undefined;
+    const targetId = req.query.targetId as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    let q = supabaseAdmin
+      .from('admin_activity_logs')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false });
+
+    if (actor) q = q.eq('actor_user_id', actor);
+    if (action) q = q.eq('action', action);
+    if (targetType) q = q.eq('target_type', targetType);
+    if (targetId) q = q.eq('target_id', targetId);
+    if (search && search.trim()) {
+      const s = search.trim();
+      q = q.or(`summary.ilike.%${s}%,action.ilike.%${s}%,actor_email.ilike.%${s}%,target_id.ilike.%${s}%`);
+    }
+
+    q = q.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await q;
+    if (error) {
+      res.status(500).json({ success: false, message: 'Failed to fetch audit logs' } as ApiResponse);
+      return;
+    }
+
+    const total = count ?? 0;
+    const rows = data || [];
+
+    res.json({
+      success: true,
+      data: {
+        logs: rows,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + rows.length < total
+        }
+      }
+    } as ApiResponse);
+  } catch (err) {
+    console.error('Get audit logs error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch audit logs' } as ApiResponse);
   }
 });
 

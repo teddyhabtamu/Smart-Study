@@ -8,6 +8,7 @@ import { ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
 import { v4 as uuidv4 } from 'uuid';
+import { logAdminActivity } from '../services/adminAuditLog';
 
 const router = express.Router();
 
@@ -724,6 +725,16 @@ router.put('/:userId/premium', [
       } as ApiResponse);
       return;
     }
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'user.premium.update',
+      target_type: 'user',
+      target_id: String(userId),
+      summary: `Set premium=${isPremium} for user ${userData.email}`,
+      before: { id: userData.id, email: userData.email, name: userData.name, is_premium: wasPremium },
+      after: { id: userData.id, email: userData.email, name: userData.name, is_premium: isPremium }
+    }).catch(() => {});
 
     // Create notification for the user
     if (userId) {

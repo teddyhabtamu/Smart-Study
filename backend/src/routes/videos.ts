@@ -6,6 +6,7 @@ import { ApiResponse, Video, User } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
 import { createHash } from 'crypto';
+import { logAdminActivity } from '../services/adminAuditLog';
 
 const router = express.Router();
 
@@ -772,6 +773,22 @@ router.post('/', [
 
     const newVideo = result.rows[0];
 
+    // Audit log (admins/moderators only, non-blocking)
+    logAdminActivity(req, {
+      action: 'video.create',
+      target_type: 'video',
+      target_id: String(newVideo?.id || ''),
+      summary: `Created video "${newVideo?.title}"`,
+      after: {
+        id: newVideo?.id,
+        title: newVideo?.title,
+        subject: newVideo?.subject,
+        grade: newVideo?.grade,
+        is_premium: newVideo?.is_premium,
+        uploaded_by
+      }
+    }).catch(() => {});
+
     // Notify users about new video (in-app notification only, no emails)
     if (newVideo && newVideo.id) {
       console.log('🔔 Triggering new video notification for users (in-app only)');
@@ -828,6 +845,21 @@ router.put('/:id', [
     const { id } = req.params;
     const updates = req.body;
 
+    // Capture before snapshot for audit (best-effort)
+    let beforeVideo: any = null;
+    try {
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from('videos')
+          .select('id, title, description, subject, grade, thumbnail, video_url, instructor, is_premium, uploaded_by')
+          .eq('id', id)
+          .maybeSingle();
+        beforeVideo = data || null;
+      }
+    } catch {
+      beforeVideo = null;
+    }
+
     // Build update query dynamically
     const updateFields: string[] = [];
     const params: any[] = [];
@@ -865,6 +897,16 @@ router.put('/:id', [
       return;
     }
 
+    // Audit log (admins/moderators only, non-blocking)
+    logAdminActivity(req, {
+      action: 'video.update',
+      target_type: 'video',
+      target_id: String(id),
+      summary: `Updated video "${result.rows[0]?.title || id}"`,
+      before: beforeVideo,
+      after: result.rows[0]
+    }).catch(() => {});
+
     res.json({
       success: true,
       data: result.rows[0],
@@ -892,6 +934,21 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
     }
     const { id } = req.params;
 
+    // Capture before snapshot for audit (best-effort)
+    let beforeVideo: any = null;
+    try {
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from('videos')
+          .select('id, title, subject, grade, is_premium, instructor, uploaded_by')
+          .eq('id', id)
+          .maybeSingle();
+        beforeVideo = data || null;
+      }
+    } catch {
+      beforeVideo = null;
+    }
+
     const result = await dbQuery('DELETE FROM videos WHERE id = $1', [id]);
 
     if (result.rowCount === 0) {
@@ -901,6 +958,15 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
       } as ApiResponse);
       return;
     }
+
+    // Audit log (admins/moderators only, non-blocking)
+    logAdminActivity(req, {
+      action: 'video.delete',
+      target_type: 'video',
+      target_id: String(id),
+      summary: `Deleted video "${beforeVideo?.title || id}"`,
+      before: beforeVideo
+    }).catch(() => {});
 
     res.json({
       success: true,

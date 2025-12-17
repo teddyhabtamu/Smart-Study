@@ -605,3 +605,32 @@ CREATE TRIGGER update_job_positions_updated_at BEFORE UPDATE ON job_positions FO
 -- Trigger for updated_at on job_applications
 DROP TRIGGER IF EXISTS update_job_applications_updated_at ON job_applications;
 CREATE TRIGGER update_job_applications_updated_at BEFORE UPDATE ON job_applications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ---------------------------------------------------------------------------
+-- Admin Activity Logs (Audit Trail)
+-- Tracks: who (admin/moderator) changed what + before/after snapshots.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS admin_activity_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    actor_email TEXT,
+    actor_name TEXT,
+    actor_role TEXT,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    summary TEXT,
+    before JSONB,
+    after JSONB,
+    meta JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_activity_logs_created_at ON admin_activity_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_activity_logs_actor ON admin_activity_logs(actor_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_activity_logs_target ON admin_activity_logs(target_type, target_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_activity_logs_action ON admin_activity_logs(action, created_at DESC);
+
+-- We read/write audit logs using the server's service role, so disable RLS.
+ALTER TABLE admin_activity_logs DISABLE ROW LEVEL SECURITY;

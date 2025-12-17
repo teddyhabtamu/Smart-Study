@@ -6,6 +6,7 @@ import { ApiResponse, Document, User } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
 import axios from 'axios';
+import { logAdminActivity } from '../services/adminAuditLog';
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {
@@ -515,6 +516,22 @@ router.post('/', [
 
     const newDocument = result.rows[0];
 
+    // Audit log (admins/moderators only, non-blocking)
+    logAdminActivity(req, {
+      action: 'document.create',
+      target_type: 'document',
+      target_id: String(newDocument?.id || ''),
+      summary: `Created document "${newDocument?.title}"`,
+      after: {
+        id: newDocument?.id,
+        title: newDocument?.title,
+        subject: newDocument?.subject,
+        grade: newDocument?.grade,
+        is_premium: newDocument?.is_premium,
+        uploaded_by
+      }
+    }).catch(() => {});
+
     // Notify users about new document (in-app notification only, no emails)
     if (newDocument && newDocument.id) {
       console.log('🔔 Triggering new document notification for users (in-app only)');
@@ -572,6 +589,21 @@ router.put('/:id', [
     const { id } = req.params;
     const { title, description, subject, grade, file_type, file_url, preview_image, is_premium, author, tags } = req.body;
 
+    // Capture before snapshot for audit (best-effort)
+    let beforeDoc: any = null;
+    try {
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from('documents')
+          .select('id, title, description, subject, grade, file_type, file_url, preview_image, is_premium, tags, author')
+          .eq('id', id)
+          .maybeSingle();
+        beforeDoc = data || null;
+      }
+    } catch {
+      beforeDoc = null;
+    }
+
     // Build updates object
     const updates: any = {};
     if (title !== undefined) updates.title = title;
@@ -626,6 +658,16 @@ router.put('/:id', [
       return;
     }
 
+    // Audit log (admins/moderators only, non-blocking)
+    logAdminActivity(req, {
+      action: 'document.update',
+      target_type: 'document',
+      target_id: String(id),
+      summary: `Updated document "${result.rows[0]?.title || id}"`,
+      before: beforeDoc,
+      after: result.rows[0]
+    }).catch(() => {});
+
     res.json({
       success: true,
       data: result.rows[0],
@@ -653,6 +695,21 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
     }
     const { id } = req.params;
 
+    // Capture before snapshot for audit (best-effort)
+    let beforeDoc: any = null;
+    try {
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from('documents')
+          .select('id, title, subject, grade, is_premium, author, uploaded_by')
+          .eq('id', id)
+          .maybeSingle();
+        beforeDoc = data || null;
+      }
+    } catch {
+      beforeDoc = null;
+    }
+
     const result = await dbQuery('DELETE FROM documents WHERE id = $1', [id]);
 
     if (result.rowCount === 0) {
@@ -662,6 +719,15 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
       } as ApiResponse);
       return;
     }
+
+    // Audit log (admins/moderators only, non-blocking)
+    logAdminActivity(req, {
+      action: 'document.delete',
+      target_type: 'document',
+      target_id: String(id),
+      summary: `Deleted document "${beforeDoc?.title || id}"`,
+      before: beforeDoc
+    }).catch(() => {});
 
     res.json({
       success: true,

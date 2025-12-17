@@ -5,6 +5,7 @@ import { authenticateToken, optionalAuth, requireRole, validateRequest } from '.
 import { ApiResponse, JobPosition, JobApplication } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
+import { logAdminActivity } from '../services/adminAuditLog';
 
 const router = express.Router();
 
@@ -232,6 +233,22 @@ router.post('/admin/positions', [
       is_active,
       posted_by
     });
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'job_position.create',
+      target_type: 'job_position',
+      target_id: String(position?.id || ''),
+      summary: `Created job position "${position?.title}"`,
+      after: {
+        id: position?.id,
+        title: position?.title,
+        department: position?.department,
+        employment_type: position?.employment_type,
+        is_active: position?.is_active,
+        posted_by
+      }
+    }).catch(() => {});
     
     // Notify all users about new job position (non-blocking)
     if (position && position.id && is_active) {
@@ -289,6 +306,16 @@ router.put('/admin/positions/:id', [
     }
     
     const updated = await dbAdmin.update('job_positions', id, updates);
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'job_position.update',
+      target_type: 'job_position',
+      target_id: String(id),
+      summary: `Updated job position "${position?.title || id}"`,
+      before: position,
+      after: updated
+    }).catch(() => {});
     
     res.json({
       success: true,
@@ -311,6 +338,8 @@ router.delete('/admin/positions/:id', [
 ], async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
+
+    const before = await dbAdmin.findOne('job_positions', (p: any) => p.id === id);
     
     // Check if there are applications for this position
     const applications = await dbAdmin.get('job_applications');
@@ -318,7 +347,17 @@ router.delete('/admin/positions/:id', [
     
     if (hasApplications) {
       // Don't delete, just deactivate
-      await dbAdmin.update('job_positions', id, { is_active: false });
+      const updated = await dbAdmin.update('job_positions', id, { is_active: false });
+
+      logAdminActivity(req, {
+        action: 'job_position.deactivate',
+        target_type: 'job_position',
+        target_id: String(id),
+        summary: `Deactivated job position "${before?.title || id}" (has applications)`,
+        before,
+        after: updated
+      }).catch(() => {});
+
       res.json({
         success: true,
         message: 'Job position deactivated (has applications)'
@@ -326,6 +365,15 @@ router.delete('/admin/positions/:id', [
     } else {
       // Safe to delete
       await dbAdmin.delete('job_positions', id);
+
+      logAdminActivity(req, {
+        action: 'job_position.delete',
+        target_type: 'job_position',
+        target_id: String(id),
+        summary: `Deleted job position "${before?.title || id}"`,
+        before
+      }).catch(() => {});
+
       res.json({
         success: true,
         message: 'Job position deleted successfully'
@@ -431,6 +479,8 @@ router.put('/admin/applications/:id/status', [
       } as ApiResponse);
       return;
     }
+
+    const before = application;
     
     const updates: any = {
       status,
@@ -443,6 +493,17 @@ router.put('/admin/applications/:id/status', [
     }
     
     const updated = await dbAdmin.update('job_applications', id, updates);
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'job_application.status.update',
+      target_type: 'job_application',
+      target_id: String(id),
+      summary: `Updated application status to ${status}`,
+      before,
+      after: updated,
+      meta: notes ? { notes } : undefined
+    }).catch(() => {});
     
     // Get position title for notifications
     const position = await dbAdmin.findOne('job_positions', (p: any) => p.id === application.position_id);
@@ -503,7 +564,16 @@ router.delete('/admin/applications/:id', [
 ], async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const before = await dbAdmin.findOne('job_applications', (app: any) => app.id === id);
     await dbAdmin.delete('job_applications', id);
+
+    logAdminActivity(req, {
+      action: 'job_application.delete',
+      target_type: 'job_application',
+      target_id: String(id),
+      summary: `Deleted job application ${id}`,
+      before
+    }).catch(() => {});
     
     res.json({
       success: true,
