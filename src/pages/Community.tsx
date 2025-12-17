@@ -11,6 +11,7 @@ import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
 import { usersAPI, forumAPI } from '../services/api';
 import { ForumPostSkeleton, LeaderboardItemSkeleton } from '../components/Skeletons';
+import { formatRelativeTime } from '../utils/dateUtils';
 
 const Community: React.FC = () => {
   const { user } = useAuth();
@@ -535,7 +536,11 @@ const Community: React.FC = () => {
               <ForumPostSkeleton />
               <ForumPostSkeleton />
             </>
-          ) : !errors.forumPosts && filteredPosts.map(post => (
+          ) : !errors.forumPosts && filteredPosts.map((post: any) => {
+            const createdAt = post?.createdAt ?? post?.created_at;
+            const authorRole = post?.authorRole ?? post?.author_role;
+            const isSolved = post?.isSolved ?? post?.is_solved ?? false;
+            return (
             <div
               key={post.id}
               onClick={() => handlePostClick(post.id)}
@@ -567,7 +572,7 @@ const Community: React.FC = () => {
                     <span className="text-xs font-medium text-zinc-500 bg-zinc-100 px-1.5 sm:px-2 py-0.5 rounded border border-zinc-200">
                       {post.grade === 0 ? 'General' : `Grade ${post.grade}`}
                     </span>
-                    {post.isSolved && (
+                    {isSolved && (
                       <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1">
                         <CheckCircle size={8} className="sm:w-2.5 sm:h-2.5" /> SOLVED
                       </span>
@@ -587,9 +592,9 @@ const Community: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <div
                         className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white ${
-                          post.authorRole === UserRole.TUTOR
+                          authorRole === UserRole.TUTOR
                             ? 'bg-zinc-800'
-                            : post.authorRole === UserRole.ADMIN
+                            : authorRole === UserRole.ADMIN
                             ? 'bg-zinc-900'
                             : 'bg-zinc-400'
                         }`}
@@ -598,7 +603,12 @@ const Community: React.FC = () => {
                       </div>
 
                       <span className="text-xs font-medium text-zinc-700">{post.author}</span>
-                      <span className="text-xs text-zinc-400">• {post.createdAt}</span>
+                      <span
+                        className="text-xs text-zinc-400"
+                        title={createdAt ? new Date(createdAt).toLocaleString() : undefined}
+                      >
+                        • {formatRelativeTime(createdAt || '')}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-1 text-xs text-zinc-500">
@@ -608,7 +618,7 @@ const Community: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
+          )})}
 
           {!loading.forumPosts && !errors.forumPosts && filteredPosts.length === 0 && (
             <div className="text-center py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl">
