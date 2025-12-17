@@ -71,9 +71,8 @@ router.get('/', optionalAuth, [
       .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at');
 
     // Apply filters
-    if (!isPremium) {
-      query = query.eq('is_premium', false);
-    }
+    // IMPORTANT: Always return premium + free videos.
+    // Premium access is enforced when WATCHING/ENGAGING (detail + view/like/complete), not in the list.
 
     if (subject) {
       query = query.eq('subject', subject);
@@ -209,14 +208,11 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
       isPremium: videoRow.is_premium
     };
 
-    // Check premium access
-    if (video.is_premium && !isPremium) {
-      res.status(403).json({
-        success: false,
-        message: 'Premium subscription required'
-      } as ApiResponse);
-      return;
-    }
+    // IMPORTANT:
+    // Do NOT block premium videos here. We allow everyone to load the video page and see the locked UI.
+    // Actual watching/engagement is enforced by:
+    // - frontend gating (won't embed if not premium)
+    // - POST /:id/view, /:id/like, /:id/complete (server-side premium checks)
 
     // Check if user has liked this video and completed it
     if (userId) {
