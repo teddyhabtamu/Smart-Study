@@ -11,6 +11,7 @@ import TTSButton from '../components/TTSButton';
 import { forumAPI } from '../services/api';
 import { ForumPost } from '../types';
 import { CommunityPostDetailSkeleton } from '../components/Skeletons';
+import { formatRelativeTime } from '../utils/dateUtils';
 
 const CommunityPost: React.FC = () => {
   const { id } = useParams();
@@ -23,6 +24,13 @@ const CommunityPost: React.FC = () => {
   const [loadingPost, setLoadingPost] = useState(true);
 
   const post = fullPost || forumPosts.find(p => p.id === id);
+  // Normalize backend snake_case fields (defensive)
+  const postAuthorRole = (post as any)?.authorRole ?? (post as any)?.author_role;
+  const postIsSolved = (post as any)?.isSolved ?? (post as any)?.is_solved ?? false;
+  const postIsEdited = (post as any)?.isEdited ?? (post as any)?.is_edited ?? false;
+  const postCreatedAt = (post as any)?.createdAt ?? (post as any)?.created_at ?? (post as any)?.createdAt;
+  const postComments: any[] = Array.isArray((post as any)?.comments) ? (post as any).comments : [];
+  const hasAcceptedSolution = postComments.some((c: any) => Boolean(c?.isAccepted ?? c?.is_accepted));
   // Find related posts (same subject, excluding current)
   const relatedPosts = forumPosts.filter(p => p.subject === post?.subject && p.id !== post?.id).slice(0, 3);
 
@@ -370,16 +378,11 @@ const CommunityPost: React.FC = () => {
       // and sends the email notification
       await forumAPI.acceptComment(commentId);
 
-      // Also mark the post as solved when accepting a solution
-      if (!comment.isAccepted) {
-        await forumAPI.markSolved(post.id, true);
-      }
-
       // Refresh the post data
       const refreshedPost = await forumAPI.getPost(post.id);
       setFullPost(refreshedPost);
 
-      addToast(comment.isAccepted ? "Solution unmarked" : "Comment marked as solution!", "success");
+      addToast("Comment marked as solution!", "success");
     } catch (error) {
       console.error('Failed to accept solution:', error);
       addToast("Failed to mark solution. Please try again.", "error");
@@ -579,22 +582,24 @@ const CommunityPost: React.FC = () => {
                       <div className="flex-1 min-w-0">
                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
                            <div className="flex items-center gap-2">
-                             <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold text-white flex-shrink-0 ${
-                               post.authorRole === UserRole.TUTOR ? 'bg-zinc-800' :
-                               post.authorRole === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
-                             }`}>
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold text-white flex-shrink-0 ${
+                              postAuthorRole === UserRole.TUTOR ? 'bg-zinc-800' :
+                              postAuthorRole === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
+                            }`}>
                                {post.author.charAt(0)}
                              </div>
                              <div className="min-w-0">
                                 <p className="text-sm font-semibold text-zinc-900 leading-tight truncate">{post.author}</p>
                                 <p className="text-xs text-zinc-500">
-                                  {post.createdAt}
-                                  {post.isEdited && <span className="italic text-zinc-400 ml-1">(edited)</span>}
+                                  <span title={postCreatedAt ? new Date(postCreatedAt).toLocaleString() : undefined}>
+                                    {formatRelativeTime(postCreatedAt || post.createdAt)}
+                                  </span>
+                                  {(postIsEdited || post.isEdited) && <span className="italic text-zinc-400 ml-1">(edited)</span>}
                                 </p>
                              </div>
                            </div>
                            <div className="flex items-center gap-2 ml-auto">
-                             {post.isSolved && (
+                            {(postIsSolved || post.isSolved) && (
                                <span className="px-2 sm:px-3 py-1 rounded bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100 flex items-center gap-1">
                                  <CheckCircle size={12} className="sm:w-3.5 sm:h-3.5" /> SOLVED
                                </span>
@@ -674,35 +679,43 @@ const CommunityPost: React.FC = () => {
                 {/* Answers Count */}
                 <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900 px-1 pt-2 border-t border-zinc-200">
                   <MessageSquare size={16} className="sm:w-[18px] sm:h-[18px]" />
-                  {(post.comments?.length || (post as any).comment_count || 0)} Answers
+                  {(postComments.length || (post as any).comment_count || 0)} Answers
                 </div>
 
                 {/* Answers List */}
                 <div className="space-y-3 sm:space-y-4">
-                   {(post.comments || []).map((comment) => (
-                      <div key={comment.id} className={`bg-white rounded-xl border p-4 sm:p-6 md:p-8 shadow-sm ${comment.isAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
+                   {postComments.map((comment: any) => {
+                      const commentRole = comment.role ?? comment.author_role ?? comment.authorRole;
+                      const commentCreatedAt = comment.createdAt ?? comment.created_at ?? comment.createdAt;
+                      const commentIsEdited = Boolean(comment.isEdited ?? comment.is_edited);
+                      const commentIsAccepted = Boolean(comment.isAccepted ?? comment.is_accepted);
+                      return (
+                      <div key={comment.id} className={`bg-white rounded-xl border p-4 sm:p-6 md:p-8 shadow-sm ${commentIsAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
                             <div className="flex items-center gap-2">
                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
-                                 comment.role === UserRole.TUTOR ? 'bg-zinc-800' :
-                                 comment.role === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
+                                 commentRole === UserRole.TUTOR ? 'bg-zinc-800' :
+                                 commentRole === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
                                }`}>
                                  {comment.author.charAt(0)}
                                </div>
                                <div className="min-w-0">
                                   <p className="text-sm font-semibold text-zinc-900 truncate">{comment.author}</p>
                                   <p className="text-[10px] text-zinc-500">
-                                    {comment.role === UserRole.TUTOR ? 'Expert Tutor' : comment.role === UserRole.ADMIN ? 'Administrator' : 'Student'} • {comment.createdAt}
-                                    {comment.isEdited && <span className="italic ml-1">(edited)</span>}
+                                    {commentRole === UserRole.TUTOR ? 'Expert Tutor' : commentRole === UserRole.ADMIN ? 'Administrator' : 'Student'} •{' '}
+                                    <span title={commentCreatedAt ? new Date(commentCreatedAt).toLocaleString() : undefined}>
+                                      {formatRelativeTime(commentCreatedAt)}
+                                    </span>
+                                    {commentIsEdited && <span className="italic ml-1">(edited)</span>}
                                   </p>
                                </div>
                             </div>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
                               <TTSButton text={comment.content} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-zinc-900" />
-                              {comment.isAccepted && (
-                                <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-600 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-100">
-                                  <Check size={10} className="sm:w-3 sm:h-3" /> Accepted
+                              {commentIsAccepted && (
+                                <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-200">
+                                  <Check size={10} className="sm:w-3 sm:h-3" /> Solution
                                 </span>
                               )}
                             </div>
@@ -766,7 +779,8 @@ const CommunityPost: React.FC = () => {
                                )}
                             </div>
 
-                            {isAuthor && !comment.isAccepted && (
+                            {/* Hide "Mark as Solution" if a solution already exists */}
+                            {isAuthor && !hasAcceptedSolution && !commentIsAccepted && (
                               <button
                                 onClick={() => handleAcceptSolution(comment.id)}
                                 disabled={isMarkingSolution}
@@ -778,7 +792,7 @@ const CommunityPost: React.FC = () => {
                             )}
                          </div>
                       </div>
-                   ))}
+                   )})}
                 </div>
 
                 {/* Reply Form - NOT STICKY ANYMORE */}

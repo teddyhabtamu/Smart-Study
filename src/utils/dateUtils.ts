@@ -4,6 +4,10 @@
 export const formatRelativeTime = (date: string | Date): string => {
   const now = new Date();
   const then = typeof date === 'string' ? new Date(date) : date;
+  // If the input isn't a valid date (e.g., already "2 hours ago"), return as-is
+  if (then instanceof Date && Number.isNaN(then.getTime())) {
+    return typeof date === 'string' ? date : '';
+  }
   const diffInSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
 
   if (diffInSeconds < 60) {
