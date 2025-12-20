@@ -33,10 +33,23 @@ class SupabaseDB {
   }
 
   async get(table: string): Promise<any[]> {
+    // Define the appropriate timestamp column for each table
+    const timestampColumns: { [key: string]: string } = {
+      'badge_unlocks': 'unlocked_at',
+      'document_views': 'viewed_at',
+      'video_completions': 'completed_at',
+      'practice_sessions': 'completed_at',
+      'forum_views': 'viewed_at',
+      'xp_history': 'created_at',
+      // Default to created_at for all other tables
+    };
+
+    const timestampColumn = timestampColumns[table] || 'created_at';
+
     const { data, error } = await this.supabaseClient
       .from(table)
       .select('*')
-      .order('created_at', { ascending: false });
+      .order(timestampColumn, { ascending: false });
 
     if (error) throw error;
     return data || [];
