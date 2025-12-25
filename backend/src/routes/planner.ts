@@ -22,12 +22,18 @@ const normalizeSubject = (subject: string): string | null => {
     'chemistry': 'Chemistry',
     'physics': 'Physics',
     'biology': 'Biology',
+    'sat': 'SAT',
+    'act': 'ACT',
+    'gmat': 'GMAT',
+    'gre': 'GRE',
+    'toefl': 'TOEFL',
+    'ielts': 'IELTS',
     'general': 'Mathematics', // Default to Mathematics for "General"
     'other': 'Mathematics'
   };
 
   const lowerSubject = normalized.toLowerCase();
-  return subjectMap[lowerSubject] || (['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude'].includes(normalized) ? normalized : null);
+  return subjectMap[lowerSubject] || (['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude', 'SAT', 'ACT', 'GMAT', 'GRE', 'TOEFL', 'IELTS'].includes(normalized) ? normalized : null);
 };
 
 // Get user's study events
@@ -95,7 +101,7 @@ router.post('/events', [
       console.error('Invalid subject received:', subject);
       res.status(400).json({
         success: false,
-        message: `Invalid subject: "${subject}". Must be one of: Mathematics, English, History, Chemistry, Physics, Biology, Aptitude`,
+        message: `Invalid subject: "${subject}". Must be one of: Mathematics, English, History, Chemistry, Physics, Biology, Aptitude, SAT, ACT, GMAT, GRE, TOEFL, IELTS`,
         errors: [{ field: 'subject', message: 'Invalid subject value' }]
       } as ApiResponse);
       return;

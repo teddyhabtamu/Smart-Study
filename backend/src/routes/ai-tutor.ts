@@ -257,7 +257,7 @@ router.post('/generate-study-plan', authenticateToken, async (req: express.Reque
     const userId = req.user!.id;
 
     // Import the specialized study plan generator
-    const { generateStudyPlan } = await import('../services/geminiService');
+    const { generateStudyPlan } = await import('../services/aiTutor');
 
     // Generate structured study plan
     const studyPlan = await generateStudyPlan(prompt);

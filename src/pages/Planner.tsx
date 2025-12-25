@@ -13,6 +13,7 @@ import DatePicker from '../components/DatePicker';
 import { SUBJECTS } from '../constants';
 import { PlannerEventSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 
+
 const Planner: React.FC = () => {
   const { studyEvents, fetchStudyEvents, createStudyEvent, updateStudyEvent, deleteStudyEvent, loading } = useData();
   const { user, gainXP } = useAuth();
@@ -26,6 +27,7 @@ const Planner: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState<string | null>(null);
   const [isArchivingEvent, setIsArchivingEvent] = useState<string | null>(null);
+  const [isCompletingEvent, setIsCompletingEvent] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'archived'>('all');
   const [mounted, setMounted] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -48,7 +50,8 @@ const Planner: React.FC = () => {
     
     // Responsive tooltip width - increased for better readability
     const tooltipWidth = viewportWidth < 640 ? Math.min(viewportWidth - 32, 360) : 400;
-    const tooltipHeight = 500;
+    // Use dynamic height based on viewport for better positioning calculations
+    const tooltipHeight = Math.min(500, viewportHeight * 0.8); // Max 500px or 80% of viewport
     
     // Calculate available space
     const spaceOnRight = viewportWidth - rect.right;
@@ -67,17 +70,39 @@ const Planner: React.FC = () => {
       left = Math.max(16, (viewportWidth - tooltipWidth) / 2);
     }
     
-    // Position vertically: prefer below, fallback to above
+    // Position vertically to ensure modal is always fully visible
     let top: number;
-    if (spaceBelow >= tooltipHeight + 16) {
-      top = rect.bottom + scrollY + 8; // Below
-    } else if (spaceAbove >= tooltipHeight + 16) {
-      top = rect.top + scrollY - tooltipHeight - 8; // Above
+
+    if (viewportWidth < 640) {
+      // Mobile: Always center the modal vertically
+      top = scrollY + Math.max(16, (viewportHeight - 500) / 2);
     } else {
-      // Center vertically if neither has enough space
-      top = scrollY + Math.max(16, (rect.top - scrollY + rect.bottom - scrollY - tooltipHeight) / 2);
+      // Desktop: Position near the clicked element but ensure full visibility
+      const modalHeight = Math.min(500, viewportHeight * 0.8);
+      const preferredTop = rect.bottom + scrollY + 8;
+
+      // Check if modal fits below the element
+      if (preferredTop + modalHeight <= scrollY + viewportHeight - 16) {
+        top = preferredTop; // Position below
+      } else {
+        // Position above if it fits
+        const aboveTop = rect.top + scrollY - modalHeight - 8;
+        if (aboveTop >= scrollY + 16) {
+          top = aboveTop; // Position above
+        } else {
+          // Center vertically as fallback
+          top = scrollY + Math.max(16, (viewportHeight - modalHeight) / 2);
+        }
+      }
     }
     
+    // Final adjustment to ensure modal stays within viewport bounds
+    const modalHeight = Math.min(500, viewportHeight * 0.8);
+    const maxTop = scrollY + viewportHeight - modalHeight - 16;
+    const minTop = scrollY + 16;
+
+    top = Math.max(minTop, Math.min(top, maxTop));
+
     // Set position and event ID
     setTooltipPosition({ top, left });
     setSelectedEventId(eventId);
@@ -120,12 +145,25 @@ const Planner: React.FC = () => {
         closeTooltip();
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [selectedEventId]);
+
+  // Handle viewport changes (mobile keyboard, rotation)
+  useEffect(() => {
+    const handleResize = () => {
+      if (selectedEventId) {
+        // Close modal on viewport changes to prevent layout issues
+        closeTooltip();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [selectedEventId, closeTooltip]);
 
   // Manual Form State
   const [title, setTitle] = useState('');
@@ -157,6 +195,7 @@ const Planner: React.FC = () => {
   });
 
   const handleTaskToggle = async (id: string, isCompleted: boolean) => {
+    setIsCompletingEvent(id);
     try {
       await updateStudyEvent(id, { isCompleted: !isCompleted });
       if (!isCompleted) { // If marking as complete
@@ -169,6 +208,8 @@ const Planner: React.FC = () => {
     } catch (error) {
       console.error('Failed to toggle task:', error);
       addToast("Failed to update task status", "error");
+    } finally {
+      setIsCompletingEvent(null);
     }
   };
 
@@ -654,11 +695,25 @@ const Planner: React.FC = () => {
                         }`}
                       >
                          <button
-                           onClick={() => handleTaskToggle(event.id, event.isCompleted)}
-                           className={`flex-shrink-0 transition-colors p-1 ${event.isCompleted ? 'text-emerald-500' : 'text-zinc-300 hover:text-emerald-500'}`}
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleTaskToggle(event.id, event.isCompleted);
+                           }}
+                           disabled={isCompletingEvent === event.id}
+                           className={`flex-shrink-0 transition-colors p-1 ${
+                             event.isCompleted
+                               ? 'text-emerald-500'
+                               : 'text-zinc-300 hover:text-emerald-500'
+                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                            title={event.isCompleted ? "Mark as pending" : "Complete task (+50 XP)"}
                          >
-                           {event.isCompleted ? <CheckCircle size={20} className="sm:w-6 sm:h-6 fill-current" /> : <Circle size={20} className="sm:w-6 sm:h-6" />}
+                           {isCompletingEvent === event.id ? (
+                             <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
+                           ) : event.isCompleted ? (
+                             <CheckCircle size={20} className="sm:w-6 sm:h-6 fill-current" />
+                           ) : (
+                             <Circle size={20} className="sm:w-6 sm:h-6" />
+                           )}
                          </button>
 
                          <div className="flex-1 min-w-0">
@@ -668,6 +723,9 @@ const Planner: React.FC = () => {
                                </h4>
                                {event.type === 'Exam' && (
                                  <span className="text-[9px] sm:text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold flex-shrink-0">EXAM</span>
+                               )}
+                               {event.type === 'Assignment' && (
+                                 <span className="text-[9px] sm:text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ASSIGNMENT</span>
                                )}
                             </div>
                             <p className="text-xs text-zinc-500 flex items-center gap-2">
@@ -695,7 +753,10 @@ const Planner: React.FC = () => {
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {statusFilter === 'archived' ? (
                             <button
-                              onClick={() => handleArchiveToggle(event.id, event.isArchived)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchiveToggle(event.id, event.isArchived);
+                              }}
                               disabled={isArchivingEvent === event.id}
                               className="p-1.5 sm:p-2 text-zinc-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                               title="Unarchive"
@@ -708,7 +769,10 @@ const Planner: React.FC = () => {
                             </button>
                           ) : event.isCompleted ? (
                             <button
-                              onClick={() => handleArchiveToggle(event.id, event.isArchived)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchiveToggle(event.id, event.isArchived);
+                              }}
                               disabled={isArchivingEvent === event.id}
                               className="p-1.5 sm:p-2 text-zinc-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                               title="Archive"
@@ -721,7 +785,8 @@ const Planner: React.FC = () => {
                             </button>
                           ) : null}
                           <button
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               setIsDeletingEvent(event.id);
                               try {
                                 await deleteStudyEvent(event.id);
@@ -915,66 +980,81 @@ const Planner: React.FC = () => {
         const tooltipWidth = viewportWidth < 640 ? Math.min(viewportWidth - 32, 360) : 400;
         
         return createPortal(
-          <div
-            data-tooltip-container
-            className="fixed z-[9999]"
-            style={{
-              top: `${tooltipPosition.top}px`,
-              left: `${tooltipPosition.left}px`,
-              width: `${tooltipWidth}px`,
-              maxWidth: 'calc(100vw - 32px)',
-              pointerEvents: 'auto'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div 
-              className="bg-white rounded-xl shadow-2xl border border-zinc-200 max-h-[85vh] overflow-y-auto custom-scrollbar pointer-events-auto"
+          <>
+            {/* Mobile backdrop */}
+            {viewportWidth < 640 && (
+              <div
+                className="fixed inset-0 bg-black/60 z-[9998]"
+                onClick={closeTooltip}
+              />
+            )}
+            <div
+              data-tooltip-container
+              className={`fixed z-[9999] ${
+                viewportWidth < 640
+                  ? 'inset-4 flex items-center justify-center'
+                  : 'inset-auto'
+              }`}
+              style={viewportWidth < 640 ? {} : {
+                top: `${tooltipPosition.top}px`,
+                left: `${tooltipPosition.left}px`,
+                width: `${tooltipWidth}px`,
+                maxWidth: 'calc(100vw - 32px)',
+                pointerEvents: 'auto'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div
+              className={`bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-y-auto custom-scrollbar pointer-events-auto ${
+                viewportWidth < 640 ? 'w-full max-h-[85vh]' : ''
+              }`}
               style={{
                 animation: 'fadeIn 0.2s ease-out forwards',
-                opacity: 1
+                opacity: 1,
+                maxHeight: viewportWidth < 640 ? '85vh' : '80vh'
               }}>
               
               {/* Header with brand colors and close button */}
-              <div className="p-3 sm:p-4 rounded-t-xl bg-zinc-900 border-b border-zinc-800 relative">
+              <div className="p-4 sm:p-3 sm:p-4 rounded-t-xl bg-zinc-900 border-b border-zinc-800 relative">
                 <button
                   onClick={closeTooltip}
-                  className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white transition-colors"
+                  className="absolute top-4 right-4 sm:top-3 sm:right-3 sm:top-4 sm:right-4 p-2 sm:p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white transition-colors touch-manipulation"
                   aria-label="Close tooltip"
                 >
-                  <X size={16} />
+                  <X size={18} className="sm:w-4" />
                 </button>
-                <div className="flex items-start gap-3 pr-8">
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-white text-zinc-900 shadow-sm flex-shrink-0">
-                    {event.type === 'Exam' ? <Target size={18} className="sm:w-5 sm:h-5" /> :
-                     event.type === 'Assignment' ? <BookOpen size={18} className="sm:w-5 sm:h-5" /> :
-                     <TrendingUp size={18} className="sm:w-5 sm:h-5" />}
+                <div className="flex items-start gap-3 pr-12">
+                  <div className="p-2.5 sm:p-2 sm:p-2.5 rounded-lg bg-white text-zinc-900 shadow-sm flex-shrink-0">
+                    {event.type === 'Exam' ? <Target size={20} className="sm:w-5 sm:h-5" /> :
+                     event.type === 'Assignment' ? <BookOpen size={20} className="sm:w-5 sm:h-5" /> :
+                     <TrendingUp size={20} className="sm:w-5 sm:h-5" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-white text-sm sm:text-base mb-1 leading-tight">{event.title}</h4>
-                    <p className="text-xs font-medium text-zinc-400">{event.subject}</p>
-                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-200">
+                    <h4 className="font-bold text-white text-base sm:text-sm sm:text-base mb-1 leading-tight">{event.title}</h4>
+                    <p className="text-sm font-medium text-zinc-400">{event.subject}</p>
+                    <span className="inline-block mt-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-800 text-zinc-200">
                       {event.type}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+              <div className="p-4 sm:p-3 sm:p-4 space-y-4 sm:space-y-3 sm:space-y-4">
                 {/* How to Complete This Plan */}
                 <div>
-                  <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                    <div className="p-1.5 bg-zinc-100 rounded-lg">
-                      <Target size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-900" />
+                  <div className="flex items-center gap-3 mb-3 sm:mb-2 sm:mb-3">
+                    <div className="p-2 bg-zinc-100 rounded-lg">
+                      <Target size={14} className="sm:w-3.5 sm:h-3.5 text-zinc-900" />
                     </div>
-                    <h5 className="text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">How to Complete This Plan</h5>
+                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">How to Complete This Plan</h5>
                   </div>
-                  <div className="space-y-2 sm:space-y-2.5">
+                  <div className="space-y-3 sm:space-y-2 sm:space-y-2.5">
                     {guide.howToComplete && Array.isArray(guide.howToComplete) && guide.howToComplete.map((step: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-2 sm:gap-3 p-2.5 sm:p-3 bg-zinc-50 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors">
-                        <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-zinc-900 text-white text-[10px] sm:text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
+                      <div key={idx} className="flex items-start gap-3 sm:gap-2 sm:gap-3 p-3 sm:p-2.5 sm:p-3 bg-zinc-50 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors touch-manipulation">
+                        <div className="flex-shrink-0 w-6 h-6 sm:w-5 sm:h-5 sm:w-6 sm:h-6 rounded-full bg-zinc-900 text-white text-xs sm:text-[10px] sm:text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
                           {idx + 1}
                         </div>
-                        <p className="text-[11px] sm:text-xs text-zinc-700 leading-relaxed flex-1 font-medium">{step}</p>
+                        <p className="text-sm sm:text-[11px] sm:text-xs text-zinc-700 leading-relaxed flex-1 font-medium">{step}</p>
                       </div>
                     ))}
                   </div>
@@ -982,17 +1062,17 @@ const Planner: React.FC = () => {
 
                 {/* Quick Tips / Guides */}
                 <div>
-                  <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                    <div className="p-1.5 bg-zinc-100 rounded-lg">
-                      <Lightbulb size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-900" />
+                  <div className="flex items-center gap-3 mb-3 sm:mb-2 sm:mb-3">
+                    <div className="p-2 bg-zinc-100 rounded-lg">
+                      <Lightbulb size={14} className="sm:w-3.5 sm:h-3.5 text-zinc-900" />
                     </div>
-                    <h5 className="text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">Quick Tips</h5>
+                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">Quick Tips</h5>
                   </div>
-                  <div className="space-y-1.5 sm:space-y-2">
+                  <div className="space-y-2 sm:space-y-1.5 sm:space-y-2">
                     {guide.guides && Array.isArray(guide.guides) && guide.guides.map((item: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-2 sm:gap-2.5 p-2 sm:p-2.5 bg-zinc-50 rounded-lg border border-zinc-200">
-                        <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-zinc-900 mt-1.5"></div>
-                        <p className="text-[11px] sm:text-xs text-zinc-700 leading-relaxed flex-1">{item}</p>
+                      <div key={idx} className="flex items-start gap-3 sm:gap-2 sm:gap-2.5 p-3 sm:p-2 sm:p-2.5 bg-zinc-50 rounded-lg border border-zinc-200">
+                        <div className="flex-shrink-0 w-2 h-2 rounded-full bg-zinc-900 mt-2"></div>
+                        <p className="text-sm sm:text-[11px] sm:text-xs text-zinc-700 leading-relaxed flex-1">{item}</p>
                       </div>
                     ))}
                   </div>
@@ -1000,12 +1080,12 @@ const Planner: React.FC = () => {
 
                 {/* Suggestion */}
                 {guide.suggestions && (
-                  <div className="p-3 sm:p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 shadow-sm">
-                    <div className="flex items-start gap-2">
-                      <span className="text-sm sm:text-base flex-shrink-0">💡</span>
+                  <div className="p-4 sm:p-3 sm:p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg sm:text-sm sm:text-base flex-shrink-0">💡</span>
                       <div>
-                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 sm:mb-1.5">Suggestion</p>
-                        <p className="text-[11px] sm:text-xs text-zinc-700 leading-relaxed font-medium">{guide.suggestions}</p>
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 sm:mb-1 sm:mb-1.5">Suggestion</p>
+                        <p className="text-sm sm:text-[11px] sm:text-xs text-zinc-700 leading-relaxed font-medium">{guide.suggestions}</p>
                       </div>
                     </div>
                   </div>
@@ -1013,16 +1093,17 @@ const Planner: React.FC = () => {
 
                 {/* Motivation */}
                 {randomMotivation && (
-                  <div className="pt-2 sm:pt-3 border-t border-zinc-200">
-                    <div className="flex items-start gap-2 sm:gap-2.5 p-2.5 sm:p-2.5 bg-zinc-900 rounded-lg">
-                      <span className="text-sm sm:text-base flex-shrink-0">✨</span>
-                      <p className="text-[11px] sm:text-xs text-white italic leading-relaxed flex-1 font-medium">{randomMotivation}</p>
+                  <div className="pt-3 sm:pt-2 sm:pt-3 border-t border-zinc-200">
+                    <div className="flex items-start gap-3 sm:gap-2 sm:gap-2.5 p-3 sm:p-2.5 sm:p-2.5 bg-zinc-900 rounded-lg">
+                      <span className="text-lg sm:text-sm sm:text-base flex-shrink-0">✨</span>
+                      <p className="text-sm sm:text-[11px] sm:text-xs text-white italic leading-relaxed flex-1 font-medium">{randomMotivation}</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
-          </div>,
+          </div>
+          </>,
           document.body
         );
       })()}

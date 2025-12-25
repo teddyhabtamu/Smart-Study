@@ -3,7 +3,7 @@ import { GoogleGenerativeAI, SchemaType as Type } from '@google/generative-ai';
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
 export const generateStudyPlan = async (
   userRequest: string,
@@ -69,59 +69,83 @@ export const generateStudyPlan = async (
   }
 
   const events: EventInfo[] = [];
-  
+
   // Extract subjects and their events
   const subjects = ['aptitude', 'physics', 'chemistry', 'biology', 'mathematics', 'math', 'english', 'history', 'geography'];
-  
+
+  // Split the request into parts to handle multiple subjects better
+  const requestParts = request.split(/\s+and\s+/i);
+
   for (const subject of subjects) {
     if (request.includes(subject)) {
-      // Determine event type
+      // Find which part of the request contains this subject
+      const relevantPart = requestParts.find(part => part.includes(subject)) || request;
+
+      // Determine event type for this specific part
       let eventType: 'Exam' | 'Assignment' | 'Revision' = 'Revision';
-      if (request.includes('exam') || request.includes('test')) {
+      if (relevantPart.includes('exam') || relevantPart.includes('test')) {
         eventType = 'Exam';
-      } else if (request.includes('assignment') || request.includes('homework') || request.includes('project')) {
+      } else if (relevantPart.includes('assignment') || relevantPart.includes('homework') || relevantPart.includes('project')) {
         eventType = 'Assignment';
       }
 
-      // Extract date for this subject
-      // Look for patterns like "subject after X days" or "subject exam after X days"
+      // Extract date for this subject from the relevant part
       const subjectPattern = new RegExp(`${subject}[^.]*?(?:after|in)\\s+(\\d+)\\s+days?`, 'i');
-      const match = request.match(subjectPattern);
-      
+      const match = relevantPart.match(subjectPattern);
+
       if (match && match[1]) {
         const days = parseInt(match[1]);
         const eventDate = new Date(today);
         eventDate.setDate(today.getDate() + days);
-        
-        const subjectName = subject === 'math' ? 'Mathematics' : 
+
+        const subjectName = subject === 'math' ? 'Mathematics' :
                            subject === 'aptitude' ? 'Aptitude' :
                            subject.charAt(0).toUpperCase() + subject.slice(1);
-        
+
         events.push({
           subject: subjectName,
           type: eventType,
           date: eventDate,
-          title: eventType === 'Exam' ? `${subjectName} Exam` : 
+          title: eventType === 'Exam' ? `${subjectName} Exam` :
                 eventType === 'Assignment' ? `${subjectName} Assignment` :
                 `${subjectName} Study Session`
         });
       } else {
-        // Try to find date in nearby context
-        const daysMatch = request.match(/(?:after|in)\s+(\d+)\s+days?/i);
+        // Try to find date patterns in this specific part
+        const daysMatch = relevantPart.match(/(?:after|in)\s+(\d+)\s+days?/i);
+        const nextWeekMatch = relevantPart.match(/next\s+week/i);
+
         if (daysMatch && daysMatch[1]) {
           const days = parseInt(daysMatch[1]);
           const eventDate = new Date(today);
           eventDate.setDate(today.getDate() + days);
-          
-          const subjectName = subject === 'math' ? 'Mathematics' : 
+
+          const subjectName = subject === 'math' ? 'Mathematics' :
                              subject === 'aptitude' ? 'Aptitude' :
                              subject.charAt(0).toUpperCase() + subject.slice(1);
-          
+
           events.push({
             subject: subjectName,
             type: eventType,
             date: eventDate,
-            title: eventType === 'Exam' ? `${subjectName} Exam` : 
+            title: eventType === 'Exam' ? `${subjectName} Exam` :
+                  eventType === 'Assignment' ? `${subjectName} Assignment` :
+                  `${subjectName} Study Session`
+          });
+        } else if (nextWeekMatch) {
+          // Handle "next week" pattern
+          const eventDate = new Date(today);
+          eventDate.setDate(today.getDate() + 7);
+
+          const subjectName = subject === 'math' ? 'Mathematics' :
+                             subject === 'aptitude' ? 'Aptitude' :
+                             subject.charAt(0).toUpperCase() + subject.slice(1);
+
+          events.push({
+            subject: subjectName,
+            type: eventType,
+            date: eventDate,
+            title: eventType === 'Exam' ? `${subjectName} Exam` :
                   eventType === 'Assignment' ? `${subjectName} Assignment` :
                   `${subjectName} Study Session`
           });
@@ -178,133 +202,194 @@ export const generateStudyPlan = async (
     return studyPlan;
   }
 
-  // Find the earliest and latest dates
-  // TypeScript safety: we've already checked events.length > 0 above
-  const firstDate = events[0]!.date;
-  const lastDate = events[events.length - 1]!.date;
-  const totalDays = Math.ceil((lastDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  // Create a balanced study schedule with spaced repetition
+  const scheduleEntries: Array<{
+    date: Date;
+    event: EventInfo;
+    priority: 'high' | 'medium' | 'low';
+    sessionType: string;
+  }> = [];
 
-  // Generate daily study plan from today to the last event
-  for (let day = 0; day <= totalDays; day++) {
-    const currentDate = new Date(today);
-    currentDate.setDate(today.getDate() + day);
-    const dateStr = currentDate.toISOString().split('T')[0];
+  // For each event, plan strategic study sessions
+  for (const event of events) {
+    const daysUntilEvent = Math.ceil((event.date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Check if this is an event day
-    const eventOnThisDay = events.find(e => {
-      const eventDateStr = e.date.toISOString().split('T')[0];
-      return eventDateStr === dateStr;
-    });
+    if (daysUntilEvent >= 0) {
+      // Always include the event day itself
+      scheduleEntries.push({
+        date: new Date(event.date),
+        event,
+        priority: 'high',
+        sessionType: 'event'
+      });
 
-    if (eventOnThisDay) {
-      // Generate AI-powered study guide for this event (only for main events, not daily sessions)
-      const daysUntilEvent = Math.ceil((eventOnThisDay.date.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      try {
-        const studyGuide = await generateEventStudyGuide({
-          title: eventOnThisDay.title,
-          subject: eventOnThisDay.subject,
-          type: eventOnThisDay.type,
-          date: eventOnThisDay.date
-        }, daysUntilEvent);
-        
-        // Add the main event with AI-generated guide
-        studyPlan.push({
-          title: eventOnThisDay.title,
-          subject: eventOnThisDay.subject,
-          date: dateStr,
-          type: eventOnThisDay.type,
-          notes: JSON.stringify(studyGuide) // Store AI-generated guide as JSON in notes
+      // Add strategic preparation sessions based on time available
+      if (daysUntilEvent >= 7) {
+        // For events 7+ days away: weekly planning + intensive prep 3 days before
+        const planningDate = new Date(today);
+        planningDate.setDate(today.getDate() + Math.max(1, daysUntilEvent - 6));
+
+        const intensiveDate = new Date(event.date);
+        intensiveDate.setDate(event.date.getDate() - 3);
+
+        scheduleEntries.push({
+          date: planningDate,
+          event,
+          priority: 'low',
+          sessionType: 'planning'
         });
-      } catch (error) {
-        console.error('Error generating study guide, using fallback:', error);
-        // Fallback if AI fails
-        studyPlan.push({
-          title: eventOnThisDay.title,
-          subject: eventOnThisDay.subject,
-          date: dateStr,
-          type: eventOnThisDay.type,
-          notes: eventOnThisDay.type === 'Exam' ? `${eventOnThisDay.subject} exam day` :
-                 eventOnThisDay.type === 'Assignment' ? `Complete and submit ${eventOnThisDay.subject.toLowerCase()} assignment` :
-                 `Review ${eventOnThisDay.subject.toLowerCase()} materials`
-        });
-      }
-    } else {
-      // Create daily study sessions leading up to upcoming events
-      const upcomingEvents = events.filter(e => e.date > currentDate);
-      
-      if (upcomingEvents.length > 0) {
-        // Find the next event
-        const nextEvent = upcomingEvents[0];
-        if (!nextEvent) {
-          // Skip if no next event (shouldn't happen, but TypeScript safety)
-          continue;
-        }
-        
-        const daysUntilNextEvent = Math.ceil((nextEvent.date.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // Create study sessions based on proximity to next event
-        // Generate AI guide only for intensive reviews (close to event) to avoid too many API calls
-        if (daysUntilNextEvent <= 3) {
-          // Intensive study when close to event - generate AI guide
-          try {
-            const studyGuide = await generateEventStudyGuide({
-              subject: nextEvent.subject,
-              type: nextEvent.type,
-              title: `${nextEvent.subject} Intensive Review`,
-              date: nextEvent.date
-            }, daysUntilNextEvent);
-            
-            studyPlan.push({
-              title: `${nextEvent.subject} Intensive Review`,
-              subject: nextEvent.subject,
-              date: dateStr,
-              type: "Revision",
-              notes: JSON.stringify(studyGuide)
-            });
-          } catch (error) {
-            // Fallback if AI fails
-            studyPlan.push({
-              title: `${nextEvent.subject} Intensive Review`,
-              subject: nextEvent.subject,
-              date: dateStr,
-              type: "Revision",
-              notes: `Focus on ${nextEvent.subject.toLowerCase()} - ${nextEvent.type === 'Exam' ? 'exam' : 'assignment'} in ${daysUntilNextEvent} day${daysUntilNextEvent > 1 ? 's' : ''}`
-            });
-          }
-        } else if (daysUntilNextEvent <= 7) {
-          // Moderate study - simple notes
-          studyPlan.push({
-            title: `${nextEvent.subject} Study Session`,
-            subject: nextEvent.subject,
-            date: dateStr,
-            type: "Revision",
-            notes: `Review ${nextEvent.subject.toLowerCase()} concepts and practice problems`
+
+        if (intensiveDate > today) {
+          scheduleEntries.push({
+            date: intensiveDate,
+            event,
+            priority: 'high',
+            sessionType: 'intensive'
           });
-        } else {
-          // Light study for events far away - only create study sessions every 2-3 days to avoid overwhelming
-          if (day % 2 === 0 || day === 0) {
-            studyPlan.push({
-              title: `${nextEvent.subject} Preparation`,
-              subject: nextEvent.subject,
-              date: dateStr,
-              type: "Revision",
-              notes: `Start preparing for upcoming ${nextEvent.type === 'Exam' ? 'exam' : 'assignment'}`
-            });
-          }
         }
+      } else if (daysUntilEvent >= 4) {
+        // For events 4-6 days away: intensive prep 2 days before + final review 1 day before
+        const intensiveDate = new Date(event.date);
+        intensiveDate.setDate(event.date.getDate() - 2);
+
+        const reviewDate = new Date(event.date);
+        reviewDate.setDate(event.date.getDate() - 1);
+
+        if (intensiveDate > today) {
+          scheduleEntries.push({
+            date: intensiveDate,
+            event,
+            priority: 'high',
+            sessionType: 'intensive'
+          });
+        }
+
+        if (reviewDate > today) {
+          scheduleEntries.push({
+            date: reviewDate,
+            event,
+            priority: 'medium',
+            sessionType: 'review'
+          });
+        }
+      } else if (daysUntilEvent >= 2) {
+        // For events 2-3 days away: final review tomorrow
+        const reviewDate = new Date(event.date);
+        reviewDate.setDate(event.date.getDate() - 1);
+
+        if (reviewDate > today) {
+          scheduleEntries.push({
+            date: reviewDate,
+            event,
+            priority: 'high',
+            sessionType: 'review'
+          });
+        }
+      }
+      // For events tomorrow or today: no additional prep needed
+    }
+  }
+
+  // Sort all schedule entries by date
+  scheduleEntries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // Remove duplicate dates (keep higher priority sessions)
+  const uniqueSchedule = scheduleEntries.filter((entry, index, arr) => {
+    if (index === 0) return true;
+    const prevEntry = arr[index - 1]!;
+    const sameDate = entry.date.toISOString().split('T')[0] === prevEntry.date.toISOString().split('T')[0];
+    if (sameDate) {
+      // Keep the higher priority session or the event itself
+      return entry.priority === 'high' || entry.sessionType === 'event';
+    }
+    return true;
+  });
+
+  // Generate the actual study plan entries
+  for (const entry of uniqueSchedule) {
+    const dateStr = entry.date.toISOString().split('T')[0];
+    const daysUntil = Math.ceil((entry.event.date.getTime() - entry.date.getTime()) / (1000 * 60 * 60 * 24));
+
+    try {
+      let studyGuide;
+
+      if (entry.sessionType === 'event') {
+        // Event day
+        studyGuide = await generateEventStudyGuide({
+          title: entry.event.title,
+          subject: entry.event.subject,
+          type: entry.event.type,
+          date: entry.event.date
+        }, 0, 'event');
+      } else if (entry.sessionType === 'intensive') {
+        // Intensive preparation
+        studyGuide = await generateEventStudyGuide({
+          title: `${entry.event.subject} Intensive Preparation`,
+          subject: entry.event.subject,
+          type: 'Revision',
+          date: entry.event.date
+        }, daysUntil, 'intensive');
+      } else if (entry.sessionType === 'review') {
+        // Final review
+        studyGuide = await generateEventStudyGuide({
+          title: `${entry.event.subject} Final Review`,
+          subject: entry.event.subject,
+          type: 'Revision',
+          date: entry.event.date
+        }, daysUntil, 'review');
       } else {
-        // All events have passed, create general review sessions
-        if (day % 3 === 0) {
-          studyPlan.push({
-            title: "General Review Session",
-            subject: "General",
-            date: dateStr,
-            type: "Revision",
-            notes: "Review completed materials and consolidate learning"
-          });
-        }
+        // Planning session
+        studyGuide = {
+          howToComplete: [
+            `Plan your ${entry.event.subject.toLowerCase()} study schedule for the ${entry.event.type.toLowerCase()}`,
+            `Review ${entry.event.subject.toLowerCase()} syllabus and identify key topics`,
+            `Gather ${entry.event.subject.toLowerCase()} study materials and resources`,
+            `Set specific ${entry.event.subject.toLowerCase()} study goals for upcoming sessions`
+          ],
+          guides: [
+            `Create a realistic ${entry.event.subject.toLowerCase()} study timeline`,
+            `Identify your strengths and weaknesses in ${entry.event.subject.toLowerCase()}`,
+            `Plan breaks and rewards for ${entry.event.subject.toLowerCase()} study sessions`,
+            `Organize ${entry.event.subject.toLowerCase()} materials for easy access`
+          ],
+          suggestions: `Start planning your ${entry.event.subject.toLowerCase()} preparation for the ${entry.event.type.toLowerCase()} in ${daysUntil} days. Break it down into manageable study sessions.`,
+          motivation: [
+            `Planning ahead sets you up for ${entry.event.subject.toLowerCase()} success!`,
+            `Smart preparation leads to better ${entry.event.subject.toLowerCase()} results.`,
+            `You're taking control of your ${entry.event.subject.toLowerCase()} learning journey!`
+          ]
+        };
       }
+
+      const title = entry.sessionType === 'event' ? entry.event.title :
+                   entry.sessionType === 'intensive' ? `${entry.event.subject} Intensive Preparation` :
+                   entry.sessionType === 'review' ? `${entry.event.subject} Final Review` :
+                   `${entry.event.subject} Study Planning`;
+
+      studyPlan.push({
+        title,
+        subject: entry.event.subject,
+        date: dateStr,
+        type: entry.sessionType === 'event' ? entry.event.type : 'Revision',
+        notes: JSON.stringify(studyGuide)
+      });
+
+    } catch (error) {
+      console.error('Error generating study guide:', entry, error);
+      // Fallback
+      const fallbackNotes = entry.sessionType === 'event' ?
+        (entry.event.type === 'Exam' ? `${entry.event.subject} exam day` :
+         entry.event.type === 'Assignment' ? `Complete and submit ${entry.event.subject.toLowerCase()} assignment` :
+         `Review ${entry.event.subject.toLowerCase()} materials`) :
+        `Prepare for ${entry.event.subject.toLowerCase()} ${entry.event.type.toLowerCase()}`;
+
+      studyPlan.push({
+        title: entry.sessionType === 'event' ? entry.event.title : `${entry.event.subject} Study Session`,
+        subject: entry.event.subject,
+        date: dateStr,
+        type: entry.sessionType === 'event' ? entry.event.type : 'Revision',
+        notes: fallbackNotes
+      });
     }
   }
 
@@ -317,7 +402,8 @@ export const generateStudyPlan = async (
 // Generate AI-powered study guide for a specific event
 const generateEventStudyGuide = async (
   event: { title: string; subject: string; type: 'Exam' | 'Assignment' | 'Revision'; date: Date },
-  daysUntil: number
+  daysUntil: number,
+  sessionType: 'event' | 'planning' | 'intensive' | 'review' = 'event'
 ): Promise<{
   howToComplete: string[];
   guides: string[];
@@ -330,24 +416,50 @@ const generateEventStudyGuide = async (
     const isToday = daysUntil === 0;
     
     // Use AI to generate contextual study guide - natural, human-like language
+    let sessionContext = '';
+    let specificInstructions = '';
+
+    switch (sessionType) {
+      case 'planning':
+        sessionContext = `This is a PLANNING SESSION for preparing a study schedule for the upcoming ${event.type}. Focus on organization, goal-setting, and creating a realistic timeline.`;
+        specificInstructions = `For planning sessions, emphasize organization and strategy. Focus on breaking down the ${event.subject} ${event.type.toLowerCase()} into manageable parts and creating a study timeline.`;
+        break;
+      case 'intensive':
+        sessionContext = `This is an INTENSIVE PREPARATION SESSION with ${daysUntil} days until the ${event.subject} ${event.type}. Focus on deep learning, practice, and building confidence.`;
+        specificInstructions = `For intensive preparation, emphasize active learning techniques, practice problems, and connecting concepts. Help the student build strong foundations in ${event.subject}.`;
+        break;
+      case 'review':
+        sessionContext = `This is a FINAL REVIEW SESSION with ${daysUntil} days until the ${event.subject} ${event.type}. Focus on consolidation, weak areas, and confidence building.`;
+        specificInstructions = `For final review, emphasize consolidation of knowledge, identifying gaps, and mental preparation. Help the student feel ready and confident for the ${event.subject} ${event.type.toLowerCase()}.`;
+        break;
+      default: // event
+        sessionContext = `This is the ACTUAL ${event.type.toUpperCase()} DAY for ${event.subject}. Focus on execution, staying calm, and performing well.`;
+        specificInstructions = event.type === 'Exam' ?
+          `For exam day, focus on mental preparation, time management, and staying calm during the test.` :
+          `For assignment day, focus on final checks, organization, and confident submission.`;
+    }
+
     const prompt = `You are a friendly, experienced study coach helping a student prepare for: "${event.title}" in ${event.subject}.
 
 Event Details:
 - Type: ${event.type}
 - Subject: ${event.subject}
 - Days until event: ${daysUntil} ${isToday ? '(TODAY!)' : isUpcoming ? 'days' : 'days ago'}
+- Session Type: ${sessionContext}
 
 Generate a JSON response with these fields. Write in a natural, conversational tone - like a real teacher talking to a student. Avoid excessive punctuation, formal language, or AI-sounding phrases. Be warm, practical, and direct.
 
-1. "howToComplete": Array of 4-6 step-by-step instructions. Write them naturally, like you're explaining to a friend. Use simple language. For example, instead of "Review all Physics key concepts and formulas. Create summary notes." write "Start by reviewing the main Physics concepts you've learned. Make quick summary notes of formulas and key points."
+${specificInstructions}
 
-2. "guides": Array of 4-5 practical study tips. Write them as simple, actionable advice. Avoid bullet-point style language. Make each tip a complete, natural sentence.
+1. "howToComplete": Array of 4-6 step-by-step instructions specific to this session type. Write them naturally, like you're explaining to a friend. Use simple language and focus on what to actually DO during this study session.
 
-3. "suggestions": One friendly, encouraging sentence. Write it like you're giving personal advice, not a formal instruction. Be warm and supportive.
+2. "guides": Array of 4-5 practical study tips tailored to this session type and subject. Write them as simple, actionable advice. Avoid bullet-point style language. Make each tip a complete, natural sentence.
 
-4. "motivation": Array of 3 encouraging messages. Write them like a real person would - natural, genuine, and supportive. Avoid clichés or overly formal language.
+3. "suggestions": One friendly, encouraging sentence specific to this session type. Write it like you're giving personal advice for exactly what they should focus on today.
 
-Remember: Write like a human, not an AI. Use natural language, avoid excessive punctuation, and be conversational.`;
+4. "motivation": Array of 3 encouraging messages tailored to this session type and progress stage. Write them like a real person would - natural, genuine, and supportive. Avoid clichés or overly formal language.
+
+Remember: Write like a human, not an AI. Use natural language, avoid excessive punctuation, and be conversational. Make each session type feel different and purposeful.`;
 
     const response = await model.generateContent(prompt);
     const responseText = response.response.text();
@@ -374,10 +486,85 @@ Remember: Write like a human, not an AI. Use natural language, avoid excessive p
     return aiGuide;
   } catch (error) {
     console.error('Error generating AI study guide:', error);
-    // Return detailed fallback guide
+    // Return detailed fallback guide based on session type
     const isUpcoming = daysUntil > 0;
     const isToday = daysUntil === 0;
-    
+
+    // Generate different fallback content based on session type
+    if (sessionType === 'planning') {
+      return {
+        howToComplete: [
+          `Review the ${event.subject.toLowerCase()} ${event.type.toLowerCase()} requirements and deadline`,
+          `List out all ${event.subject.toLowerCase()} topics you need to cover`,
+          `Create a realistic daily study schedule leading up to the ${event.type.toLowerCase()}`,
+          `Gather all your ${event.subject.toLowerCase()} study materials and resources`,
+          `Set specific, achievable goals for each study session`,
+          `Plan breaks and rewards to keep yourself motivated`
+        ],
+        guides: [
+          `Break the ${event.subject.toLowerCase()} ${event.type.toLowerCase()} into smaller, manageable tasks`,
+          `Schedule study sessions at times when you're most focused and alert`,
+          `Include regular review sessions to reinforce what you've learned`,
+          `Don't forget to schedule time for unexpected challenges or questions`,
+          `Build in flexibility for when life gets in the way of your study plans`
+        ],
+        suggestions: `Take this planning session to map out your ${event.subject.toLowerCase()} preparation strategy. A good plan makes all the difference for success.`,
+        motivation: [
+          `Planning ahead gives you control over your ${event.subject.toLowerCase()} success!`,
+          `A well-thought-out study plan reduces stress and increases confidence.`,
+          `You're taking smart steps toward ${event.subject.toLowerCase()} excellence!`
+        ]
+      };
+    } else if (sessionType === 'intensive') {
+      return {
+        howToComplete: [
+          `Focus deeply on the most important ${event.subject.toLowerCase()} concepts you'll need`,
+          `Work through practice problems and examples in ${event.subject.toLowerCase()}`,
+          `Create summary notes of key formulas, rules, and principles`,
+          `Test yourself on ${event.subject.toLowerCase()} material without looking at notes`,
+          `Identify and focus extra time on your weak areas in ${event.subject.toLowerCase()}`,
+          `Connect new ${event.subject.toLowerCase()} concepts to what you already know`
+        ],
+        guides: [
+          `Use active recall techniques to strengthen your ${event.subject.toLowerCase()} memory`,
+          `Practice ${event.subject.toLowerCase()} problems under timed conditions when possible`,
+          `Explain ${event.subject.toLowerCase()} concepts out loud as if teaching someone else`,
+          `Create visual diagrams or mind maps for complex ${event.subject.toLowerCase()} topics`,
+          `Review past mistakes to understand where you went wrong in ${event.subject.toLowerCase()}`
+        ],
+        suggestions: `Dive deep into ${event.subject.toLowerCase()} today - this intensive session will build your confidence for the ${event.type.toLowerCase()}.`,
+        motivation: [
+          `Intensive study sessions create lasting ${event.subject.toLowerCase()} knowledge!`,
+          `Every practice problem you solve brings you closer to mastery.`,
+          `You're building the strong foundation you need for ${event.subject.toLowerCase()} success!`
+        ]
+      };
+    } else if (sessionType === 'review') {
+      return {
+        howToComplete: [
+          `Quickly review your ${event.subject.toLowerCase()} summary notes and key concepts`,
+          `Test yourself on the most important ${event.subject.toLowerCase()} material`,
+          `Focus on any remaining weak areas in ${event.subject.toLowerCase()}`,
+          `Review the ${event.subject.toLowerCase()} ${event.type.toLowerCase()} format and expectations`,
+          `Mentally prepare yourself for the ${event.subject.toLowerCase()} ${event.type.toLowerCase()}`,
+          `Get a good night's sleep and eat well before the ${event.type.toLowerCase()}`
+        ],
+        guides: [
+          `Trust the preparation you've done - you've put in the ${event.subject.toLowerCase()} work`,
+          `Stay calm and focused during the ${event.subject.toLowerCase()} ${event.type.toLowerCase()}`,
+          `Manage your time wisely throughout the ${event.subject.toLowerCase()} ${event.type.toLowerCase()}`,
+          `Don't panic if you encounter difficult ${event.subject.toLowerCase()} questions`,
+          `Remember that consistent effort leads to better ${event.subject.toLowerCase()} results`
+        ],
+        suggestions: `Use this final review to boost your confidence. You've prepared well for this ${event.subject.toLowerCase()} ${event.type.toLowerCase()}.`,
+        motivation: [
+          `Final reviews cement your ${event.subject.toLowerCase()} knowledge before the big day!`,
+          `You're ready for this ${event.subject.toLowerCase()} ${event.type.toLowerCase()} - trust your preparation!`,
+          `Approach tomorrow with the confidence of someone who's put in the work!`
+        ]
+      };
+    }
+
     if (event.type === 'Exam') {
       return {
         howToComplete: isUpcoming ? [
