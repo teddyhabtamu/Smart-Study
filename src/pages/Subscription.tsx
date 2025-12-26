@@ -337,7 +337,8 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
                       <strong>What happens next?</strong><br/>
                       • Our admin will verify your payment receipt<br/>
                       • Your account will be manually upgraded to Student Pro<br/>
-                      • You'll receive full access once verification is complete<br/>
+                      • You'll receive an email confirmation once upgraded<br/>
+                      • You'll get full access to premium features immediately<br/>
                       <span className="text-xs text-zinc-600 mt-2 block">Thank you for using SmartStudy. You can continue using free features while waiting.</span>
                     </p>
                   </div>
