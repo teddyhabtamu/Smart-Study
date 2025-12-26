@@ -1134,6 +1134,12 @@ export const careersAPI = {
   }> =>
     apiRequest(`/careers/${id}`, {}, false),
 
+  getPrivacyPolicy: (): Promise<{
+    content: string;
+    lastUpdated: string;
+  }> =>
+    apiRequest('/careers/privacy-policy', {}, false),
+
   apply: (positionId: string, data: {
     applicant_name: string;
     applicant_email: string;
@@ -1311,6 +1317,25 @@ export const careersAPI = {
     deleteApplication: (id: string): Promise<void> =>
       apiRequest(`/careers/admin/applications/${id}`, {
         method: 'DELETE',
+      }),
+
+    // Privacy Policy Management
+    getPrivacyPolicy: (): Promise<{
+      content: string;
+      lastUpdated: string;
+    }> =>
+      apiRequest('/admin/privacy-policy'),
+
+    updatePrivacyPolicy: (data: {
+      content: string;
+      lastUpdated?: string;
+    }): Promise<{
+      content: string;
+      lastUpdated: string;
+    }> =>
+      apiRequest('/admin/privacy-policy', {
+        method: 'PUT',
+        body: JSON.stringify(data),
       }),
   },
 };

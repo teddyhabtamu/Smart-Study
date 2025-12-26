@@ -31,13 +31,19 @@ const About: React.FC = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-4 sm:mb-6">Our Story</h2>
               <div className="space-y-3 sm:space-y-4 text-zinc-600 leading-relaxed text-sm sm:text-base">
                 <p>
-                  Started in 2023 by a group of educators and engineers in Addis Ababa, SmartStudy began with a simple question: "How can we make high-quality tutoring accessible to everyone?"
+                  SmartStudy started with a simple observation at home.
                 </p>
                 <p>
-                  We realized that while smartphones were becoming common, educational content for the Ethiopian curriculum was still fragmented. Students struggled to find reliable notes, exam practices, and guidance.
+                  While helping my sister with her studies, I noticed how difficult it was for students to stay focused while learning online. Educational videos on platforms like YouTube often led to endless distractions, and switching between different AI tools to find answers only made learning more fragmented and confusing.
                 </p>
                 <p>
-                  Today, SmartStudy serves thousands of students across the country, providing a unified platform that combines localized curriculum materials with cutting-edge AI support tailored for the Ethiopian context.
+                  That experience raised an important question: Why isn't there a single, focused platform designed specifically to help students learn efficiently without distractions?
+                </p>
+                <p>
+                  That question became the foundation of SmartStudy. The platform was built to bring structured learning, guided AI support, and a focused study environment into one place—helping students understand concepts better and make the most of their study time.
+                </p>
+                <p>
+                  What began as a solution to a personal problem has grown into a platform with a clear mission: to help students learn smarter, stay focused, and build confidence in their learning journey.
                 </p>
               </div>
             </div>

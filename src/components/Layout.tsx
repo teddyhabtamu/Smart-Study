@@ -55,6 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       "/community",            // Community - public forum
       "/about",               // About page
       "/careers",             // Careers page
+      "/privacy-policy",      // Privacy Policy page
     ];
     
     // Also allow document and video detail pages (they handle their own auth if needed)

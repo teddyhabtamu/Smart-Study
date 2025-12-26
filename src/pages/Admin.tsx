@@ -277,12 +277,148 @@ const AdminTeamSkeleton: React.FC = () => (
 
 // Admin component state will be managed with real backend data
 
+// Privacy Policy Manager Component
+interface PrivacyPolicyManagerProps {
+  privacyPolicy: {
+    content: string;
+    lastUpdated: string;
+  };
+  privacyPolicyLoading: boolean;
+  privacyPolicyRefreshTrigger: number;
+  updatePrivacyPolicy: (content: string, lastUpdated?: string) => Promise<void>;
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+}
+
+const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
+  privacyPolicy,
+  privacyPolicyLoading,
+  privacyPolicyRefreshTrigger,
+  updatePrivacyPolicy,
+  addToast
+}) => {
+  const [editingContent, setEditingContent] = useState('');
+  const [editingLastUpdated, setEditingLastUpdated] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Note: Data fetching is now handled in the parent component
+
+  const handleStartEdit = () => {
+    setEditingContent(privacyPolicy.content);
+    setEditingLastUpdated(privacyPolicy.lastUpdated);
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!editingContent.trim()) {
+      addToast('Privacy policy content cannot be empty', 'error');
+      return;
+    }
+    await updatePrivacyPolicy(editingContent, editingLastUpdated || undefined);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditingContent('');
+    setEditingLastUpdated('');
+  };
+
+  return (
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold text-zinc-900">Privacy Policy Management</h2>
+            <p className="text-sm text-zinc-500 mt-1">Update the privacy policy that users see on the website</p>
+          </div>
+          {!isEditing && (
+            <button
+              onClick={handleStartEdit}
+              className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+            >
+              <Edit2 className="w-4 h-4" />
+              Edit Policy
+            </button>
+          )}
+        </div>
+
+        {privacyPolicyLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+          </div>
+        ) : (
+          <>
+            {isEditing ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Privacy Policy Content</label>
+                  <textarea
+                    value={editingContent}
+                    onChange={(e) => setEditingContent(e.target.value)}
+                    className="w-full h-96 p-3 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 resize-vertical"
+                    placeholder="Enter privacy policy content..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Last Updated (optional)</label>
+                  <input
+                    type="text"
+                    value={editingLastUpdated}
+                    onChange={(e) => setEditingLastUpdated(e.target.value)}
+                    className="w-full p-3 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                    placeholder="e.g., December 2025"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSave}
+                    className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-zinc-500 text-white text-sm font-medium rounded-lg hover:bg-zinc-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
+                  <div>
+                    <strong>Last Updated:</strong> {privacyPolicy.lastUpdated || 'Not set'}
+                  </div>
+                </div>
+                <div className="border border-zinc-200 rounded-lg">
+                  <div className="p-4 bg-zinc-50 border-b border-zinc-200">
+                    <h3 className="font-semibold text-zinc-900">Preview</h3>
+                  </div>
+                  <div className="p-4 max-h-96 overflow-y-auto">
+                    <div className="prose prose-zinc max-w-none text-sm">
+                      <div className="whitespace-pre-line">
+                        {privacyPolicy.content || 'No privacy policy content set.'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Admin: React.FC = () => {
   const { documents, videos, forumPosts, allUsers, createDocument, updateDocument, deleteDocument, createVideo, updateVideo, deleteVideo, deleteForumPost, updateUserStatus, fetchUsers, fetchDocuments, fetchVideos, fetchForumPosts, loading } = useData();
   const { addToast } = useToast();
   const { user } = useAuth();
   const isModerator = user?.role === UserRole.MODERATOR || String(user?.role) === 'MODERATOR';
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'audit' | 'careers'>(isModerator ? 'content' : 'overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'audit' | 'careers' | 'privacy-policy'>(isModerator ? 'content' : 'overview');
   const [contentCategory, setContentCategory] = useState<'documents' | 'videos' | 'past-exams'>('documents');
   const [mounted, setMounted] = useState(false);
   const [admins, setAdmins] = useState<User[]>([]);
@@ -539,6 +675,18 @@ const Admin: React.FC = () => {
     id: null,
     title: null
   });
+
+  // Privacy Policy State
+  const [privacyPolicy, setPrivacyPolicy] = useState<{
+    content: string;
+    lastUpdated: string;
+  }>({
+    content: '',
+    lastUpdated: ''
+  });
+  const [privacyPolicyLoading, setPrivacyPolicyLoading] = useState(false);
+  const [isUpdatingPrivacyPolicy, setIsUpdatingPrivacyPolicy] = useState(false);
+  const [privacyPolicyRefreshTrigger, setPrivacyPolicyRefreshTrigger] = useState(0);
 
   // Options
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
@@ -1110,6 +1258,52 @@ const Admin: React.FC = () => {
     }
   };
 
+  // Privacy Policy Functions
+  const updatePrivacyPolicy = async (content: string, lastUpdated?: string) => {
+    try {
+      setIsUpdatingPrivacyPolicy(true);
+      await careersAPI.admin.updatePrivacyPolicy({ content, lastUpdated });
+      addToast('Privacy policy updated successfully', 'success');
+      // Trigger refresh
+      setPrivacyPolicyRefreshTrigger(prev => prev + 1);
+    } catch (error: any) {
+      console.error('Failed to update privacy policy:', error);
+      addToast(error.message || 'Failed to update privacy policy', 'error');
+    } finally {
+      setIsUpdatingPrivacyPolicy(false);
+    }
+  };
+
+  const fetchPrivacyPolicy = useCallback(async () => {
+    try {
+      console.log('Fetching privacy policy...');
+      setPrivacyPolicyLoading(true);
+      const data = await careersAPI.admin.getPrivacyPolicy();
+      setPrivacyPolicy(data);
+      console.log('Privacy policy fetched successfully');
+    } catch (error: any) {
+      console.error('Failed to fetch privacy policy:', error);
+      addToast('Failed to load privacy policy', 'error');
+    } finally {
+      setPrivacyPolicyLoading(false);
+    }
+  }, [addToast]);
+
+  // Load privacy policy when tab is active or refresh is triggered
+  useEffect(() => {
+    let isMounted = true;
+
+    if (activeTab === 'privacy-policy') {
+      console.log('Privacy policy useEffect triggered, refreshTrigger:', privacyPolicyRefreshTrigger);
+      fetchPrivacyPolicy();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, privacyPolicyRefreshTrigger, fetchPrivacyPolicy]);
+
+
   const resetPositionForm = () => {
     setPositionForm({
       title: '',
@@ -1217,6 +1411,7 @@ const Admin: React.FC = () => {
                   { id: 'team', label: 'Team', icon: Shield },
                   { id: 'audit', label: 'Audit Log', icon: ScrollText },
                   { id: 'careers', label: 'Careers', icon: Briefcase },
+                  { id: 'privacy-policy', label: 'Privacy Policy', icon: Shield },
                 ]),
               ].map(tab => (
                 <button
@@ -3087,6 +3282,17 @@ const Admin: React.FC = () => {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* --- PRIVACY POLICY TAB --- */}
+      {activeTab === 'privacy-policy' && (
+        <PrivacyPolicyManager
+          privacyPolicy={privacyPolicy}
+          privacyPolicyLoading={privacyPolicyLoading}
+          privacyPolicyRefreshTrigger={privacyPolicyRefreshTrigger}
+          updatePrivacyPolicy={updatePrivacyPolicy}
+          addToast={addToast}
+        />
       )}
 
       {/* Delete Application Confirmation Modal */}

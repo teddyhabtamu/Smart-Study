@@ -34,8 +34,8 @@ const Footer: React.FC = () => {
                 <ul className="space-y-3 text-sm text-zinc-500">
                    <li><Link to="/about" className="hover:text-zinc-900">About Us</Link></li>
                    <li><Link to="/careers" className="hover:text-zinc-900">Careers</Link></li>
-                   <li><Link to="/" className="hover:text-zinc-900">Privacy Policy</Link></li>
-                   <li><Link to="/" className="hover:text-zinc-900">Terms of Service</Link></li>
+                   <li><Link to="/privacy-policy" className="hover:text-zinc-900">Privacy Policy</Link></li>
+                   <li><Link to="/terms-of-service" className="hover:text-zinc-900">Terms of Service</Link></li>
                 </ul>
              </div>
 

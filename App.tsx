@@ -23,6 +23,7 @@ import Planner from './src/pages/Planner';
 import Practice from './src/pages/Practice';
 import About from './src/pages/About';
 import Careers from './src/pages/Careers';
+import PrivacyPolicy from './src/pages/PrivacyPolicy';
 import NotFound from './src/pages/NotFound';
 import Loader from './src/components/Loader';
 import { useAuth } from './src/context/AuthContext';
@@ -88,6 +89,7 @@ const App: React.FC = () => {
         {/* Static Pages */}
         <Route path="/about" element={<Layout><About /></Layout>} />
         <Route path="/careers" element={<Layout><Careers /></Layout>} />
+        <Route path="/privacy-policy" element={<Layout><PrivacyPolicy /></Layout>} />
         
         {/* Protected Routes */}
         <Route 

@@ -50,6 +50,101 @@ router.get('/', [
   }
 });
 
+// Privacy Policy (Public - no authentication required)
+router.get('/privacy-policy', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+
+    const privacyPolicyPath = path.join(__dirname, '../../data/privacy-policy.json');
+
+    let privacyPolicy;
+    if (fs.existsSync(privacyPolicyPath)) {
+      const data = fs.readFileSync(privacyPolicyPath, 'utf8');
+      privacyPolicy = JSON.parse(data);
+    } else {
+      // Return default privacy policy
+      privacyPolicy = {
+        content: `
+Privacy Policy
+
+Last updated: December 2025
+
+Welcome to SmartStudy. Your privacy is important to us, and this Privacy Policy explains how we collect, use, protect, and handle your information when you use our platform.
+
+1. Information We Collect
+
+We may collect the following types of information:
+
+Personal Information:
+Name, email address, and account details when you sign up or log in.
+
+Usage Information:
+How you interact with the platform, such as pages visited, features used, and study activity.
+
+Device & Technical Data:
+Browser type, device type, IP address, and general location (non-precise).
+
+User Content:
+Study notes, questions, or inputs you provide while using SmartStudy.
+
+2. How We Use Your Information
+
+We use your information to:
+
+• Provide and improve SmartStudy services
+• Personalize learning experiences
+• Enable AI-powered features
+• Maintain platform security
+• Communicate important updates or support responses
+
+3. Information Sharing
+
+We do not sell, trade, or otherwise transfer your personal information to third parties without your consent, except as described in this policy.
+
+4. Data Security
+
+We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
+
+5. Your Rights
+
+You have the right to:
+• Access your personal information
+• Correct inaccurate information
+• Delete your account and associated data
+• Object to or restrict certain processing
+
+6. Cookies and Tracking
+
+We use cookies and similar technologies to enhance your experience and analyze usage patterns.
+
+7. Changes to This Policy
+
+We may update this Privacy Policy from time to time. We will notify you of any material changes.
+
+8. Contact Us
+
+If you have any questions about this Privacy Policy, please contact us at:
+Email: smartstudy.ethio@gmail.com
+Platform: SmartStudy
+        `,
+        lastUpdated: 'December 2025'
+      };
+    }
+
+    res.json({
+      success: true,
+      data: privacyPolicy
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Privacy policy fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch privacy policy'
+    } as ApiResponse);
+  }
+});
+
 // Get job position by ID (public)
 router.get('/:id', async (req: express.Request, res: express.Response): Promise<void> => {
   try {

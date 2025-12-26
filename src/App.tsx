@@ -24,6 +24,7 @@ import Planner from './pages/Planner';
 import Practice from './pages/Practice';
 import About from './pages/About';
 import Careers from './pages/Careers';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import NotFound from './pages/NotFound';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
@@ -119,6 +120,7 @@ const App: React.FC = () => {
         {/* Static Pages */}
         <Route path="/about" element={<Layout><About /></Layout>} />
         <Route path="/careers" element={<Layout><Careers /></Layout>} />
+        <Route path="/privacy-policy" element={<Layout><PrivacyPolicy /></Layout>} />
 
         {/* Protected Routes */}
         <Route

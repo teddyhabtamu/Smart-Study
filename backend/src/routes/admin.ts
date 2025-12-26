@@ -956,6 +956,169 @@ router.get('/logs', requireRole(['ADMIN']), async (req: express.Request, res: ex
   }
 });
 
+// Privacy Policy Management
+router.get('/privacy-policy', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+
+    const privacyPolicyPath = path.join(__dirname, '../../data/privacy-policy.json');
+
+    let privacyPolicy;
+    if (fs.existsSync(privacyPolicyPath)) {
+      const data = fs.readFileSync(privacyPolicyPath, 'utf8');
+      privacyPolicy = JSON.parse(data);
+    } else {
+      // Return default privacy policy
+      privacyPolicy = {
+        content: `
+Privacy Policy
+
+Last updated: December 2025
+
+Welcome to SmartStudy. Your privacy is important to us, and this Privacy Policy explains how we collect, use, protect, and handle your information when you use our platform.
+
+1. Information We Collect
+
+We may collect the following types of information:
+
+Personal Information:
+Name, email address, and account details when you sign up or log in.
+
+Usage Information:
+How you interact with the platform, such as pages visited, features used, and study activity.
+
+Device & Technical Data:
+Browser type, device type, IP address, and general location (non-precise).
+
+User Content:
+Study notes, questions, or inputs you provide while using SmartStudy.
+
+2. How We Use Your Information
+
+We use your information to:
+
+• Provide and improve SmartStudy services
+• Personalize learning experiences
+• Enable AI-powered features
+• Maintain platform security
+• Communicate important updates or support responses
+
+We do not sell or rent your personal data to third parties.
+
+3. AI & Data Usage
+
+SmartStudy uses AI technologies to assist learning. User inputs may be processed to generate helpful responses, summaries, or recommendations.
+
+• Your data is used only to improve your learning experience
+• We do not use your private data to train public AI models without consent
+
+4. Cookies and Tracking Technologies
+
+We may use cookies and similar technologies to:
+
+• Keep you logged in
+• Improve performance and usability
+• Understand platform usage
+
+You can control cookies through your browser settings.
+
+5. Data Security
+
+We take reasonable technical and organizational measures to protect your data from unauthorized access, loss, or misuse. However, no system is 100% secure, and we cannot guarantee absolute security.
+
+6. Third-Party Services
+
+SmartStudy may use trusted third-party services (such as hosting, analytics, or authentication providers) to operate the platform. These services are required to protect your data and use it only for intended purposes.
+
+7. Children's Privacy
+
+SmartStudy is designed for students. We do not knowingly collect personal data from children without appropriate consent where required. If you believe a child's data has been collected improperly, please contact us.
+
+8. Your Rights
+
+You have the right to:
+
+• Access your personal data
+• Request correction or deletion of your data
+• Control account settings and privacy preferences
+
+You can do this by contacting us or through your account settings.
+
+9. Changes to This Policy
+
+We may update this Privacy Policy from time to time. Any changes will be posted on this page with an updated date.
+
+10. Contact Us
+
+If you have any questions or concerns about this Privacy Policy, please contact us:
+
+Email: smartstudy.ethio@gmail.com
+Platform: SmartStudy
+        `,
+        lastUpdated: 'December 2025'
+      };
+
+      // Save the default policy
+      fs.writeFileSync(privacyPolicyPath, JSON.stringify(privacyPolicy, null, 2));
+    }
+
+    res.json({
+      success: true,
+      data: privacyPolicy
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get privacy policy error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get privacy policy'
+    } as ApiResponse);
+  }
+});
+
+// Update Privacy Policy
+router.put('/privacy-policy', requireRole(['ADMIN']), [
+  body('content').isString().isLength({ min: 1 }).withMessage('Content is required'),
+  body('lastUpdated').optional().isString().withMessage('Last updated must be a string')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { content, lastUpdated } = req.body;
+    const fs = require('fs');
+    const path = require('path');
+
+    const privacyPolicyPath = path.join(__dirname, '../../data/privacy-policy.json');
+
+    const privacyPolicyData = {
+      content,
+      lastUpdated: lastUpdated || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+    };
+
+    // Save to file
+    fs.writeFileSync(privacyPolicyPath, JSON.stringify(privacyPolicyData, null, 2));
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'privacy_policy.update',
+      target_type: 'platform_settings',
+      target_id: 'privacy_policy',
+      summary: 'Updated privacy policy',
+      after: privacyPolicyData
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: 'Privacy policy updated successfully',
+      data: privacyPolicyData
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Update privacy policy error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update privacy policy'
+    } as ApiResponse);
+  }
+});
+
 // Admin audit logs (who changed what)
 router.get('/audit-logs', requireRole(['ADMIN', 'MODERATOR']), [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
