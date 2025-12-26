@@ -1,6 +1,20 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+
+// Helper function to render text with line breaks
+const renderTextWithLineBreaks = (text: string) => {
+  if (!text) return null;
+
+  // Handle both actual newlines and escaped \n characters
+  const processedText = text.replace(/\\n/g, '\n');
+  return processedText.split('\n').map((line: string, index: number) => (
+    <React.Fragment key={index}>
+      {line}
+      {index < processedText.split('\n').length - 1 && <br />}
+    </React.Fragment>
+  ));
+};
 import { Upload, FileText, Trash2, Edit2, Search, CheckCircle, UserPlus, Mail, Shield, X, Save, Film, Youtube, PlaySquare, BarChart3, Users, MessageSquare, AlertTriangle, MoreVertical, Crown, Ban, Loader2, Briefcase, MapPin, Clock, ScrollText, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
 import { GRADES, SUBJECTS } from '../constants';
 import { FileType, Document, VideoLesson, UserRole, User } from '../types';
@@ -303,7 +317,9 @@ const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
   // Note: Data fetching is now handled in the parent component
 
   const handleStartEdit = () => {
-    setEditingContent(privacyPolicy.content);
+    // Convert escaped newlines to actual newlines for proper editing
+    const processedContent = privacyPolicy.content.replace(/\\n/g, '\n');
+    setEditingContent(processedContent);
     setEditingLastUpdated(privacyPolicy.lastUpdated);
     setIsEditing(true);
   };
@@ -397,9 +413,9 @@ const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
                     <h3 className="font-semibold text-zinc-900">Preview</h3>
                   </div>
                   <div className="p-4 max-h-96 overflow-y-auto">
-                    <div className="prose prose-zinc max-w-none text-sm">
-                      <div className="whitespace-pre-line">
-                        {privacyPolicy.content || 'No privacy policy content set.'}
+                    <div className="prose prose-zinc max-w-none">
+                      <div className="text-sm leading-relaxed text-zinc-700">
+                        {renderTextWithLineBreaks(privacyPolicy.content) || 'No privacy policy content set.'}
                       </div>
                     </div>
                   </div>
@@ -439,7 +455,9 @@ const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
   // Note: Data fetching is now handled in the parent component
 
   const handleStartEdit = () => {
-    setEditingContent(termsOfService.content);
+    // Convert escaped newlines to actual newlines for proper editing
+    const processedContent = termsOfService.content.replace(/\\n/g, '\n');
+    setEditingContent(processedContent);
     setEditingLastUpdated(termsOfService.lastUpdated);
     setIsEditing(true);
   };
@@ -533,9 +551,11 @@ const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
                     <h3 className="font-semibold text-zinc-900">Preview</h3>
                   </div>
                   <div className="p-4 max-h-96 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm text-zinc-700 font-sans">
-                      {termsOfService.content || 'No terms of service content set.'}
-                    </pre>
+                    <div className="prose prose-zinc max-w-none">
+                      <div className="text-sm leading-relaxed text-zinc-700">
+                        {renderTextWithLineBreaks(termsOfService.content) || 'No terms of service content set.'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

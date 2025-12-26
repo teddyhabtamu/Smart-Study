@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, query, param } from 'express-validator';
-import { dbAdmin } from '../database/config';
+import { dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, optionalAuth, requireRole, validateRequest } from '../middleware/auth';
 import { ApiResponse, JobPosition, JobApplication } from '../types';
 import { NotificationService } from '../services/notificationService';
@@ -53,18 +53,21 @@ router.get('/', [
 // Terms of Service (Public - no authentication required)
 router.get('/terms-of-service', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const fs = require('fs');
-    const path = require('path');
+    const { data: termsOfService, error } = await supabaseAdmin
+      .from('terms_of_service')
+      .select('content, last_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    const termsOfServicePath = path.join(__dirname, '../../data/terms-of-service.json');
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      throw error;
+    }
 
-    let termsOfService;
-    if (fs.existsSync(termsOfServicePath)) {
-      const data = fs.readFileSync(termsOfServicePath, 'utf8');
-      termsOfService = JSON.parse(data);
-    } else {
-      // Return default terms of service
-      termsOfService = {
+    let result;
+    if (!termsOfService) {
+      // Return default terms of service if none exists in database
+      result = {
         content: `
 Terms of Service
 
@@ -175,11 +178,16 @@ Platform: SmartStudy
         `,
         lastUpdated: 'December 2025'
       };
+    } else {
+      result = {
+        content: termsOfService.content,
+        lastUpdated: new Date(termsOfService.last_updated).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      };
     }
 
     res.json({
       success: true,
-      data: termsOfService
+      data: result
     } as ApiResponse);
   } catch (error) {
     console.error('Terms of service fetch error:', error);
@@ -193,18 +201,21 @@ Platform: SmartStudy
 // Privacy Policy (Public - no authentication required)
 router.get('/privacy-policy', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const fs = require('fs');
-    const path = require('path');
+    const { data: privacyPolicy, error } = await supabaseAdmin
+      .from('privacy_policy')
+      .select('content, last_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    const privacyPolicyPath = path.join(__dirname, '../../data/privacy-policy.json');
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      throw error;
+    }
 
-    let privacyPolicy;
-    if (fs.existsSync(privacyPolicyPath)) {
-      const data = fs.readFileSync(privacyPolicyPath, 'utf8');
-      privacyPolicy = JSON.parse(data);
-    } else {
-      // Return default privacy policy
-      privacyPolicy = {
+    let result;
+    if (!privacyPolicy) {
+      // Return default privacy policy if none exists in database
+      result = {
         content: `
 Privacy Policy
 
@@ -270,11 +281,16 @@ Platform: SmartStudy
         `,
         lastUpdated: 'December 2025'
       };
+    } else {
+      result = {
+        content: privacyPolicy.content,
+        lastUpdated: new Date(privacyPolicy.last_updated).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      };
     }
 
     res.json({
       success: true,
-      data: privacyPolicy
+      data: result
     } as ApiResponse);
   } catch (error) {
     console.error('Privacy policy fetch error:', error);

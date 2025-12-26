@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Mail, Calendar } from 'lucide-react';
+
+// Helper function to render text with line breaks
+const renderTextWithLineBreaks = (text: string) => {
+  if (!text) return null;
+
+  // Handle both actual newlines and escaped \n characters
+  const processedText = text.replace(/\\n/g, '\n');
+  return processedText.split('\n').map((line: string, index: number) => (
+    <React.Fragment key={index}>
+      {line}
+      {index < processedText.split('\n').length - 1 && <br />}
+    </React.Fragment>
+  ));
+};
 import Footer from '../components/Footer';
 import { careersAPI } from '../services/api';
 
@@ -64,8 +78,8 @@ const TermsOfService: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 sm:p-8 md:p-12">
             <div className="prose prose-zinc max-w-none">
-              <div className="text-sm sm:text-base leading-relaxed whitespace-pre-line">
-                {termsOfService?.content}
+              <div className="text-sm sm:text-base leading-relaxed">
+                {renderTextWithLineBreaks(termsOfService?.content) || 'Loading terms of service...'}
               </div>
             </div>
           </div>

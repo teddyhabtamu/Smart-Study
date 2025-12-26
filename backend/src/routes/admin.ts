@@ -959,18 +959,21 @@ router.get('/logs', requireRole(['ADMIN']), async (req: express.Request, res: ex
 // Privacy Policy Management
 router.get('/privacy-policy', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const fs = require('fs');
-    const path = require('path');
+    const { data: privacyPolicy, error } = await supabaseAdmin
+      .from('privacy_policy')
+      .select('content, last_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    const privacyPolicyPath = path.join(__dirname, '../../data/privacy-policy.json');
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      throw error;
+    }
 
-    let privacyPolicy;
-    if (fs.existsSync(privacyPolicyPath)) {
-      const data = fs.readFileSync(privacyPolicyPath, 'utf8');
-      privacyPolicy = JSON.parse(data);
-    } else {
-      // Return default privacy policy
-      privacyPolicy = {
+    let result;
+    if (!privacyPolicy) {
+      // Return default privacy policy if none exists in database
+      result = {
         content: `
 Privacy Policy
 
@@ -1054,18 +1057,21 @@ We may update this Privacy Policy from time to time. Any changes will be posted 
 If you have any questions or concerns about this Privacy Policy, please contact us:
 
 Email: smartstudy.ethio@gmail.com
-Platform: SmartStudy
+Platform: SmartStudy.
         `,
         lastUpdated: 'December 2025'
       };
-
-      // Save the default policy
-      fs.writeFileSync(privacyPolicyPath, JSON.stringify(privacyPolicy, null, 2));
+    } else {
+      result = {
+        content: privacyPolicy.content,
+        lastUpdated: new Date(privacyPolicy.last_updated).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      };
     }
 
     res.json({
       success: true,
-      data: privacyPolicy
+      message: 'Privacy policy retrieved successfully',
+      data: result
     } as ApiResponse);
   } catch (error) {
     console.error('Get privacy policy error:', error);
@@ -1083,18 +1089,29 @@ router.put('/privacy-policy', requireRole(['ADMIN']), [
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { content, lastUpdated } = req.body;
-    const fs = require('fs');
-    const path = require('path');
-
-    const privacyPolicyPath = path.join(__dirname, '../../data/privacy-policy.json');
+    const userId = (req as any).user?.id;
 
     const privacyPolicyData = {
       content,
-      lastUpdated: lastUpdated || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      last_updated: lastUpdated ? new Date(lastUpdated).toISOString() : new Date().toISOString(),
+      updated_by: userId || null
     };
 
-    // Save to file
-    fs.writeFileSync(privacyPolicyPath, JSON.stringify(privacyPolicyData, null, 2));
+    // Insert new version (we keep history by not updating existing records)
+    const { data, error } = await supabaseAdmin
+      .from('privacy_policy')
+      .insert(privacyPolicyData)
+      .select('content, last_updated')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const result = {
+      content: data.content,
+      lastUpdated: new Date(data.last_updated).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+    };
 
     // Audit log (non-blocking)
     logAdminActivity(req, {
@@ -1102,13 +1119,13 @@ router.put('/privacy-policy', requireRole(['ADMIN']), [
       target_type: 'platform_settings',
       target_id: 'privacy_policy',
       summary: 'Updated privacy policy',
-      after: privacyPolicyData
+      after: result
     }).catch(() => {});
 
     res.json({
       success: true,
       message: 'Privacy policy updated successfully',
-      data: privacyPolicyData
+      data: result
     } as ApiResponse);
   } catch (error) {
     console.error('Update privacy policy error:', error);
@@ -1122,18 +1139,21 @@ router.put('/privacy-policy', requireRole(['ADMIN']), [
 // Get Terms of Service
 router.get('/terms-of-service', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const fs = require('fs');
-    const path = require('path');
+    const { data: termsOfService, error } = await supabaseAdmin
+      .from('terms_of_service')
+      .select('content, last_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    const termsOfServicePath = path.join(__dirname, '../../data/terms-of-service.json');
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      throw error;
+    }
 
-    let termsOfService;
-    if (fs.existsSync(termsOfServicePath)) {
-      const data = fs.readFileSync(termsOfServicePath, 'utf8');
-      termsOfService = JSON.parse(data);
-    } else {
-      // Return default terms of service
-      termsOfService = {
+    let result;
+    if (!termsOfService) {
+      // Return default terms of service if none exists in database
+      result = {
         content: `Terms of Service
 
 Last updated: December 2025
@@ -1227,12 +1247,17 @@ Email: smartstudy.ethio@gmail.com
 Platform: SmartStudy.`,
         lastUpdated: 'December 2025'
       };
+    } else {
+      result = {
+        content: termsOfService.content,
+        lastUpdated: new Date(termsOfService.last_updated).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      };
     }
 
     res.json({
       success: true,
       message: 'Terms of service retrieved successfully',
-      data: termsOfService
+      data: result
     } as ApiResponse);
   } catch (error) {
     console.error('Get terms of service error:', error);
@@ -1250,18 +1275,29 @@ router.put('/terms-of-service', requireRole(['ADMIN']), [
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { content, lastUpdated } = req.body;
-    const fs = require('fs');
-    const path = require('path');
-
-    const termsOfServicePath = path.join(__dirname, '../../data/terms-of-service.json');
+    const userId = (req as any).user?.id;
 
     const termsOfServiceData = {
       content,
-      lastUpdated: lastUpdated || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      last_updated: lastUpdated ? new Date(lastUpdated).toISOString() : new Date().toISOString(),
+      updated_by: userId || null
     };
 
-    // Save to file
-    fs.writeFileSync(termsOfServicePath, JSON.stringify(termsOfServiceData, null, 2));
+    // Insert new version (we keep history by not updating existing records)
+    const { data, error } = await supabaseAdmin
+      .from('terms_of_service')
+      .insert(termsOfServiceData)
+      .select('content, last_updated')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const result = {
+      content: data.content,
+      lastUpdated: new Date(data.last_updated).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+    };
 
     // Audit log (non-blocking)
     logAdminActivity(req, {
@@ -1269,13 +1305,13 @@ router.put('/terms-of-service', requireRole(['ADMIN']), [
       target_type: 'platform_settings',
       target_id: 'terms_of_service',
       summary: 'Updated terms of service',
-      after: termsOfServiceData
+      after: result
     }).catch(() => {});
 
     res.json({
       success: true,
       message: 'Terms of service updated successfully',
-      data: termsOfServiceData
+      data: result
     } as ApiResponse);
   } catch (error) {
     console.error('Update terms of service error:', error);

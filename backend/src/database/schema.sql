@@ -634,3 +634,68 @@ CREATE INDEX IF NOT EXISTS idx_admin_activity_logs_action ON admin_activity_logs
 
 -- We read/write audit logs using the server's service role, so disable RLS.
 ALTER TABLE admin_activity_logs DISABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
+-- Legal Documents (Privacy Policy & Terms of Service)
+-- Stores legal documents that can be updated by admins
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS privacy_policy (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    content TEXT NOT NULL,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS terms_of_service (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    content TEXT NOT NULL,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Trigger for updated_at on privacy_policy
+DROP TRIGGER IF EXISTS update_privacy_policy_updated_at ON privacy_policy;
+CREATE TRIGGER update_privacy_policy_updated_at BEFORE UPDATE ON privacy_policy FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for updated_at on terms_of_service
+DROP TRIGGER IF EXISTS update_terms_of_service_updated_at ON terms_of_service;
+CREATE TRIGGER update_terms_of_service_updated_at BEFORE UPDATE ON terms_of_service FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS Policies for privacy_policy
+ALTER TABLE privacy_policy ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to read privacy policy (public access)
+CREATE POLICY "Allow public read access to privacy policy" ON privacy_policy
+    FOR SELECT USING (true);
+
+-- Allow only admins to modify privacy policy
+CREATE POLICY "Allow admin write access to privacy policy" ON privacy_policy
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role IN ('ADMIN', 'MODERATOR')
+        )
+    );
+
+-- RLS Policies for terms_of_service
+ALTER TABLE terms_of_service ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to read terms of service (public access)
+CREATE POLICY "Allow public read access to terms of service" ON terms_of_service
+    FOR SELECT USING (true);
+
+-- Allow only admins to modify terms of service
+CREATE POLICY "Allow admin write access to terms of service" ON terms_of_service
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role IN ('ADMIN', 'MODERATOR')
+        )
+    );
