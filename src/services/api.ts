@@ -1343,5 +1343,24 @@ export const careersAPI = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+
+    // Terms of Service Management
+    getTermsOfService: (): Promise<{
+      content: string;
+      lastUpdated: string;
+    }> =>
+      apiRequest('/admin/terms-of-service'),
+
+    updateTermsOfService: (data: {
+      content: string;
+      lastUpdated?: string;
+    }): Promise<{
+      content: string;
+      lastUpdated: string;
+    }> =>
+      apiRequest('/admin/terms-of-service', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
   },
 };

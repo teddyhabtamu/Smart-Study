@@ -73,11 +73,6 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
     navigate(from, { replace: true });
   };
 
-  const handleCancelSubscription = () => {
-    if(window.confirm("Are you sure you want to downgrade to the free plan? You will lose access to premium features immediately.")) {
-      alert("Account downgraded to free plan.");
-    }
-  };
 
   // RENDER: Active Subscription View
   if (user?.isPremium) {
@@ -146,17 +141,6 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
               </div>
             </div>
 
-            <div className="pt-4 sm:pt-6 border-t border-zinc-100 space-y-3 sm:space-y-0 sm:flex sm:gap-4">
-              <button
-                onClick={handleCancelSubscription}
-                className="w-full sm:flex-1 py-3 sm:py-2.5 bg-white border border-zinc-200 text-red-600 font-medium rounded-lg hover:bg-red-50 hover:border-red-100 transition-colors text-sm sm:text-base touch-manipulation"
-              >
-                Downgrade to Free
-              </button>
-              <button className="w-full sm:flex-1 py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm sm:text-base touch-manipulation">
-                Update Payment Method
-              </button>
-            </div>
             
             <div className="bg-zinc-50 rounded-lg p-3 sm:p-4 flex gap-3 items-start text-xs sm:text-sm text-zinc-800 leading-relaxed border border-zinc-200">
                <AlertCircle size={14} className="sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 text-zinc-600" />

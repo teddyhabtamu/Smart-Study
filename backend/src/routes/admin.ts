@@ -1119,6 +1119,173 @@ router.put('/privacy-policy', requireRole(['ADMIN']), [
   }
 });
 
+// Get Terms of Service
+router.get('/terms-of-service', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+
+    const termsOfServicePath = path.join(__dirname, '../../data/terms-of-service.json');
+
+    let termsOfService;
+    if (fs.existsSync(termsOfServicePath)) {
+      const data = fs.readFileSync(termsOfServicePath, 'utf8');
+      termsOfService = JSON.parse(data);
+    } else {
+      // Return default terms of service
+      termsOfService = {
+        content: `Terms of Service
+
+Last updated: December 2025
+
+Welcome to SmartStudy. By accessing or using our platform, you agree to be bound by these Terms of Service. Please read them carefully.
+
+1. Acceptance of Terms
+
+By creating an account, accessing, or using SmartStudy, you agree to comply with and be legally bound by these Terms. If you do not agree, please do not use the platform.
+
+2. Description of Service
+
+SmartStudy is an educational platform designed to help students learn more effectively through structured content, study tools, and AI-powered assistance.
+
+We may update, improve, or modify features at any time to enhance user experience.
+
+3. User Accounts
+
+• You are responsible for maintaining the confidentiality of your account credentials
+• You agree to provide accurate and complete information
+• You are responsible for all activities that occur under your account
+• SmartStudy reserves the right to suspend or terminate accounts that violate these Terms.
+
+4. Acceptable Use
+
+You agree not to:
+
+• Use the platform for unlawful or harmful purposes
+• Attempt to hack, disrupt, or misuse the system
+• Upload malicious code or harmful content
+• Impersonate others or provide false information
+• SmartStudy is intended for educational use only.
+
+5. User Content
+
+You may submit content such as questions, notes, or study materials.
+
+By submitting content:
+
+• You retain ownership of your content
+• You grant SmartStudy permission to use it only to provide and improve services
+• You agree not to upload content that is illegal, offensive, or violates others' rights
+
+6. AI Features Disclaimer
+
+SmartStudy uses AI to assist learning. While we strive for accuracy:
+
+• AI-generated content is for educational support only
+• It should not be considered professional, academic, or legal advice
+• Users should verify important information independently
+
+7. Intellectual Property
+
+All platform content, branding, logos, design, and software belong to SmartStudy unless otherwise stated.
+
+You may not copy, distribute, or reproduce any part of the platform without permission.
+
+8. Third-Party Services
+
+SmartStudy may integrate third-party tools or services. We are not responsible for the content or practices of third-party platforms.
+
+9. Termination
+
+We reserve the right to suspend or terminate access to SmartStudy at any time if these Terms are violated or if misuse is detected.
+
+Users may stop using the platform at any time.
+
+10. Limitation of Liability
+
+SmartStudy is provided on an "as-is" basis. We are not liable for:
+
+• Data loss
+• Academic outcomes
+• Service interruptions
+• Errors or inaccuracies in content
+• Use of the platform is at your own risk.
+
+11. Changes to These Terms
+
+We may update these Terms from time to time. Continued use of SmartStudy after changes means you accept the updated Terms.
+
+12. Governing Law
+
+These Terms are governed by applicable laws. Any disputes will be handled under relevant legal jurisdictions.
+
+13. Contact Us
+
+If you have questions about these Terms of Service, please contact us:
+
+Email: smartstudy.ethio@gmail.com
+Platform: SmartStudy.`,
+        lastUpdated: 'December 2025'
+      };
+    }
+
+    res.json({
+      success: true,
+      message: 'Terms of service retrieved successfully',
+      data: termsOfService
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get terms of service error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get terms of service'
+    } as ApiResponse);
+  }
+});
+
+// Update Terms of Service
+router.put('/terms-of-service', requireRole(['ADMIN']), [
+  body('content').isString().isLength({ min: 1 }).withMessage('Content is required'),
+  body('lastUpdated').optional().isString().withMessage('Last updated must be a string')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { content, lastUpdated } = req.body;
+    const fs = require('fs');
+    const path = require('path');
+
+    const termsOfServicePath = path.join(__dirname, '../../data/terms-of-service.json');
+
+    const termsOfServiceData = {
+      content,
+      lastUpdated: lastUpdated || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+    };
+
+    // Save to file
+    fs.writeFileSync(termsOfServicePath, JSON.stringify(termsOfServiceData, null, 2));
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: 'terms_of_service.update',
+      target_type: 'platform_settings',
+      target_id: 'terms_of_service',
+      summary: 'Updated terms of service',
+      after: termsOfServiceData
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: 'Terms of service updated successfully',
+      data: termsOfServiceData
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Update terms of service error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update terms of service'
+    } as ApiResponse);
+  }
+});
+
 // Admin audit logs (who changed what)
 router.get('/audit-logs', requireRole(['ADMIN', 'MODERATOR']), [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),

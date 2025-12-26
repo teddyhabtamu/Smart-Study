@@ -413,12 +413,146 @@ const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
   );
 };
 
+// Terms of Service Manager Component
+interface TermsOfServiceManagerProps {
+  termsOfService: {
+    content: string;
+    lastUpdated: string;
+  };
+  termsOfServiceLoading: boolean;
+  termsOfServiceRefreshTrigger: number;
+  updateTermsOfService: (content: string, lastUpdated?: string) => Promise<void>;
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+}
+
+const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
+  termsOfService,
+  termsOfServiceLoading,
+  termsOfServiceRefreshTrigger,
+  updateTermsOfService,
+  addToast
+}) => {
+  const [editingContent, setEditingContent] = useState('');
+  const [editingLastUpdated, setEditingLastUpdated] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Note: Data fetching is now handled in the parent component
+
+  const handleStartEdit = () => {
+    setEditingContent(termsOfService.content);
+    setEditingLastUpdated(termsOfService.lastUpdated);
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!editingContent.trim()) {
+      addToast('Terms of service content cannot be empty', 'error');
+      return;
+    }
+    await updateTermsOfService(editingContent, editingLastUpdated || undefined);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditingContent('');
+    setEditingLastUpdated('');
+  };
+
+  return (
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold text-zinc-900">Terms of Service Management</h2>
+            <p className="text-sm text-zinc-500 mt-1">Update the terms of service that users see on the website</p>
+          </div>
+          {!isEditing && (
+            <button
+              onClick={handleStartEdit}
+              className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+            >
+              <Edit2 className="w-4 h-4" />
+              Edit Terms
+            </button>
+          )}
+        </div>
+
+        {termsOfServiceLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+          </div>
+        ) : (
+          <>
+            {isEditing ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Terms of Service Content</label>
+                  <textarea
+                    value={editingContent}
+                    onChange={(e) => setEditingContent(e.target.value)}
+                    className="w-full h-96 p-3 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 resize-vertical"
+                    placeholder="Enter terms of service content..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Last Updated (optional)</label>
+                  <input
+                    type="text"
+                    value={editingLastUpdated}
+                    onChange={(e) => setEditingLastUpdated(e.target.value)}
+                    className="w-full p-3 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                    placeholder="e.g., December 2025"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSave}
+                    className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 bg-zinc-500 text-white text-sm font-medium rounded-lg hover:bg-zinc-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
+                  <div>
+                    <strong>Last Updated:</strong> {termsOfService.lastUpdated || 'Not set'}
+                  </div>
+                </div>
+                <div className="border border-zinc-200 rounded-lg">
+                  <div className="p-4 bg-zinc-50 border-b border-zinc-200">
+                    <h3 className="font-semibold text-zinc-900">Preview</h3>
+                  </div>
+                  <div className="p-4 max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-zinc-700 font-sans">
+                      {termsOfService.content || 'No terms of service content set.'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Admin: React.FC = () => {
   const { documents, videos, forumPosts, allUsers, createDocument, updateDocument, deleteDocument, createVideo, updateVideo, deleteVideo, deleteForumPost, updateUserStatus, fetchUsers, fetchDocuments, fetchVideos, fetchForumPosts, loading } = useData();
   const { addToast } = useToast();
   const { user } = useAuth();
   const isModerator = user?.role === UserRole.MODERATOR || String(user?.role) === 'MODERATOR';
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'audit' | 'careers' | 'privacy-policy'>(isModerator ? 'content' : 'overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'audit' | 'careers' | 'privacy-policy' | 'terms-of-service'>(isModerator ? 'content' : 'overview');
   const [contentCategory, setContentCategory] = useState<'documents' | 'videos' | 'past-exams'>('documents');
   const [mounted, setMounted] = useState(false);
   const [admins, setAdmins] = useState<User[]>([]);
@@ -687,6 +821,18 @@ const Admin: React.FC = () => {
   const [privacyPolicyLoading, setPrivacyPolicyLoading] = useState(false);
   const [isUpdatingPrivacyPolicy, setIsUpdatingPrivacyPolicy] = useState(false);
   const [privacyPolicyRefreshTrigger, setPrivacyPolicyRefreshTrigger] = useState(0);
+
+  // Terms of Service State
+  const [termsOfService, setTermsOfService] = useState<{
+    content: string;
+    lastUpdated: string;
+  }>({
+    content: '',
+    lastUpdated: ''
+  });
+  const [termsOfServiceLoading, setTermsOfServiceLoading] = useState(false);
+  const [isUpdatingTermsOfService, setIsUpdatingTermsOfService] = useState(false);
+  const [termsOfServiceRefreshTrigger, setTermsOfServiceRefreshTrigger] = useState(0);
 
   // Options
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
@@ -1276,11 +1422,9 @@ const Admin: React.FC = () => {
 
   const fetchPrivacyPolicy = useCallback(async () => {
     try {
-      console.log('Fetching privacy policy...');
       setPrivacyPolicyLoading(true);
       const data = await careersAPI.admin.getPrivacyPolicy();
       setPrivacyPolicy(data);
-      console.log('Privacy policy fetched successfully');
     } catch (error: any) {
       console.error('Failed to fetch privacy policy:', error);
       addToast('Failed to load privacy policy', 'error');
@@ -1294,7 +1438,6 @@ const Admin: React.FC = () => {
     let isMounted = true;
 
     if (activeTab === 'privacy-policy') {
-      console.log('Privacy policy useEffect triggered, refreshTrigger:', privacyPolicyRefreshTrigger);
       fetchPrivacyPolicy();
     }
 
@@ -1302,6 +1445,48 @@ const Admin: React.FC = () => {
       isMounted = false;
     };
   }, [activeTab, privacyPolicyRefreshTrigger, fetchPrivacyPolicy]);
+
+  // Terms of Service Functions
+  const updateTermsOfService = async (content: string, lastUpdated?: string) => {
+    try {
+      setIsUpdatingTermsOfService(true);
+      await careersAPI.admin.updateTermsOfService({ content, lastUpdated });
+      addToast('Terms of service updated successfully', 'success');
+      // Trigger refresh
+      setTermsOfServiceRefreshTrigger(prev => prev + 1);
+    } catch (error: any) {
+      console.error('Failed to update terms of service:', error);
+      addToast(error.message || 'Failed to update terms of service', 'error');
+    } finally {
+      setIsUpdatingTermsOfService(false);
+    }
+  };
+
+  const fetchTermsOfService = useCallback(async () => {
+    try {
+      setTermsOfServiceLoading(true);
+      const data = await careersAPI.admin.getTermsOfService();
+      setTermsOfService(data);
+    } catch (error: any) {
+      console.error('Failed to fetch terms of service:', error);
+      addToast('Failed to load terms of service', 'error');
+    } finally {
+      setTermsOfServiceLoading(false);
+    }
+  }, [addToast]);
+
+  // Load terms of service when tab is active or refresh is triggered
+  useEffect(() => {
+    let isMounted = true;
+
+    if (activeTab === 'terms-of-service') {
+      fetchTermsOfService();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, termsOfServiceRefreshTrigger, fetchTermsOfService]);
 
 
   const resetPositionForm = () => {
@@ -1412,6 +1597,7 @@ const Admin: React.FC = () => {
                   { id: 'audit', label: 'Audit Log', icon: ScrollText },
                   { id: 'careers', label: 'Careers', icon: Briefcase },
                   { id: 'privacy-policy', label: 'Privacy Policy', icon: Shield },
+                  { id: 'terms-of-service', label: 'Terms of Service', icon: ScrollText },
                 ]),
               ].map(tab => (
                 <button
@@ -3291,6 +3477,17 @@ const Admin: React.FC = () => {
           privacyPolicyLoading={privacyPolicyLoading}
           privacyPolicyRefreshTrigger={privacyPolicyRefreshTrigger}
           updatePrivacyPolicy={updatePrivacyPolicy}
+          addToast={addToast}
+        />
+      )}
+
+      {/* --- TERMS OF SERVICE TAB --- */}
+      {activeTab === 'terms-of-service' && (
+        <TermsOfServiceManager
+          termsOfService={termsOfService}
+          termsOfServiceLoading={termsOfServiceLoading}
+          termsOfServiceRefreshTrigger={termsOfServiceRefreshTrigger}
+          updateTermsOfService={updateTermsOfService}
           addToast={addToast}
         />
       )}

@@ -25,11 +25,8 @@ async function getWorker() {
   
   try {
     worker = await createWorker('eng', 1, {
-      logger: (m: any) => {
-        // Log progress in development mode
-        if (import.meta.env.DEV && m.status === 'recognizing text') {
-          console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-        }
+      logger: () => {
+        // Progress logging removed
       }
     });
 

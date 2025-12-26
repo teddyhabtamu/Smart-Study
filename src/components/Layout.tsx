@@ -69,13 +69,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // 1. Still loading
     // 2. User is authenticated
     // 3. Path is public content page (accessible without authentication)
-    console.log('Layout redirect check:', {
-      isLoading,
-      user: !!user,
-      isPublicContentPage,
-      pathname: location.pathname,
-      publicPaths: publicPathsWithLayout
-    });
 
     if (!isLoading && !user && !isPublicContentPage) {
       console.log('Redirecting to home from:', location.pathname);

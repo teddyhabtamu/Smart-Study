@@ -2,6 +2,7 @@
 // src/pages/AITutor.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -64,12 +65,20 @@ const AITutor: React.FC = () => {
   }, []);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false); // closed by default on mobile, open on desktop
 
+  // Set mounted state
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
   // Delete confirmation state
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     sessionId: string | null;
     sessionTitle: string;
   }>({ isOpen: false, sessionId: null, sessionTitle: '' });
+
+  const [mounted, setMounted] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -794,22 +803,28 @@ const AITutor: React.FC = () => {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmation.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-scale-in">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={24} className="text-red-600" />
+      {/* Delete Chat Session Confirmation Modal */}
+      {deleteConfirmation.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                    Delete Chat Session?
+                  </h3>
+                  <p className="text-sm text-zinc-600">
+                    Are you sure you want to delete <strong>"{deleteConfirmation.sessionTitle}"</strong>? This action cannot be undone.
+                  </p>
+                </div>
               </div>
-              <h3 className="font-bold text-lg text-zinc-900 mb-2">Delete Chat Session</h3>
-              <p className="text-sm text-zinc-600 mb-6">
-                Are you sure you want to delete "{deleteConfirmation.sessionTitle}"? This action cannot be undone.
-              </p>
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
                 <button
                   onClick={() => setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' })}
-                  className="flex-1 px-4 py-2.5 text-zinc-700 font-medium rounded-lg border border-zinc-200 hover:bg-zinc-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -830,7 +845,8 @@ const AITutor: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

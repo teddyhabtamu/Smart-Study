@@ -246,10 +246,8 @@ const VideoWatch: React.FC = () => {
     try {
       const context = `About this video lesson: "${video.title}" - ${video.description} (Grade ${video.grade}, Subject: ${video.subject}).`;
       const fullPrompt = `${context}\n\nQuestion: ${userMsg}`;
-      console.log('Sending AI chat request (VideoWatch):', { message: fullPrompt, subject: video.subject, grade: video.grade });
 
       const response = await aiTutorAPI.chat(fullPrompt, video.subject, video.grade);
-      console.log('AI chat response (VideoWatch):', response);
       setChatHistory(prev => [...prev, { role: 'model', text: response.response }]);
     } catch (error: any) {
       console.error('AI chat error in VideoWatch:', error);

@@ -263,9 +263,7 @@ const DocumentView: React.FC = () => {
     try {
       const context = `Context: Document "${doc.title}" (Grade ${doc.grade}, Subject: ${doc.subject}). Desc: ${doc.description}`;
       const fullPrompt = `${context}\n\nQuestion: ${userMsg}`;
-      console.log('Sending AI chat request:', { message: fullPrompt, subject: doc.subject, grade: doc.grade });
       const response = await aiTutorAPI.chat(fullPrompt, doc.subject, doc.grade);
-      console.log('AI chat response:', response);
       setChatHistory(prev => [...prev, { role: 'model', text: response.response }]);
     } catch (error: any) {
       console.error('AI chat error in DocumentView:', error);
