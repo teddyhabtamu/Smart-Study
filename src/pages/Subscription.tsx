@@ -17,7 +17,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<'scan' | 'verify' | 'success'>('scan');
+  const [paymentStep, setPaymentStep] = useState<'scan' | 'confirm_sent' | 'waiting' | 'success'>('scan');
   const [transactionId, setTransactionId] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -74,8 +74,8 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
   };
 
   const handleCancelSubscription = () => {
-    if(window.confirm("Are you sure you want to cancel your subscription? You will lose access to premium features at the end of the billing period.")) {
-      alert("Subscription scheduled for cancellation.");
+    if(window.confirm("Are you sure you want to downgrade to the free plan? You will lose access to premium features immediately.")) {
+      alert("Account downgraded to free plan.");
     }
   };
 
@@ -95,14 +95,14 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 relative z-10">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="p-2 sm:p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 flex-shrink-0">
-                  <Crown size={20} className="sm:w-7 sm:h-7 text-amber-400" />
+                  <Crown size={20} className="sm:w-7 sm:h-7 text-zinc-600" />
                 </div>
                 <div>
                   <h3 className="text-lg sm:text-xl font-bold">Student Pro</h3>
                   <p className="text-zinc-400 text-sm">Active Subscription</p>
                 </div>
               </div>
-              <span className="self-start sm:ml-auto bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 sm:px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+              <span className="self-start sm:ml-auto bg-zinc-900/10 text-zinc-700 border border-zinc-900/20 px-2 sm:px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                 <ShieldCheck size={10} className="sm:w-3 sm:h-3" /> Active
               </span>
             </div>
@@ -114,13 +114,13 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Billing Cycle</p>
                 <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
-                  <Calendar size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> Monthly
+                  <Calendar size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> One-time Payment
                 </p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Next Payment</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Purchase Date</p>
                 <p className="text-zinc-900 font-medium text-sm sm:text-base break-words">
-                  {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                  {new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
               <div className="sm:col-span-2">
@@ -140,7 +140,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
               <div className="grid grid-cols-1 gap-3">
                 {['Unlimited Downloads', 'AI Tutor (Deep Think)', 'Offline Access', 'Priority Support', 'Ad-free Experience', 'Exclusive Content'].map((f, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-zinc-600">
-                    <Check size={12} className="sm:w-3.5 sm:h-3.5 text-emerald-500 flex-shrink-0" /> {f}
+                    <Check size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-600 flex-shrink-0" /> {f}
                   </div>
                 ))}
               </div>
@@ -151,7 +151,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
                 onClick={handleCancelSubscription}
                 className="w-full sm:flex-1 py-3 sm:py-2.5 bg-white border border-zinc-200 text-red-600 font-medium rounded-lg hover:bg-red-50 hover:border-red-100 transition-colors text-sm sm:text-base touch-manipulation"
               >
-                Cancel Subscription
+                Downgrade to Free
               </button>
               <button className="w-full sm:flex-1 py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm sm:text-base touch-manipulation">
                 Update Payment Method
@@ -208,8 +208,8 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
            <div className="mb-4 sm:mb-6 relative z-10">
              <h3 className="text-lg font-bold text-white">Student Pro</h3>
              <div className="mt-2 flex items-baseline gap-1">
-               <span className="text-3xl sm:text-4xl font-bold text-white tracking-tight">100 ETB</span>
-               <span className="text-zinc-400 text-sm">/mo</span>
+               <span className="text-3xl sm:text-4xl font-bold text-white tracking-tight">100 Birr</span>
+               <span className="text-zinc-400 text-sm">(One-time)</span>
              </div>
              <p className="text-sm text-zinc-400 mt-2">Unlock your full potential.</p>
            </div>
@@ -217,7 +217,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
            <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8 relative z-10">
              {['Unlimited downloads', 'Full AI Tutor access', 'Offline mode', 'Priority support'].map((f, i) => (
                <div key={i} className="flex items-center gap-3 text-sm text-zinc-300">
-                 <Check size={14} className="sm:w-4 sm:h-4 text-emerald-500" /> {f}
+                 <Check size={14} className="sm:w-4 sm:h-4 text-zinc-600" /> {f}
                </div>
              ))}
            </div>
@@ -246,82 +246,124 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
               {paymentStep === 'scan' && (
                 <div className="text-center space-y-6">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-zinc-900">Pay via Telebirr</h3>
-                    <p className="text-sm text-zinc-500">Scan the QR code or use the merchant ID.</p>
+                    <h3 className="text-lg font-bold text-zinc-900">Pay 100 Birr for Full Access</h3>
+                    <p className="text-sm text-zinc-500">Scan the QR code to make a one-time payment.</p>
                   </div>
 
                   <div className="w-48 h-48 bg-white border-2 border-zinc-900 rounded-xl mx-auto flex items-center justify-center relative p-2">
-                     <div className="w-full h-full bg-zinc-900 pattern-grid-lg flex items-center justify-center text-white text-xs font-mono">
-                       [QR CODE PLACEHOLDER]
-                     </div>
+                     <img
+                       src="/image/qrcode_payment.jpg"
+                       alt="Telebirr Payment QR Code"
+                       className="w-full h-full object-contain rounded-lg"
+                     />
                   </div>
 
-                  <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-100 text-left space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-zinc-500">Merchant ID:</span>
-                      <span className="font-mono font-bold text-zinc-900">849201</span>
-                    </div>
+                  <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-100 text-left">
                     <div className="flex justify-between text-sm">
                       <span className="text-zinc-500">Amount:</span>
-                      <span className="font-bold text-zinc-900">100 ETB</span>
+                      <span className="font-bold text-zinc-900">100 Birr (One-time)</span>
                     </div>
                   </div>
 
-                  <button 
-                    onClick={() => setPaymentStep('verify')}
-                    className="w-full py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                  <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left space-y-2">
+                    <h4 className="font-semibold text-zinc-900 text-sm">After Payment:</h4>
+                    <p className="text-zinc-700 text-sm leading-relaxed">
+                      Send your payment receipt to our Telegram channel for account activation.<br/>
+                      <strong>Telegram:</strong> <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">@ethio_smartstudy</a> or <span className="font-mono">t.me/ethio_smartstudy</span><br/>
+                      <span className="text-xs text-zinc-600">Your account will be upgraded within a minute after verification.</span>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setPaymentStep('confirm_sent')}
+                    className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                   >
                     I have completed payment
                   </button>
                 </div>
               )}
 
-              {paymentStep === 'verify' && (
+              {paymentStep === 'confirm_sent' && (
                 <div className="space-y-6">
                   <div className="text-center">
                     <div className="w-12 h-12 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mx-auto mb-4">
                       <ShieldCheck size={24} />
                     </div>
-                    <h3 className="text-lg font-bold text-zinc-900">Verify Transaction</h3>
-                    <p className="text-sm text-zinc-500">Enter the transaction ID from your SMS.</p>
+                    <h3 className="text-lg font-bold text-zinc-900">Confirm Receipt Sent</h3>
+                    <p className="text-sm text-zinc-500">Please send your payment receipt to our Telegram admin for verification.</p>
                   </div>
 
-                  <form onSubmit={handleVerify} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Transaction ID / Reference Number</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="e.g. 8H2K92L1"
-                        className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 uppercase"
-                        value={transactionId}
-                        onChange={(e) => setTransactionId(e.target.value)}
-                      />
+                  <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left space-y-3">
+                    <h4 className="font-semibold text-zinc-900 text-sm">Send Receipt To:</h4>
+                    <div className="space-y-2">
+                      <p className="text-zinc-700 text-sm">
+                        <strong>Telegram:</strong> <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">@ethio_smartstudy</a>
+                      </p>
+                      <p className="text-zinc-700 text-sm">
+                        Or direct link: <span className="font-mono">t.me/ethio_smartstudy</span>
+                      </p>
                     </div>
-                    <button 
-                      type="submit"
-                      disabled={!transactionId || isVerifying}
-                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+                    <p className="text-zinc-600 text-xs mt-3">
+                      Make sure to send the complete receipt/screenshot showing the transaction details.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setPaymentStep('waiting')}
+                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                     >
-                      {isVerifying && <Loader2 size={16} className="animate-spin" />}
-                      {isVerifying ? 'Verifying...' : 'Verify Payment'}
+                      I have sent the receipt
                     </button>
-                  </form>
-                  
-                  <button onClick={() => setPaymentStep('scan')} className="w-full text-sm text-zinc-500 hover:text-zinc-900">
-                    Back to QR Code
-                  </button>
+                    <button onClick={() => setPaymentStep('scan')} className="w-full text-sm text-zinc-500 hover:text-zinc-900">
+                      Back to QR Code
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {paymentStep === 'waiting' && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <ShieldCheck size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-zinc-900">Receipt Submitted</h3>
+                    <p className="text-sm text-zinc-500">Your payment receipt has been submitted for verification.</p>
+                  </div>
+
+                  <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left">
+                    <p className="text-zinc-700 text-sm leading-relaxed">
+                      <strong>What happens next?</strong><br/>
+                      • Our admin will verify your payment receipt<br/>
+                      • Your account will be manually upgraded to Student Pro<br/>
+                      • You'll receive full access once verification is complete<br/>
+                      <span className="text-xs text-zinc-600 mt-2 block">Thank you for using SmartStudy. You can continue using free features while waiting.</span>
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleSuccessContinue}
+                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
+                    >
+                      Continue with Free Features
+                    </button>
+                    <button onClick={() => setPaymentStep('confirm_sent')} className="w-full text-sm text-zinc-500 hover:text-zinc-900">
+                      Back
+                    </button>
+                  </div>
                 </div>
               )}
 
               {paymentStep === 'success' && (
                 <div className="text-center space-y-6">
-                  <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto animate-fade-in">
+                  <div className="w-16 h-16 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mx-auto animate-fade-in">
                     <Check size={32} />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-zinc-900">Payment Successful!</h3>
-                    <p className="text-zinc-500">Your account has been upgraded to Student Pro.</p>
+                    <h3 className="text-xl font-bold text-zinc-900">Welcome to Student Pro</h3>
+                    <p className="text-zinc-500">Your account has been successfully upgraded. Enjoy full access to all premium features!</p>
                   </div>
                   <button 
                     onClick={handleSuccessContinue}

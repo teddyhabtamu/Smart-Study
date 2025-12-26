@@ -43,7 +43,7 @@ const Footer: React.FC = () => {
                 <h4 className="font-bold text-zinc-900 mb-4">Connect</h4>
                 <div className="flex gap-4">
                    <a href="#" className="text-zinc-400 hover:text-zinc-900"><Twitter size={20} /></a>
-                   <a href="#" className="text-zinc-400 hover:text-zinc-900"><Linkedin size={20} /></a>
+                   <a href="https://www.linkedin.com/company/smartstudy-official" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-900"><Linkedin size={20} /></a>
                    <a href="#" className="text-zinc-400 hover:text-zinc-900"><Github size={20} /></a>
                 </div>
              </div>
