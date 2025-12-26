@@ -507,6 +507,17 @@ const Admin: React.FC = () => {
     type: null
   });
 
+  // Application Delete Confirmation Modal State
+  const [deleteApplicationConfirmation, setDeleteApplicationConfirmation] = useState<{
+    isOpen: boolean;
+    applicationId: string | null;
+    applicantName: string | null;
+  }>({
+    isOpen: false,
+    applicationId: null,
+    applicantName: null
+  });
+
   // Team Member Removal Confirmation Modal State
   const [removeTeamMemberConfirmation, setRemoveTeamMemberConfirmation] = useState<{
     isOpen: boolean;
@@ -967,6 +978,7 @@ const Admin: React.FC = () => {
       if (archiveStatusFilter === 'active') params.archived = 'false';
       else if (archiveStatusFilter === 'archived') params.archived = 'true';
       else if (archiveStatusFilter === 'all') params.archived = 'all';
+
       const data = await careersAPI.admin.getApplications(params);
       setApplications(data);
     } catch (error: any) {
@@ -985,6 +997,13 @@ const Admin: React.FC = () => {
       }
     }
   }, [activeTab, positionView, selectedPositionId, fetchPositions, fetchApplications]);
+
+  // Fetch applications when filters change
+  useEffect(() => {
+    if (activeTab === 'careers' && positionView === 'applications') {
+      fetchApplications(selectedPositionId || undefined);
+    }
+  }, [applicationStatusFilter, archiveStatusFilter, activeTab, positionView, selectedPositionId, fetchApplications]);
 
   const handlePositionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1063,18 +1082,31 @@ const Admin: React.FC = () => {
     }
   };
 
-  const handleDeleteApplication = async (applicationId: string, applicantName: string) => {
-    if (window.confirm(`Are you sure you want to permanently delete the application from ${applicantName}? This action cannot be undone.`)) {
-      setIsDeletingApplication(applicationId);
-      try {
-        await careersAPI.admin.deleteApplication(applicationId);
-        addToast('Application deleted permanently', 'success');
-        fetchApplications(selectedPositionId || undefined);
-      } catch (error: any) {
-        addToast(error.message || 'Failed to delete application', 'error');
-      } finally {
-        setIsDeletingApplication(null);
-      }
+  const handleDeleteApplication = (applicationId: string, applicantName: string) => {
+    setDeleteApplicationConfirmation({
+      isOpen: true,
+      applicationId,
+      applicantName
+    });
+  };
+
+  const confirmDeleteApplication = async () => {
+    if (!deleteApplicationConfirmation.applicationId || !deleteApplicationConfirmation.applicantName) return;
+
+    setIsDeletingApplication(deleteApplicationConfirmation.applicationId);
+    try {
+      await careersAPI.admin.deleteApplication(deleteApplicationConfirmation.applicationId);
+      addToast('Application deleted permanently', 'success');
+      fetchApplications(selectedPositionId || undefined);
+    } catch (error: any) {
+      addToast(error.message || 'Failed to delete application', 'error');
+    } finally {
+      setIsDeletingApplication(null);
+      setDeleteApplicationConfirmation({
+        isOpen: false,
+        applicationId: null,
+        applicantName: null
+      });
     }
   };
 
@@ -2205,7 +2237,6 @@ const Admin: React.FC = () => {
                           value={applicationStatusFilter}
                           onChange={(value) => {
                             setApplicationStatusFilter(value);
-                            fetchApplications(selectedPositionId || undefined);
                           }}
                         />
                       </div>
@@ -2218,7 +2249,6 @@ const Admin: React.FC = () => {
                           value={archiveStatusFilter}
                           onChange={(value) => {
                             setArchiveStatusFilter(value);
-                            fetchApplications(selectedPositionId || undefined);
                           }}
                         />
                       </div>
@@ -3051,6 +3081,52 @@ const Admin: React.FC = () => {
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 >
                   Delete Forever
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Application Confirmation Modal */}
+      {deleteApplicationConfirmation.isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                    Delete Application?
+                  </h3>
+                  <p className="text-sm text-zinc-600">
+                    Are you sure you want to permanently delete the application from <strong>{deleteApplicationConfirmation.applicantName}</strong>? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setDeleteApplicationConfirmation({ isOpen: false, applicationId: null, applicantName: null })}
+                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteApplication}
+                  disabled={isDeletingApplication === deleteApplicationConfirmation.applicationId}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeletingApplication === deleteApplicationConfirmation.applicationId ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete Forever'
+                  )}
                 </button>
               </div>
             </div>

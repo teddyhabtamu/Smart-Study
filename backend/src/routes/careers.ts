@@ -401,6 +401,9 @@ router.get('/admin/applications', [
 
     let applications = await dbAdmin.get('job_applications');
 
+    console.log('Backend: Total applications before filtering:', applications.length);
+    console.log('Backend: Archived parameter received:', archived);
+
     // Apply filters
     if (position_id) {
       applications = applications.filter((app: any) => app.position_id === position_id);
@@ -410,20 +413,26 @@ router.get('/admin/applications', [
       applications = applications.filter((app: any) => app.status === status);
     }
 
+    console.log('Backend: After position/status filters:', applications.length);
+
     // Filter archived based on parameter
     if (archived === 'false') {
-      // Show only active (non-archived) applications
+      console.log('Backend: Filtering for active applications');
       applications = applications.filter((app: any) => app.is_archived !== true);
     } else if (archived === 'true') {
-      // Show only archived applications
+      console.log('Backend: Filtering for archived applications');
       applications = applications.filter((app: any) => app.is_archived === true);
     } else if (archived === 'all') {
-      // Show all applications (no filtering)
+      console.log('Backend: Showing all applications');
       // Do nothing - show both archived and non-archived
     } else {
+      console.log('Backend: Default filtering for active applications');
       // Default: show only active applications
       applications = applications.filter((app: any) => app.is_archived !== true);
     }
+
+    console.log('Backend: Final applications count:', applications.length);
+    console.log('Backend: Sample is_archived values:', applications.slice(0, 3).map((app: any) => ({ id: app.id, is_archived: app.is_archived })));
     
     // Sort by created_at descending
     applications.sort((a: any, b: any) => 
