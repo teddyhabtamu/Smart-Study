@@ -24,6 +24,7 @@ import Practice from './src/pages/Practice';
 import About from './src/pages/About';
 import Careers from './src/pages/Careers';
 import PrivacyPolicy from './src/pages/PrivacyPolicy';
+import TermsOfService from './src/pages/TermsOfService';
 import NotFound from './src/pages/NotFound';
 import Loader from './src/components/Loader';
 import { useAuth } from './src/context/AuthContext';
@@ -90,6 +91,7 @@ const App: React.FC = () => {
         <Route path="/about" element={<Layout><About /></Layout>} />
         <Route path="/careers" element={<Layout><Careers /></Layout>} />
         <Route path="/privacy-policy" element={<Layout><PrivacyPolicy /></Layout>} />
+        <Route path="/terms-of-service" element={<Layout><TermsOfService /></Layout>} />
         
         {/* Protected Routes */}
         <Route 

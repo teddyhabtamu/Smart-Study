@@ -56,6 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       "/about",               // About page
       "/careers",             // Careers page
       "/privacy-policy",      // Privacy Policy page
+      "/terms-of-service",    // Terms of Service page
     ];
     
     // Also allow document and video detail pages (they handle their own auth if needed)
@@ -68,7 +69,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // 1. Still loading
     // 2. User is authenticated
     // 3. Path is public content page (accessible without authentication)
+    console.log('Layout redirect check:', {
+      isLoading,
+      user: !!user,
+      isPublicContentPage,
+      pathname: location.pathname,
+      publicPaths: publicPathsWithLayout
+    });
+
     if (!isLoading && !user && !isPublicContentPage) {
+      console.log('Redirecting to home from:', location.pathname);
       navigate("/");
     }
   }, [user, isLoading, location.pathname, navigate]);

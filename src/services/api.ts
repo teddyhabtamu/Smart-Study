@@ -1140,6 +1140,12 @@ export const careersAPI = {
   }> =>
     apiRequest('/careers/privacy-policy', {}, false),
 
+  getTermsOfService: (): Promise<{
+    content: string;
+    lastUpdated: string;
+  }> =>
+    apiRequest('/careers/terms-of-service', {}, false),
+
   apply: (positionId: string, data: {
     applicant_name: string;
     applicant_email: string;
