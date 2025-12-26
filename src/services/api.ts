@@ -1228,16 +1228,17 @@ export const careersAPI = {
     getApplications: (params?: {
       position_id?: string;
       status?: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      archived?: 'true' | 'false' | 'all';
     }): Promise<Array<{
       id: string;
       position_id: string;
       applicant_id?: string;
       applicant_name: string;
-      applicant_email: string;
       applicant_phone?: string;
       cover_letter?: string;
       resume_url?: string;
       status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      is_archived?: boolean;
       notes?: string;
       reviewed_by?: string;
       reviewed_at?: string;
@@ -1247,6 +1248,7 @@ export const careersAPI = {
       const queryParams = new URLSearchParams();
       if (params?.position_id) queryParams.append('position_id', params.position_id);
       if (params?.status) queryParams.append('status', params.status);
+      if (params?.archived) queryParams.append('archived', params.archived);
       return apiRequest(`/careers/admin/applications?${queryParams.toString()}`);
     },
 
@@ -1286,6 +1288,24 @@ export const careersAPI = {
       apiRequest(`/careers/admin/applications/${id}/status`, {
         method: 'PUT',
         body: JSON.stringify(data),
+      }),
+
+    archiveApplication: (id: string, is_archived: boolean): Promise<{
+      id: string;
+      position_id: string;
+      applicant_name: string;
+      applicant_email: string;
+      status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
+      notes?: string;
+      is_archived: boolean;
+      reviewed_by?: string;
+      reviewed_at?: string;
+      created_at: string;
+      updated_at: string;
+    }> =>
+      apiRequest(`/careers/admin/applications/${id}/archive`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_archived }),
       }),
 
     deleteApplication: (id: string): Promise<void> =>

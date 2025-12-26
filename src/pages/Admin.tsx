@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Upload, FileText, Trash2, Edit2, Search, CheckCircle, UserPlus, Mail, Shield, X, Save, Film, Youtube, PlaySquare, BarChart3, Users, MessageSquare, AlertTriangle, MoreVertical, Crown, Ban, Loader2, Briefcase, MapPin, Clock, ScrollText, RefreshCw } from 'lucide-react';
+import { Upload, FileText, Trash2, Edit2, Search, CheckCircle, UserPlus, Mail, Shield, X, Save, Film, Youtube, PlaySquare, BarChart3, Users, MessageSquare, AlertTriangle, MoreVertical, Crown, Ban, Loader2, Briefcase, MapPin, Clock, ScrollText, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
 import { GRADES, SUBJECTS } from '../constants';
 import { FileType, Document, VideoLesson, UserRole, User } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
@@ -424,6 +424,8 @@ const Admin: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isDeletingPosition, setIsDeletingPosition] = useState<string | null>(null);
   const [isUpdatingApplication, setIsUpdatingApplication] = useState<string | null>(null);
+  const [isArchivingApplication, setIsArchivingApplication] = useState<string | null>(null);
+  const [isDeletingApplication, setIsDeletingApplication] = useState<string | null>(null);
   const [isSavingPosition, setIsSavingPosition] = useState(false);
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
   const [isRemovingAdmin, setIsRemovingAdmin] = useState<string | null>(null);
@@ -475,6 +477,7 @@ const Admin: React.FC = () => {
     is_active: true
   });
   const [applicationStatusFilter, setApplicationStatusFilter] = useState<string>('all');
+  const [archiveStatusFilter, setArchiveStatusFilter] = useState<string>('active');
 
   // Confirmation Modal State
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -542,6 +545,12 @@ const Admin: React.FC = () => {
     { label: 'Interview', value: 'Interview' },
     { label: 'Accepted', value: 'Accepted' },
     { label: 'Rejected', value: 'Rejected' }
+  ];
+
+  const archiveStatusOptions: Option[] = [
+    { label: 'Active Only', value: 'active' },
+    { label: 'Archived Only', value: 'archived' },
+    { label: 'All Applications', value: 'all' }
   ];
   const statusUpdateOptions: Option[] = [
     { label: 'Pending', value: 'Pending' },
@@ -955,6 +964,9 @@ const Admin: React.FC = () => {
       const params: any = {};
       if (positionId) params.position_id = positionId;
       if (applicationStatusFilter !== 'all') params.status = applicationStatusFilter;
+      if (archiveStatusFilter === 'active') params.archived = 'false';
+      else if (archiveStatusFilter === 'archived') params.archived = 'true';
+      else if (archiveStatusFilter === 'all') params.archived = 'all';
       const data = await careersAPI.admin.getApplications(params);
       setApplications(data);
     } catch (error: any) {
@@ -963,7 +975,7 @@ const Admin: React.FC = () => {
     } finally {
       setApplicationsLoading(false);
     }
-  }, [applicationStatusFilter, addToast]);
+  }, [applicationStatusFilter, archiveStatusFilter, addToast]);
 
   useEffect(() => {
     if (activeTab === 'careers') {
@@ -1035,6 +1047,34 @@ const Admin: React.FC = () => {
       addToast(error.message || 'Failed to update application', 'error');
     } finally {
       setIsUpdatingApplication(null);
+    }
+  };
+
+  const handleArchiveApplication = async (applicationId: string, isArchived: boolean) => {
+    setIsArchivingApplication(applicationId);
+    try {
+      await careersAPI.admin.archiveApplication(applicationId, isArchived);
+      addToast(`Application ${isArchived ? 'archived' : 'activated'}`, 'success');
+      fetchApplications(selectedPositionId || undefined);
+    } catch (error: any) {
+      addToast(error.message || 'Failed to archive application', 'error');
+    } finally {
+      setIsArchivingApplication(null);
+    }
+  };
+
+  const handleDeleteApplication = async (applicationId: string, applicantName: string) => {
+    if (window.confirm(`Are you sure you want to permanently delete the application from ${applicantName}? This action cannot be undone.`)) {
+      setIsDeletingApplication(applicationId);
+      try {
+        await careersAPI.admin.deleteApplication(applicationId);
+        addToast('Application deleted permanently', 'success');
+        fetchApplications(selectedPositionId || undefined);
+      } catch (error: any) {
+        addToast(error.message || 'Failed to delete application', 'error');
+      } finally {
+        setIsDeletingApplication(null);
+      }
     }
   };
 
@@ -2156,16 +2196,33 @@ const Admin: React.FC = () => {
               {/* Filter */}
               <div className="bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <label className="text-xs font-semibold text-zinc-700 sm:mr-2 whitespace-nowrap">Filter by Status:</label>
-                  <div className="flex-1 sm:flex-initial sm:w-48">
-                    <CustomSelect
-                      options={applicationStatusOptions}
-                      value={applicationStatusFilter}
-                      onChange={(value) => {
-                        setApplicationStatusFilter(value);
-                        fetchApplications(selectedPositionId || undefined);
-                      }}
-                    />
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                      <label className="text-xs font-semibold text-zinc-700 sm:mr-2 whitespace-nowrap">Filter by Status:</label>
+                      <div className="flex-1 sm:flex-initial sm:w-48">
+                        <CustomSelect
+                          options={applicationStatusOptions}
+                          value={applicationStatusFilter}
+                          onChange={(value) => {
+                            setApplicationStatusFilter(value);
+                            fetchApplications(selectedPositionId || undefined);
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                      <label className="text-xs font-semibold text-zinc-700 sm:mr-2 whitespace-nowrap">Archive Status:</label>
+                      <div className="flex-1 sm:flex-initial sm:w-48">
+                        <CustomSelect
+                          options={archiveStatusOptions}
+                          value={archiveStatusFilter}
+                          onChange={(value) => {
+                            setArchiveStatusFilter(value);
+                            fetchApplications(selectedPositionId || undefined);
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2240,6 +2297,32 @@ const Admin: React.FC = () => {
                                   Resume
                                 </a>
                               )}
+                              <button
+                                onClick={() => handleArchiveApplication(application.id, !application.is_archived)}
+                                disabled={isArchivingApplication === application.id}
+                                className="px-3 py-2 bg-amber-100 text-amber-700 rounded-lg text-xs sm:text-sm hover:bg-amber-200 transition-colors flex items-center justify-center gap-1.5 font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isArchivingApplication === application.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : application.is_archived ? (
+                                  <ArchiveRestore size={14} />
+                                ) : (
+                                  <Archive size={14} />
+                                )}
+                                {application.is_archived ? 'Activate' : 'Archive'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteApplication(application.id, application.applicant_name)}
+                                disabled={isDeletingApplication === application.id}
+                                className="px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs sm:text-sm hover:bg-red-200 transition-colors flex items-center justify-center gap-1.5 font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isDeletingApplication === application.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                                Delete
+                              </button>
                             </div>
                           </div>
                           {application.cover_letter && (

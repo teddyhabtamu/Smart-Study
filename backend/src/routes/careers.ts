@@ -394,19 +394,35 @@ router.get('/admin/applications', [
   requireRole(['ADMIN']),
   query('position_id').optional().isUUID(),
   query('status').optional().isIn(['Pending', 'Under Review', 'Interview', 'Accepted', 'Rejected']),
+  query('archived').optional().isString(),
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const { position_id, status } = req.query;
-    
+    const { position_id, status, archived } = req.query;
+
     let applications = await dbAdmin.get('job_applications');
-    
+
     // Apply filters
     if (position_id) {
       applications = applications.filter((app: any) => app.position_id === position_id);
     }
-    
+
     if (status) {
       applications = applications.filter((app: any) => app.status === status);
+    }
+
+    // Filter archived based on parameter
+    if (archived === 'false') {
+      // Show only active (non-archived) applications
+      applications = applications.filter((app: any) => app.is_archived !== true);
+    } else if (archived === 'true') {
+      // Show only archived applications
+      applications = applications.filter((app: any) => app.is_archived === true);
+    } else if (archived === 'all') {
+      // Show all applications (no filtering)
+      // Do nothing - show both archived and non-archived
+    } else {
+      // Default: show only active applications
+      applications = applications.filter((app: any) => app.is_archived !== true);
     }
     
     // Sort by created_at descending
@@ -558,6 +574,51 @@ router.put('/admin/applications/:id/status', [
 });
 
 // Admin: Delete application
+// Admin: Archive/Unarchive application
+router.patch('/admin/applications/:id/archive', [
+  authenticateToken,
+  requireRole(['ADMIN']),
+  body('is_archived').isBoolean().withMessage('is_archived must be boolean'),
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { is_archived } = req.body;
+
+    const before = await dbAdmin.findOne('job_applications', (app: any) => app.id === id);
+    if (!before) {
+      res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      } as ApiResponse);
+      return;
+    }
+
+    const updated = await dbAdmin.update('job_applications', id, { is_archived });
+
+    // Audit log (non-blocking)
+    logAdminActivity(req, {
+      action: is_archived ? 'job_application.archive' : 'job_application.unarchive',
+      target_type: 'job_application',
+      target_id: String(id),
+      summary: `${is_archived ? 'Archived' : 'Unarchived'} application from "${before.applicant_name}"`,
+      before,
+      after: updated
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      data: updated,
+      message: `Application ${is_archived ? 'archived' : 'unarchived'} successfully`
+    } as ApiResponse<JobApplication>);
+  } catch (error) {
+    console.error('Archive application error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to archive/unarchive application'
+    } as ApiResponse);
+  }
+});
+
 router.delete('/admin/applications/:id', [
   authenticateToken,
   requireRole(['ADMIN'])

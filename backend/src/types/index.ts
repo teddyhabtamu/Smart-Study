@@ -168,6 +168,7 @@ export interface JobApplication {
   resume_url?: string;
   status: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected';
   notes?: string;
+  is_archived?: boolean;
   reviewed_by?: string;
   reviewed_at?: string;
   created_at: string;
