@@ -6,7 +6,7 @@
 
   <!-- Homepage - Highest Priority -->
   <url>
-    <loc>https://smartstudy.et/</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
@@ -14,42 +14,42 @@
 
   <!-- Main Features - High Priority -->
   <url>
-    <loc>https://smartstudy.et/library</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/library</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/ai-tutor</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/ai-tutor</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/videos</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/videos</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/past-exams</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/past-exams</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/practice</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/practice</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/community</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/community</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
@@ -57,14 +57,14 @@
 
   <!-- Authentication Pages - Medium Priority -->
   <url>
-    <loc>https://smartstudy.et/login</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/login</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/register</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/register</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -72,21 +72,21 @@
 
   <!-- Static Pages - Medium Priority -->
   <url>
-    <loc>https://smartstudy.et/about</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/about</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/careers</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/careers</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
-    <loc>https://smartstudy.et/privacy-policy</loc>
+    <loc>https://smartstudy.tewodroshabtamu.me/privacy-policy</loc>
     <lastmod>2024-12-31</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

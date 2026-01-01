@@ -21,7 +21,7 @@ User-agent: YandexBot
 Allow: /
 
 # Sitemap location
-Sitemap: https://smartstudy.et/sitemap.xml
+Sitemap: https://smartstudy.tewodroshabtamu.me/sitemap.xml
 
 # Crawl delay (optional)
 Crawl-delay: 1
