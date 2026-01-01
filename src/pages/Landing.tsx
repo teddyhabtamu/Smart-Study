@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Brain, Users, PlayCircle, CheckCircle2, Star, HelpCircle } from 'lucide-react';
+import { ArrowRight, BookOpen, Brain, Users, PlayCircle, CheckCircle2, Star, HelpCircle, FileText } from 'lucide-react';
 import Footer from '../components/Footer';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const Landing: React.FC = () => {
+  const { updateSEO } = useSEO();
+
+  useEffect(() => {
+    updateSEO(pageSEO.home);
+  }, [updateSEO]);
   return (
     <div className="flex flex-col min-h-screen bg-white selection:bg-zinc-900 selection:text-white">
       
@@ -95,10 +101,10 @@ const Landing: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 grid-rows-[auto_auto_auto]">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 grid-rows-[auto_auto]">
             
             {/* AI Card - Large */}
-            <div className="md:col-span-2 md:row-span-2 bg-zinc-950 rounded-2xl md:rounded-3xl p-6 sm:p-8 md:p-12 text-white relative overflow-hidden group border border-zinc-800">
+            <div className="md:col-span-2 lg:col-span-2 lg:row-span-2 bg-zinc-950 rounded-2xl md:rounded-3xl p-6 sm:p-8 md:p-12 text-white relative overflow-hidden group border border-zinc-800">
                <div className="absolute top-0 right-0 w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] bg-indigo-500/20 rounded-full blur-[100px] -mr-10 sm:-mr-20 -mt-10 sm:-mt-20"></div>
                <div className="relative z-10 flex flex-col h-full justify-between">
                   <div>
@@ -119,7 +125,7 @@ const Landing: React.FC = () => {
             </div>
 
             {/* Library Card */}
-            <div className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group">
+            <Link to="/library" className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group block">
                <BookOpen size={28} className="sm:w-8 sm:h-8 text-zinc-900 mb-4 sm:mb-6" />
                <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-2">Digital Library</h3>
                <p className="text-zinc-500 mb-4 sm:mb-6 text-sm sm:text-base">Access thousands of textbooks and exam papers.</p>
@@ -128,14 +134,21 @@ const Landing: React.FC = () => {
                      <div key={i} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-200 border-2 border-white"></div>
                   ))}
                </div>
-            </div>
+            </Link>
 
             {/* Video Card */}
-            <div className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group">
+            <Link to="/videos" className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group block">
                <PlayCircle size={28} className="sm:w-8 sm:h-8 text-zinc-900 mb-4 sm:mb-6" />
                <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-2">Video Classroom</h3>
                <p className="text-zinc-500 text-sm sm:text-base">Visual lessons from Ethiopia's top instructors.</p>
-            </div>
+            </Link>
+
+            {/* Past Exams Card */}
+            <Link to="/past-exams" className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group block">
+               <FileText size={28} className="sm:w-8 sm:h-8 text-zinc-900 mb-4 sm:mb-6" />
+               <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-2">Past Exams</h3>
+               <p className="text-zinc-500 text-sm sm:text-base">Practice with previous national exam papers.</p>
+            </Link>
 
             {/* Community/Wide Card */}
             <div className="md:col-span-3 bg-white rounded-2xl md:rounded-3xl p-6 sm:p-8 md:p-12 border border-zinc-200 hover:border-zinc-300 transition-colors flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8 group">

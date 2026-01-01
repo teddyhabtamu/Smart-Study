@@ -12,6 +12,7 @@ import { useToast } from '../context/ToastContext';
 import { usersAPI, forumAPI } from '../services/api';
 import { ForumPostSkeleton, LeaderboardItemSkeleton } from '../components/Skeletons';
 import { formatRelativeTime } from '../utils/dateUtils';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const Community: React.FC = () => {
   const { user } = useAuth();
@@ -19,6 +20,11 @@ const Community: React.FC = () => {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const { updateSEO } = useSEO();
+
+  useEffect(() => {
+    updateSEO(pageSEO.community);
+  }, [updateSEO]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [mounted, setMounted] = useState(false);

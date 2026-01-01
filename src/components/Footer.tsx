@@ -23,6 +23,7 @@ const Footer: React.FC = () => {
                 <h4 className="font-bold text-zinc-900 mb-4">Platform</h4>
                 <ul className="space-y-3 text-sm text-zinc-500">
                    <li><Link to="/library" className="hover:text-zinc-900">Library</Link></li>
+                   <li><Link to="/past-exams" className="hover:text-zinc-900">Past Exams</Link></li>
                    <li><Link to="/videos" className="hover:text-zinc-900">Video Lessons</Link></li>
                    <li><Link to="/ai-tutor" className="hover:text-zinc-900">AI Tutor</Link></li>
                    <li><Link to="/community" className="hover:text-zinc-900">Community</Link></li>

@@ -9,6 +9,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { DocumentCardSkeleton } from '../components/Skeletons';
 import GoogleDriveImage from '../components/GoogleDriveImage';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const INITIAL_LIMIT = 16; // Load 16 documents initially
 const LOAD_MORE_LIMIT = 12; // Load 12 more documents each time
@@ -16,6 +17,11 @@ const LOAD_MORE_LIMIT = 12; // Load 12 more documents each time
 const Library: React.FC = () => {
   const { documents, fetchDocuments, fetchMoreDocuments, loading, errors } = useData();
   const { user } = useAuth();
+  const { updateSEO } = useSEO();
+
+  useEffect(() => {
+    updateSEO(pageSEO.library);
+  }, [updateSEO]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [selectedGrade, setSelectedGrade] = useState('All');

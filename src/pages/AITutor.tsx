@@ -11,10 +11,11 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
 import { aiTutorAPI, usersAPI } from '../services/api';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const DEFAULT_WELCOME_MSG = {
   role: 'model',
-  text: `### Hello! I'm your Smart Tutor. 
+  text: `### Hello! I'm your Smart Tutor.
 I can help you with:
 * Solving complex problems
 * Explaining difficult concepts
@@ -28,6 +29,11 @@ const SUBJECTS = ['General', 'Mathematics', 'Physics', 'Chemistry', 'Biology', '
 
 const AITutor: React.FC = () => {
   const { user } = useAuth();
+  const { updateSEO } = useSEO();
+
+  useEffect(() => {
+    updateSEO(pageSEO.aiTutor);
+  }, [updateSEO]);
   const { addToast } = useToast();
   const location = useLocation();
   

@@ -8,6 +8,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { VideoCardSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const INITIAL_LIMIT = 16; // Load 16 videos initially
 const LOAD_MORE_LIMIT = 12; // Load 12 more videos each time
@@ -16,6 +17,11 @@ const VideoLibrary: React.FC = () => {
   const { videos, fetchVideos, fetchMoreVideos, loading, errors } = useData();
   const { user } = useAuth();
   const location = useLocation();
+  const { updateSEO } = useSEO();
+
+  useEffect(() => {
+    updateSEO(pageSEO.videos);
+  }, [updateSEO]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [selectedGrade, setSelectedGrade] = useState('All');
