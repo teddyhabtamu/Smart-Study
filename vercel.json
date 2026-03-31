@@ -1,14 +1,17 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/googleecc8f937e765b6bd.html",
-      "destination": "/googleecc8f937e765b6bd.html"
+      "src": "/googleecc8f937e765b6bd.html",
+      "dest": "/googleecc8f937e765b6bd.html"
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
