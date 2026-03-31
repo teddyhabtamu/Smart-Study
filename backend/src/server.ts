@@ -31,17 +31,19 @@ const allowedOrigins = [
 // CORS middleware - handles preflight OPTIONS automatically
 const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Allow requests with no origin (like mobile apps or curl requests) - but only in development
-    if (!origin) {
-      return callback(null, true);
-    }
+    if (origin) {
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some(allowed => allowed.replace(/\/$/, '') === normalizedOrigin);
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
+      if (isAllowed || normalizedOrigin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      console.warn(`CORS blocked origin: "${origin}" (Normalized: "${normalizedOrigin}")`);
       return callback(new Error('Not allowed by CORS'));
     }
+
+    return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -87,23 +89,28 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin;
 
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Max-Age', '86400');
-      res.status(204).end();
-      return;
-    } else if (!origin) {
+    if (origin) {
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some(allowed => allowed.replace(/\/$/, '') === normalizedOrigin);
+
+      if (isAllowed || normalizedOrigin.endsWith('.vercel.app')) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Max-Age', '86400');
+        res.status(204).end();
+        return;
+      } else {
+        res.status(403).json({
+          success: false,
+          message: `Not allowed by CORS: "${origin}"`
+        });
+        return;
+      }
+    } else {
       // Allow requests with no origin
       res.status(204).end();
-      return;
-    } else {
-      res.status(403).json({
-        success: false,
-        message: 'Not allowed by CORS'
-      });
       return;
     }
   }
