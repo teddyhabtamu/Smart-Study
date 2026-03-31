@@ -226,6 +226,15 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'SmartStudy Base API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 404 handler - ensure CORS headers on 404
 app.use((req, res) => {
   // Set CORS headers on 404 responses
