@@ -33,10 +33,7 @@ const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Allow requests with no origin (like mobile apps or curl requests) - but only in development
     if (!origin) {
-      if (config.server.nodeEnv === 'development') {
-        return callback(null, true);
-      }
-      return callback(new Error('Not allowed by CORS: No origin header'));
+      return callback(null, true);
     }
 
     if (allowedOrigins.includes(origin)) {
@@ -75,7 +72,7 @@ app.use((req, res, next) => {
   if (path.includes('/auth/google') || path.includes('/google')) {
     return next();
   }
-  
+
   // For image-proxy, allow all origins (it's a public resource)
   if (path.includes('/image-proxy') && req.method === 'OPTIONS') {
     const origin = req.headers.origin;
@@ -86,10 +83,10 @@ app.use((req, res, next) => {
     res.status(204).end();
     return;
   }
-  
+
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin;
-    
+
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
@@ -98,8 +95,8 @@ app.use((req, res, next) => {
       res.setHeader('Access-Control-Max-Age', '86400');
       res.status(204).end();
       return;
-    } else if (!origin && config.server.nodeEnv === 'development') {
-      // Allow in development
+    } else if (!origin) {
+      // Allow requests with no origin
       res.status(204).end();
       return;
     } else {
@@ -237,7 +234,7 @@ app.use((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
-  
+
   res.status(404).json({
     success: false,
     message: 'API endpoint not found'
