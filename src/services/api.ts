@@ -27,11 +27,11 @@ const getHeaders = (includeAuth: boolean = true): HeadersInit => {
 // Helper function to check if error is a connection timeout
 const isConnectionTimeoutError = (error: any): boolean => {
   if (!error) return false;
-  
+
   const errorMessage = (error.message || error.toString() || '').toLowerCase();
   const errorDetails = (error.details || '').toLowerCase();
   const errorCause = error.cause || '';
-  
+
   // Check for various timeout error patterns (case-insensitive)
   return (
     errorMessage.includes('timeout') ||
@@ -52,9 +52,9 @@ const isConnectionTimeoutError = (error: any): boolean => {
 // Helper function to check if error is a network error (should retry)
 const isNetworkError = (error: any): boolean => {
   if (!error) return false;
-  
+
   const errorMessage = error.message || error.toString() || '';
-  
+
   return (
     isConnectionTimeoutError(error) ||
     errorMessage.includes('fetch failed') ||
@@ -71,16 +71,16 @@ const getUserFriendlyErrorMessage = (error: any, endpoint: string): string => {
   if (isConnectionTimeoutError(error)) {
     return 'Connection timeout. The server is taking too long to respond. Please check your internet connection and try again.';
   }
-  
+
   if (isNetworkError(error)) {
     return 'Network error. Please check your internet connection and try again.';
   }
-  
+
   // Return original error message if available
   if (error?.message) {
     return error.message;
   }
-  
+
   return 'An unexpected error occurred. Please try again later.';
 };
 
@@ -118,12 +118,12 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       const messageLower = errorData.message.toLowerCase();
       // 500 errors often mean backend can't reach database (network issue)
       // "Authentication failed" from backend usually means it can't connect to DB
-      if (is500Error || 
-          messageLower.includes('timeout') || 
-          messageLower.includes('fetch failed') ||
-          messageLower.includes('connect timeout') ||
-          messageLower.includes('und_err_connect_timeout') ||
-          (messageLower.includes('authentication failed') && is500Error)) {
+      if (is500Error ||
+        messageLower.includes('timeout') ||
+        messageLower.includes('fetch failed') ||
+        messageLower.includes('connect timeout') ||
+        messageLower.includes('und_err_connect_timeout') ||
+        (messageLower.includes('authentication failed') && is500Error)) {
         (error as any).isTimeout = messageLower.includes('timeout');
         (error as any).isNetworkError = true;
         (error as any).status = response.status;
@@ -131,9 +131,9 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       // Also check details if available
       if (errorData.details) {
         const detailsLower = errorData.details.toLowerCase();
-        if (detailsLower.includes('timeout') || 
-            detailsLower.includes('connect timeout') ||
-            detailsLower.includes('und_err_connect_timeout')) {
+        if (detailsLower.includes('timeout') ||
+          detailsLower.includes('connect timeout') ||
+          detailsLower.includes('und_err_connect_timeout')) {
           (error as any).isTimeout = true;
           (error as any).isNetworkError = true;
         }
@@ -175,11 +175,11 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       const messageLower = data.message.toLowerCase();
       // Note: We can't check response.status here since response is already parsed
       // But we can check if it's a generic error that often indicates backend issues
-      if (messageLower.includes('timeout') || 
-          messageLower.includes('fetch failed') ||
-          messageLower.includes('connect timeout') ||
-          messageLower.includes('und_err_connect_timeout') ||
-          (messageLower.includes('authentication failed') && !messageLower.includes('invalid'))) {
+      if (messageLower.includes('timeout') ||
+        messageLower.includes('fetch failed') ||
+        messageLower.includes('connect timeout') ||
+        messageLower.includes('und_err_connect_timeout') ||
+        (messageLower.includes('authentication failed') && !messageLower.includes('invalid'))) {
         // "Authentication failed" from backend often means it can't reach DB
         (error as any).isTimeout = messageLower.includes('timeout');
         (error as any).isNetworkError = true;
@@ -187,9 +187,9 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       // Also check details if available
       if (data.details) {
         const detailsLower = data.details.toLowerCase();
-        if (detailsLower.includes('timeout') || 
-            detailsLower.includes('connect timeout') ||
-            detailsLower.includes('und_err_connect_timeout')) {
+        if (detailsLower.includes('timeout') ||
+          detailsLower.includes('connect timeout') ||
+          detailsLower.includes('und_err_connect_timeout')) {
           (error as any).isTimeout = true;
           (error as any).isNetworkError = true;
         }
@@ -215,7 +215,7 @@ const createTimeoutSignal = (timeoutMs: number): AbortSignal => {
   if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
     return AbortSignal.timeout(timeoutMs);
   }
-  
+
   // Fallback for older browsers
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeoutMs);
@@ -234,7 +234,7 @@ const apiRequest = async <T>(
 
   // Create timeout signal (30 seconds)
   const timeoutSignal = createTimeoutSignal(30000);
-  
+
   // Merge signals if one already exists
   let finalSignal = timeoutSignal;
   if (options.signal) {
@@ -260,7 +260,7 @@ const apiRequest = async <T>(
       return await handleResponse<T>(response);
     } catch (error: any) {
       lastError = error;
-      
+
       // Check if it's an abort error (timeout)
       if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
         const timeoutError: any = new Error('Connection timeout. The server is taking too long to respond.');
@@ -268,7 +268,7 @@ const apiRequest = async <T>(
         timeoutError.isNetworkError = true;
         lastError = timeoutError;
       }
-      
+
       // If it's a timeout error and we have retries left, wait and retry
       if (isNetworkError(lastError) && attempt < retries) {
         const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
@@ -276,12 +276,12 @@ const apiRequest = async <T>(
           `API request failed (attempt ${attempt + 1}/${retries + 1}): ${endpoint}. Retrying in ${delay}ms...`,
           lastError
         );
-        
+
         // Wait before retrying - this keeps the loading state visible
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-      
+
       // If it's not a network error or we're out of retries, throw immediately
       if (!isNetworkError(lastError)) {
         console.error(`API request failed: ${endpoint}`, lastError);
@@ -348,6 +348,9 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ token, password }),
     }, false),
+
+  getPolicyVersions: (): Promise<{ privacyPolicyUpdated: string; termsOfServiceUpdated: string }> =>
+    apiRequest('/auth/policy-versions', {}, false),
 };
 
 // Users API
@@ -364,10 +367,10 @@ export const usersAPI = {
   uploadAvatar: (file: File): Promise<{ avatar: string }> => {
     const formData = new FormData();
     formData.append('avatar', file);
-    
+
     const token = getAuthToken();
     const url = `${API_BASE_URL}/users/avatar`;
-    
+
     return fetch(url, {
       method: 'POST',
       headers: {
@@ -475,7 +478,10 @@ export const documentsAPI = {
 
 // Videos API
 export const videosAPI = {
-  getAll: (params: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number } = {}): Promise<{
+  getTopics: (grade: number, subject: string): Promise<string[]> =>
+    apiRequest(`/videos/topics?grade=${grade}&subject=${encodeURIComponent(subject)}`),
+
+  getAll: (params: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; chapter?: string } = {}): Promise<{
     videos: Video[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {
@@ -1091,7 +1097,7 @@ export const dashboardAPI = {
     const todayStr = today.getFullYear() + '-' +
       String(today.getMonth() + 1).padStart(2, '0') + '-' +
       String(today.getDate()).padStart(2, '0');
-    
+
     return apiRequest(`/dashboard?date=${todayStr}`);
   },
 };

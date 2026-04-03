@@ -172,6 +172,7 @@ import forumRoutes from './routes/forum';
 import aiTutorRoutes from './routes/ai-tutor';
 import plannerRoutes from './routes/planner';
 import adminRoutes from './routes/admin';
+import adminYoutubeRoutes from './routes/admin-youtube';
 import dashboardRoutes from './routes/dashboard';
 import searchRoutes from './routes/search';
 import careersRoutes from './routes/careers';
@@ -185,6 +186,7 @@ app.use('/api/forum', forumRoutes);
 app.use('/api/ai-tutor', aiTutorRoutes);
 app.use('/api/planner', plannerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/youtube', adminYoutubeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/careers', careersRoutes);
@@ -264,12 +266,18 @@ const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 if (!isVercel) {
   // Traditional server mode - start listening
   app.listen(config.server.port, () => {
-    console.log(`🚀 SmartStudy API server running on port ${config.server.port}`);
+    console.log(`🚀 SmartStudy API server is ready on port ${config.server.port}`);
     console.log(`📊 Environment: ${config.server.nodeEnv}`);
 
     // Start the notification scheduler (only in traditional server mode)
     // In serverless, use Vercel Cron Jobs or similar for scheduled tasks
-    SchedulerService.start();
+    try {
+      SchedulerService.start();
+      console.log('⏰ Notification scheduler initialized');
+    } catch (schedulerError) {
+      console.error('❌ Failed to start notification scheduler:', schedulerError);
+      console.warn('⚠️ Server is running but background tasks may not work.');
+    }
   });
 } else {
   console.log('🚀 Running in Vercel serverless mode');

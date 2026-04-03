@@ -1,0 +1,70 @@
+[
+  {
+    "grade": 9,
+    "subject": "Physics",
+    "topics": [
+      "Physics and Help to Other Sciences",
+      "Physical Quantities",
+      "Motion in a Straight Line",
+      "Force, Newton's Laws of Motion and Static Equilibrium",
+      "Work, Energy and Power",
+      "Simple Machines",
+      "Temperature and Heat",
+      "Basics of Magnetism"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Mathematics",
+    "topics": [
+      "Further on Sets",
+      "The Number System",
+      "Solving Equations",
+      "Solving Inequalities",
+      "Introduction to Trigonometry",
+      "Geometry and Measurement",
+      "Vectors in Two Dimensions",
+      "Statistics and Probability"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Biology",
+    "topics": [
+      "Introduction to Biology",
+      "Characteristics and Classification of Organisms",
+      "Cells",
+      "Reproduction",
+      "Human Health, Nutrition and Disease",
+      "Ecology"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "English",
+    "topics": [
+      "Living in Urban and Rural Areas",
+      "The Most Famous Sport in the World",
+      "The Physical Environment",
+      "Indigenous Handcrafts",
+      "The Media in Our Daily Lives",
+      "Public Health: Vaccination",
+      "National Pride: Unity in Diversity",
+      "Invention and Creative Ideas",
+      "Conflict Management",
+      "Information Technology"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Chemistry",
+    "topics": [
+      "Chemistry and its Importance",
+      "Measurements and Scientific Methods",
+      "Structure of the Atom",
+      "Periodic Classification of Elements",
+      "Chemical Bonding",
+      "Chemical Reaction and Stoichiometry"
+    ]
+  }
+]

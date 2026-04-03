@@ -1,0 +1,15 @@
+{
+    "watch": [
+        "src",
+        ".env"
+    ],
+    "ext": "ts,json",
+    "ignore": [
+        "src/**/*.test.ts",
+        "dist/*",
+        "node_modules/*"
+    ],
+    "exec": "tsx src/server.ts",
+    "legacyWatch": true,
+    "delay": "500"
+}

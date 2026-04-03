@@ -30,17 +30,18 @@ import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
 import { UserRole } from './types';
 import { PublicRoute } from './components/PublicRoute';
+import PolicyUpdateNotification from './components/PolicyUpdateNotification';
 
 // Admin route guard component
 const AdminRouteGuard: React.FC = () => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
-  
+
   // Wait for auth to load
   if (isLoading) {
     return <Loader />;
   }
-  
+
   // Handle both enum and string role values
   const userRole = user?.role;
   // Convert both to strings for comparison to handle enum/string mismatch
@@ -48,14 +49,14 @@ const AdminRouteGuard: React.FC = () => {
   const isAdmin = userRoleStr === 'ADMIN' || userRole === UserRole.ADMIN;
   const isModerator = userRoleStr === 'MODERATOR' || userRole === UserRole.MODERATOR;
   const hasAccess = isAdmin || isModerator;
-  
+
   if (!hasAccess) {
     if (!user) {
       return <Navigate to="/login" replace />;
     }
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return <Admin />;
 };
 
@@ -68,6 +69,7 @@ const App: React.FC = () => {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <PolicyUpdateNotification />
       <Routes>
         {/* RESET PASSWORD - MUST be first, no authentication required, no Layout wrapper */}
         <Route

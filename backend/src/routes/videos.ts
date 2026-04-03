@@ -7,8 +7,31 @@ import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
 import { createHash } from 'crypto';
 import { logAdminActivity } from '../services/adminAuditLog';
+import { YouTubeService } from '../services/youtubeService';
 
 const router = express.Router();
+
+// Get topics for specific grade/subject
+router.get('/topics', optionalAuth, [
+  query('grade').optional().isInt().toInt(),
+  query('subject').optional().isString()
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const grade = Number(req.query.grade);
+    const subject = req.query.subject as string;
+
+    if (!grade || !subject) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    const topics = YouTubeService.getTopicsForGradeAndSubject(grade, subject);
+    res.json({ success: true, data: topics });
+  } catch (error) {
+    console.error('Error fetching topics:', error);
+    res.status(500).json({ success: false, message: 'Failed to find topics', data: [] });
+  }
+});
 
 // Get all videos with optional filtering
 router.get('/', optionalAuth, [
@@ -21,6 +44,7 @@ router.get('/', optionalAuth, [
     }
     throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
   }),
+  query('chapter').optional().isString(),
   query('search').optional().isString(),
   query('bookmarked').optional().isBoolean(),
   query('sort').optional().isIn(['newest', 'popular', 'title']).withMessage('Sort must be newest, popular, or title'),
@@ -30,6 +54,7 @@ router.get('/', optionalAuth, [
   try {
     const subject = req.query.subject as string;
     const grade = req.query.grade as string;
+    const chapter = req.query.chapter as string;
     const search = req.query.search as string;
     const bookmarked = req.query.bookmarked as string;
     const sort = req.query.sort as string || 'newest';
@@ -69,7 +94,7 @@ router.get('/', optionalAuth, [
     // Use Supabase directly for better search support
     let query = supabaseAdmin
       .from('videos')
-      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at');
+      .select('id, title, description, subject, grade, chapter, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at');
 
     // Apply filters
     // IMPORTANT: Always return premium + free videos.
@@ -81,6 +106,10 @@ router.get('/', optionalAuth, [
 
     if (grade) {
       query = query.eq('grade', parseInt(grade));
+    }
+
+    if (chapter) {
+      query = query.eq('chapter', chapter);
     }
 
     // Apply search filter using OR logic
@@ -109,6 +138,7 @@ router.get('/', optionalAuth, [
       description: v.description,
       subject: v.subject,
       grade: v.grade,
+      chapter: v.chapter,
       thumbnail: v.thumbnail,
       video_url: v.video_url,
       instructor: v.instructor,
@@ -178,7 +208,7 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
 
     const { data: videoRow, error: videoErr } = await supabaseAdmin
       .from('videos')
-      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
+      .select('id, title, description, subject, grade, chapter, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
       .eq('id', id)
       .maybeSingle();
 
@@ -516,7 +546,7 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
         } as ApiResponse);
         return;
       }
-      
+
       // Record XP history only if this is a new completion
       // Note: XP is also awarded via frontend gainXP call, but we record it here too for tracking
       if (isNewCompletion) {
@@ -553,7 +583,7 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
     // Get updated video with completion status
     const { data: updatedVideoRow, error: updatedErr } = await supabaseAdmin
       .from('videos')
-      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
+      .select('id, title, description, subject, grade, chapter, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
       .eq('id', id)
       .single();
 
@@ -714,7 +744,7 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
     // Get updated video
     const { data: updatedVideoRow, error: loadErr } = await supabaseAdmin
       .from('videos')
-      .select('id, title, description, subject, grade, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
+      .select('id, title, description, subject, grade, chapter, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at')
       .eq('id', id)
       .single();
 
@@ -787,7 +817,7 @@ router.post('/', [
         is_premium: newVideo?.is_premium,
         uploaded_by
       }
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Notify users about new video (in-app notification only, no emails)
     if (newVideo && newVideo.id) {
@@ -905,7 +935,7 @@ router.put('/:id', [
       summary: `Updated video "${result.rows[0]?.title || id}"`,
       before: beforeVideo,
       after: result.rows[0]
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.json({
       success: true,
@@ -966,7 +996,7 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
       target_id: String(id),
       summary: `Deleted video "${beforeVideo?.title || id}"`,
       before: beforeVideo
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.json({
       success: true,

@@ -4,12 +4,13 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts",
+    "dev": "nodemon",
     "build": "tsc --pretty && node scripts/build-info.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:create": "createdb smartstudy",
     "db:migrate": "tsx src/database/migrate.ts",
-    "db:seed": "tsx src/database/seed.ts"
+    "db:seed": "tsx src/database/seed.ts",
+    "sync:youtube": "tsx scripts/sync-youtube.ts"
   },
   "keywords": [],
   "author": "",
@@ -47,6 +48,8 @@
     "@types/passport-google-oauth20": "^2.0.14",
     "@types/pg": "^8.10.9",
     "@types/uuid": "^9.0.7",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
     "tsx": "^4.6.2",
     "typescript": "^5.3.3"
   }

@@ -1,0 +1,68 @@
+[
+  {
+    "grade": 10,
+    "subject": "Mathematics",
+    "topics": [
+      "Polynomial Functions",
+      "Exponential and Logarithmic Functions",
+      "Solving Exponential and Logarithmic Equations",
+      "Further on Trigonometric Functions",
+      "Circles",
+      "Solid Figures",
+      "Coordinate Geometry",
+      "Mathematical Reasoning",
+      "Statistics and Probability"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Physics",
+    "topics": [
+      "Physical Quantities and Measurement",
+      "Motion in One and Two Dimensions",
+      "Electromagnetism",
+      "Basics of Electronics",
+      "Basics of Nuclear Physics"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Chemistry",
+    "topics": [
+      "Introduction to Organic Chemistry",
+      "Hydrocarbons",
+      "Oxygen-Containing Organic Compounds",
+      "Nitrogen-Containing Organic Compounds",
+      "Industrial Chemistry",
+      "Environmental Chemistry"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Biology",
+    "topics": [
+      "Sub-cellular Structures",
+      "Microorganisms",
+      "Metabolic Processes",
+      "Genetics and Inheritance",
+      "The Human Body Systems",
+      "Ecology and Environment"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "English",
+    "topics": [
+      "Traditional Festivals",
+      "The Wildlife of Ethiopia",
+      "Livestock and Fish Resources",
+      "The United Nations (UN)",
+      "Food and Health",
+      "The Role of the African Union (AU)",
+      "Information Technology",
+      "Natural Disasters",
+      "Good Citizenship",
+      "The Blue Nile"
+    ]
+  }
+]

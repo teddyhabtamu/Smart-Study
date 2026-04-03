@@ -1,0 +1,66 @@
+[
+  {
+    "grade": 11,
+    "subject": "Biology",
+    "topics": [
+      "Biology and Technology",
+      "Animals",
+      "Enzymes",
+      "Genetics",
+      "The Human Body Systems",
+      "Population and Natural Resources"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Chemistry",
+    "topics": [
+      "Atomic Structure and Periodic Properties of the Elements",
+      "Chemical Bonding",
+      "Some Important Oxygen-Containing Organic Compounds"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Physics",
+    "topics": [
+      "Physics and Human Society",
+      "Vectors",
+      "Motion in One and Two Dimensions",
+      "Dynamics",
+      "Heat Conduction and Calorimetry",
+      "Electrostatics and Electric Circuit",
+      "Nuclear Physics"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Mathematics",
+    "topics": [
+      "Relations and Functions",
+      "Rational Expressions and Rational Functions",
+      "Matrices",
+      "Determinants and Their Properties",
+      "Vectors",
+      "Transformation of the Plane",
+      "Statistics",
+      "Probability"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "English",
+    "topics": [
+      "Environmental Hazards",
+      "Civilization",
+      "Causes of Road Traffic Accidents",
+      "People and Natural Resources",
+      "Irrigation",
+      "Global Warming",
+      "Patriotism",
+      "Efficiency of Health Services",
+      "Indigenous Conflict Resolution",
+      "Artificial Intelligence"
+    ]
+  }
+]

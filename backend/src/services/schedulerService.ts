@@ -147,7 +147,7 @@ export class SchedulerService {
           const currentStreak = user.streak || 0;
           const newStreak = currentStreak + 1;
           const currentUnlockedBadges = user.unlocked_badges || ['b1'];
-          
+
           await dbAdmin.update('users', user.id, {
             streak: newStreak,
             last_active_date: new Date().toISOString().split('T')[0]
@@ -157,7 +157,7 @@ export class SchedulerService {
           const streakMilestones = [7, 14, 30, 50, 100];
           if (streakMilestones.includes(newStreak)) {
             await NotificationService.createStreakMilestoneNotification(user.id, newStreak);
-            
+
             // Send streak milestone email (non-blocking)
             if (user.email && user.name) {
               const { EmailService } = await import('./emailService');
@@ -250,11 +250,28 @@ export class SchedulerService {
   private static async runWeeklyTasks(): Promise<void> {
     try {
       console.log('📧 Running weekly tasks...');
-      
+
       const { EmailService } = await import('./emailService');
       await EmailService.sendWeeklyDigestsToAllUsers();
-      
+
       console.log('✅ Weekly tasks completed');
+
+      // Weekly YouTube Video Sync
+      console.log('📺 Running weakly YouTube videos sync...');
+      try {
+        const { YouTubeService } = await import('./youtubeService');
+        const dbAdminModule = await import('../database/config');
+        const users = await dbAdminModule.dbAdmin.get('users');
+        const admin = users.find((u: any) => u.role === 'ADMIN');
+
+        let adminIdToUse = admin ? admin.id : null;
+        if (!adminIdToUse && users.length > 0) adminIdToUse = users[0].id;
+
+        await YouTubeService.syncAllGradesAndSubjects(adminIdToUse);
+        console.log('✅ Weekly YouTube sync completed successfully');
+      } catch (err) {
+        console.error('❌ Error during weekly YouTube sync:', err);
+      }
     } catch (error) {
       console.error('❌ Error running weekly tasks:', error);
     }

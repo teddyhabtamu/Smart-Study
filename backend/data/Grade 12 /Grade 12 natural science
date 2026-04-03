@@ -1,0 +1,63 @@
+[
+  {
+    "grade": 12,
+    "subject": "Biology",
+    "topics": [
+      "Application of Biology",
+      "Microorganisms",
+      "Energy Transformation",
+      "Evolution",
+      "Human Body System",
+      "Climate Change"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "English",
+    "topics": [
+      "Sustainable Development",
+      "Time Management",
+      "Evidence on Traffic Accident",
+      "Natural Resource Management",
+      "Mechanized Agriculture",
+      "Green Economies",
+      "National Pride",
+      "Telemedicine",
+      "Conflict Management",
+      "Robotics"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Chemistry",
+    "topics": [
+      "Acid-Base Equilibria",
+      "Electrochemistry",
+      "Industrial Chemistry",
+      "Polymers",
+      "Introduction to Environmental Chemistry"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Physics",
+    "topics": [
+      "Application of Physics in Other Fields",
+      "Two-dimensional Motion",
+      "Fluid Mechanics",
+      "Electromagnetism",
+      "Basics of Electronics"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Mathematics",
+    "topics": [
+      "Sequences and Series",
+      "Introductions to Calculus",
+      "Statistics",
+      "Introduction to Linear Programming",
+      "Mathematical Applications in Business"
+    ]
+  }
+]

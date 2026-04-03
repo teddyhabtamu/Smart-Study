@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS videos (
     description TEXT,
     subject VARCHAR(100) NOT NULL,
     grade INTEGER NOT NULL,
+    chapter VARCHAR(255),
     thumbnail TEXT,
     video_url TEXT NOT NULL,
     instructor VARCHAR(255),

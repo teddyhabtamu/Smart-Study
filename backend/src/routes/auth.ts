@@ -115,7 +115,7 @@ router.post('/login', [
     }
 
     const user = result.rows[0];
-    
+
     // Check if user is banned or suspended
     if (user.status === 'Banned' || user.status === 'Suspended') {
       res.status(403).json({
@@ -133,7 +133,7 @@ router.post('/login', [
       } as AuthResponse);
       return;
     }
-    
+
     // Log user role on login for debugging
     console.log('🔐 User login - Role check:', {
       email: user.email,
@@ -210,7 +210,7 @@ router.post('/login', [
         const streakMilestones = [7, 14, 30, 50, 100];
         if (streakMilestones.includes(newStreak)) {
           await NotificationService.createStreakMilestoneNotification(user.id, newStreak);
-          
+
           // Send streak milestone email (non-blocking)
           if (user.email && user.name) {
             EmailService.sendStreakMilestoneEmail(
@@ -241,15 +241,15 @@ router.post('/login', [
       minute: '2-digit',
       timeZoneName: 'short'
     });
-    
+
     // Get device info from User-Agent header
     const userAgent = req.headers['user-agent'] || 'Unknown device';
     const deviceInfo = userAgent.length > 100 ? userAgent.substring(0, 100) + '...' : userAgent;
-    
+
     // Get IP address for location (simplified - in production, use a geolocation service)
     const ip = req.ip || req.socket.remoteAddress || 'Unknown';
     const location = `IP: ${ip}`; // Simplified - you can enhance this with geolocation API
-    
+
     console.log('📧 Triggering login success email for user:', { email: user.email, name: user.name });
     EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
       console.error('❌ Failed to send login success email:', error);
@@ -299,7 +299,7 @@ router.get('/google/callback',
     try {
       // req.user is guaranteed to exist here due to successful authentication
       const user = req.user as User;
-      
+
       // Check if user is banned or suspended
       if (user.status === 'Banned' || user.status === 'Suspended') {
         const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
@@ -307,7 +307,7 @@ router.get('/google/callback',
         res.redirect(redirectUrl);
         return;
       }
-      
+
       // Generate JWT token for the authenticated user
       const token = generateToken(user);
 
@@ -340,7 +340,7 @@ router.post('/forgot-password', [
 
       // Generate short opaque token (32 bytes = 64 hex characters)
       const resetToken = crypto.randomBytes(32).toString('hex');
-      
+
       // Calculate expiration time (1 hour from now)
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 1);
@@ -350,7 +350,7 @@ router.post('/forgot-password', [
         'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
         [resetToken, user.id, 'password-reset', expiresAt.toISOString()]
       );
-      
+
       // Verify token was saved (debugging)
       const verifyToken = await query(
         'SELECT token FROM tokens WHERE token = $1',
@@ -406,7 +406,7 @@ router.post('/reset-password', [
 
     // Clean and decode token (handle URL encoding and whitespace)
     let cleanedToken = token ? token.trim() : token;
-    
+
     // Try URL decoding in case frontend encoded it
     try {
       cleanedToken = decodeURIComponent(cleanedToken);
@@ -414,7 +414,7 @@ router.post('/reset-password', [
       // If decoding fails, use original (might not be encoded)
       console.log('🔐 Token not URL encoded, using as-is');
     }
-    
+
     console.log('🔐 Token after cleaning:', cleanedToken ? cleanedToken.substring(0, 20) + '...' : 'none');
     console.log('🔐 Token length after cleaning:', cleanedToken ? cleanedToken.length : 0);
 
@@ -440,7 +440,7 @@ router.post('/reset-password', [
       if (anyTokenResult.rows.length > 0) {
         console.error('🔐 Found token with type:', anyTokenResult.rows[0].type);
       }
-      
+
       res.status(400).json({
         success: false,
         message: 'Invalid reset token'
@@ -502,11 +502,11 @@ router.post('/reset-password', [
       minute: '2-digit',
       timeZoneName: 'short'
     });
-    
+
     // Get device info from User-Agent header
     const userAgent = req.headers['user-agent'] || 'Unknown device';
     const deviceInfo = userAgent.length > 100 ? userAgent.substring(0, 100) + '...' : userAgent;
-    
+
     console.log('📧 Triggering password reset success email for user:', { email: user.email, name: user.name });
     EmailService.sendPasswordResetSuccessEmail(user.email, user.name, changeTime, deviceInfo).catch(error => {
       console.error('❌ Failed to send password reset success email:', error);
@@ -577,7 +577,7 @@ router.post('/accept-invitation', [
       'SELECT id, email, name, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
       [tokenRecord.user_id]
     );
-    
+
     if (result.rows.length === 0) {
       res.status(404).json({
         success: false,
@@ -613,9 +613,9 @@ router.post('/accept-invitation', [
       'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
       [user.id]
     );
-    
+
     const updatedUser = updatedResult.rows[0];
-    
+
     // Verify role is preserved
     console.log('🔐 User after invitation acceptance:', {
       id: updatedUser.id,
@@ -626,7 +626,7 @@ router.post('/accept-invitation', [
     });
     // Add bookmarks array (empty for new users)
     updatedUser.bookmarks = [];
-    
+
     const authToken = generateToken(updatedUser as User);
 
     // Send welcome email (non-blocking)
@@ -820,6 +820,45 @@ router.post('/resend-verification', [
     res.status(500).json({
       success: false,
       message: 'Failed to resend verification email'
+    } as ApiResponse);
+  }
+});
+
+// Get Privacy Policy and Terms of Service versions (public)
+router.get('/policy-versions', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    // Get latest Privacy Policy version
+    const { data: privacyPolicy, error: privacyError } = await supabase
+      .from('privacy_policy')
+      .select('last_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get latest Terms of Service version
+    const { data: termsOfService, error: termsError } = await supabase
+      .from('terms_of_service')
+      .select('last_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if ((privacyError && privacyError.code !== 'PGRST116') || (termsError && termsError.code !== 'PGRST116')) {
+      throw privacyError || termsError;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        privacyPolicyUpdated: privacyPolicy?.last_updated || '2025-12-01T00:00:00.000Z',
+        termsOfServiceUpdated: termsOfService?.last_updated || '2025-12-01T00:00:00.000Z'
+      }
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get policy versions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get policy versions'
     } as ApiResponse);
   }
 });
