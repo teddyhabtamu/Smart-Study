@@ -21,7 +21,7 @@ User-agent: YandexBot
 Allow: /
 
 # Sitemap location
-Sitemap: https://ethio-smart-study.vercel.app/sitemap.xml
+Sitemap: https://smartstudy.tewodroshabtamu.me/sitemap.xml
 
 # Crawl delay (optional)
 Crawl-delay: 1
