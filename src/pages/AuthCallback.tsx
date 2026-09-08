@@ -12,11 +12,15 @@ const AuthCallback: React.FC = () => {
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const refreshToken = searchParams.get('refreshToken');
     const success = searchParams.get('success');
 
     if (success === 'true' && token) {
-      // Save token
+      // Save tokens
       localStorage.setItem('auth_token', token);
+      if (refreshToken) {
+        localStorage.setItem('refresh_token', refreshToken);
+      }
 
       // Verify user
       authAPI.verify().then(response => {

@@ -8,6 +8,44 @@ const getAuthToken = (): string | null => {
   return localStorage.getItem('auth_token');
 };
 
+// Refresh an expired access token using the stored refresh token.
+// Returns true on success. On failure, clears credentials (forces re-login).
+const refreshAccessToken = async (): Promise<boolean> => {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    if (data?.success && data?.token) {
+      localStorage.setItem('auth_token', data.token);
+      if (data.refreshToken) {
+        localStorage.setItem('refresh_token', data.refreshToken);
+      }
+      if (data.user) {
+        localStorage.setItem('smartstudy_user', JSON.stringify(data.user));
+      }
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+// Clear stored credentials (used when refresh fails)
+const clearCredentials = (): void => {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('smartstudy_user');
+};
+
 // Helper function to create headers
 const getHeaders = (includeAuth: boolean = true): HeadersInit => {
   const headers: HeadersInit = {
@@ -253,10 +291,25 @@ const apiRequest = async <T>(
   };
 
   let lastError: any;
+  let refreshed401 = false;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, config);
+      const response = await fetch(url, {
+        ...config,
+        headers: getHeaders(includeAuth), // re-read token (may have been refreshed)
+      });
+
+      // On 401 with an auth token: try refreshing once, then retry
+      if (response.status === 401 && includeAuth && getAuthToken() && !refreshed401) {
+        refreshed401 = true;
+        const ok = await refreshAccessToken();
+        if (ok) {
+          continue; // retry with the fresh token
+        }
+        clearCredentials();
+      }
+
       return await handleResponse<T>(response);
     } catch (error: any) {
       lastError = error;
@@ -302,13 +355,13 @@ const apiRequest = async <T>(
 
 // Auth API
 export const authAPI = {
-  login: (email: string, password: string): Promise<{ user: User; token: string }> =>
+  login: (email: string, password: string): Promise<{ user: User; token: string; refreshToken?: string }> =>
     apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }, false),
 
-  register: (name: string, email: string, password: string): Promise<{ user: User; token?: string; message?: string }> =>
+  register: (name: string, email: string, password: string): Promise<{ user: User; token?: string; refreshToken?: string; message?: string }> =>
     apiRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
@@ -317,8 +370,11 @@ export const authAPI = {
   verify: (): Promise<{ user: User }> =>
     apiRequest('/auth/verify'),
 
-  logout: (): Promise<void> =>
-    apiRequest('/auth/logout', { method: 'POST' }),
+  logout: (refreshToken?: string): Promise<void> =>
+    apiRequest('/auth/logout', {
+      method: 'POST',
+      body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
+    }, false),
 
   forgotPassword: (email: string): Promise<{ success: boolean; message: string }> =>
     apiRequest('/auth/forgot-password', {

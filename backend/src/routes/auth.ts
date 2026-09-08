@@ -5,13 +5,27 @@ import crypto from 'crypto';
 import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
 import { config } from '../config';
-import { authenticateToken, generateToken, validateRequest } from '../middleware/auth';
+import { authenticateToken, generateToken, generateRefreshToken, hashRefreshToken, validateRequest, REFRESH_TOKEN_DAYS } from '../middleware/auth';
 import passport from '../middleware/googleAuth';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
 
 const router = express.Router();
+
+// Issue an access token + refresh token pair for a user.
+// The refresh token is stored hashed (SHA-256) in the tokens table.
+const issueTokenPair = async (user: User): Promise<{ token: string; refreshToken: string }> => {
+  const token = generateToken(user);
+  const { raw, hash } = generateRefreshToken();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_DAYS);
+  await query(
+    'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
+    [hash, user.id, 'refresh', expiresAt.toISOString()]
+  );
+  return { token, refreshToken: raw };
+};
 
 // Register endpoint
 router.post('/register', [
@@ -228,7 +242,7 @@ router.post('/login', [
     // Remove password hash from response
     delete user.password_hash;
 
-    const token = generateToken(user);
+    const { token, refreshToken } = await issueTokenPair(user);
 
     // Send login success email (non-blocking, security notification)
     // Note: Login notifications are security-related, so we send them even if user has email notifications disabled
@@ -260,6 +274,7 @@ router.post('/login', [
       success: true,
       user,
       token,
+      refreshToken,
       message: 'Login successful'
     } as AuthResponse);
   } catch (error) {
@@ -280,8 +295,99 @@ router.get('/verify', authenticateToken, (req: express.Request, res: express.Res
   } as ApiResponse);
 });
 
-// Logout endpoint (client-side token removal)
+// Refresh token endpoint — rotates the refresh token (single use)
+router.post('/refresh', [
+  body('refreshToken').isLength({ min: 32 }).withMessage('Refresh token required')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    // Look up the refresh token record
+    const tokenResult = await query(
+      "SELECT id, user_id, expires_at, used_at FROM tokens WHERE token = $1 AND type = 'refresh'",
+      [tokenHash]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token'
+      } as AuthResponse);
+      return;
+    }
+
+    const tokenRecord = tokenResult.rows[0];
+
+    // Reject reused / revoked tokens
+    if (tokenRecord.used_at) {
+      // Possible token theft — revoke all refresh tokens for this user
+      await query("UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND type = 'refresh' AND used_at IS NULL", [tokenRecord.user_id]);
+      res.status(401).json({
+        success: false,
+        message: 'Refresh token already used. Please log in again.'
+      } as AuthResponse);
+      return;
+    }
+
+    // Reject expired tokens
+    if (new Date(tokenRecord.expires_at) < new Date()) {
+      res.status(401).json({
+        success: false,
+        message: 'Refresh token expired. Please log in again.'
+      } as AuthResponse);
+      return;
+    }
+
+    // Fetch the user (and confirm they're still active)
+    const userResult = await query(
+      'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      [tokenRecord.user_id]
+    );
+
+    if (userResult.rows.length === 0 || userResult.rows[0].status === 'Banned' || userResult.rows[0].status === 'Suspended') {
+      res.status(401).json({
+        success: false,
+        message: 'Account not accessible'
+      } as AuthResponse);
+      return;
+    }
+
+    const user = userResult.rows[0] as User;
+
+    // Rotate: mark old token used, issue a new pair
+    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [tokenRecord.id]);
+    const { token, refreshToken: newRefreshToken } = await issueTokenPair(user);
+
+    // Load bookmarks like the login flow does
+    const bookmarksResult = await query('SELECT item_id FROM bookmarks WHERE user_id = $1', [user.id]);
+    user.bookmarks = bookmarksResult.rows.map(row => row.item_id);
+
+    res.json({
+      success: true,
+      user,
+      token,
+      refreshToken: newRefreshToken,
+      message: 'Token refreshed'
+    } as AuthResponse);
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh token'
+    } as AuthResponse);
+  }
+});
+
+// Logout endpoint — revoke the refresh token if provided
 router.post('/logout', (req: express.Request, res: express.Response): void => {
+  // Revoke refresh token if present (fire-and-forget)
+  const { refreshToken } = req.body || {};
+  if (typeof refreshToken === 'string' && refreshToken.length >= 32) {
+    const tokenHash = hashRefreshToken(refreshToken);
+    query("UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1 AND type = 'refresh' AND used_at IS NULL", [tokenHash])
+      .catch(() => { /* non-blocking */ });
+  }
   res.json({
     success: true,
     message: 'Logged out successfully'
@@ -308,12 +414,12 @@ router.get('/google/callback',
         return;
       }
 
-      // Generate JWT token for the authenticated user
-      const token = generateToken(user);
+      // Generate JWT + refresh token for the authenticated user
+      const { token, refreshToken } = await issueTokenPair(user);
 
       // Redirect to frontend auth callback with token
       const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&success=true`;
+      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&refreshToken=${refreshToken}&success=true`;
       res.redirect(redirectUrl);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
@@ -627,7 +733,7 @@ router.post('/accept-invitation', [
     // Add bookmarks array (empty for new users)
     updatedUser.bookmarks = [];
 
-    const authToken = generateToken(updatedUser as User);
+    const { token: authToken, refreshToken } = await issueTokenPair(updatedUser as User);
 
     // Send welcome email (non-blocking)
     console.log('📧 Triggering welcome email for new admin:', { email: user.email, name: user.name });
@@ -639,9 +745,9 @@ router.post('/accept-invitation', [
       success: true,
       message: 'Invitation accepted successfully. Your account has been activated.',
       user: updatedUser,
-      token: authToken
-    } as AuthResponse);
-  } catch (error) {
+      token: authToken,
+      refreshToken
+    } as AuthResponse);  } catch (error) {
     console.error('Accept invitation error:', error);
     res.status(500).json({
       success: false,
@@ -728,8 +834,8 @@ router.get('/verify-email', async (req: express.Request, res: express.Response):
     user.bookmarks = [];
     user.email_verified = true;
 
-    // Generate auth token now that email is verified
-    const authToken = generateToken(user);
+    // Generate auth + refresh tokens now that email is verified
+    const { token: authToken, refreshToken } = await issueTokenPair(user);
 
     // Send welcome email after verification (non-blocking)
     console.log('📧 Triggering welcome email for verified user:', { email: user.email, name: user.name });
@@ -741,6 +847,7 @@ router.get('/verify-email', async (req: express.Request, res: express.Response):
       success: true,
       user,
       token: authToken,
+      refreshToken,
       message: 'Email verified successfully! You can now log in.'
     } as AuthResponse);
   } catch (error) {

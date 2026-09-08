@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { validationResult } from 'express-validator';
 import { query } from '../database/config';
 import { config } from '../config';
@@ -164,7 +165,7 @@ export const validateRequest = (req: Request, res: Response, next: NextFunction)
   next();
 };
 
-// Generate JWT token
+// Generate JWT access token (short-lived)
 export const generateToken = (user: User): string => {
   const payload: JWTPayload = {
     userId: user.id,
@@ -173,6 +174,19 @@ export const generateToken = (user: User): string => {
   };
 
   return (jwt.sign as any)(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expire
+    expiresIn: process.env.JWT_ACCESS_EXPIRE || config.jwt.expire || '7d'
   });
 };
+
+// Generate opaque refresh token (long-lived, stored hashed in DB)
+// Returns the raw token for the client and the hash for storage.
+export const generateRefreshToken = (): { raw: string; hash: string } => {
+  const raw = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(raw).digest('hex');
+  return { raw, hash };
+};
+
+export const hashRefreshToken = (raw: string): string =>
+  crypto.createHash('sha256').update(raw).digest('hex');
+
+export const REFRESH_TOKEN_DAYS = 30;

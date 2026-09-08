@@ -126,6 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isRealAuthError) {
             // Real auth error - clear everything
             localStorage.removeItem('auth_token');
+            localStorage.removeItem('refresh_token');
             localStorage.removeItem('smartstudy_user');
             setUser(null);
           } else if (savedUser) {
@@ -358,6 +359,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await authAPI.login(email, password!);
       localStorage.setItem('auth_token', response.token);
+      if ((response as any).refreshToken) {
+        localStorage.setItem('refresh_token', (response as any).refreshToken);
+      }
       // Transform snake_case fields to camelCase to match User interface
       const userData = response.user as any;
       const transformedUser: User = {
@@ -394,16 +398,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (name: string, email: string, password: string): Promise<void> => {
     try {
       const response = await authAPI.register(name, email, password);
-      
+
       // If no token is returned, email verification is required
       if (!response.token) {
         // Don't set user or token - user needs to verify email first
         // The response.message will contain the verification message
         return;
       }
-      
+
       // Token exists - email already verified (shouldn't happen in normal flow, but handle it)
       localStorage.setItem('auth_token', response.token);
+      if ((response as any).refreshToken) {
+        localStorage.setItem('refresh_token', (response as any).refreshToken);
+      }
       // Transform snake_case fields to camelCase to match User interface
       const transformedUser = {
         ...response.user,
@@ -420,12 +427,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await authAPI.logout();
+      // Ask backend to revoke the refresh token (best-effort)
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        authAPI.logout(refreshToken).catch(() => { /* non-blocking */ });
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       // Clear all authentication data
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
       localStorage.removeItem('smartstudy_user');
       setUser(null);
     }
