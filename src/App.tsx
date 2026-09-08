@@ -25,6 +25,7 @@ import Practice from './pages/Practice';
 import About from './pages/About';
 import Careers from './pages/Careers';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import NotFound from './pages/NotFound';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
@@ -123,6 +124,7 @@ const App: React.FC = () => {
         <Route path="/about" element={<Layout><About /></Layout>} />
         <Route path="/careers" element={<Layout><Careers /></Layout>} />
         <Route path="/privacy-policy" element={<Layout><PrivacyPolicy /></Layout>} />
+        <Route path="/terms-of-service" element={<Layout><TermsOfService /></Layout>} />
 
         {/* Protected Routes */}
         <Route
