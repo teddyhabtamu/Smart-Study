@@ -377,25 +377,40 @@ const AITutor: React.FC = () => {
     setMessages(newHistory);
     setIsLoading(true);
 
+    // Add an empty assistant message that fills progressively as chunks arrive
+    const placeholderIndex = newHistory.length;
+    setMessages([...newHistory, { role: 'model', text: '' }]);
+    setIsLoading(false);
+
+    const appendChunk = (delta: string) => {
+      setMessages((prev) => {
+        const next = [...prev];
+        const current = next[placeholderIndex];
+        if (current) {
+          next[placeholderIndex] = { role: 'model', text: current.text + delta };
+        }
+        return next;
+      });
+    };
+
     try {
-      // Call backend AI tutor so sessions and messages are persisted
-      const aiResponse = await aiTutorAPI.chat(
+      // Streamed AI response — renders incrementally as the model writes
+      const aiResponse = await aiTutorAPI.chatStream(
         userMsg,
         subjectFocus,
         userGrade,
-        activeSessionId || undefined
+        activeSessionId,
+        appendChunk
       );
 
-      // Set/refresh active session id from backend response
+      // Ensure the final message is the complete text (fixes any missed chunks)
+      const finalHistory = [...newHistory, { role: 'model', text: aiResponse.response }];
+      setMessages(finalHistory);
+
       const newSessionId = aiResponse.sessionId || activeSessionId || null;
       if (newSessionId) {
         setActiveSessionId(newSessionId);
       }
-
-      const finalHistory = [...newHistory, { role: 'model', text: aiResponse.response }];
-      // Response received — stop loader before updating UI to avoid lingering dots
-      setIsLoading(false);
-      setMessages(finalHistory);
 
       // Refresh sessions list to show saved chat history
       if (user && newSessionId) {
@@ -408,6 +423,8 @@ const AITutor: React.FC = () => {
       }
       return;
     } catch (error) {
+      // Remove the streaming placeholder on failure
+      setMessages(newHistory);
       console.error('AI response error:', error);
       addToast('Failed to get AI response. Please try again.', 'error');
     } finally {

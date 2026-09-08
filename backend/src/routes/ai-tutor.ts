@@ -452,6 +452,111 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
   }
 });
 
+// Streaming AI chat via Server-Sent Events
+// Sends incremental text deltas so the frontend can render as the model writes.
+router.post('/chat/stream', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
+  const { message, subject, grade, sessionId } = req.body;
+  const userId = req.user?.id;
+
+  if (!message || typeof message !== 'string') {
+    res.status(400).json({ success: false, message: 'Message is required' } as ApiResponse);
+    return;
+  }
+
+  // SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const send = (event: string, data: any) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  let currentSessionId: string | null = sessionId ?? null;
+  let history: any[] = [];
+
+  try {
+    if (userId) {
+      if (sessionId) {
+        const session = await dbAdmin.findOne('chat_sessions', (s: any) => s.id === sessionId && s.user_id === userId);
+        if (session && session.messages) history = session.messages;
+      } else {
+        const sessionData = {
+          user_id: userId,
+          title: message.length > 30 ? message.substring(0, 30) + '...' : message,
+          messages: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const inserted = await dbAdmin.insert('chat_sessions', sessionData);
+        currentSessionId = inserted.id;
+      }
+    } else {
+      currentSessionId = null;
+    }
+
+    if (currentSessionId) {
+      send('session', { sessionId: currentSessionId });
+    }
+
+    const { streamTutorResponse } = await import('../services/aiTutor');
+
+    let full = '';
+    try {
+      full = await streamTutorResponse(history, message, subject || 'General', grade || 10, (delta) => {
+        send('delta', { text: delta });
+      });
+    } catch (streamError: any) {
+      // Streaming failed — fall back to non-streaming so the user still gets an answer
+      console.error('Streaming error, falling back to non-streaming:', streamError?.message);
+      const { getTutorResponse } = await import('../services/aiTutor');
+      full = await getTutorResponse(history, message, subject || 'General', grade || 10);
+      send('delta', { text: full });
+    }
+
+    // Persist conversation (authenticated users)
+    if (currentSessionId && userId) {
+      const session = await dbAdmin.findOne('chat_sessions', (s: any) => s.id === currentSessionId && s.user_id === userId);
+      if (session) {
+        const msgs = session.messages || [];
+        msgs.push({ role: 'user', text: message, timestamp: new Date().toISOString() });
+        msgs.push({ role: 'assistant', text: full, timestamp: new Date().toISOString() });
+        await dbAdmin.update('chat_sessions', currentSessionId, { messages: msgs, updated_at: new Date().toISOString() });
+      }
+    }
+
+    // Award XP for authenticated users
+    let xpGained = 0;
+    if (userId) {
+      const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+      if (user) {
+        const xpGain = 5;
+        const newXp = (user.xp || 0) + xpGain;
+        const newLevel = Math.floor(newXp / 1000) + 1;
+        await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
+        await dbAdmin.insert('xp_history', {
+          user_id: userId,
+          amount: xpGain,
+          source: 'ai_tutor',
+          source_id: currentSessionId || null,
+          description: 'Used AI Tutor',
+        });
+        xpGained = xpGain;
+      }
+    }
+
+    send('done', { sessionId: currentSessionId, xpGained });
+  } catch (error) {
+    console.error('AI chat stream error:', error);
+    send('error', { message: 'Failed to generate AI response' });
+  } finally {
+    res.end();
+  }
+});
+
 // Generate practice quiz questions
 router.post('/generate-practice-quiz', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {

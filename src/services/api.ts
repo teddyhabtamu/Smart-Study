@@ -354,6 +354,19 @@ const apiRequest = async <T>(
 };
 
 // Auth API
+// Non-streaming fallback used by chatStream when SSE transport fails
+const authFallbackChat = async (
+  message: string,
+  subject: string,
+  grade: number,
+  sessionId: string | null
+): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> => {
+  return apiRequest('/ai-tutor/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
+  });
+};
+
 export const authAPI = {
   login: (email: string, password: string): Promise<{ user: User; token: string; refreshToken?: string }> =>
     apiRequest('/auth/login', {
@@ -704,6 +717,89 @@ export const aiTutorAPI = {
     apiRequest('/ai-tutor/chat', {
       method: 'POST',
       body: JSON.stringify({ message, subject, grade, sessionId }),
+    }),
+
+  // Streaming chat via SSE — onDelta receives incremental text chunks.
+  // Returns the full response plus session/xp metadata when done.
+  chatStream: (
+    message: string,
+    subject: string,
+    grade: number,
+    sessionId: string | null,
+    onDelta: (delta: string) => void
+  ): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> =>
+    new Promise((resolve, reject) => {
+      fetch(`${API_BASE_URL}/ai-tutor/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+        },
+        body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
+      }).then(async (response) => {
+        if (!response.ok || !response.body) {
+          // Fall back to non-streaming chat on any transport failure
+          try {
+            const fallback = await authFallbackChat(message, subject, grade, sessionId);
+            onDelta(fallback.response);
+            resolve(fallback);
+          } catch (e) {
+            reject(e);
+          }
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let full = '';
+        let sessionIdOut: string | null | undefined;
+        let xpGained: number | undefined;
+
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            // Parse SSE frames: "event: <name>\ndata: <json>\n\n"
+            let sep;
+            while ((sep = buffer.indexOf('\n\n')) !== -1) {
+              const frame = buffer.slice(0, sep);
+              buffer = buffer.slice(sep + 2);
+
+              let event = 'message';
+              let data = '';
+              for (const line of frame.split('\n')) {
+                if (line.startsWith('event: ')) event = line.slice(7).trim();
+                else if (line.startsWith('data: ')) data = line.slice(6);
+              }
+              if (!data) continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (event === 'delta' && typeof parsed.text === 'string') {
+                  full += parsed.text;
+                  onDelta(parsed.text);
+                } else if (event === 'session' && parsed.sessionId) {
+                  sessionIdOut = parsed.sessionId;
+                } else if (event === 'done') {
+                  sessionIdOut = parsed.sessionId ?? sessionIdOut;
+                  xpGained = parsed.xpGained;
+                } else if (event === 'error') {
+                  throw new Error(parsed.message || 'AI stream error');
+                }
+              } catch (parseErr) {
+                if (parseErr instanceof Error && parseErr.message.includes('AI stream')) throw parseErr;
+                // Ignore malformed JSON frames (keepalive etc.)
+              }
+            }
+          }
+          resolve({ response: full, sessionId: sessionIdOut, xpGained });
+        } catch (streamErr) {
+          reject(streamErr);
+        }
+      }).catch(reject);
     }),
 
   extractTextFromImage: async (imageFile: File): Promise<{ text: string }> => {
