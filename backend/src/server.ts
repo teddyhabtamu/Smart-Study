@@ -18,13 +18,19 @@ const app = express();
 app.set('trust proxy', true);
 
 // CORS configuration - MUST be before other middleware
+// Explicit allowlist only. Wildcard *.vercel.app allowance removed — preview
+// deployments are spoofable (any attacker can create <anything>.vercel.app).
+// Add preview domains temporarily via EXTRA_ALLOWED_ORIGINS (comma-separated).
 const allowedOrigins = [
   'http://localhost:5173', // Development frontend
-  'https://smart-study-navy.vercel.app', // Production frontend (old)
-  'https://smart-study-ncwi.vercel.app', // Production frontend (current)
-  'https://ethio-smart-study.vercel.app', // Production frontend (new)
+  'https://smart-study-navy.vercel.app',
+  'https://smart-study-ncwi.vercel.app',
+  'https://ethio-smart-study.vercel.app',
   ...(config.server.frontendUrl && config.server.frontendUrl !== 'http://localhost:5173'
     ? [config.server.frontendUrl]
+    : []),
+  ...(process.env.EXTRA_ALLOWED_ORIGINS
+    ? process.env.EXTRA_ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
     : [])
 ];
 
@@ -33,13 +39,14 @@ const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     if (origin) {
       const normalizedOrigin = origin.replace(/\/$/, '');
+
       const isAllowed = allowedOrigins.some(allowed => allowed.replace(/\/$/, '') === normalizedOrigin);
 
-      if (isAllowed || normalizedOrigin.endsWith('.vercel.app')) {
+      if (isAllowed) {
         return callback(null, true);
       }
 
-      console.warn(`CORS blocked origin: "${origin}" (Normalized: "${normalizedOrigin}")`);
+      console.warn(`CORS blocked origin: "${origin}"`);
       return callback(new Error('Not allowed by CORS'));
     }
 
@@ -93,7 +100,7 @@ app.use((req, res, next) => {
       const normalizedOrigin = origin.replace(/\/$/, '');
       const isAllowed = allowedOrigins.some(allowed => allowed.replace(/\/$/, '') === normalizedOrigin);
 
-      if (isAllowed || normalizedOrigin.endsWith('.vercel.app')) {
+      if (isAllowed) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
@@ -207,7 +214,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
   // Set CORS headers on error responses
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && allowedOrigins.some(allowed => allowed.replace(/\/$/, '') === origin.replace(/\/$/, ''))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
