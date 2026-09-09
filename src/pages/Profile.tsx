@@ -24,6 +24,7 @@ const Profile: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [name, setName] = useState(user?.name || '');
+  const [grade, setGrade] = useState<string>(user?.grade ? String(user.grade) : '');
   const [avatar, setAvatar] = useState<string | undefined>(user?.avatar);
 
 
@@ -177,7 +178,7 @@ const Profile: React.FC = () => {
     setIsSaving(true);
 
     try {
-      await updateUser({ name, avatar });
+      await updateUser({ name, avatar, grade: grade ? Number(grade) : null });
       setShowSuccess(true);
       addToast("Profile updated successfully.", "success");
       setTimeout(() => setShowSuccess(false), 3000);
@@ -407,6 +408,25 @@ const Profile: React.FC = () => {
                     </div>
                     <p className="text-xs text-zinc-400 mt-1">Contact support to change email.</p>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">School Grade</label>
+                    <div className="relative">
+                      <GraduationCap size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                      <select
+                        value={grade}
+                        onChange={(e) => setGrade(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 transition-all text-zinc-700"
+                      >
+                        <option value="">Not set</option>
+                        <option value="9">Grade 9</option>
+                        <option value="10">Grade 10</option>
+                        <option value="11">Grade 11</option>
+                        <option value="12">Grade 12</option>
+                      </select>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-1">Used to tailor AI Tutor answers to your level.</p>
+                  </div>
                 </div>
 
                 <div className="pt-4 flex items-center justify-between border-t border-zinc-50 mt-auto">
@@ -419,7 +439,7 @@ const Profile: React.FC = () => {
                   </div>
                   <button
                     type="submit"
-                    disabled={isSaving || (name === user.name && avatar === user.avatar)}
+                    disabled={isSaving || (name === user.name && avatar === user.avatar && grade === (user.grade ? String(user.grade) : ''))}
                     className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                   >
                     {isSaving ? (

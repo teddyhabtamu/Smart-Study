@@ -21,6 +21,7 @@ export interface User {
   last_active_date: string;
   unlocked_badges: string[];
   practice_attempts: number;
+  grade?: number | null; // School grade (9-12), chosen by the user; null = unset
   created_at: string;
   updated_at: string;
 }
@@ -185,6 +186,7 @@ export interface RegisterRequest {
   name: string;
   email: string;
   password: string;
+  grade?: number | null;
 }
 
 export interface AuthResponse {

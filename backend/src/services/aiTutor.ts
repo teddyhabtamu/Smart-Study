@@ -65,6 +65,20 @@ const isModelGoneError = (err: any): boolean => {
   );
 };
 
+// An overloaded model (503 UNAVAILABLE) is transient and capacity-specific —
+// the next model in the chain will usually serve fine.
+const isOverloadedError = (err: any): boolean => {
+  const msg = String(err?.message || '');
+  const status = (err as any)?.status;
+  return (
+    status === 503 ||
+    msg.includes('503') ||
+    msg.includes('UNAVAILABLE') ||
+    msg.includes('high demand') ||
+    msg.includes('overloaded')
+  );
+};
+
 const quotaRetryAfter = (err: any): number => {
   try {
     const details = (err as any)?.error?.details || [];
@@ -98,6 +112,10 @@ const withModelFallback = async <T>(fn: (model: string) => Promise<T>): Promise<
       }
       if (isModelGoneError(err)) {
         console.warn(`Gemini model ${model} unavailable, trying fallback...`);
+        continue;
+      }
+      if (isOverloadedError(err)) {
+        console.warn(`Gemini model ${model} overloaded, trying fallback...`);
         continue;
       }
       throw err;
@@ -309,6 +327,10 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
       }
       if (isModelGoneError(err)) {
         console.warn(`Gemini streaming model ${model} unavailable, trying fallback...`);
+        continue;
+      }
+      if (isOverloadedError(err)) {
+        console.warn(`Gemini streaming model ${model} overloaded, trying fallback...`);
         continue;
       }
       throw err;

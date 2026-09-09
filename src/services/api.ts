@@ -374,10 +374,10 @@ export const authAPI = {
       body: JSON.stringify({ email, password }),
     }, false),
 
-  register: (name: string, email: string, password: string): Promise<{ user: User; token?: string; refreshToken?: string; message?: string }> =>
+  register: (name: string, email: string, password: string, grade?: number): Promise<{ user: User; token?: string; refreshToken?: string; message?: string }> =>
     apiRequest('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, ...(grade !== undefined ? { grade } : {}) }),
     }, false),
 
   verify: (): Promise<{ user: User }> =>

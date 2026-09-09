@@ -128,13 +128,24 @@ const AITutor: React.FC = () => {
     loadData();
   }, [user]);
 
-  // Load user's grade level based on their level
+  // Load the student's school grade.
+  // Priority: explicit grade from profile/register > legacy XP-level heuristic
+  // (kept so existing users without a set grade keep roughly-correct context)
+  // > default 10.
   useEffect(() => {
     const loadUserGrade = async () => {
+      if (user?.grade) {
+        setUserGrade(user.grade);
+        return;
+      }
       if (user) {
         try {
           const userProfile = await usersAPI.getProfile();
-          // Calculate grade based on user level:
+          if (userProfile.grade) {
+            setUserGrade(userProfile.grade);
+            return;
+          }
+          // Legacy fallback: rough grade from gamification level
           // Level 1-3: Grade 8-9, Level 4-6: Grade 10-11, Level 7+: Grade 12
           const userLevel = userProfile.level || 1;
           let calculatedGrade = 10; // default

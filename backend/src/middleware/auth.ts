@@ -23,7 +23,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     // Fetch user from database to ensure they still exist and get latest data
     const result = await query(
-      'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -113,7 +113,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
       // Fetch user from database to ensure they still exist and get latest data
       const result = await query(
-        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, created_at, updated_at FROM users WHERE id = $1',
+        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
         [decoded.userId]
       );
 

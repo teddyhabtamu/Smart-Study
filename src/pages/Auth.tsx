@@ -30,6 +30,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [grade, setGrade] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -107,7 +108,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
           return;
         }
         
-        await register(name, email, password);
+        await register(name, email, password, grade ? Number(grade) : undefined);
         
         // Registration now requires email verification
         // The register function doesn't set user/token when email verification is required
@@ -119,6 +120,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
         setEmail('');
         setPassword('');
         setConfirmPassword('');
+        setGrade('');
         
         // Switch to login view so user can see the message and try to login after verification
         setView('login');
@@ -221,6 +223,29 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       onChange={(e) => setName(e.target.value)}
                     />
                   </div>
+                </div>
+              )}
+
+              {view === 'register' && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">School Grade</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                      <GraduationCap size={18} />
+                    </div>
+                    <select
+                      className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all text-zinc-700"
+                      value={grade}
+                      onChange={(e) => setGrade(e.target.value)}
+                    >
+                      <option value="">Select your grade (optional)</option>
+                      <option value="9">Grade 9</option>
+                      <option value="10">Grade 10</option>
+                      <option value="11">Grade 11</option>
+                      <option value="12">Grade 12</option>
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1 ml-1">Used to tailor AI Tutor answers to your level. You can change it later in your profile.</p>
                 </div>
               )}
 

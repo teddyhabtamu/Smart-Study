@@ -52,6 +52,9 @@ export interface User {
   // Usage Tracking
   practiceAttempts?: number;
 
+  // School grade (9-12), chosen by the user; null/undefined = not set yet
+  grade?: number | null;
+
   // Notifications
   notifications: NotificationItem[];
 }

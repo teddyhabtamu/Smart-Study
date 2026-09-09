@@ -30,9 +30,18 @@ const Practice: React.FC = () => {
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   
-  // Config State
+  // Config State (grade defaults to the user's real school grade when set)
   const [subject, setSubject] = useState('Mathematics');
-  const [grade, setGrade] = useState('9');
+  const [grade, setGrade] = useState(user?.grade ? String(user.grade) : '9');
+  const [gradeTouched, setGradeTouched] = useState(false);
+
+  // Sync the dropdown when the user's profile (and real grade) arrives after
+  // mount — unless they already picked a grade manually.
+  useEffect(() => {
+    if (user?.grade && !gradeTouched) {
+      setGrade(String(user.grade));
+    }
+  }, [user?.grade]);
   const [difficulty, setDifficulty] = useState('Medium');
   const [qCount, setQCount] = useState('5');
 
@@ -61,6 +70,7 @@ const Practice: React.FC = () => {
           if (parsed.config) {
             setSubject(parsed.config.subject);
             setGrade(parsed.config.grade);
+            setGradeTouched(true);
             setDifficulty(parsed.config.difficulty);
           }
         }
@@ -288,7 +298,7 @@ const Practice: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-700 mb-2 uppercase tracking-wide">Grade Level</label>
-              <CustomSelect options={gradeOptions} value={grade} onChange={setGrade} />
+              <CustomSelect options={gradeOptions} value={grade} onChange={(v) => { setGradeTouched(true); setGrade(v); }} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-700 mb-2 uppercase tracking-wide">Difficulty</label>

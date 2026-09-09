@@ -5,7 +5,7 @@ import { authAPI, usersAPI } from '../services/api';
 interface AuthContextType {
   user: User | null;
   login: (emailOrUser: string | User, password?: string) => Promise<User | void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, grade?: number) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
@@ -77,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
             unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
             practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        grade: userData.grade ?? null,
             notifications: userData.notifications || []
           };
           setUser(transformedUser);
@@ -346,6 +347,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
         unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        grade: userData.grade ?? null,
         notifications: userData.notifications || []
       };
       setUser(transformedUser);
@@ -381,6 +383,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
         unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        grade: userData.grade ?? null,
         notifications: userData.notifications || []
       };
       setUser(transformedUser);
@@ -395,9 +398,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<void> => {
+  const register = async (name: string, email: string, password: string, grade?: number): Promise<void> => {
     try {
-      const response = await authAPI.register(name, email, password);
+      const response = await authAPI.register(name, email, password, grade);
 
       // If no token is returned, email verification is required
       if (!response.token) {
@@ -586,6 +589,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastActiveDate: userData.last_active_date || userData.lastActiveDate || '',
         unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
+        grade: userData.grade ?? null,
         notifications: userData.notifications || []
       };
       setUser(transformedUser);
