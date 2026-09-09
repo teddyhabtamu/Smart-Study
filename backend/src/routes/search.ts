@@ -4,6 +4,46 @@ import { ApiResponse, User } from '../types';
 
 const router = express.Router();
 
+// ---------------------------------------------------------------------------
+// Full-text text matching with ILIKE fallback.
+//
+// Uses the weighted tsvector columns (search_vector + GIN index, see
+// migration add_fulltext_search.sql) with ts_rank relevance ordering.
+// Falls back to plain ILIKE when the term yields no lexemes (e.g. pure
+// punctuation like "!!!"), so behavior never breaks on odd input.
+//
+// All call sites pass the search term as $1; extra filters append $2+.
+// Returns { where, order, select, param } to splice into each query.
+// ---------------------------------------------------------------------------
+const textMatch = (
+  vectorCol: string,
+  ilikeCols: string[],
+  term: string,
+  tiebreakCol = 'created_at'
+): { where: string; order: string; select: string; param: string } => {
+  // Lexemes for an OR query: any single word can match, ts_rank puts the
+  // best (multi-word, title-weighted) hits first. Stricter AND semantics
+  // returned zero too often ("biology textbook" matched nothing even though
+  // biology books exist).
+  const lexemes = term.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (lexemes.length === 0) {
+    const ors = ilikeCols.map((c) => `${c} ILIKE $1`).join(' OR ');
+    return {
+      where: `(${ors})`,
+      order: `${tiebreakCol} DESC`,
+      select: `0 AS rank`,
+      param: `%${term}%`,
+    };
+  }
+  const tsQuery = lexemes.join(' | ');
+  return {
+    where: `${vectorCol} @@ to_tsquery('english', $1)`,
+    order: `ts_rank(${vectorCol}, to_tsquery('english', $1)) DESC, ${tiebreakCol} DESC`,
+    select: `ts_rank(${vectorCol}, to_tsquery('english', $1)) AS rank`,
+    param: tsQuery,
+  };
+};
+
 // Unified search endpoint
 router.get('/', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
@@ -32,24 +72,29 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
       total: 0
     };
 
-    // Search documents
+    // Search documents (full-text ranked, ILIKE fallback for odd input)
     if (!type || type === 'documents' || type === 'all') {
       try {
+        const match = textMatch(
+          'search_vector',
+          ['title', 'description', 'subject', 'author'],
+          term
+        );
         let docQuery = `
           SELECT id, title, description, subject, grade, file_type, is_premium,
-                 preview_image, author, created_at
+                 preview_image, author, created_at, ${match.select}
           FROM documents
-          WHERE (title ILIKE $1 OR description ILIKE $1 OR subject ILIKE $1 OR author ILIKE $1)
+          WHERE ${match.where}
         `;
 
-        const docParams = [`%${term}%`];
+        const docParams = [match.param];
 
         // Add premium filter for non-premium users
         if (!isPremium) {
           docQuery += ` AND is_premium = false`;
         }
 
-        docQuery += ` ORDER BY created_at DESC LIMIT $${docParams.length + 1} OFFSET $${docParams.length + 2}`;
+        docQuery += ` ORDER BY ${match.order} LIMIT $${docParams.length + 1} OFFSET $${docParams.length + 2}`;
         docParams.push(limitNum.toString(), offsetNum.toString());
 
         const docResults = await query(docQuery, docParams);
@@ -62,7 +107,8 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
           url: `/document/${doc.id}`,
           isPremium: doc.is_premium,
           previewImage: doc.preview_image,
-          author: doc.author
+          author: doc.author,
+          rank: Number(doc.rank) || 0
         }));
       } catch (error) {
         console.error('Document search error:', error);
@@ -70,23 +116,28 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
       }
     }
 
-    // Search videos
+    // Search videos (full-text ranked, ILIKE fallback for odd input)
     if (!type || type === 'videos' || type === 'all') {
       try {
+        const match = textMatch(
+          'search_vector',
+          ['title', 'description', 'subject', 'instructor'],
+          term
+        );
         let vidQuery = `
-          SELECT id, title, description, subject, grade, thumbnail, instructor, is_premium, created_at
+          SELECT id, title, description, subject, grade, thumbnail, instructor, is_premium, created_at, ${match.select}
           FROM videos
-          WHERE (title ILIKE $1 OR description ILIKE $1 OR subject ILIKE $1 OR instructor ILIKE $1)
+          WHERE ${match.where}
         `;
 
-        const vidParams = [`%${term}%`];
+        const vidParams = [match.param];
 
         // Add premium filter for non-premium users
         if (!isPremium) {
           vidQuery += ` AND is_premium = false`;
         }
 
-        vidQuery += ` ORDER BY created_at DESC LIMIT $${vidParams.length + 1} OFFSET $${vidParams.length + 2}`;
+        vidQuery += ` ORDER BY ${match.order} LIMIT $${vidParams.length + 1} OFFSET $${vidParams.length + 2}`;
         vidParams.push(limitNum.toString(), offsetNum.toString());
 
         const vidResults = await query(vidQuery, vidParams);
@@ -99,7 +150,8 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
           url: `/video/${vid.id}`,
           isPremium: vid.is_premium,
           thumbnail: vid.thumbnail,
-          instructor: vid.instructor
+          instructor: vid.instructor,
+          rank: Number(vid.rank) || 0
         }));
       } catch (error) {
         console.error('Video search error:', error);
@@ -107,22 +159,24 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
       }
     }
 
-    // Search forum posts
+    // Search forum posts (full-text ranked, ILIKE fallback for odd input)
     if (!type || type === 'forumPosts' || type === 'posts' || type === 'all') {
       try {
+        const match = textMatch('fp.search_vector', ['fp.title', 'fp.content'], term, 'fp.created_at');
         const postQuery = `
           SELECT fp.id, fp.title, fp.subject, fp.grade, fp.created_at, fp.author_id,
-                 u.name as author, u.role as author_role, COUNT(fc.id) as comment_count
+                 u.name as author, u.role as author_role, COUNT(fc.id) as comment_count,
+                 ${match.select}
           FROM forum_posts fp
           LEFT JOIN users u ON fp.author_id = u.id
           LEFT JOIN forum_comments fc ON fp.id = fc.post_id
-          WHERE fp.title ILIKE $1 OR fp.content ILIKE $1
+          WHERE ${match.where}
           GROUP BY fp.id, u.name, u.role
-          ORDER BY fp.created_at DESC
+          ORDER BY ${match.order}
           LIMIT $2 OFFSET $3
         `;
 
-        const postResults = await query(postQuery, [`%${term}%`, limitNum, offsetNum]);
+        const postResults = await query(postQuery, [match.param, limitNum, offsetNum]);
         results.forumPosts = postResults.rows.map(post => ({
           id: post.id,
           title: post.title,
@@ -132,7 +186,8 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
           url: `/community/${post.id}`,
           author: post.author,
           authorRole: post.author_role,
-          commentCount: parseInt(post.comment_count) || 0
+          commentCount: parseInt(post.comment_count) || 0,
+          rank: Number(post.rank) || 0
         }));
       } catch (error) {
         console.error('Forum post search error:', error);
@@ -143,12 +198,13 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
     // Calculate totals
     results.total = results.documents.length + results.videos.length + results.forumPosts.length;
 
-    // Sort all results by relevance (created_at for now, could be enhanced with scoring)
+    // Sort merged results by relevance rank (then newest) — previously this
+    // re-sorted everything by date, throwing away relevance entirely.
     const allResults = [
       ...results.documents,
       ...results.videos,
       ...results.forumPosts
-    ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    ].sort((a, b) => (b.rank || 0) - (a.rank || 0) || new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
     res.json({
       success: true,
@@ -223,8 +279,9 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
     // Search documents
     if (types.includes('documents')) {
       try {
-        const baseConditions = [`(title ILIKE $1 OR description ILIKE $1 OR subject ILIKE $1 OR author ILIKE $1)`];
-        const params = [`%${term}%`];
+        const match = textMatch('search_vector', ['title', 'description', 'subject', 'author'], term);
+        const baseConditions = [match.where];
+        const params = [match.param];
 
         // Add premium filter for non-premium users
         if (!isPremium) {
@@ -235,10 +292,10 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
 
         const docQuery = `
           SELECT id, title, description, subject, grade, file_type, is_premium,
-                 preview_image, author, created_at
+                 preview_image, author, created_at, ${match.select}
           FROM documents
           WHERE ${baseConditions.join(' AND ')}${whereClause}
-          ORDER BY created_at DESC
+          ORDER BY ${match.order}
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
@@ -255,7 +312,8 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
           isPremium: doc.is_premium,
           previewImage: doc.preview_image,
           author: doc.author,
-          created_at: doc.created_at
+          created_at: doc.created_at,
+          rank: Number(doc.rank) || 0
         }));
       } catch (error) {
         console.error('Advanced document search error:', error);
@@ -265,8 +323,9 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
     // Search videos
     if (types.includes('videos')) {
       try {
-        const baseConditions = [`(title ILIKE $1 OR description ILIKE $1 OR subject ILIKE $1 OR instructor ILIKE $1)`];
-        const params = [`%${term}%`];
+        const match = textMatch('search_vector', ['title', 'description', 'subject', 'instructor'], term);
+        const baseConditions = [match.where];
+        const params = [match.param];
 
         // Add premium filter for non-premium users
         if (!isPremium) {
@@ -276,10 +335,10 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
         const whereClause = buildWhereClause(baseConditions, params, subjects, grades);
 
         const vidQuery = `
-          SELECT id, title, description, subject, grade, thumbnail, instructor, is_premium, created_at
+          SELECT id, title, description, subject, grade, thumbnail, instructor, is_premium, created_at, ${match.select}
           FROM videos
           WHERE ${baseConditions.join(' AND ')}${whereClause}
-          ORDER BY created_at DESC
+          ORDER BY ${match.order}
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
@@ -296,7 +355,8 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
           isPremium: vid.is_premium,
           thumbnail: vid.thumbnail,
           instructor: vid.instructor,
-          created_at: vid.created_at
+          created_at: vid.created_at,
+          rank: Number(vid.rank) || 0
         }));
       } catch (error) {
         console.error('Advanced video search error:', error);
@@ -306,8 +366,9 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
     // Search forum posts
     if (types.includes('forumPosts')) {
       try {
-        const baseConditions = [`(fp.title ILIKE $1 OR fp.content ILIKE $1)`];
-        const params = [`%${term}%`];
+        const match = textMatch('fp.search_vector', ['fp.title', 'fp.content'], term, 'fp.created_at');
+        const baseConditions = [match.where];
+        const params = [match.param];
 
         let whereClause = '';
         if (subjects.length > 0) {
@@ -321,13 +382,14 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
 
         const postQuery = `
           SELECT fp.id, fp.title, fp.subject, fp.grade, fp.created_at, fp.author_id,
-                 u.name as author, u.role as author_role, COUNT(fc.id) as comment_count
+                 u.name as author, u.role as author_role, COUNT(fc.id) as comment_count,
+                 ${match.select}
           FROM forum_posts fp
           LEFT JOIN users u ON fp.author_id = u.id
           LEFT JOIN forum_comments fc ON fp.id = fc.post_id
           WHERE ${baseConditions.join(' AND ')}
           GROUP BY fp.id, u.name, u.role
-          ORDER BY fp.created_at DESC
+          ORDER BY ${match.order}
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
@@ -344,7 +406,8 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
           author: post.author,
           authorRole: post.author_role,
           commentCount: parseInt(post.comment_count) || 0,
-          created_at: post.created_at
+          created_at: post.created_at,
+          rank: Number(post.rank) || 0
         }));
       } catch (error) {
         console.error('Advanced forum post search error:', error);
@@ -370,8 +433,7 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
         break;
       case 'relevance':
       default:
-        // For now, sort by creation date (could be enhanced with scoring algorithm)
-        allResults.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        allResults.sort((a, b) => (b.rank || 0) - (a.rank || 0) || new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
         break;
     }
 
