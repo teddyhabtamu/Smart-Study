@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore } from 'lucide-react';
+import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -12,6 +12,39 @@ import CustomSelect from '../components/CustomSelect';
 import DatePicker from '../components/DatePicker';
 import { SUBJECTS } from '../constants';
 import { PlannerEventSkeleton, TaskItemSkeleton } from '../components/Skeletons';
+import { MarkdownInline } from '../components/MarkdownRenderer';
+
+// Days until (negative = overdue) for a YYYY-MM-DD date string
+const daysUntil = (dateStr: string): number => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr + 'T00:00:00');
+  return Math.round((d.getTime() - today.getTime()) / 86400000);
+};
+
+// Urgency signal for deadlines: TODAY / TOMORROW / in Nd / Nd overdue
+const getUrgency = (dateStr: string): { label: string; tone: 'overdue' | 'today' | 'soon' | 'later' } => {
+  const diff = daysUntil(dateStr);
+  if (diff < 0) return { label: `${-diff}d overdue`, tone: 'overdue' };
+  if (diff === 0) return { label: 'Today', tone: 'today' };
+  if (diff === 1) return { label: 'Tomorrow', tone: 'soon' };
+  return { label: `in ${diff}d`, tone: diff <= 3 ? 'soon' : 'later' };
+};
+
+const urgencyPill = (tone: string): string => {
+  switch (tone) {
+    case 'overdue': return 'bg-red-600 text-white';
+    case 'today': return 'bg-zinc-900 text-white';
+    case 'soon': return 'bg-amber-100 text-amber-800';
+    default: return 'bg-zinc-100 text-zinc-500';
+  }
+};
+
+const typeDot = (type: string): string => {
+  if (type === 'Exam') return 'bg-red-500';
+  if (type === 'Assignment') return 'bg-amber-500';
+  return 'bg-zinc-400';
+};
 
 
 const Planner: React.FC = () => {
@@ -31,6 +64,14 @@ const Planner: React.FC = () => {
   const [isArchivingEvent, setIsArchivingEvent] = useState<string | null>(null);
   const [isCompletingEvent, setIsCompletingEvent] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'archived'>('all');
+  // Timeline visualization: list (day groups) or calendar (month grid)
+  const [plannerView, setPlannerView] = useState<'list' | 'calendar'>('list');
+  // Calendar cursor (first of visible month) + tapped day filter (YYYY-MM-DD)
+  const [calCursor, setCalCursor] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
@@ -195,6 +236,46 @@ const Planner: React.FC = () => {
     if (!groupedEvents[event.date]) groupedEvents[event.date] = [];
     groupedEvents[event.date].push(event);
   });
+
+  // Calendar grid for the visible month (Monday-start, 6x7). Each cell knows
+  // its date key, whether it's in-month, and that day's (filtered) events.
+  const calendarCells: Array<{ key: string; day: number; inMonth: boolean; events: StudyEvent[] }> = (() => {
+    const y = calCursor.getFullYear();
+    const m = calCursor.getMonth();
+    const first = new Date(y, m, 1);
+    const lead = (first.getDay() + 6) % 7; // Monday-start offset
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const daysInPrev = new Date(y, m, 0).getDate();
+    const cells: Array<{ key: string; day: number; inMonth: boolean; events: StudyEvent[] }> = [];
+    const keyOf = (yy: number, mm: number, dd: number) =>
+      `${yy}-${String(mm + 1).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    for (let i = lead - 1; i >= 0; i--) {
+      const dd = daysInPrev - i;
+      const k = keyOf(m === 0 ? y - 1 : y, m === 0 ? 11 : m - 1, dd);
+      cells.push({ key: k, day: dd, inMonth: false, events: groupedEvents[k] || [] });
+    }
+    for (let dd = 1; dd <= daysInMonth; dd++) {
+      const k = keyOf(y, m, dd);
+      cells.push({ key: k, day: dd, inMonth: true, events: groupedEvents[k] || [] });
+    }
+    let dd = 1;
+    while (cells.length % 7 !== 0 || cells.length < 35) {
+      const k = keyOf(m === 11 ? y + 1 : y, m === 11 ? 0 : m + 1, dd);
+      cells.push({ key: k, day: dd, inMonth: false, events: groupedEvents[k] || [] });
+      dd++;
+    }
+    return cells;
+  })();
+
+  const todayKey = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  })();
+
+  // When a calendar day is tapped, the timeline below narrows to that day
+  const visibleDateKeys = selectedDate
+    ? Object.keys(groupedEvents).filter(k => k === selectedDate).sort()
+    : Object.keys(groupedEvents).sort();
 
   const handleTaskToggle = async (id: string, isCompleted: boolean) => {
     setIsCompletingEvent(id);
@@ -557,9 +638,19 @@ const Planner: React.FC = () => {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${getTypeColor(event.type)}`}>
                              {event.type}
                           </span>
-                          <span className="text-xs font-medium text-zinc-500">
-                             {new Date(event.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </span>
+                          {(() => {
+                            const u = getUrgency(event.date);
+                            return (
+                              <span className="flex items-center gap-1.5">
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${urgencyPill(u.tone)}`}>
+                                  {u.label}
+                                </span>
+                                <span className="text-xs font-medium text-zinc-500">
+                                   {new Date(event.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                              </span>
+                            );
+                          })()}
                        </div>
                        <h4 className="font-semibold text-zinc-900 text-sm line-clamp-1">{event.title}</h4>
                        <p className="text-xs text-zinc-500">{event.subject}</p>
@@ -618,6 +709,36 @@ const Planner: React.FC = () => {
 
         {/* Right Col: Timeline */}
         <div className="lg:col-span-2 space-y-6">
+           {/* View toggle: list vs calendar */}
+           <div className="flex items-center gap-2">
+             <div className="flex bg-zinc-100 rounded-full p-1">
+               <button
+                 onClick={() => setPlannerView('list')}
+                 className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                   plannerView === 'list' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                 }`}
+               >
+                 List
+               </button>
+               <button
+                 onClick={() => setPlannerView('calendar')}
+                 className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                   plannerView === 'calendar' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                 }`}
+               >
+                 Calendar
+               </button>
+             </div>
+             {selectedDate && (
+               <button
+                 onClick={() => setSelectedDate(null)}
+                 className="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 transition-colors flex items-center gap-1.5"
+               >
+                 {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                 <X size={12} />
+               </button>
+             )}
+           </div>
            {/* Filters */}
            <div className="flex items-center gap-2 pb-2 overflow-x-auto hide-scrollbar">
              <button
@@ -675,8 +796,90 @@ const Planner: React.FC = () => {
                  </div>
                ))}
              </div>
+           ) : plannerView === 'calendar' ? (
+             <div className="bg-white border border-zinc-200 rounded-xl shadow-sm p-3 sm:p-4 animate-fade-in">
+               {/* Month navigation */}
+               <div className="flex items-center justify-between mb-3">
+                 <button
+                   onClick={() => setCalCursor(new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1))}
+                   className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+                   aria-label="Previous month"
+                 >
+                   <ChevronLeft size={18} />
+                 </button>
+                 <h3 className="text-sm sm:text-base font-bold text-zinc-900">
+                   {calCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                 </h3>
+                 <div className="flex items-center gap-1">
+                   <button
+                     onClick={() => { const t = new Date(); setCalCursor(new Date(t.getFullYear(), t.getMonth(), 1)); setSelectedDate(todayKey); }}
+                     className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 hover:bg-zinc-100 transition-colors"
+                   >
+                     Today
+                   </button>
+                   <button
+                     onClick={() => setCalCursor(new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1))}
+                     className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+                     aria-label="Next month"
+                   >
+                     <ChevronRight size={18} />
+                   </button>
+                 </div>
+               </div>
+               {/* Weekday header (Monday start) */}
+               <div className="grid grid-cols-7 gap-1 mb-1">
+                 {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                   <div key={i} className="text-center text-[10px] sm:text-xs font-bold text-zinc-400 py-1">{d}</div>
+                 ))}
+               </div>
+               {/* Day cells */}
+               <div className="grid grid-cols-7 gap-1">
+                 {calendarCells.map((cell) => {
+                   const isToday = cell.key === todayKey;
+                   const isSelected = cell.key === selectedDate;
+                   const shown = cell.events.slice(0, 3);
+                   const extra = cell.events.length - shown.length;
+                   return (
+                     <button
+                       key={cell.key}
+                       onClick={() => setSelectedDate(isSelected ? null : cell.key)}
+                       className={`min-h-[52px] sm:min-h-[64px] rounded-lg p-1 sm:p-1.5 text-left transition-colors flex flex-col ${
+                         isSelected
+                           ? 'bg-zinc-900 text-white shadow-md'
+                           : isToday
+                           ? 'bg-zinc-100 ring-2 ring-zinc-900 ring-inset'
+                           : cell.inMonth
+                           ? 'hover:bg-zinc-50'
+                           : 'opacity-40 hover:bg-zinc-50'
+                       }`}
+                     >
+                       <span className={`text-[11px] sm:text-xs font-bold leading-none mb-1 ${
+                         isSelected ? 'text-white' : isToday ? 'text-zinc-900' : cell.inMonth ? 'text-zinc-700' : 'text-zinc-400'
+                       }`}>
+                         {cell.day}
+                       </span>
+                       <span className="flex flex-wrap gap-0.5">
+                         {shown.map((e) => (
+                           <span key={e.id} title={`${e.title} (${e.type})`} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : typeDot(e.type)}`} />
+                         ))}
+                         {extra > 0 && (
+                           <span className={`text-[9px] font-bold leading-none ${isSelected ? 'text-white' : 'text-zinc-500'}`}>+{extra}</span>
+                         )}
+                       </span>
+                     </button>
+                   );
+                 })}
+               </div>
+               {/* Legend */}
+               <div className="flex items-center gap-3 mt-3 px-1 text-[10px] sm:text-xs text-zinc-500">
+                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Exam</span>
+                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Assignment</span>
+                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-zinc-400" /> Revision</span>
+                 <span className="ml-auto hidden sm:inline">Tap a day to filter below</span>
+               </div>
+             </div>
            ) : Object.keys(groupedEvents).length > 0 ? (
-             Object.keys(groupedEvents).sort().map(dateKey => (
+             visibleDateKeys.map(dateKey => (
                <div key={dateKey} className="animate-slide-up">
                   <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 sticky top-0 bg-zinc-50/95 py-2 backdrop-blur-sm z-10 flex items-center justify-between">
                     {new Date(dateKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -737,6 +940,15 @@ const Planner: React.FC = () => {
                                {event.type === 'Assignment' && (
                                  <span className="text-[9px] sm:text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ASSIGNMENT</span>
                                )}
+                               {!event.isCompleted && (() => {
+                                 const u = getUrgency(event.date);
+                                 return (
+                                   <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
+                                     {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-white animate-pulse mr-1 align-middle" />}
+                                     {u.label}
+                                   </span>
+                                 );
+                               })()}
                             </div>
                             <p className="text-xs text-zinc-500 flex items-center gap-2">
                                <span className="font-medium text-zinc-700">{event.subject}</span>
@@ -1061,13 +1273,13 @@ const Planner: React.FC = () => {
                     </div>
                     <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">How to Complete This Plan</h5>
                   </div>
-                  <div className="space-y-3 sm:space-y-2 sm:space-y-2.5">
+                  <div className="space-y-2.5">
                     {guide.howToComplete && Array.isArray(guide.howToComplete) && guide.howToComplete.map((step: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-3 sm:gap-2 sm:gap-3 p-3 sm:p-2.5 sm:p-3 bg-zinc-50 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors touch-manipulation">
-                        <div className="flex-shrink-0 w-6 h-6 sm:w-5 sm:h-5 sm:w-6 sm:h-6 rounded-full bg-zinc-900 text-white text-xs sm:text-[10px] sm:text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
+                      <div key={idx} className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors touch-manipulation">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-white text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
                           {idx + 1}
                         </div>
-                        <p className="text-sm sm:text-[11px] sm:text-xs text-zinc-700 leading-relaxed flex-1 font-medium">{step}</p>
+                        <p className="text-xs text-zinc-700 leading-relaxed flex-1 font-medium"><MarkdownInline content={step} /></p>
                       </div>
                     ))}
                   </div>
@@ -1081,11 +1293,11 @@ const Planner: React.FC = () => {
                     </div>
                     <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">Quick Tips</h5>
                   </div>
-                  <div className="space-y-2 sm:space-y-1.5 sm:space-y-2">
+                  <div className="space-y-2">
                     {guide.guides && Array.isArray(guide.guides) && guide.guides.map((item: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-3 sm:gap-2 sm:gap-2.5 p-3 sm:p-2 sm:p-2.5 bg-zinc-50 rounded-lg border border-zinc-200">
+                      <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-zinc-50 rounded-lg border border-zinc-200">
                         <div className="flex-shrink-0 w-2 h-2 rounded-full bg-zinc-900 mt-2"></div>
-                        <p className="text-sm sm:text-[11px] sm:text-xs text-zinc-700 leading-relaxed flex-1">{item}</p>
+                        <p className="text-xs text-zinc-700 leading-relaxed flex-1"><MarkdownInline content={item} /></p>
                       </div>
                     ))}
                   </div>
@@ -1093,12 +1305,12 @@ const Planner: React.FC = () => {
 
                 {/* Suggestion */}
                 {guide.suggestions && (
-                  <div className="p-4 sm:p-3 sm:p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 shadow-sm">
+                  <div className="p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 shadow-sm">
                     <div className="flex items-start gap-3">
-                      <span className="text-lg sm:text-sm sm:text-base flex-shrink-0">💡</span>
+                      <span className="text-base flex-shrink-0">💡</span>
                       <div>
-                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 sm:mb-1 sm:mb-1.5">Suggestion</p>
-                        <p className="text-sm sm:text-[11px] sm:text-xs text-zinc-700 leading-relaxed font-medium">{guide.suggestions}</p>
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Suggestion</p>
+                        <p className="text-xs text-zinc-700 leading-relaxed font-medium"><MarkdownInline content={guide.suggestions} /></p>
                       </div>
                     </div>
                   </div>
