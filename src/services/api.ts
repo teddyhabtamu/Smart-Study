@@ -729,6 +729,12 @@ export const aiTutorAPI = {
     onDelta: (delta: string) => void
   ): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> =>
     new Promise((resolve, reject) => {
+      // Safety net: a hung stream must never lock the UI forever. After 75s
+      // we abort and fall back to the non-streaming endpoint (which has its
+      // own timeout + retries).
+      const controller = new AbortController();
+      const watchdog = setTimeout(() => controller.abort(), 75000);
+
       const doFetch = (authRetry: boolean): Promise<Response> =>
         fetch(`${API_BASE_URL}/ai-tutor/chat/stream`, {
           method: 'POST',
@@ -737,6 +743,7 @@ export const aiTutorAPI = {
             ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
           },
           body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
+          signal: controller.signal,
         }).then(async (response: Response): Promise<Response> => {
           // Expired access token: refresh once, then retry with the new token
           if (response.status === 401 && authRetry && getAuthToken()) {
@@ -749,6 +756,7 @@ export const aiTutorAPI = {
 
       doFetch(true).then(async (response) => {
         if (!response.ok || !response.body) {
+          clearTimeout(watchdog);
           // Fall back to non-streaming chat on any transport failure
           try {
             const fallback = await authFallbackChat(message, subject, grade, sessionId);
@@ -807,8 +815,16 @@ export const aiTutorAPI = {
             }
           }
           resolve({ response: full, sessionId: sessionIdOut, xpGained });
-        } catch (streamErr) {
-          reject(streamErr);
+        } catch (streamErr: any) {
+          // Watchdog abort (or any mid-stream failure) with partial content:
+          // deliver what arrived instead of failing outright.
+          if (streamErr?.name === 'AbortError' && full) {
+            resolve({ response: full, sessionId: sessionIdOut, xpGained });
+          } else {
+            reject(streamErr);
+          }
+        } finally {
+          clearTimeout(watchdog);
         }
       }).catch(reject);
     }),

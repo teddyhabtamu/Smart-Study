@@ -102,3 +102,25 @@
     transform: translateX(0);
   }
 }
+
+/* Blinking block cursor shown at the end of the assistant message
+   while tokens are streaming in (ChatGPT-style "writing" indicator). */
+@keyframes streaming-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.1em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background-color: currentColor;
+  animation: streaming-blink 0.9s ease-in-out infinite;
+}

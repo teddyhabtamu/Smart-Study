@@ -41,6 +41,10 @@ const AITutor: React.FC = () => {
   const [messages, setMessages] = useState<{ role: string, text: string }[]>([DEFAULT_WELCOME_MSG]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // Index of the assistant message currently being streamed (null when idle).
+  // isLoading === true  -> "thinking" (waiting for first token, show dots)
+  // streamingIndex set   -> "streaming" (tokens arriving, show blinking cursor)
+  const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -362,6 +366,9 @@ const AITutor: React.FC = () => {
   const handleSend = async (text: string = input) => {
     if (!text.trim()) return;
 
+    // Ignore sends while a generation is already running
+    if (isLoading || streamingIndex !== null || isProcessingImage) return;
+
     // Check limit for non-authenticated users
     if (!user && guestPromptCount >= MAX_FREE_PROMPTS) {
       return;
@@ -386,14 +393,21 @@ const AITutor: React.FC = () => {
 
     const newHistory = [...messages, { role: 'user', text: userMsg }];
     setMessages(newHistory);
-    setIsLoading(true);
 
-    // Add an empty assistant message that fills progressively as chunks arrive
+    // Add an empty assistant message that fills progressively as chunks arrive.
+    // isLoading stays true = "thinking" state (typing dots) until the first
+    // token arrives, then flips to the "streaming" state (blinking cursor).
     const placeholderIndex = newHistory.length;
     setMessages([...newHistory, { role: 'model', text: '' }]);
-    setIsLoading(false);
+    setStreamingIndex(placeholderIndex);
+    setIsLoading(true);
 
+    let receivedFirstChunk = false;
     const appendChunk = (delta: string) => {
+      if (!receivedFirstChunk) {
+        receivedFirstChunk = true;
+        setIsLoading(false); // thinking -> streaming
+      }
       setMessages((prev) => {
         const next = [...prev];
         const current = next[placeholderIndex];
@@ -440,6 +454,7 @@ const AITutor: React.FC = () => {
       addToast('Failed to get AI response. Please try again.', 'error');
     } finally {
       setIsLoading(false);
+      setStreamingIndex(null);
     }
   };
 
@@ -467,6 +482,9 @@ const AITutor: React.FC = () => {
   ];
 
   const limitReached = !user && guestPromptCount >= MAX_FREE_PROMPTS;
+  // Busy = thinking, streaming, or processing an image — input stays locked
+  // so concurrent generations can't interleave.
+  const isBusy = isLoading || streamingIndex !== null || isProcessingImage;
 
   return (
     <div className="h-[calc(100vh-6rem)] flex gap-1 sm:gap-2 md:gap-4 animate-fade-in relative">
@@ -667,9 +685,19 @@ const AITutor: React.FC = () => {
               }`}>
                 {msg.role === 'user' ? (
                   <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                ) : idx === streamingIndex && isLoading && !msg.text ? (
+                  // Thinking state: waiting for the first token — typing dots
+                  <div className="flex items-center gap-1.5 py-1" aria-label="Smart Tutor is thinking">
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-zinc-400 rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-zinc-400 rounded-full animate-bounce delay-100"></span>
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-zinc-400 rounded-full animate-bounce delay-200"></span>
+                  </div>
                 ) : (
                   <>
                     <MarkdownRenderer content={msg.text} />
+                    {idx === streamingIndex && (
+                      <span className="streaming-cursor" aria-hidden="true" />
+                    )}
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                        <TTSButton text={msg.text} size={12} className="sm:w-3.5 sm:h-3.5 bg-white/80 hover:bg-white shadow-sm" />
                     </div>
@@ -685,7 +713,7 @@ const AITutor: React.FC = () => {
             </div>
           ))}
 
-          {isLoading && (
+          {isLoading && streamingIndex === null && (
             <div className="flex gap-2 sm:gap-3 md:gap-4 justify-start animate-fade-in">
               <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm">
                 <Bot size={12} className="sm:w-4 sm:h-4 text-zinc-900" />
@@ -702,7 +730,7 @@ const AITutor: React.FC = () => {
         {/* Input Area */}
         <div className="p-3 sm:p-4 bg-white border-t border-zinc-100">
           <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4">
-            {!isLoading && messages.length < 3 && !limitReached && (
+            {!isBusy && messages.length < 3 && !limitReached && (
               <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 hide-scrollbar">
                 {suggestions.map((s, i) => (
                   <button
@@ -765,7 +793,7 @@ const AITutor: React.FC = () => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onPaste={handlePaste}
-                    disabled={isLoading || isProcessingImage}
+                    disabled={isBusy}
                     autoFocus
                   />
                   <div className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 flex gap-1">
@@ -779,7 +807,7 @@ const AITutor: React.FC = () => {
                       }}
                       className="hidden"
                       id="image-upload-input"
-                      disabled={isLoading || isProcessingImage}
+                      disabled={isBusy}
                     />
                     <label
                       htmlFor="image-upload-input"
@@ -799,7 +827,8 @@ const AITutor: React.FC = () => {
                     <button
                       type="button"
                       onClick={toggleListening}
-                      className={`p-1 sm:p-1.5 rounded-lg transition-all ${
+                      disabled={isBusy}
+                      className={`p-1 sm:p-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         isListening
                           ? 'bg-red-50 text-red-600 animate-pulse'
                           : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
@@ -813,7 +842,7 @@ const AITutor: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={isLoading || !input.trim()}
+                  disabled={isBusy || !input.trim()}
                   className="p-3 sm:p-3.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center"
                 >
                   {isLoading ? (
