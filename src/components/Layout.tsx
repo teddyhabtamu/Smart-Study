@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SearchPalette from './SearchPalette';
+import { OfflineBanner, InstallAppRow } from './PwaInstall';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
 
 interface LayoutProps {
@@ -428,6 +429,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
           </div>
 
+          {/* Install app row (only when the browser offers installation) */}
+          <InstallAppRow collapsed={isCollapsed} onNavigate={() => setIsSidebarOpen(false)} />
+
           {/* Footer / Profile - Hidden on mobile (moved to header) */}
           <div className="hidden lg:block p-4 border-t border-zinc-100 relative overflow-visible">
             {user ? (
@@ -780,6 +784,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Scrollable Content Area */}
         <div ref={mainContentRef} className="flex-1 overflow-y-auto scroll-smooth bg-zinc-50/60 relative z-10">
+          <OfflineBanner />
           <div className="max-w-6xl mx-auto p-6 md:p-10">
             {children}
           </div>

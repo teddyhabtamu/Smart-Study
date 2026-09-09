@@ -12,6 +12,16 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+// Register the service worker in production only. In dev it would serve
+// stale cached bundles and make debugging miserable.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Service worker registration failed:', err);
+    });
+  });
+}
+
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ErrorBoundary>

@@ -2,6 +2,27 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Document, VideoLesson, Video, ForumPost, StudyEvent, User } from '../types';
 import { documentsAPI, videosAPI, forumAPI, plannerAPI, adminAPI, dashboardAPI } from '../services/api';
 
+// Offline snapshots: last good library lists, so browsing works without a
+// connection. Best-effort — quota errors are swallowed silently.
+const saveSnapshot = (key: string, data: any[]): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
+  } catch {
+    // Storage full or unavailable — offline browsing just won't have this list
+  }
+};
+
+const loadSnapshot = <T,>(key: string): T[] => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.data) ? parsed.data : [];
+  } catch {
+    return [];
+  }
+};
+
 // Helper function to transform Video API response to VideoLesson format
 const transformVideoToVideoLesson = (video: Video): VideoLesson => {
   // Backend responses have been inconsistent historically:
@@ -202,15 +223,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Replace documents (initial load or filter change) - only set filtered data
         setDocuments(filteredDocs);
+        // Snapshot the default (unfiltered) list for offline browsing
+        if (!params || Object.keys(params).length === 0) {
+          saveSnapshot('smartstudy_docs_snapshot', filteredDocs);
+        }
       }
-      
+
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch documents error:', error);
       setErrorState('documents', error.message || 'Failed to fetch documents');
-      // Clear documents on error to prevent showing stale data
       if (!params?.append) {
-        setDocuments([]);
+        // Offline (or backend down): fall back to the last saved snapshot
+        // instead of blanking the library.
+        const snapshot = loadSnapshot<Document>('smartstudy_docs_snapshot');
+        setDocuments(snapshot);
       }
     } finally {
       setLoadingState('documents', false);
@@ -268,12 +295,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Replace videos (initial load or filter change)
         setVideos(transformedVideos);
+        // Snapshot the default (unfiltered) list for offline browsing
+        if (!params || Object.keys(params).length === 0) {
+          saveSnapshot('smartstudy_videos_snapshot', transformedVideos);
+        }
       }
-      
+
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
       console.error('Fetch videos error:', error);
       setErrorState('videos', error.message || 'Failed to fetch videos');
+      if (!params?.append) {
+        // Offline (or backend down): fall back to the last saved snapshot
+        setVideos(loadSnapshot<VideoLesson>('smartstudy_videos_snapshot'));
+      }
     } finally {
       setLoadingState('videos', false);
     }

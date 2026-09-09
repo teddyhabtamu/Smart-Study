@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#18181b" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <title>Offline — SmartStudy</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      background: #fafafa;
+      color: #18181b;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 20px;
+      padding: 40px 32px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    }
+    .mark {
+      width: 64px; height: 64px;
+      background: #18181b;
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 30px; font-weight: 900; color: #fbbf24;
+    }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #71717a; line-height: 1.6; margin-bottom: 24px; }
+    button {
+      background: #18181b; color: #fff; border: none;
+      padding: 12px 28px; border-radius: 12px;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    button:active { transform: scale(0.98); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">S</div>
+    <h1>You're offline</h1>
+    <p>SmartStudy needs an internet connection to load fresh content. Check your connection and try again — your saved library lists will be here when you reconnect.</p>
+    <button onclick="window.location.reload()">Try again</button>
+  </div>
+</body>
+</html>
