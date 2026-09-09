@@ -47,6 +47,20 @@ const Practice: React.FC = () => {
   // State: 'config' | 'loading' | 'quiz' | 'result' | 'limit'
   const [view, setView] = useState<'config' | 'loading' | 'quiz' | 'result' | 'limit'>('config');
   const [isStarting, setIsStarting] = useState(false);
+  // Elapsed seconds while generating — drives staged loading messages
+  const [loadingElapsed, setLoadingElapsed] = useState(0);
+
+  useEffect(() => {
+    if (view !== 'loading') {
+      setLoadingElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setLoadingElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [view]);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   
@@ -186,13 +200,14 @@ const Practice: React.FC = () => {
     if (currentQIndex < questions.length - 1) {
       setCurrentQIndex(prev => prev + 1);
     } else {
-      setIsCalculating(true);
-      await calculateResults();
-      setIsCalculating(false);
+      finishQuiz();
     }
   };
 
-  const calculateResults = async () => {
+  // Score locally and show the result screen INSTANTLY. XP award + history
+  // recording run in the background so slow networks never block results.
+  // (Previously everything was awaited first: ~6s of staring at a spinner.)
+  const finishQuiz = () => {
     let correctCount = 0;
     questions.forEach((q, idx) => {
       if (answers[idx] === q.correctAnswer) {
@@ -200,39 +215,42 @@ const Practice: React.FC = () => {
       }
     });
     setScore(correctCount);
-    
+
     // Calculate time spent
     const endTime = new Date();
     const timeSpentMs = startTime ? endTime.getTime() - startTime.getTime() : 0;
     const minutes = Math.floor(timeSpentMs / 60000);
     const seconds = Math.floor((timeSpentMs % 60000) / 1000);
     const timeSpent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-    
-    // Award XP
+
+    // Show results immediately — never gate the UI on the network
+    setView('result');
+    setIsCalculating(false);
+
+    // Award XP in the background
     const xpEarned = correctCount * 10;
     if (xpEarned > 0) {
-      const { leveledUp, newLevel } = await gainXP(xpEarned);
-      if (leveledUp) {
-        setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "success"), 1000);
-      }
+      gainXP(xpEarned).then(({ leveledUp, newLevel }) => {
+        if (leveledUp) {
+          setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "success"), 1000);
+        }
+      }).catch((error) => console.error('Background XP award failed:', error));
     }
-    
-    // Record quiz completion and send email (non-blocking)
-    try {
-      await plannerAPI.recordQuizCompletion({
-        subject,
-        score: correctCount,
-        totalQuestions: questions.length,
-        timeSpent,
-        xpEarned,
-        isHighScore: false // TODO: Implement high score tracking
-      });
-    } catch (error) {
-      console.error('Failed to record quiz completion:', error);
-      // Don't block the UI if this fails
-    }
-    
-    setView('result');
+
+    // Record quiz completion in the background (email is server-side async)
+    plannerAPI.recordQuizCompletion({
+      subject,
+      score: correctCount,
+      totalQuestions: questions.length,
+      timeSpent,
+      xpEarned,
+      isHighScore: false // TODO: Implement high score tracking
+    }).catch((error) => console.error('Background quiz record failed:', error));
+  };
+
+  const calculateResults = async () => {
+    // Kept for compatibility; finishQuiz() is the instant path used by handleNext.
+    finishQuiz();
   };
 
   const resetQuiz = () => {
@@ -357,11 +375,21 @@ const Practice: React.FC = () => {
   }
 
   if (view === 'loading') {
+    // Honest staged messages tied to elapsed time (generation takes ~10-30s
+    // for a full quiz — a static spinner feels broken by comparison).
+    const loadingStage =
+      loadingElapsed < 5 ? { title: 'Generating your quiz...', sub: 'Our AI is crafting unique questions for you.' } :
+      loadingElapsed < 15 ? { title: 'Writing questions...', sub: `Working on your ${subject} quiz — good questions take a moment.` } :
+      loadingElapsed < 30 ? { title: 'Almost there...', sub: 'Polishing the final questions and explanations.' } :
+      { title: 'Still working...', sub: 'The AI is taking longer than usual. Please hold on.' };
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in px-4">
         <Loader2 size={48} className="text-zinc-900 animate-spin mb-6" />
-        <h2 className="text-xl font-bold text-zinc-900">Generating your quiz...</h2>
-        <p className="text-zinc-500 mt-2">Our AI is crafting unique questions for you.</p>
+        <h2 className="text-xl font-bold text-zinc-900">{loadingStage.title}</h2>
+        <p className="text-zinc-500 mt-2 text-center">{loadingStage.sub}</p>
+        {loadingElapsed >= 3 && (
+          <p className="text-xs text-zinc-400 mt-4 tabular-nums">{loadingElapsed}s elapsed</p>
+        )}
       </div>
     );
   }

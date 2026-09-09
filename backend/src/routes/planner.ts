@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { dbAdmin } from '../database/config';
+import { dbAdmin, query } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, StudyEvent, User } from '../types';
 import { NotificationService } from '../services/notificationService';
@@ -406,8 +406,9 @@ router.post('/practice/quiz-complete', [
     const userId = req.user!.id;
     const { subject, score, totalQuestions, timeSpent, xpEarned, isHighScore = false } = req.body;
 
-    // Get user details
-    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    // Indexed lookup (never a full-table scan)
+    const userRows = await query('SELECT id, name, email, practice_attempts FROM users WHERE id = $1', [userId]);
+    const user = userRows.rows[0];
     if (!user) {
       res.status(404).json({
         success: false,

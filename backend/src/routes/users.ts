@@ -493,8 +493,9 @@ router.post('/gain-xp', [
     const userId = req.user!.id;
     const { amount } = req.body;
 
-    // Get current user data to calculate new XP and level
-    const currentUser = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    // Indexed lookup (never a full-table scan)
+    const currentUserRows = await query('SELECT * FROM users WHERE id = $1', [userId]);
+    const currentUser = currentUserRows.rows[0];
     if (!currentUser) {
       res.status(404).json({
         success: false,
@@ -543,11 +544,10 @@ router.post('/gain-xp', [
 
     // Record badge unlocks
     for (const badgeId of newUnlockedBadges) {
-      // Check if badge unlock already exists
-      const existingUnlock = await dbAdmin.findOne('badge_unlocks', (b: any) => 
-        b.user_id === userId && b.badge_id === badgeId
-      );
-      
+      // Indexed lookup for existing unlock
+      const existingRows = await query('SELECT id FROM badge_unlocks WHERE user_id = $1 AND badge_id = $2', [userId, badgeId]);
+      const existingUnlock = existingRows.rows[0];
+
       if (!existingUnlock) {
         await dbAdmin.insert('badge_unlocks', {
           user_id: userId,
