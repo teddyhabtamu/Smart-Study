@@ -28,9 +28,11 @@ if (config.supabase.url && config.supabase.serviceRoleKey) {
 // ---------------------------------------------------------------------------
 // PostgreSQL connection pool
 //
-// Connects over the Supabase connection pooler (IPv4-friendly session mode).
-// The DATABASE_URL in the environment may point at the direct (IPv6-only)
-// db.<ref>.supabase.co host; PG_POOLER_URL takes precedence when set.
+// Connects over the Supabase connection pooler (IPv4-friendly).
+// PG_POOLER_URL takes precedence when set; falls back to DATABASE_URL.
+// Transaction mode (port 6543) is preferred — it is Supabase's recommendation
+// for serverless (Vercel) and works with node-postgres parameterized queries
+// (unnamed statements only; this codebase never uses named prepared statements).
 // ---------------------------------------------------------------------------
 const buildPoolConfig = () => {
   const raw = process.env.PG_POOLER_URL || config.database.url;
@@ -62,9 +64,11 @@ const buildPoolConfig = () => {
   return {
     connectionString,
     ssl: { rejectUnauthorized: false },
-    max: parseInt(process.env.PG_POOL_MAX || '10', 10),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 15000,
+    // Small pool: each Vercel serverless instance gets its own pool, and the
+    // Supabase pooler caps total sessions. Transaction mode makes this cheap.
+    max: parseInt(process.env.PG_POOL_MAX || '5', 10),
+    idleTimeoutMillis: 15000,
+    connectionTimeoutMillis: 25000,
     // Pooler connections can be flaky over constrained networks; keep them lean.
     keepAlive: true,
   };
@@ -74,13 +78,14 @@ export const pool = new Pool(buildPoolConfig());
 
 // Retry helper for transient connection errors (pooler cold starts, timeouts)
 const isTransientError = (err: any): boolean => {
-  const msg = String(err?.message || err || '');
+  const msg = String(err?.message || err || '').toLowerCase();
   return (
     msg.includes('connection terminated') ||
     msg.includes('connection timeout') ||
-    msg.includes('Connection terminated') ||
-    msg.includes('ECONNRESET') ||
-    msg.includes('ETIMEDOUT')
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('enotfound') ||
+    msg.includes('econnrefused')
   );
 };
 
@@ -129,9 +134,20 @@ export const getClient = async (): Promise<PoolClient> => {
 export class Table {
   constructor(public name: string) {}
 
+  // Prepare a row for insert/update: pg serializes JS arrays as Postgres
+  // array-literal text (invalid for jsonb), so objects/arrays must be
+  // JSON.stringify'd. Postgres casts the JSON string into jsonb on write,
+  // and pg parses it back to objects on read.
+  private prepareValue(v: any): any {
+    if (Array.isArray(v) || (v !== null && typeof v === 'object')) {
+      return JSON.stringify(v);
+    }
+    return v;
+  }
+
   private cols(row: Record<string, any>): { set: string[]; vals: any[] } {
     const keys = Object.keys(row).filter((k) => row[k] !== undefined);
-    return { set: keys, vals: keys.map((k) => row[k]) };
+    return { set: keys, vals: keys.map((k) => this.prepareValue(row[k])) };
   }
 
   async all(orderBy?: string, limit?: number): Promise<any[]> {

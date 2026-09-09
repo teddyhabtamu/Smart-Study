@@ -729,14 +729,25 @@ export const aiTutorAPI = {
     onDelta: (delta: string) => void
   ): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> =>
     new Promise((resolve, reject) => {
-      fetch(`${API_BASE_URL}/ai-tutor/chat/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-        },
-        body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
-      }).then(async (response) => {
+      const doFetch = (authRetry: boolean): Promise<Response> =>
+        fetch(`${API_BASE_URL}/ai-tutor/chat/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+          },
+          body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
+        }).then(async (response: Response): Promise<Response> => {
+          // Expired access token: refresh once, then retry with the new token
+          if (response.status === 401 && authRetry && getAuthToken()) {
+            const ok = await refreshAccessToken();
+            if (ok) return doFetch(false);
+            clearCredentials();
+          }
+          return response;
+        });
+
+      doFetch(true).then(async (response) => {
         if (!response.ok || !response.body) {
           // Fall back to non-streaming chat on any transport failure
           try {
@@ -816,25 +827,14 @@ export const aiTutorAPI = {
       body: JSON.stringify({ prompt, ...(grade !== undefined ? { grade } : {}) }),
     }),
 
-  generatePracticeQuiz: (subject: string, grade: string, difficulty: string, count: number): Promise<{ data: any[]; xpGained: number }> => {
-    const url = `${API_BASE_URL}/ai-tutor/generate-practice-quiz`;
-    const token = getAuthToken();
-
-    return fetch(url, {
+  generatePracticeQuiz: (subject: string, grade: string, difficulty: string, count: number): Promise<{ data: any[]; xpGained: number }> =>
+    apiRequest('/ai-tutor/generate-practice-quiz', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
       body: JSON.stringify({ subject, grade, difficulty, count }),
-    }).then(async (response) => {
-      const data = await response.json();
-      if (!response.ok || data.success === false) {
-        throw new Error(data.message || 'Failed to generate practice quiz');
-      }
-      return data; // Return the full response { success, data, xpGained }
-    });
-  },
+    }).then((data: any) => ({
+      data: data.data ?? [],
+      xpGained: data.xpGained ?? 0,
+    })),
 
   getChatSessions: (): Promise<ChatSession[]> =>
     apiRequest('/ai-tutor/sessions').then((sessions: any) =>

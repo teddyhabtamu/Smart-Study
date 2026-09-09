@@ -28,16 +28,13 @@ export const generateTutorResponse = async (
   } catch (error) {
     console.error('AI Tutor API error:', error);
 
-    // Fallback to basic educational response if API fails
+    // Fallback message if the API fails
     return {
       response: `## 🤖 AI Tutor Temporarily Unavailable
 
-I'm currently unable to connect to the AI service. This might be because Ollama is not running or the Llama model is not available locally.
+I'm currently unable to connect to the AI service. This is usually temporary.
 
-To fix this:
-1. Install Ollama from https://ollama.ai
-2. Run: \`ollama pull llama3.1\`
-3. Start Ollama: \`ollama serve\``,
+Please check your internet connection and try again in a few moments.`,
       sessionId: sessionId
     };
   }

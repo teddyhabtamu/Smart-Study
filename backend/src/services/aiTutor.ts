@@ -20,6 +20,98 @@ const getClient = (): GoogleGenAI => {
 
 export const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
+// Fallback chain: each model has a separate free-tier quota. If the primary
+// model is rate-limited, we try the next one before giving up.
+// NOTE: verified 2026-09-09 via models.list — gemini-2.0-flash is RETIRED (404),
+// do NOT add it back. Lite models carry much higher free quotas.
+const MODEL_FALLBACKS = [
+  process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-3.5-flash-lite',
+].filter((m, i, arr) => m && arr.indexOf(m) === i);
+
+// Typed error for quota exhaustion so routes can return 429 (not 500)
+export class AIQuotaExceededError extends Error {
+  retryAfterSeconds: number;
+  constructor(message: string, retryAfterSeconds = 60) {
+    super(message);
+    this.name = 'AIQuotaExceededError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+const isQuotaError = (err: any): boolean => {
+  const msg = String(err?.message || '');
+  const status = (err as any)?.status;
+  return (
+    status === 429 ||
+    msg.includes('429') ||
+    msg.includes('RESOURCE_EXHAUSTED') ||
+    msg.includes('Quota exceeded') ||
+    msg.includes('quota')
+  );
+};
+
+// A retired/unknown model (404 NOT_FOUND) should also fall through to the
+// next model rather than failing the request.
+const isModelGoneError = (err: any): boolean => {
+  const msg = String(err?.message || '');
+  const status = (err as any)?.status;
+  return (
+    status === 404 ||
+    (msg.includes('404') && msg.includes('model')) ||
+    msg.includes('is no longer available') ||
+    msg.includes('NOT_FOUND')
+  );
+};
+
+const quotaRetryAfter = (err: any): number => {
+  try {
+    const details = (err as any)?.error?.details || [];
+    for (const d of details) {
+      const retry = d?.retryDelay;
+      if (retry) {
+        const m = String(retry).match(/(\d+)/);
+        if (m?.[1]) return parseInt(m[1], 10);
+      }
+    }
+  } catch { /* ignore */ }
+  const m = String(err?.message || '').match(/retry in ([\d.]+)s/i);
+  if (m?.[1]) return Math.ceil(parseFloat(m[1]));
+  return 60;
+};
+
+// Run fn against each model in the fallback chain. Quota errors move to the
+// next model; if all are exhausted, throw AIQuotaExceededError.
+const withModelFallback = async <T>(fn: (model: string) => Promise<T>): Promise<T> => {
+  let lastQuotaError: any = null;
+  let retryAfter = 60;
+  for (const model of MODEL_FALLBACKS) {
+    try {
+      return await fn(model);
+    } catch (err) {
+      if (isQuotaError(err)) {
+        console.warn(`Gemini quota hit on ${model}, trying fallback...`);
+        lastQuotaError = err;
+        retryAfter = Math.max(retryAfter, quotaRetryAfter(err));
+        continue;
+      }
+      if (isModelGoneError(err)) {
+        console.warn(`Gemini model ${model} unavailable, trying fallback...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new AIQuotaExceededError(
+    'Daily AI limit reached. Please try again later — limits reset daily.',
+    retryAfter
+  );
+};
+
+export const AI_QUOTA_MESSAGE =
+  '## ⏳ Daily AI Limit Reached\n\nWe have used up today\'s free AI responses. The limit resets daily — please try again later, or explore the library, videos, and practice materials in the meantime!';
+
 // --- Shared prompts ------------------------------------------------------
 const TUTOR_SYSTEM_PROMPT = `
 You are SmartStudy AI Tutor for Ethiopian students (Grade 9-12).
@@ -50,6 +142,27 @@ When answering questions:
 Always provide direct, helpful, and ACCURATE answers to questions in ENGLISH only. Do not give generic educational support messages. Respond in English regardless of the student's question language.
 `.trim();
 
+// Normalize chat history to Gemini contents format. Tolerates legacy
+// session rows where messages is an object/record rather than an array.
+const toContents = (
+  history: any,
+  userPrompt: string
+): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> => {
+  const safeHistory = Array.isArray(history) ? history : [];
+  const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+
+  for (const m of safeHistory) {
+    if (!m) continue;
+    const text = String((m as any).text ?? '');
+    if (!text) continue;
+    const role = (m as any).role === 'user' ? ('user' as const) : ('model' as const);
+    contents.push({ role, parts: [{ text }] });
+  }
+
+  contents.push({ role: 'user', parts: [{ text: userPrompt }] });
+  return contents;
+};
+
 // --- Core non-streaming completion --------------------------------------
 const complete = async (
   systemPrompt: string,
@@ -59,29 +172,25 @@ const complete = async (
 ): Promise<string> => {
   const client = getClient();
 
-  const contents = [
-    ...history.map((m) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: String(m.text ?? '') }],
-    })),
-    { role: 'user', parts: [{ text: userPrompt }] },
-  ];
+  const contents = toContents(history, userPrompt);
 
-  const response = await client.models.generateContent({
-    model: AI_MODEL,
-    contents,
-    config: {
-      systemInstruction: systemPrompt,
-      temperature,
-      maxOutputTokens: 4096,
-    },
+  return withModelFallback(async (model) => {
+    const response = await client.models.generateContent({
+      model,
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature,
+        maxOutputTokens: 4096,
+      },
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error('Empty response from Gemini');
+    }
+    return text;
   });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error('Empty response from Gemini');
-  }
-  return text;
 };
 
 // --- Tutor chat (non-streaming fallback) --------------------------------
@@ -114,6 +223,9 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
   try {
     return await complete(TUTOR_SYSTEM_PROMPT, userMessage, history);
   } catch (error) {
+    // Quota errors must propagate so routes can return 429 with a clear
+    // message — swallowing them here would show a misleading generic error.
+    if (error instanceof AIQuotaExceededError) throw error;
     console.error('Gemini AI Error:', error);
     return `## 🤖 AI Tutor Temporarily Unavailable
 
@@ -157,33 +269,58 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
 - Carefully analyze each option and identify which follows correct grammar rules`;
   }
 
-  const contents = [
-    ...history.map((m: any) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: String(m.text ?? '') }],
-    })),
-    { role: 'user', parts: [{ text: userMessage }] },
-  ];
+  const contents = toContents(history, userMessage);
 
-  const stream = await client.models.generateContentStream({
-    model: AI_MODEL,
-    contents,
-    config: {
-      systemInstruction: TUTOR_SYSTEM_PROMPT,
-      temperature: 0.3,
-      maxOutputTokens: 4096,
-    },
-  });
+  // Streaming can't retry mid-stream cleanly, so we attempt models in order.
+  // `emitted` accumulates everything sent to the client across fallbacks so
+  // the persisted session text always matches what the user actually saw.
+  let lastQuotaError: any = null;
+  let emitted = '';
+  for (const model of MODEL_FALLBACKS) {
+    try {
+      const stream = await client.models.generateContentStream({
+        model,
+        contents,
+        config: {
+          systemInstruction: TUTOR_SYSTEM_PROMPT,
+          temperature: 0.3,
+          maxOutputTokens: 4096,
+        },
+      });
 
-  let full = '';
-  for await (const chunk of stream) {
-    const delta = chunk.text;
-    if (delta) {
-      full += delta;
-      onChunk(delta);
+      let gotChunk = false;
+      for await (const chunk of stream) {
+        const delta = chunk.text;
+        if (delta) {
+          emitted += delta;
+          gotChunk = true;
+          onChunk(delta);
+        }
+      }
+      // A quota error can surface mid-stream as an exception; an empty stream
+      // with no chunks means this model failed — try the next one.
+      if (gotChunk || emitted) return emitted;
+      throw new Error('Empty stream from model ' + model);
+    } catch (err) {
+      if (isQuotaError(err)) {
+        console.warn(`Gemini streaming quota hit on ${model}, trying fallback...`);
+        lastQuotaError = err;
+        continue;
+      }
+      if (isModelGoneError(err)) {
+        console.warn(`Gemini streaming model ${model} unavailable, trying fallback...`);
+        continue;
+      }
+      throw err;
     }
   }
-  return full;
+  // If we already streamed partial content, return it (better than an error);
+  // the route persists exactly what the user saw.
+  if (emitted) return emitted;
+  throw new AIQuotaExceededError(
+    'Daily AI limit reached. Please try again later — limits reset daily.',
+    lastQuotaError ? quotaRetryAfter(lastQuotaError) : 60
+  );
 }
 
 // --- Study plan generation ------------------------------------------------

@@ -4,6 +4,16 @@ import { dbAdmin } from '../database/config';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
+import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
+
+// Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
+// user-friendly message; everything else → 500.
+const aiErrorResponse = (error: any): { status: number; message: string } => {
+  if (error instanceof AIQuotaExceededError) {
+    return { status: 429, message: AI_QUOTA_MESSAGE };
+  }
+  return { status: 500, message: 'Failed to generate AI response' };
+};
 
 const router = express.Router();
 
@@ -24,6 +34,22 @@ const upload = multer({
 });
 
 // Get user's chat sessions
+// Safely extract the messages array from a chat session row.
+// The messages column is jsonb; older rows (and some Supabase returns) come
+// back as an object instead of an array, which breaks .map/.push.
+const extractMessages = (session: any): { role: string; text: string; timestamp?: string }[] => {
+  const raw = session?.messages;
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object') {
+    // Object-shaped messages (legacy format) — try common shapes
+    const values = Object.values(raw);
+    if (values.length > 0 && values.every((v: any) => v && typeof v === 'object' && 'role' in v)) {
+      return values as any;
+    }
+  }
+  return [];
+};
+
 router.get('/sessions', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
@@ -137,7 +163,7 @@ router.post('/sessions/:id/messages', authenticateToken, async (req: express.Req
     }
 
     // Add message to session
-    const messages = session.messages || [];
+    const messages = extractMessages(session);
     const newMessage = {
       role,
       text,
@@ -364,8 +390,8 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
         const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
           s.id === sessionId && s.user_id === userId
         );
-        if (session && session.messages) {
-          history = session.messages;
+        if (session) {
+          history = extractMessages(session);
         }
       } else {
         // Create new session if no sessionId provided
@@ -398,7 +424,7 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
       );
 
       if (session) {
-        const messages = session.messages || [];
+        const messages = extractMessages(session);
         messages.push({ role: 'user', text: message, timestamp: new Date().toISOString() });
         messages.push({ role: 'assistant', text: reply, timestamp: new Date().toISOString() });
 
@@ -444,9 +470,10 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
     return;
   } catch (error) {
     console.error('AI chat error:', error);
-    res.status(500).json({
+    const { status, message } = aiErrorResponse(error);
+    res.status(status).json({
       success: false,
-      message: 'Failed to generate AI response'
+      message
     } as ApiResponse);
     return;
   }
@@ -482,7 +509,7 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
     if (userId) {
       if (sessionId) {
         const session = await dbAdmin.findOne('chat_sessions', (s: any) => s.id === sessionId && s.user_id === userId);
-        if (session && session.messages) history = session.messages;
+        if (session) history = extractMessages(session);
       } else {
         const sessionData = {
           user_id: userId,
@@ -502,26 +529,34 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
       send('session', { sessionId: currentSessionId });
     }
 
-    const { streamTutorResponse } = await import('../services/aiTutor');
+    const { streamTutorResponse, getTutorResponse, AIQuotaExceededError: QuotaError } = await import('../services/aiTutor');
 
     let full = '';
+    let quotaExceeded = false;
     try {
       full = await streamTutorResponse(history, message, subject || 'General', grade || 10, (delta) => {
         send('delta', { text: delta });
       });
     } catch (streamError: any) {
-      // Streaming failed — fall back to non-streaming so the user still gets an answer
-      console.error('Streaming error, falling back to non-streaming:', streamError?.message);
-      const { getTutorResponse } = await import('../services/aiTutor');
-      full = await getTutorResponse(history, message, subject || 'General', grade || 10);
-      send('delta', { text: full });
+      if (streamError instanceof QuotaError) {
+        // All models exhausted — the non-streaming fallback would fail
+        // identically, so skip it and show the quota message directly.
+        quotaExceeded = true;
+        full = AI_QUOTA_MESSAGE;
+        send('delta', { text: full });
+      } else {
+        // Streaming failed — fall back to non-streaming so the user still gets an answer
+        console.error('Streaming error, falling back to non-streaming:', streamError?.message);
+        full = await getTutorResponse(history, message, subject || 'General', grade || 10);
+        send('delta', { text: full });
+      }
     }
 
     // Persist conversation (authenticated users)
     if (currentSessionId && userId) {
       const session = await dbAdmin.findOne('chat_sessions', (s: any) => s.id === currentSessionId && s.user_id === userId);
       if (session) {
-        const msgs = session.messages || [];
+        const msgs = extractMessages(session);
         msgs.push({ role: 'user', text: message, timestamp: new Date().toISOString() });
         msgs.push({ role: 'assistant', text: full, timestamp: new Date().toISOString() });
         await dbAdmin.update('chat_sessions', currentSessionId, { messages: msgs, updated_at: new Date().toISOString() });
@@ -551,7 +586,15 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
     send('done', { sessionId: currentSessionId, xpGained });
   } catch (error) {
     console.error('AI chat stream error:', error);
-    send('error', { message: 'Failed to generate AI response' });
+    if (error instanceof AIQuotaExceededError) {
+      // No content was streamed (partial content would have returned normally).
+      // Send the quota message as content so the user sees an explanation,
+      // not a blank bubble.
+      send('delta', { text: AI_QUOTA_MESSAGE });
+      send('done', { sessionId: currentSessionId, xpGained: 0, quotaExceeded: true });
+    } else {
+      send('error', { message: 'Failed to generate AI response' });
+    }
   } finally {
     res.end();
   }
@@ -563,9 +606,8 @@ router.post('/generate-practice-quiz', authenticateToken, async (req: express.Re
     const { subject, grade, difficulty = 'Medium', count = 5 } = req.body;
     const userId = req.user!.id;
 
-    // Check if user is premium (practice quizzes might be premium feature)
-    const users = await dbAdmin.get('users');
-    const user = users.find(u => u.id === userId);
+    // Look up the requesting user directly (no full-table scan)
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
 
     if (!user) {
       res.status(404).json({
@@ -575,105 +617,26 @@ router.post('/generate-practice-quiz', authenticateToken, async (req: express.Re
       return;
     }
 
-    // Generate practice questions using AI
-    const { getTutorResponse } = await import('../services/aiTutor');
+    // Generate questions via the dedicated Gemini quiz generator
+    const { generatePracticeQuiz } = await import('../services/aiTutor');
+    const questions = await generatePracticeQuiz(subject, Number(grade), difficulty, Math.min(Number(count) || 5, 10));
 
-    const prompt = `Generate ${count} ${difficulty.toLowerCase()} practice questions for ${subject} at Grade ${grade} level. Each question should be multiple choice with 4 options, one correct answer, and a brief explanation.
+    // Award XP for generating practice questions
+    const newXp = (user.xp || 0) + 5;
+    const newLevel = Math.floor(newXp / 1000) + 1;
+    await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
 
-Format your response as a valid JSON array of objects with this exact structure:
-[
-  {
-    "question": "Question text here?",
-    "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],
-    "correctAnswer": "First option text",
-    "explanation": "Brief explanation why this is correct."
-  }
-]
-
-IMPORTANT: The correctAnswer must be the EXACT text of one of the options, not a letter (A, B, C, D). Make sure the questions are appropriate for Grade ${grade} ${subject}, cover important concepts, and test key understanding.`;
-
-    const aiResponse = await getTutorResponse([], prompt, subject, grade);
-
-    // Parse the JSON response
-    let questions = [];
-    try {
-      // Try to extract JSON from the response
-      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        questions = JSON.parse(jsonMatch[0]);
-      } else {
-        // Fallback: try to parse the entire response as JSON
-        questions = JSON.parse(aiResponse);
-      }
-
-      // Validate the structure
-      if (!Array.isArray(questions)) {
-        throw new Error('Response is not an array');
-      }
-
-      // Validate and fix each question
-      questions = questions.map((q: any, index: number) => {
-        if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || !q.correctAnswer || !q.explanation) {
-          throw new Error(`Question ${index + 1} has invalid structure`);
-        }
-
-        // Convert letter answers (A, B, C, D) to actual option text
-        let correctAnswer = q.correctAnswer;
-        if (typeof correctAnswer === 'string' && correctAnswer.length === 1) {
-          const letter = correctAnswer.toUpperCase();
-          const index = letter.charCodeAt(0) - 'A'.charCodeAt(0);
-          if (index >= 0 && index < q.options.length) {
-            correctAnswer = q.options[index];
-          }
-        }
-
-        return {
-          question: q.question,
-          options: q.options,
-          correctAnswer: correctAnswer,
-          explanation: q.explanation
-        };
-      });
-
-      // Award XP for generating practice questions
-      const newXp = (user.xp || 0) + 5;
-      const newLevel = Math.floor(newXp / 1000) + 1;
-      await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
-
-      res.json({
-        success: true,
-        data: questions,
-        xpGained: 5
-      } as ApiResponse);
-
-    } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
-      console.error('AI Response was:', aiResponse);
-
-      // Return fallback questions if parsing fails
-      const fallbackQuestions = [];
-      for (let i = 0; i < Math.min(count, 3); i++) {
-        fallbackQuestions.push({
-          question: `Sample ${difficulty} question about ${subject} for Grade ${grade}`,
-          options: ["Option A", "Option B", "Option C", "Option D"],
-          correctAnswer: "Option A",
-          explanation: "This is a sample answer explanation."
-        });
-      }
-
-      res.json({
-        success: true,
-        data: fallbackQuestions,
-        xpGained: 0,
-        message: 'Generated basic practice questions due to AI parsing issues'
-      } as ApiResponse);
-    }
-
+    res.json({
+      success: true,
+      data: questions,
+      xpGained: 5
+    } as ApiResponse);
   } catch (error) {
     console.error('Generate practice quiz error:', error);
-    res.status(500).json({
+    const { status, message } = aiErrorResponse(error);
+    res.status(status).json({
       success: false,
-      message: 'Failed to generate practice quiz'
+      message
     } as ApiResponse);
   }
 });

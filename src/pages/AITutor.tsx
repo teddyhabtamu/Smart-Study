@@ -105,9 +105,19 @@ const AITutor: React.FC = () => {
           if (savedSessions) setSessions(JSON.parse(savedSessions));
         }
       } else {
-        // Load guest usage count
+        // Load guest usage count (per-session: browsers reset daily so a stale
+        // localStorage value from old testing doesn't lock users out forever)
         const savedCount = localStorage.getItem('smartstudy_guest_prompts');
-        if (savedCount) setGuestPromptCount(parseInt(savedCount, 10));
+        const savedDate = localStorage.getItem('smartstudy_guest_prompts_date');
+        const today = new Date().toDateString();
+        if (savedCount && savedDate === today) {
+          setGuestPromptCount(parseInt(savedCount, 10));
+        } else {
+          // New day (or first visit) — reset the counter
+          setGuestPromptCount(0);
+          localStorage.removeItem('smartstudy_guest_prompts');
+          localStorage.removeItem('smartstudy_guest_prompts_date');
+        }
       }
     };
 
@@ -371,6 +381,7 @@ const AITutor: React.FC = () => {
       const newCount = guestPromptCount + 1;
       setGuestPromptCount(newCount);
       localStorage.setItem('smartstudy_guest_prompts', newCount.toString());
+      localStorage.setItem('smartstudy_guest_prompts_date', new Date().toDateString());
     }
 
     const newHistory = [...messages, { role: 'user', text: userMsg }];
