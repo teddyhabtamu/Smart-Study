@@ -4,8 +4,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types } from 'pg';
 import { config } from '../config';
+
+// DATE columns (OID 1082) come back as midnight-UTC Date objects by default,
+// which JSON-serializes to "2026-09-09T21:00:00.000Z" — breaking frontend
+// date math ("in NaNd"), calendar key matching, and risking off-by-one days
+// across timezones. Return the raw YYYY-MM-DD calendar date instead.
+types.setTypeParser(1082, (v: string) => v);
 
 // Initialize Supabase client (used for REST API calls: auth, storage, some table ops)
 let supabase: SupabaseClient;

@@ -531,9 +531,10 @@ Rules — follow ALL of them:
 5. The day BEFORE a deadline is light: revision for that subject only, focused on readiness and confidence.
 6. LENGTH: at most 14 days total. If deadlines stretch further, cover the first 14 days starting today.
 7. TITLES are human and specific ("Physics: forces practice problems"), never mechanical ("Physics Day 3 - 5 days to exam").
-8. GUIDES are specific to THAT session's subject and situation (formulas for math/physics days, key terms for biology, etc.), written like a caring teacher. Keep each step to one sentence.
-9. If the request is vague or has no clear deadline, plan 7 days of balanced revision across the mentioned subjects (or Mathematics/Physics/Chemistry/Biology/English if none mentioned).
-10. Sort days chronologically by date.`;
+8. HONESTY — NEVER invent specifics the student didn't state. If they didn't name chapters/topics (e.g. they said "maths exam" with no topic), keep guides at subject level ("review your class notes", "redo homework problems") — do NOT invent chapter names like "Algebra and Functions" or "Calculus and Vectors". Only use topics the student actually mentioned.
+9. GUIDES must be concrete and grounded: reference the student's real deadline ("your Physics assignment is tomorrow"), their grade level, and actionable steps — never generic filler repeated across days ("open your textbook" every day is forbidden). Each day's guide must feel written for THAT day.
+10. Sort days chronologically by date.
+11. SUBJECTS must use exactly these canonical names: Mathematics, Physics, Chemistry, Biology, English, History, Geography, Aptitude, SAT, ACT, GMAT, GRE, TOEFL, IELTS. Never "Maths", "Math", "Bio", etc.`;
 
   const parsePlan = (raw: string): StudyPlanEntry[] | null => {
     try {

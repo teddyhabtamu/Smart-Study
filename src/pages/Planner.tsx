@@ -14,17 +14,22 @@ import { SUBJECTS } from '../constants';
 import { PlannerEventSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 import { MarkdownInline } from '../components/MarkdownRenderer';
 
-// Days until (negative = overdue) for a YYYY-MM-DD date string
+// Days until (negative = overdue) for a date string. Tolerant: accepts both
+// YYYY-MM-DD and full ISO timestamps (slices to the calendar date).
 const daysUntil = (dateStr: string): number => {
+  const normalized = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return NaN;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const d = new Date(dateStr + 'T00:00:00');
+  const d = new Date(normalized + 'T00:00:00');
   return Math.round((d.getTime() - today.getTime()) / 86400000);
 };
 
-// Urgency signal for deadlines: TODAY / TOMORROW / in Nd / Nd overdue
-const getUrgency = (dateStr: string): { label: string; tone: 'overdue' | 'today' | 'soon' | 'later' } => {
+// Urgency signal for deadlines: TODAY / TOMORROW / in Nd / Nd overdue.
+// Returns null when the date is unparseable (never render "in NaNd").
+const getUrgency = (dateStr: string): { label: string; tone: 'overdue' | 'today' | 'soon' | 'later' } | null => {
   const diff = daysUntil(dateStr);
+  if (Number.isNaN(diff)) return null;
   if (diff < 0) return { label: `${-diff}d overdue`, tone: 'overdue' };
   if (diff === 0) return { label: 'Today', tone: 'today' };
   if (diff === 1) return { label: 'Tomorrow', tone: 'soon' };
@@ -640,6 +645,7 @@ const Planner: React.FC = () => {
                           </span>
                           {(() => {
                             const u = getUrgency(event.date);
+                            if (!u) return null;
                             return (
                               <span className="flex items-center gap-1.5">
                                 <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${urgencyPill(u.tone)}`}>
@@ -942,6 +948,7 @@ const Planner: React.FC = () => {
                                )}
                                {!event.isCompleted && (() => {
                                  const u = getUrgency(event.date);
+                                 if (!u) return null;
                                  return (
                                    <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
                                      {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-white animate-pulse mr-1 align-middle" />}
