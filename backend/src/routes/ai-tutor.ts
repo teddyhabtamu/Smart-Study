@@ -654,8 +654,7 @@ router.post('/generate-practice-quiz', authenticateToken, async (req: express.Re
 
     res.json({
       success: true,
-      data: questions,
-      xpGained: 5
+      data: { questions, xpGained: 5 }
     } as ApiResponse);
   } catch (error) {
     console.error('Generate practice quiz error:', error);

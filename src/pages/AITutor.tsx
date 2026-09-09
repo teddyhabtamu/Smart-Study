@@ -61,6 +61,9 @@ const AITutor: React.FC = () => {
   // History state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // True while the history list is being fetched — distinguishes "loading"
+  // from "loaded but empty" so we show skeletons, never a flash of "no chats".
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   // Set sidebar open by default on desktop
   useEffect(() => {
@@ -99,6 +102,7 @@ const AITutor: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       if (user) {
+        setSessionsLoading(true);
         try {
           const chatSessions = await aiTutorAPI.getChatSessions();
           setSessions(chatSessions);
@@ -107,6 +111,8 @@ const AITutor: React.FC = () => {
           // Fallback to localStorage if backend fails
           const savedSessions = localStorage.getItem(`chat_history_${user.id}`);
           if (savedSessions) setSessions(JSON.parse(savedSessions));
+        } finally {
+          setSessionsLoading(false);
         }
       } else {
         // Load guest usage count (per-session: browsers reset daily so a stale
@@ -530,7 +536,20 @@ const AITutor: React.FC = () => {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto px-4 sm:px-3 pb-4 sm:pb-3 space-y-2">
-            {sessions.length === 0 ? (
+            {sessionsLoading ? (
+              // Skeleton rows while history loads — never flash "no chats"
+              <div className="space-y-2" aria-label="Loading chat history">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-lg animate-pulse">
+                    <div className="w-3.5 h-3.5 rounded bg-zinc-200 flex-shrink-0" />
+                    <div
+                      className="h-3.5 rounded bg-zinc-200"
+                      style={{ width: `${[82, 64, 74, 55][i]}%` }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : sessions.length === 0 ? (
               <p className="text-sm text-zinc-400 text-center py-8">No saved chats yet.</p>
             ) : (
               sessions.map(session => (

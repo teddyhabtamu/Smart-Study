@@ -849,8 +849,9 @@ export const aiTutorAPI = {
       method: 'POST',
       body: JSON.stringify({ subject, grade, difficulty, count }),
     }).then((data: any) => ({
-      data: data.data ?? [],
-      xpGained: data.xpGained ?? 0,
+      // handleResponse unwraps one level: backend {success, data:{questions, xpGained}}
+      data: data?.questions ?? [],
+      xpGained: data?.xpGained ?? 0,
     })),
 
   getChatSessions: (): Promise<ChatSession[]> =>
