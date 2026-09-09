@@ -22,6 +22,7 @@ export interface User {
   unlocked_badges: string[];
   practice_attempts: number;
   grade?: number | null; // School grade (9-12), chosen by the user; null = unset
+  premium_since?: string | null; // When the current Pro membership started; null = never/free
   created_at: string;
   updated_at: string;
 }

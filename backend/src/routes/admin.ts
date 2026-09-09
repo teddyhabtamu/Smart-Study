@@ -260,6 +260,9 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
 
     await dbAdmin.update('users', targetUserId, {
       is_premium: isPremium,
+      // Membership tenure: stamp activation time, clear on deactivation.
+      // (Re-activations re-stamp — tenure reflects the current membership.)
+      premium_since: isPremium ? new Date().toISOString() : null,
       updated_at: new Date().toISOString()
     });
 

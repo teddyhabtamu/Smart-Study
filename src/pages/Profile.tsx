@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -9,7 +9,7 @@ import { BADGES } from '../constants';
 import { usersAPI } from '../services/api';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
 
-type Tab = 'general' | 'security' | 'notifications' | 'achievements';
+type Tab = 'general' | 'security' | 'notifications' | 'achievements' | 'pro';
 type NotificationView = 'preferences' | 'history';
 
 // Map icon string names to components
@@ -264,7 +264,9 @@ const Profile: React.FC = () => {
       {/* Header Profile Card */}
       <div className="flex flex-col items-center gap-4 sm:gap-6 border-b border-zinc-200 pb-6 sm:pb-8">
         <div className="relative group w-fit">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl border-4 border-white shadow-lg overflow-hidden relative ring-1 ring-zinc-200/50">
+          <div className={`w-24 h-24 sm:w-28 sm:h-28 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl border-4 border-white shadow-lg overflow-hidden relative ${
+            user.isPremium ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-white' : 'ring-1 ring-zinc-200/50'
+          }`}>
             {avatar ? (
               <img src={avatar} alt={name || 'User'} className="w-full h-full object-cover" />
             ) : (
@@ -341,6 +343,22 @@ const Profile: React.FC = () => {
               <Trophy size={18} /> Achievements
             </button>
           )}
+
+          <button
+            onClick={() => setActiveTab('pro')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'pro'
+                ? 'bg-amber-100 text-amber-900'
+                : user.isPremium
+                ? 'text-amber-700 hover:bg-amber-50'
+                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+            }`}
+          >
+            <Crown size={18} /> Pro
+            {user.isPremium && (
+              <span className="ml-auto w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Active membership" />
+            )}
+          </button>
 
           <button
             onClick={() => setActiveTab('security')}
@@ -509,6 +527,164 @@ const Profile: React.FC = () => {
                       );
                     })}
                  </div>
+              </div>
+            )}
+
+            {/* Pro Tab — Member Hub */}
+            {activeTab === 'pro' && (
+              <div className="p-6 space-y-6 animate-fade-in">
+                <div>
+                  <h2 className="text-lg font-bold text-zinc-900 mb-1 flex items-center gap-2">
+                    <Crown size={18} className="text-amber-500" />
+                    {user.isPremium ? 'Pro Membership' : 'Go Pro'}
+                  </h2>
+                  <p className="text-sm text-zinc-500">
+                    {user.isPremium
+                      ? 'Your membership, perks, and stats — all in one place.'
+                      : 'Unlock the full SmartStudy experience.'}
+                  </p>
+                </div>
+
+                {user.isPremium ? (
+                  <>
+                    {/* Membership card */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-amber-950 text-white p-6 sm:p-8 shadow-xl">
+                      <div className="pro-card-shine" aria-hidden="true" />
+                      <Crown
+                        size={140}
+                        className="absolute -right-6 -bottom-6 text-white/5 rotate-12"
+                        aria-hidden="true"
+                      />
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-amber-400 flex items-center justify-center">
+                              <Crown size={16} className="text-zinc-900" />
+                            </div>
+                            <span className="font-black tracking-[0.2em] text-sm">STUDENT&nbsp;PRO</span>
+                          </div>
+                          <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 px-2.5 py-1 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Active
+                          </span>
+                        </div>
+                        <p className="font-mono text-sm sm:text-base tracking-[0.15em] text-zinc-300 mb-5">
+                          SS&nbsp;••••&nbsp;{(user.id || '').slice(0, 4).toUpperCase() || 'MEMBER'}
+                        </p>
+                        <div className="flex items-end justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">Member</p>
+                            <p className="font-bold truncate">{user.name}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">Member since</p>
+                            <p className="font-bold text-sm">
+                              {user.premiumSince
+                                ? new Date(user.premiumSince).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+                                : '—'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pro stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { icon: Zap, label: 'Level', value: String(user.level ?? 1) },
+                        { icon: Star, label: 'Total XP', value: String(user.xp ?? 0) },
+                        { icon: Flame, label: 'Day streak', value: String(user.streak ?? 0) },
+                        { icon: BrainCircuit, label: 'Quizzes taken', value: String(user.practiceAttempts ?? 0) },
+                      ].map(({ icon: Icon, label, value }) => (
+                        <div key={label} className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 sm:p-4 text-center">
+                          <Icon size={18} className="mx-auto mb-1.5 text-amber-600" />
+                          <p className="text-lg sm:text-xl font-black text-zinc-900 tabular-nums">{value}</p>
+                          <p className="text-[11px] font-medium text-zinc-500">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Member benefits */}
+                    <div>
+                      <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">Your Pro perks</h3>
+                      <div className="space-y-2">
+                        {[
+                          { icon: BookOpen, title: 'Premium document library', sub: 'Full textbook & study-guide collection' },
+                          { icon: MonitorPlay, title: 'Premium video lessons', sub: 'Complete tutorial library, all grades' },
+                          { icon: BrainCircuit, title: 'Unlimited AI practice quizzes', sub: 'No daily limits — drill as much as you want' },
+                          { icon: Sparkles, title: 'AI Smart Schedule planner', sub: 'Personal study plans built around your deadlines' },
+                        ].map(({ icon: Icon, title, sub }) => (
+                          <div key={title} className="flex items-start gap-3 p-3 bg-white border border-zinc-200 rounded-xl">
+                            <div className="w-9 h-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center flex-shrink-0">
+                              <Icon size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-zinc-900">{title}</p>
+                              <p className="text-xs text-zinc-500">{sub}</p>
+                            </div>
+                            <Check size={16} className="text-emerald-500 flex-shrink-0 mt-1" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-zinc-400 text-center">
+                      Questions about your membership? Contact support and we'll sort it out.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* Free users: locked card + upsell */}
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-700 text-white p-6 sm:p-8 shadow-xl">
+                      <Lock
+                        size={140}
+                        className="absolute -right-6 -bottom-6 text-white/5 rotate-12"
+                        aria-hidden="true"
+                      />
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center">
+                            <Crown size={16} className="text-amber-400" />
+                          </div>
+                          <span className="font-black tracking-[0.2em] text-sm text-zinc-300">STUDENT&nbsp;PRO</span>
+                        </div>
+                        <h3 className="text-xl sm:text-2xl font-black mb-2">Study without limits.</h3>
+                        <p className="text-sm text-zinc-400 mb-5 max-w-sm">
+                          Join Pro members getting the most out of SmartStudy every day.
+                        </p>
+                        <button
+                          onClick={() => navigate('/subscription')}
+                          className="px-6 py-3 bg-amber-400 text-zinc-900 font-bold rounded-xl hover:bg-amber-300 transition-colors inline-flex items-center gap-2 text-sm"
+                        >
+                          <Crown size={16} /> Become a Pro member
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">What Pro unlocks</h3>
+                      <div className="space-y-2">
+                        {[
+                          { icon: BookOpen, title: 'Premium document library', sub: 'Full textbook & study-guide collection' },
+                          { icon: MonitorPlay, title: 'Premium video lessons', sub: 'Complete tutorial library, all grades' },
+                          { icon: BrainCircuit, title: 'Unlimited AI practice quizzes', sub: 'Free accounts get 1 quiz per day' },
+                          { icon: Sparkles, title: 'AI Smart Schedule planner', sub: 'Personal study plans built around your deadlines' },
+                        ].map(({ icon: Icon, title, sub }) => (
+                          <div key={title} className="flex items-start gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-xl">
+                            <div className="w-9 h-9 rounded-lg bg-white border border-zinc-200 text-zinc-400 flex items-center justify-center flex-shrink-0">
+                              <Icon size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-zinc-900">{title}</p>
+                              <p className="text-xs text-zinc-500">{sub}</p>
+                            </div>
+                            <Lock size={14} className="text-zinc-300 flex-shrink-0 mt-1" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

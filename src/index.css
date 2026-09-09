@@ -124,3 +124,29 @@
   background-color: currentColor;
   animation: streaming-blink 0.9s ease-in-out infinite;
 }
+
+/* Slow diagonal light sweep across the Pro membership card */
+@keyframes pro-card-shine {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  55%, 100% {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+
+.pro-card-shine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.09),
+    transparent
+  );
+  animation: pro-card-shine 5.5s ease-in-out infinite;
+  pointer-events: none;
+}

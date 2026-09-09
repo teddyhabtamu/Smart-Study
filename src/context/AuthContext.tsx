@@ -78,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
             practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
+        premiumSince: userData.premium_since || userData.premiumSince || null,
             notifications: userData.notifications || []
           };
           setUser(transformedUser);
@@ -348,6 +349,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
+        premiumSince: userData.premium_since || userData.premiumSince || null,
         notifications: userData.notifications || []
       };
       setUser(transformedUser);
@@ -384,6 +386,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
+        premiumSince: userData.premium_since || userData.premiumSince || null,
         notifications: userData.notifications || []
       };
       setUser(transformedUser);
@@ -590,6 +593,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unlockedBadges: userData.unlocked_badges || userData.unlockedBadges || [],
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
+        premiumSince: userData.premium_since || userData.premiumSince || null,
         notifications: userData.notifications || []
       };
       setUser(transformedUser);

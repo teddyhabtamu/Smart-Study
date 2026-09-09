@@ -74,7 +74,7 @@ router.get('/profile', authenticateToken, async (req: express.Request, res: expr
     const userResult = await query(`
       SELECT u.id, u.name, u.email, u.role, u.is_premium, u.avatar, u.preferences,
              u.xp, u.level, u.streak, u.last_active_date, u.unlocked_badges,
-             u.practice_attempts, u.grade, u.created_at, u.updated_at,
+             u.practice_attempts, u.grade, u.premium_since, u.created_at, u.updated_at,
              COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks,
              json_agg(
                json_build_object(
@@ -161,7 +161,7 @@ router.put('/profile', [
     if (updates.length === 0) {
       // If no valid fields to update, just return the current user data
       const currentUserResult = await query(
-        'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
+        'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at FROM users WHERE id = $1',
         [userId]
       );
 
@@ -188,7 +188,7 @@ router.put('/profile', [
       UPDATE users
       SET ${updates.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at
+      RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at
     `, values);
 
     res.json({

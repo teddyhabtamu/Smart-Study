@@ -55,6 +55,9 @@ export interface User {
   // School grade (9-12), chosen by the user; null/undefined = not set yet
   grade?: number | null;
 
+  // When the current Pro membership started (ISO timestamp); null = free/never
+  premiumSince?: string | null;
+
   // Notifications
   notifications: NotificationItem[];
 }

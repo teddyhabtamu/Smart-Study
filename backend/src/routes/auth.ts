@@ -58,7 +58,7 @@ router.post('/register', [
     const result = await query(`
       INSERT INTO users (name, email, password_hash, role, preferences, unlocked_badges, email_verified, grade)
       VALUES ($1, $2, $3, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], false, $4)
-      RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at
+      RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at
     `, [name, email, password_hash, grade]);
 
     const user = result.rows[0];
@@ -120,7 +120,7 @@ router.post('/login', [
 
     // Find user
     const result = await query(`
-      SELECT id, name, email, password_hash, role, status, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at
+      SELECT id, name, email, password_hash, role, status, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at
       FROM users WHERE email = $1
     `, [email]);
 
@@ -345,7 +345,7 @@ router.post('/refresh', [
 
     // Fetch the user (and confirm they're still active)
     const userResult = await query(
-      'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at FROM users WHERE id = $1',
       [tokenRecord.user_id]
     );
 
@@ -684,7 +684,7 @@ router.post('/accept-invitation', [
 
     // Find user by ID from token
     const result = await query(
-      'SELECT id, email, name, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, email, name, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at FROM users WHERE id = $1',
       [tokenRecord.user_id]
     );
 
@@ -720,7 +720,7 @@ router.post('/accept-invitation', [
 
     // Get updated user data
     const updatedResult = await query(
-      'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at FROM users WHERE id = $1',
       [user.id]
     );
 
@@ -822,7 +822,7 @@ router.get('/verify-email', async (req: express.Request, res: express.Response):
 
     // Get user data
     const userResult = await query(
-      'SELECT id, name, email, role, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, name, email, role, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at FROM users WHERE id = $1',
       [tokenRecord.user_id]
     );
 
