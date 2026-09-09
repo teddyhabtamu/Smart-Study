@@ -867,6 +867,18 @@ export const aiTutorAPI = {
       }))
     ),
 
+  // Full session with messages (the list endpoint omits payloads for speed)
+  getChatSession: (id: string): Promise<ChatSession> =>
+    apiRequest(`/ai-tutor/sessions/${id}`).then((session: any) => ({
+      id: session.id,
+      title: session.title,
+      date: session.created_at,
+      messages: (Array.isArray(session.messages) ? session.messages : []).map((msg: any) => ({
+        role: msg.role,
+        text: msg.text
+      }))
+    })),
+
   createChatSession: (title: string): Promise<ChatSession> =>
     apiRequest('/ai-tutor/sessions', {
       method: 'POST',

@@ -1,37 +1,41 @@
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
-import Landing from './pages/Landing';
-import Library from './pages/Library';
-import PastExams from './pages/PastExams';
-import DocumentView from './pages/DocumentView';
-import Dashboard from './pages/Dashboard';
-import Auth from './pages/Auth';
-import AuthCallback from './pages/AuthCallback';
-import ResetPassword from './pages/ResetPassword';
-import VerifyEmail from './pages/VerifyEmail';
-import AcceptInvitation from './pages/AcceptInvitation';
-import Subscription from './pages/Subscription';
-import Admin from './pages/Admin';
-import AITutor from './pages/AITutor';
-import Profile from './pages/Profile';
-import VideoLibrary from './pages/VideoLibrary';
-import VideoWatch from './pages/VideoWatch';
-import Community from './pages/Community';
-import CommunityPost from './pages/CommunityPost';
-import Planner from './pages/Planner';
-import Practice from './pages/Practice';
-import About from './pages/About';
-import Careers from './pages/Careers';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
-import NotFound from './pages/NotFound';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
 import { UserRole } from './types';
 import { PublicRoute } from './components/PublicRoute';
 import PolicyUpdateNotification from './components/PolicyUpdateNotification';
+
+// Route-level code splitting: each page loads on demand instead of one
+// 1.1MB bundle. Landing + auth stay lean; heavy pages (Admin 3.5k lines,
+// AITutor + markdown/katex, Planner, Practice) split into own chunks.
+const Landing = lazy(() => import('./pages/Landing'));
+const Library = lazy(() => import('./pages/Library'));
+const PastExams = lazy(() => import('./pages/PastExams'));
+const DocumentView = lazy(() => import('./pages/DocumentView'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Auth = lazy(() => import('./pages/Auth'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const AcceptInvitation = lazy(() => import('./pages/AcceptInvitation'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Admin = lazy(() => import('./pages/Admin'));
+const AITutor = lazy(() => import('./pages/AITutor'));
+const Profile = lazy(() => import('./pages/Profile'));
+const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
+const VideoWatch = lazy(() => import('./pages/VideoWatch'));
+const Community = lazy(() => import('./pages/Community'));
+const CommunityPost = lazy(() => import('./pages/CommunityPost'));
+const Planner = lazy(() => import('./pages/Planner'));
+const Practice = lazy(() => import('./pages/Practice'));
+const About = lazy(() => import('./pages/About'));
+const Careers = lazy(() => import('./pages/Careers'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin route guard component
 const AdminRouteGuard: React.FC = () => {
@@ -71,6 +75,7 @@ const App: React.FC = () => {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <PolicyUpdateNotification />
+      <Suspense fallback={<Loader />}>
       <Routes>
         {/* RESET PASSWORD - MUST be first, no authentication required, no Layout wrapper */}
         <Route
@@ -165,6 +170,7 @@ const App: React.FC = () => {
         {/* 404 Page - MUST BE LAST */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
     </Router>
   );
 };

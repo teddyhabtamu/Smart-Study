@@ -65,21 +65,6 @@ router.get('/', optionalAuth, [
     const userId = req.user?.id;
     const isPremium = req.user?.is_premium || false;
 
-    // Handle bookmarked filter separately (client-side filtering since it's user-specific)
-    let bookmarkedVideoIds: string[] = [];
-    if (bookmarked === 'true') {
-      if (!userId) {
-        // Unauthenticated users can't have bookmarks
-        bookmarkedVideoIds = [];
-      } else {
-        // Get user's bookmarks
-        const userResult = await dbQuery('SELECT bookmarks FROM users WHERE id = $1', [userId]);
-        if (userResult.rows.length > 0) {
-          bookmarkedVideoIds = userResult.rows[0].bookmarks || [];
-        }
-      }
-    }
-
     // Determine sort order
     let orderByField = 'created_at';
     let orderByAsc = false;
@@ -92,9 +77,13 @@ router.get('/', optionalAuth, [
     }
 
     // Use Supabase directly for better search support
+    // NOTE: count + range push filtering/sorting/pagination to the DB so we
+    // transfer 20 rows instead of all 800+ on every list call.
+    const startIndex = Number(offset) || 0;
+    const limitNum = Math.min(Number(limit) || 20, 100);
     let query = supabaseAdmin
       .from('videos')
-      .select('id, title, description, subject, grade, chapter, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at');
+      .select('id, title, description, subject, grade, chapter, thumbnail, video_url, instructor, views, likes, is_premium, uploaded_by, created_at, updated_at', { count: 'exact' });
 
     // Apply filters
     // IMPORTANT: Always return premium + free videos.
@@ -117,11 +106,30 @@ router.get('/', optionalAuth, [
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,instructor.ilike.%${search}%`);
     }
 
-    // Apply sorting
+    // Apply sorting + server-side pagination
     query = query.order(orderByField, { ascending: orderByAsc });
 
-    // Execute query
-    const { data: videosData, error: videosError } = await query;
+    // Bookmark filter needs IDs first (bookmarks live in Postgres via pool)
+    let bookmarkedVideoIds: string[] | null = null;
+    if (bookmarked === 'true') {
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Authentication required' } as ApiResponse);
+        return;
+      }
+      const bmResult = await dbQuery('SELECT item_id FROM bookmarks WHERE user_id = $1 AND item_type = $2', [userId, 'video']);
+      bookmarkedVideoIds = bmResult.rows.map((r: any) => r.item_id);
+      if (bookmarkedVideoIds.length === 0) {
+        res.json({
+          success: true,
+          data: { videos: [], pagination: { total: 0, limit: limitNum, offset: startIndex, hasMore: false } }
+        } as ApiResponse);
+        return;
+      }
+      query = query.in('id', bookmarkedVideoIds);
+    }
+
+    // Execute paginated query
+    const { data: videosData, error: videosError, count: totalCount } = await query.range(startIndex, startIndex + limitNum - 1);
 
     if (videosError) {
       console.error('Error fetching videos:', videosError);
@@ -132,7 +140,7 @@ router.get('/', optionalAuth, [
       return;
     }
 
-    let videos = (videosData || []).map((v: any) => ({
+    const videos = (videosData || []).map((v: any) => ({
       id: v.id,
       title: v.title,
       description: v.description,
@@ -153,28 +161,18 @@ router.get('/', optionalAuth, [
       updated_at: v.updated_at
     }));
 
-    // Apply bookmarked filter if requested
-    if (bookmarked === 'true') {
-      videos = videos.filter(video => bookmarkedVideoIds.includes(video.id));
-    }
-
-    // Apply pagination after filtering
-    const startIndex = Number(offset) || 0;
-    const limitNum = Number(limit) || 20;
-    const paginatedVideos = videos.slice(startIndex, startIndex + limitNum);
-
-    // Get total count for pagination (after filtering)
-    const total = videos.length;
+    // Pagination already applied server-side (.range); total from count
+    const total = totalCount ?? videos.length;
 
     res.json({
       success: true,
       data: {
-        videos: paginatedVideos,
+        videos,
         pagination: {
           total,
-          limit: Number(limit),
-          offset: Number(offset),
-          hasMore: offset + paginatedVideos.length < total
+          limit: limitNum,
+          offset: startIndex,
+          hasMore: startIndex + videos.length < total
         }
       }
     } as ApiResponse);

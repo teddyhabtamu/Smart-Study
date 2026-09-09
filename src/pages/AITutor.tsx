@@ -256,11 +256,25 @@ const AITutor: React.FC = () => {
     if (window.innerWidth < 768) setIsHistoryOpen(false);
   };
 
-  // Select existing session
-  const handleSelectSession = (session: ChatSession) => {
-    setMessages(Array.isArray(session.messages) ? session.messages : []);
+  // Select existing session (messages load on demand — the list omits payloads)
+  const selectRequestRef = useRef(0);
+  const handleSelectSession = async (session: ChatSession) => {
+    const requestId = ++selectRequestRef.current;
     setActiveSessionId(session.id);
     if (window.innerWidth < 768) setIsHistoryOpen(false);
+    setIsLoading(true);
+    try {
+      const full = await aiTutorAPI.getChatSession(session.id);
+      if (requestId !== selectRequestRef.current) return; // switched away mid-fetch
+      setMessages(full.messages && full.messages.length > 0 ? full.messages : [DEFAULT_WELCOME_MSG]);
+    } catch (error) {
+      console.error('Failed to load chat session:', error);
+      if (requestId !== selectRequestRef.current) return;
+      addToast('Failed to load chat history.', 'error');
+      setMessages([DEFAULT_WELCOME_MSG]);
+    } finally {
+      if (requestId === selectRequestRef.current) setIsLoading(false);
+    }
   };
 
   // Show delete confirmation

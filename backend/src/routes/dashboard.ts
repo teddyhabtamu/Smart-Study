@@ -1,5 +1,5 @@
 import express from 'express';
-import { query, supabaseAdmin } from '../database/config';
+import { query } from '../database/config';
 import { authenticateToken } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
 
@@ -63,92 +63,70 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 
 
 
-    // Get bookmarks with their item details - use Supabase directly for reliable ordering
+    // Get bookmarks with their item details — batched, not N+1.
+    // Previously this looped up to 10 sequential REST calls (one per item);
+    // now it's 1 ID lookup + 2 parallel IN queries.
     const recentBookmarks = [];
-    const seenItemIds = new Set(); // Track which item IDs we've added to avoid duplicates
-    
+
     try {
-      // Get bookmarks directly from Supabase with proper ordering
-      // Use admin client to bypass RLS if needed
-      const { data: bookmarks, error: bookmarksError } = await supabaseAdmin
-        .from('bookmarks')
-        .select('item_id, item_type')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(10); // Get more than 5 to ensure we find 5 that exist
-      
-      if (bookmarksError) throw bookmarksError;
-      
-      if (bookmarks && bookmarks.length > 0) {
-        // Process bookmarks in order (most recent first) until we have 5 unique items
-        for (const bookmark of bookmarks) {
-          if (recentBookmarks.length >= 5) break;
-          
-          const { item_id, item_type } = bookmark;
-          
-          // Skip if we've already added this item
-          if (seenItemIds.has(item_id)) continue;
-          
-          let itemData = null;
+      const bmResult = await query(
+        'SELECT item_id, item_type FROM bookmarks WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10',
+        [userId]
+      );
+      const bookmarks = bmResult.rows || [];
 
-          // Query the appropriate table based on item_type using Supabase directly
-          if (item_type === 'document') {
-            try {
-              const { data: docs, error: docError } = await supabaseAdmin
-                .from('documents')
-                .select('id, title, subject, grade, preview_image, is_premium')
-                .eq('id', item_id)
-                .limit(1);
-              
-              if (!docError && docs && docs.length > 0) {
-                const doc = docs[0];
-                if (doc) {
-                  itemData = {
-                    id: doc.id,
-                    type: 'document',
-                    title: doc.title,
-                    subject: doc.subject,
-                    grade: doc.grade,
-                    previewImage: doc.preview_image,
-                    isPremium: doc.is_premium
-                  };
-                }
-              }
-            } catch (docError) {
-              // Document not found, skip
-            }
-          } else if (item_type === 'video') {
-            try {
-              const { data: videos, error: videoError } = await supabaseAdmin
-                .from('videos')
-                .select('id, title, subject, grade, thumbnail, is_premium')
-                .eq('id', item_id)
-                .limit(1);
-              
-              if (!videoError && videos && videos.length > 0) {
-                const video = videos[0];
-                if (video) {
-                  itemData = {
-                    id: video.id,
-                    type: 'video',
-                    title: video.title,
-                    subject: video.subject,
-                    grade: video.grade,
-                    previewImage: video.thumbnail,
-                    isPremium: video.is_premium
-                  };
-                }
-              }
-            } catch (videoError) {
-              // Video not found, skip
-            }
-          }
+      const seenItemIds = new Set();
+      const docIds: string[] = [];
+      const videoIds: string[] = [];
+      for (const b of bookmarks) {
+        if (seenItemIds.has(b.item_id)) continue;
+        seenItemIds.add(b.item_id);
+        if (b.item_type === 'document') docIds.push(b.item_id);
+        else if (b.item_type === 'video') videoIds.push(b.item_id);
+      }
 
-          // Add the item if found and unique
-          if (itemData) {
-            seenItemIds.add(itemData.id);
-            recentBookmarks.push(itemData);
-          }
+      const [docsResult, vidsResult] = await Promise.all([
+        docIds.length > 0
+          ? query('SELECT id, title, subject, grade, preview_image, is_premium FROM documents WHERE id = ANY($1)', [docIds])
+          : Promise.resolve({ rows: [] }),
+        videoIds.length > 0
+          ? query('SELECT id, title, subject, grade, thumbnail, is_premium FROM videos WHERE id = ANY($1)', [videoIds])
+          : Promise.resolve({ rows: [] }),
+      ]);
+
+      const docsById = new Map((docsResult.rows || []).map((d: any) => [String(d.id), d]));
+      const vidsById = new Map((vidsResult.rows || []).map((v: any) => [String(v.id), v]));
+
+      // Preserve recency order, max 5 existing items
+      const emitted = new Set();
+      for (const b of bookmarks) {
+        if (recentBookmarks.length >= 5) break;
+        const key = String(b.item_id);
+        if (emitted.has(key)) continue;
+        if (b.item_type === 'document' && docsById.has(key)) {
+          const doc: any = docsById.get(key);
+          emitted.add(key);
+          recentBookmarks.push({
+            id: doc.id,
+            type: 'document',
+            title: doc.title,
+            subject: doc.subject,
+            grade: doc.grade,
+            previewImage: doc.preview_image,
+            isPremium: doc.is_premium
+          });
+        } else if (b.item_type === 'video' && vidsById.has(key)) {
+          const video: any = vidsById.get(key);
+          emitted.add(key);
+          recentBookmarks.push({
+            id: video.id,
+            type: 'video',
+            title: video.title,
+            subject: video.subject,
+            grade: video.grade,
+            previewImage: video.thumbnail,
+            isPremium: video.is_premium
+          });
         }
       }
     } catch (bookmarkError) {

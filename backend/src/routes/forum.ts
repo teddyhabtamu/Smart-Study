@@ -19,72 +19,80 @@ router.get('/posts', async (req: express.Request, res: express.Response): Promis
   try {
     const { subject, grade, search, limit = 20, offset = 0 } = req.query;
 
-    // Get posts from database
-    let posts = await dbAdmin.get('forum_posts');
-
-    // Apply filters
-    if (subject) {
-      posts = posts.filter(p => p.subject === subject);
-    }
-
-    if (grade) {
-      posts = posts.filter(p => p.grade === parseInt(grade as string));
-    }
-
-    if (search) {
-      const searchTerm = search.toString().toLowerCase();
-      posts = posts.filter(p =>
-        p.title.toLowerCase().includes(searchTerm) ||
-        p.content.toLowerCase().includes(searchTerm)
-      );
-    }
-
-    // Sort by creation date (newest first)
-    posts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    // Apply pagination
+    const limitNum = Math.min(parseInt(limit as string) || 20, 100);
     const startIndex = parseInt(offset as string) || 0;
-    const limitNum = parseInt(limit as string) || 20;
-    const paginatedPosts = posts.slice(startIndex, startIndex + limitNum);
 
-    // Add author info and comment count
-    const users = await dbAdmin.get('users');
-    const comments = await dbAdmin.get('forum_comments');
+    // Single query: posts + author + comment count, filtered/sorted/paginated
+    // in SQL. Previously this was 3 full-table scans (posts + ALL users with
+    // password hashes + ALL comments) joined in JS on every request.
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramCount = 1;
 
-    const enrichedPosts = paginatedPosts.map(post => {
-      const author = users.find(u => u.id === post.author_id);
-      const commentCount = comments.filter(c => c.post_id === post.id).length;
+    if (subject) {
+      conditions.push(`p.subject = $${paramCount++}`);
+      params.push(subject);
+    }
+    if (grade) {
+      conditions.push(`p.grade = $${paramCount++}`);
+      params.push(parseInt(grade as string));
+    }
+    if (search) {
+      conditions.push(`(p.title ILIKE $${paramCount} OR p.content ILIKE $${paramCount})`);
+      params.push(`%${search}%`);
+      paramCount++;
+    }
 
-      return {
-        id: post.id,
-        title: post.title,
-        content: post.content,
-        subject: post.subject,
-        grade: post.grade,
-        votes: post.votes || 0,
-        views: post.views || 0,
-        tags: post.tags || [],
-        is_solved: post.is_solved || false,
-        is_edited: post.is_edited || false,
-        aiAnswer: post.ai_answer, // Convert snake_case to camelCase for frontend
-        created_at: post.created_at,
-        updated_at: post.updated_at,
-        author: author?.name,
-        author_role: author?.role,
-        author_avatar: author?.avatar,
-        comment_count: commentCount
-      };
-    });
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countResult = await query(
+      `SELECT COUNT(*) as total FROM forum_posts p ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+
+    const postsResult = await query(
+      `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
+              p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at, p.updated_at,
+              u.name as author, u.role as author_role, u.avatar as author_avatar,
+              (SELECT COUNT(*) FROM forum_comments c WHERE c.post_id = p.id) as comment_count
+       FROM forum_posts p
+       LEFT JOIN users u ON u.id = p.author_id
+       ${whereClause}
+       ORDER BY p.created_at DESC
+       LIMIT $${paramCount++} OFFSET $${paramCount++}`,
+      [...params, limitNum, startIndex]
+    );
+
+    const enrichedPosts = postsResult.rows.map((post: any) => ({
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      subject: post.subject,
+      grade: post.grade,
+      votes: post.votes || 0,
+      views: post.views || 0,
+      tags: post.tags || [],
+      is_solved: post.is_solved || false,
+      is_edited: post.is_edited || false,
+      aiAnswer: post.ai_answer, // Convert snake_case to camelCase for frontend
+      created_at: post.created_at,
+      updated_at: post.updated_at,
+      author: post.author,
+      author_role: post.author_role,
+      author_avatar: post.author_avatar,
+      comment_count: parseInt(post.comment_count || '0', 10)
+    }));
 
     res.json({
       success: true,
       data: {
         posts: enrichedPosts,
         pagination: {
-          total: posts.length,
+          total,
           limit: limitNum,
           offset: startIndex,
-          hasMore: startIndex + limitNum < posts.length
+          hasMore: startIndex + limitNum < total
         }
       }
     } as ApiResponse);

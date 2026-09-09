@@ -54,14 +54,15 @@ router.get('/sessions', authenticateToken, async (req: express.Request, res: exp
   try {
     const userId = req.user!.id;
 
-    const sessions = await dbAdmin.get('chat_sessions');
-    const filteredSessions = sessions.filter((s: any) => s.user_id === userId);
-
-    // Sort by creation date (newest first)
-    filteredSessions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Indexed lookup WITHOUT the messages payload (can be MBs across rows).
+    // Full messages load on demand via GET /sessions/:id.
+    const result = await query(
+      'SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE user_id = $1 ORDER BY updated_at DESC',
+      [userId]
+    );
 
     // Normalize messages so clients always receive an array
-    const normalized = filteredSessions.map((s: any) => ({ ...s, messages: extractMessages(s) }));
+    const normalized = result.rows.map((s: any) => ({ ...s, messages: [] }));
 
     res.json({
       success: true,
