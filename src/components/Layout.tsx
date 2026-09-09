@@ -279,13 +279,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Link
               to="/profile"
               onClick={() => setIsSidebarOpen(false)}
-              className="h-9 w-9 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-xs border border-zinc-200 overflow-hidden relative"
+              className={`relative h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs border overflow-visible flex-shrink-0 ${
+                user.isPremium
+                  ? 'bg-amber-50 text-amber-700 border-amber-400 ring-1 ring-amber-300'
+                  : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+              }`}
               aria-label="Profile"
             >
-              {user.avatar ? (
-                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-              ) : (
-                user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+              <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                {user.avatar ? (
+                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                )}
+              </span>
+              {user.isPremium && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center shadow-sm" title="Pro member">
+                  <Crown size={8} className="text-zinc-900" />
+                </span>
               )}
             </Link>
           ) : (

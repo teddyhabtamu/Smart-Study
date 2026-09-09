@@ -571,7 +571,7 @@ const Profile: React.FC = () => {
                         <p className="font-mono text-sm sm:text-base tracking-[0.15em] text-zinc-300 mb-5">
                           SS&nbsp;••••&nbsp;{(user.id || '').slice(0, 4).toUpperCase() || 'MEMBER'}
                         </p>
-                        <div className="flex items-end justify-between gap-4">
+                        <div className="flex items-end justify-between gap-x-4 gap-y-2 flex-wrap">
                           <div className="min-w-0">
                             <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">Member</p>
                             <p className="font-bold truncate">{user.name}</p>
