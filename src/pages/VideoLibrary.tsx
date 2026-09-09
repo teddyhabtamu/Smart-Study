@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, PlayCircle, Lock, Bookmark, Loader2, ArrowLeft, ArrowUpDown, GraduationCap, BookOpen, FlaskConical, Globe, Calculator, BookMarked, Atom, Dna, Compass, ChevronRight } from 'lucide-react';
+import { Search, PlayCircle, Lock, Bookmark, Loader2, ArrowLeft, ArrowUpDown, GraduationCap, BookOpen, FlaskConical, Globe, Calculator, BookMarked, Atom, Dna, Compass, ChevronRight, Crown } from 'lucide-react';
 import { SUBJECTS } from '../constants';
 import { VideoLesson } from '../types';
 import CustomSelect, { Option } from '../components/CustomSelect';
@@ -505,9 +505,15 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
           {/* Premium badge */}
           {video.isPremium && (
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 backdrop-blur-sm shadow-sm">
-              <Lock size={8} /> Premium
-            </div>
+            user?.isPremium ? (
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-amber-400 text-zinc-900 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase tracking-wide flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
+                <Crown size={8} /> Pro
+              </div>
+            ) : (
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 backdrop-blur-sm shadow-sm">
+                <Lock size={8} /> Premium
+              </div>
+            )
           )}
 
           {/* Meta badges (bottom) */}

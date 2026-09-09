@@ -694,23 +694,39 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
 
                 <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className={`flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group ${isCollapsed ? 'justify-center w-full' : 'flex-1 overflow-hidden'}`} title={isCollapsed ? user.name : undefined}>
-                  <div className="h-9 w-9 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-xs border border-zinc-200 flex-shrink-0 overflow-hidden relative">
-                    {user.avatar ? (
-                      <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                    ) : (
-                      user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                  <div className={`relative h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs border flex-shrink-0 overflow-visible ${
+                    user.isPremium
+                      ? 'bg-amber-50 text-amber-700 border-amber-400 ring-1 ring-amber-300'
+                      : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                  }`}>
+                    <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                      )}
+                    </span>
+                    {user.isPremium && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center shadow-sm" title="Pro member">
+                        <Crown size={8} className="text-zinc-900" />
+                      </span>
                     )}
                   </div>
                   {!isCollapsed && (
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-semibold text-zinc-900 truncate">{user.name}</span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                          <span className="text-[11px] text-zinc-500 truncate">
                            {user.role === 'ADMIN' ? 'Administrator' : user.role === 'MODERATOR' ? 'Content Manager' : 'Student'}
                          </span>
                          {user.role !== 'ADMIN' && user.role !== 'MODERATOR' && (
                            <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
                              Lvl {user.level}
+                           </span>
+                         )}
+                         {user.isPremium && (
+                           <span className="text-[9px] font-black bg-zinc-900 text-amber-400 px-1.5 py-0.5 rounded-full tracking-wider">
+                             PRO
                            </span>
                          )}
                       </div>

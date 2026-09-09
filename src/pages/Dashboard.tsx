@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Book, Clock, TrendingUp, PlayCircle, Bookmark, Sparkles, 
   Target, Calendar, ArrowRight, Flame, Trophy, CheckCircle2, 
-  Circle, ChevronRight, Search, Star
+  Circle, ChevronRight, Search, Star, Crown
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -385,12 +385,32 @@ const Dashboard: React.FC = () => {
               </div>
            </div>
 
-           {/* Pro Banner (if free) */}
-            {!displayUser?.isPremium && (
+           {/* Membership card: upsell for free users, recognition for Pro */}
+           {displayUser?.isPremium ? (
+             <Link to="/profile" className="block bg-gradient-to-br from-zinc-900 to-amber-950 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden hover:shadow-lg transition-shadow">
+                <Crown size={96} className="absolute -right-4 -bottom-4 text-white/5 rotate-12" aria-hidden="true" />
+                <div className="relative z-10 flex items-center gap-3">
+                   <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0">
+                      <Crown size={18} className="text-zinc-900" />
+                   </div>
+                   <div className="min-w-0">
+                      <p className="font-black tracking-[0.15em] text-xs">STUDENT PRO</p>
+                      <p className="text-zinc-400 text-xs mt-0.5 flex items-center gap-1.5">
+                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                         {user?.premiumSince
+                           ? `Member since ${new Date(user.premiumSince).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
+                           : 'Membership active'}
+                         <span className="text-zinc-500">•</span>
+                         <span className="underline underline-offset-2">View member hub</span>
+                      </p>
+                   </div>
+                </div>
+             </Link>
+           ) : (
              <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden">
                 <div className="relative z-10">
                    <h3 className="font-bold text-base sm:text-lg mb-1">Upgrade to Pro</h3>
-                   <p className="text-zinc-300 text-sm mb-4">Get unlimited AI tutoring and offline access.</p>
+                   <p className="text-zinc-300 text-sm mb-4">Premium library & videos, unlimited quizzes, AI study planner.</p>
                    <Link to="/subscription" className="inline-block px-4 py-2 bg-white text-zinc-900 font-bold rounded-lg text-sm hover:bg-zinc-200 transition-colors">
                       View Plans
                    </Link>
