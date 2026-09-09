@@ -60,9 +60,12 @@ router.get('/sessions', authenticateToken, async (req: express.Request, res: exp
     // Sort by creation date (newest first)
     filteredSessions.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+    // Normalize messages so clients always receive an array
+    const normalized = filteredSessions.map((s: any) => ({ ...s, messages: extractMessages(s) }));
+
     res.json({
       success: true,
-      data: filteredSessions
+      data: normalized
     } as ApiResponse<ChatSession[]>);
     return;
   } catch (error) {
@@ -128,7 +131,7 @@ router.get('/sessions/:id', authenticateToken, async (req: express.Request, res:
 
     res.json({
       success: true,
-      data: session
+      data: { ...session, messages: extractMessages(session) }
     } as ApiResponse<ChatSession>);
     return;
   } catch (error) {

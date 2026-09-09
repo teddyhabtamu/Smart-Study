@@ -252,7 +252,7 @@ const AITutor: React.FC = () => {
 
   // Select existing session
   const handleSelectSession = (session: ChatSession) => {
-    setMessages(session.messages || []);
+    setMessages(Array.isArray(session.messages) ? session.messages : []);
     setActiveSessionId(session.id);
     if (window.innerWidth < 768) setIsHistoryOpen(false);
   };

@@ -858,7 +858,7 @@ export const aiTutorAPI = {
         id: session.id,
         title: session.title,
         date: session.created_at, // Map created_at to date
-        messages: (session.messages || []).map((msg: any) => ({
+        messages: (Array.isArray(session.messages) ? session.messages : []).map((msg: any) => ({
           role: msg.role,
           text: msg.text
         }))
@@ -873,7 +873,7 @@ export const aiTutorAPI = {
       id: session.id,
       title: session.title,
       date: session.created_at, // Map created_at to date
-      messages: (session.messages || []).map((msg: any) => ({
+      messages: (Array.isArray(session.messages) ? session.messages : []).map((msg: any) => ({
         role: msg.role,
         text: msg.text
       }))
@@ -896,7 +896,7 @@ export const aiTutorAPI = {
       id: session.id,
       title: session.title,
       date: session.created_at || session.updated_at, // Map created_at/updated_at to date
-      messages: (session.messages || []).map((msg: any) => ({
+      messages: (Array.isArray(session.messages) ? session.messages : []).map((msg: any) => ({
         role: msg.role,
         text: msg.text
       }))
