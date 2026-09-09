@@ -9,7 +9,19 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import passport from './middleware/googleAuth';
 import { config } from './config';
+import { pool } from './database/config';
 import { SchedulerService } from './services/schedulerService';
+
+// Production guard: the direct Supabase db.* host is IPv6-only and
+// unresolvable from most runtimes (ENOTFOUND). PG_POOLER_URL (IPv4 pooler)
+// is required in production — fail loudly at boot, not per-request.
+if (config.server.nodeEnv === 'production' && !process.env.PG_POOLER_URL) {
+  console.error(
+    '❌ FATAL CONFIG: PG_POOLER_URL is not set. ' +
+    'DATABASE_URL points at the IPv6-only direct host and WILL fail with ENOTFOUND. ' +
+    'Add PG_POOLER_URL (Supabase pooler, port 6543) to environment variables and redeploy.'
+  );
+}
 
 const app = express();
 
@@ -198,13 +210,23 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/careers', careersRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// Health check endpoint (includes DB reachability so deploy misconfig
+// like a missing PG_POOLER_URL shows up here instead of as 500s)
+app.get('/api/health', async (req, res) => {
+  let db: { ok: boolean; latencyMs?: number; error?: string } = { ok: false };
+  try {
+    const t0 = Date.now();
+    await pool.query('SELECT 1');
+    db = { ok: true, latencyMs: Date.now() - t0 };
+  } catch (e: any) {
+    db = { ok: false, error: String(e?.message || e).split('\n')[0] };
+  }
   res.json({
     success: true,
     message: 'SmartStudy API is running',
     timestamp: new Date().toISOString(),
-    environment: config.server.nodeEnv
+    environment: config.server.nodeEnv,
+    db
   });
 });
 
