@@ -436,7 +436,8 @@ const AITutor: React.FC = () => {
         subjectFocus,
         userGrade,
         activeSessionId,
-        appendChunk
+        appendChunk,
+        deepThinking
       );
 
       // Ensure the final message is the complete text (fixes any missed chunks)

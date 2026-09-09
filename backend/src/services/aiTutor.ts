@@ -30,6 +30,11 @@ const MODEL_FALLBACKS = [
   'gemini-3.5-flash-lite',
 ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
+// Last model that served successfully — tried first on the next request so a
+// quota-exhausted primary doesn't waste a round-trip every time. Resets on
+// process restart (safe: worst case is one extra fallback attempt).
+let preferredModel: string | null = null;
+
 // Typed error for quota exhaustion so routes can return 429 (not 500)
 export class AIQuotaExceededError extends Error {
   retryAfterSeconds: number;
@@ -98,12 +103,22 @@ const quotaRetryAfter = (err: any): number => {
 // Run fn against each model in the fallback chain. Quota errors move to the
 // next model; if all are exhausted, throw AIQuotaExceededError.
 const withModelFallback = async <T>(fn: (model: string) => Promise<T>): Promise<T> => {
+  // Adaptive ordering: the model that worked last goes first, so a
+  // quota-exhausted primary doesn't cost a failed round-trip on every request.
+  const ordered = preferredModel
+    ? [preferredModel, ...MODEL_FALLBACKS.filter((m) => m !== preferredModel)]
+    : [...MODEL_FALLBACKS];
   let lastQuotaError: any = null;
   let retryAfter = 60;
-  for (const model of MODEL_FALLBACKS) {
+  for (const model of ordered) {
+    const tStart = Date.now();
     try {
-      return await fn(model);
+      const result = await fn(model);
+      preferredModel = model;
+      console.log(`[tutor] model ${model} ok in ${Date.now() - tStart}ms`);
+      return result;
     } catch (err) {
+      console.log(`[tutor] model ${model} failed in ${Date.now() - tStart}ms`);
       if (isQuotaError(err)) {
         console.warn(`Gemini quota hit on ${model}, trying fallback...`);
         lastQuotaError = err;
@@ -186,7 +201,8 @@ const complete = async (
   systemPrompt: string,
   userPrompt: string,
   history: { role: string; text: string }[] = [],
-  temperature = 0.3
+  temperature = 0.3,
+  maxOutputTokens = 4096
 ): Promise<string> => {
   const client = getClient();
 
@@ -199,7 +215,7 @@ const complete = async (
       config: {
         systemInstruction: systemPrompt,
         temperature,
-        maxOutputTokens: 4096,
+        maxOutputTokens,
       },
     });
 
@@ -212,11 +228,32 @@ const complete = async (
 };
 
 // --- Tutor chat (non-streaming fallback) --------------------------------
+export interface TutorOptions {
+  deepThinking?: boolean;
+}
+
+// Deep Think mode: the model reasons step-by-step out loud, verifies its
+// answer, and goes deeper (formulas, edge cases, common mistakes). Costs more
+// output tokens but stays on the same quota-safe flash model chain.
+const DEEP_THINKING_INSTRUCTION = `
+DEEP THINKING MODE is ON. Before your final answer:
+1. Think through the problem step-by-step and SHOW key reasoning steps briefly.
+2. Double-check formulas, calculations, and grammar rules as you go.
+3. Point out the most common mistake students make on this topic.
+4. Then give the final answer clearly.
+Be thorough but stay focused — no rambling.`.trim();
+
+const tutorSystemPrompt = (opts?: TutorOptions): string =>
+  opts?.deepThinking ? `${TUTOR_SYSTEM_PROMPT}\n\n${DEEP_THINKING_INSTRUCTION}` : TUTOR_SYSTEM_PROMPT;
+
+const tutorMaxTokens = (opts?: TutorOptions): number => (opts?.deepThinking ? 8192 : 4096);
+
 export async function getTutorResponse(
   history: any[],
   message: string,
   subject: string,
-  grade: number
+  grade: number,
+  opts?: TutorOptions
 ): Promise<string> {
   // Detect if this is a grammar/punctuation question
   const lower = message.toLowerCase();
@@ -239,7 +276,7 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
   }
 
   try {
-    return await complete(TUTOR_SYSTEM_PROMPT, userMessage, history);
+    return await complete(tutorSystemPrompt(opts), userMessage, history, 0.3, tutorMaxTokens(opts));
   } catch (error) {
     // Quota errors must propagate so routes can return 429 with a clear
     // message — swallowing them here would show a misleading generic error.
@@ -264,7 +301,8 @@ export async function streamTutorResponse(
   message: string,
   subject: string,
   grade: number,
-  onChunk: (delta: string) => void
+  onChunk: (delta: string) => void,
+  opts?: TutorOptions
 ): Promise<string> {
   const client = getClient();
 
@@ -288,21 +326,28 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
   }
 
   const contents = toContents(history, userMessage);
+  const systemInstruction = tutorSystemPrompt(opts);
+  const maxOutputTokens = tutorMaxTokens(opts);
 
-  // Streaming can't retry mid-stream cleanly, so we attempt models in order.
+  // Streaming can't retry mid-stream cleanly, so we attempt models in order
+  // (preferred working model first — see withModelFallback).
   // `emitted` accumulates everything sent to the client across fallbacks so
   // the persisted session text always matches what the user actually saw.
+  const ordered = preferredModel
+    ? [preferredModel, ...MODEL_FALLBACKS.filter((m) => m !== preferredModel)]
+    : [...MODEL_FALLBACKS];
   let lastQuotaError: any = null;
   let emitted = '';
-  for (const model of MODEL_FALLBACKS) {
+  for (const model of ordered) {
+    const tStart = Date.now();
     try {
       const stream = await client.models.generateContentStream({
         model,
         contents,
         config: {
-          systemInstruction: TUTOR_SYSTEM_PROMPT,
+          systemInstruction,
           temperature: 0.3,
-          maxOutputTokens: 4096,
+          maxOutputTokens,
         },
       });
 
@@ -317,9 +362,14 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
       }
       // A quota error can surface mid-stream as an exception; an empty stream
       // with no chunks means this model failed — try the next one.
-      if (gotChunk || emitted) return emitted;
+      if (gotChunk || emitted) {
+        preferredModel = model;
+        console.log(`[tutor] stream ${model} ok in ${Date.now() - tStart}ms`);
+        return emitted;
+      }
       throw new Error('Empty stream from model ' + model);
     } catch (err) {
+      console.log(`[tutor] stream ${model} failed in ${Date.now() - tStart}ms`);
       if (isQuotaError(err)) {
         console.warn(`Gemini streaming quota hit on ${model}, trying fallback...`);
         lastQuotaError = err;

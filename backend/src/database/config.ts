@@ -67,7 +67,10 @@ const buildPoolConfig = () => {
     // Small pool: each Vercel serverless instance gets its own pool, and the
     // Supabase pooler caps total sessions. Transaction mode makes this cheap.
     max: parseInt(process.env.PG_POOL_MAX || '5', 10),
-    idleTimeoutMillis: 15000,
+    // Long idle timeout: establishing a fresh pooler connection over a slow
+    // network costs 5s+ (TLS + auth to eu-west-2). Keeping warm connections
+    // avoids paying that on every request.
+    idleTimeoutMillis: 120000,
     connectionTimeoutMillis: 25000,
     // Pooler connections can be flaky over constrained networks; keep them lean.
     keepAlive: true,

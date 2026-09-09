@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { dbAdmin } from '../database/config';
+import { dbAdmin, query } from '../database/config';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
@@ -390,11 +390,9 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
     if (userId) {
       // Get chat history if session exists
       if (sessionId) {
-        const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
-          s.id === sessionId && s.user_id === userId
-        );
-        if (session) {
-          history = extractMessages(session);
+        const found = await query('SELECT * FROM chat_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+        if (found.rows.length > 0) {
+          history = extractMessages(found.rows[0]);
         }
       } else {
         // Create new session if no sessionId provided
@@ -422,9 +420,8 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
 
     // Store conversation in session (only for authenticated users)
     if (currentSessionId && userId) {
-      const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
-        s.id === currentSessionId && s.user_id === userId
-      );
+      const found = await query('SELECT * FROM chat_sessions WHERE id = $1 AND user_id = $2', [currentSessionId, userId]);
+      const session = found.rows[0];
 
       if (session) {
         const messages = extractMessages(session);
@@ -441,7 +438,8 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
     // Award XP for using AI tutor (only for authenticated users)
     let xpGained = 0;
     if (userId) {
-      const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+      const userRows = await query('SELECT xp FROM users WHERE id = $1', [userId]);
+      const user = userRows.rows[0];
       if (user) {
         const xpGain = 5;
         const newXp = (user.xp || 0) + xpGain;
@@ -485,8 +483,10 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
 // Streaming AI chat via Server-Sent Events
 // Sends incremental text deltas so the frontend can render as the model writes.
 router.post('/chat/stream', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
-  const { message, subject, grade, sessionId } = req.body;
+  const { message, subject, grade, sessionId, deepThinking } = req.body;
   const userId = req.user?.id;
+  const t0 = Date.now();
+  const elapsed = () => `${Date.now() - t0}ms`;
 
   if (!message || typeof message !== 'string') {
     res.status(400).json({ success: false, message: 'Message is required' } as ApiResponse);
@@ -507,12 +507,17 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
 
   let currentSessionId: string | null = sessionId ?? null;
   let history: any[] = [];
+  // For brand-new sessions the insert runs CONCURRENTLY with stream startup
+  // (history is already known to be empty) — saves a full DB round-trip
+  // before the first token. Awaited before persistence below.
+  let pendingSessionInsert: Promise<string | null> | null = null;
 
   try {
     if (userId) {
       if (sessionId) {
-        const session = await dbAdmin.findOne('chat_sessions', (s: any) => s.id === sessionId && s.user_id === userId);
-        if (session) history = extractMessages(session);
+        // Indexed lookup (never a full-table scan — chat_sessions grows unbounded)
+        const found = await query('SELECT * FROM chat_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+        if (found.rows.length > 0) history = extractMessages(found.rows[0]);
       } else {
         const sessionData = {
           user_id: userId,
@@ -521,8 +526,16 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        const inserted = await dbAdmin.insert('chat_sessions', sessionData);
-        currentSessionId = inserted.id;
+        pendingSessionInsert = dbAdmin.insert('chat_sessions', sessionData)
+          .then((inserted: any) => {
+            currentSessionId = inserted.id;
+            send('session', { sessionId: currentSessionId });
+            return inserted.id as string;
+          })
+          .catch((err: any) => {
+            console.error('Background session insert failed:', err?.message);
+            return null;
+          });
       }
     } else {
       currentSessionId = null;
@@ -534,12 +547,14 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
 
     const { streamTutorResponse, getTutorResponse, AIQuotaExceededError: QuotaError } = await import('../services/aiTutor');
 
+    console.log(`[tutor] prep done in ${elapsed()} (history: ${history.length} msgs, deep: ${!!deepThinking})`);
+    const tGen = Date.now();
     let full = '';
     let quotaExceeded = false;
     try {
       full = await streamTutorResponse(history, message, subject || 'General', grade || 10, (delta) => {
         send('delta', { text: delta });
-      });
+      }, { deepThinking: !!deepThinking });
     } catch (streamError: any) {
       if (streamError instanceof QuotaError) {
         // All models exhausted — the non-streaming fallback would fail
@@ -550,14 +565,21 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
       } else {
         // Streaming failed — fall back to non-streaming so the user still gets an answer
         console.error('Streaming error, falling back to non-streaming:', streamError?.message);
-        full = await getTutorResponse(history, message, subject || 'General', grade || 10);
+        full = await getTutorResponse(history, message, subject || 'General', grade || 10, { deepThinking: !!deepThinking });
         send('delta', { text: full });
       }
     }
+    console.log(`[tutor] generation done in ${Date.now() - tGen}ms (${full.length} chars, quota: ${quotaExceeded})`);
 
-    // Persist conversation (authenticated users)
+    // Persist conversation (authenticated users).
+    // Settle the background session insert first so currentSessionId is final.
+    if (pendingSessionInsert) {
+      await pendingSessionInsert;
+      pendingSessionInsert = null;
+    }
     if (currentSessionId && userId) {
-      const session = await dbAdmin.findOne('chat_sessions', (s: any) => s.id === currentSessionId && s.user_id === userId);
+      const found = await query('SELECT * FROM chat_sessions WHERE id = $1 AND user_id = $2', [currentSessionId, userId]);
+      const session = found.rows[0];
       if (session) {
         const msgs = extractMessages(session);
         msgs.push({ role: 'user', text: message, timestamp: new Date().toISOString() });
@@ -569,7 +591,8 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
     // Award XP for authenticated users
     let xpGained = 0;
     if (userId) {
-      const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+      const userRows = await query('SELECT xp FROM users WHERE id = $1', [userId]);
+      const user = userRows.rows[0];
       if (user) {
         const xpGain = 5;
         const newXp = (user.xp || 0) + xpGain;

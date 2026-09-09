@@ -726,7 +726,8 @@ export const aiTutorAPI = {
     subject: string,
     grade: number,
     sessionId: string | null,
-    onDelta: (delta: string) => void
+    onDelta: (delta: string) => void,
+    deepThinking?: boolean
   ): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> =>
     new Promise((resolve, reject) => {
       // Safety net: a hung stream must never lock the UI forever. After 75s
@@ -742,7 +743,7 @@ export const aiTutorAPI = {
             'Content-Type': 'application/json',
             ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
           },
-          body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
+          body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined, deepThinking: !!deepThinking }),
           signal: controller.signal,
         }).then(async (response: Response): Promise<Response> => {
           // Expired access token: refresh once, then retry with the new token
