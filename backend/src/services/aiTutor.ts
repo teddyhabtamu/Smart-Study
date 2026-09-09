@@ -22,11 +22,12 @@ export const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Fallback chain: each model has a separate free-tier quota. If the primary
 // model is rate-limited, we try the next one before giving up.
-// NOTE: verified 2026-09-09 via models.list — gemini-2.0-flash is RETIRED (404),
-// do NOT add it back. Lite models carry much higher free quotas.
+// NOTE: verified 2026-09-09 via live generate probes (models.list LIES —
+// it still advertises retired models). gemini-2.0-flash and
+// gemini-2.5-flash-lite both 404 with "no longer available". Do NOT add
+// version-pinned models back without probing them first.
 const MODEL_FALLBACKS = [
   process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
   'gemini-3.5-flash-lite',
 ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
@@ -34,6 +35,26 @@ const MODEL_FALLBACKS = [
 // quota-exhausted primary doesn't waste a round-trip every time. Resets on
 // process restart (safe: worst case is one extra fallback attempt).
 let preferredModel: string | null = null;
+
+// Models proven dead (404 retired) with timestamp — skipped for an hour so a
+// stale chain entry costs nothing after the first failure. Retried hourly in
+// case of transient API-side issues.
+const deadModels = new Map<string, number>();
+const DEAD_MODEL_TTL_MS = 60 * 60 * 1000;
+
+const isModelKnownDead = (model: string): boolean => {
+  const since = deadModels.get(model);
+  if (since === undefined) return false;
+  if (Date.now() - since > DEAD_MODEL_TTL_MS) {
+    deadModels.delete(model);
+    return false;
+  }
+  return true;
+};
+
+const markModelDead = (model: string): void => {
+  deadModels.set(model, Date.now());
+};
 
 // Typed error for quota exhaustion so routes can return 429 (not 500)
 export class AIQuotaExceededError extends Error {
@@ -103,14 +124,18 @@ const quotaRetryAfter = (err: any): number => {
 // Run fn against each model in the fallback chain. Quota errors move to the
 // next model; if all are exhausted, throw AIQuotaExceededError.
 const withModelFallback = async <T>(fn: (model: string) => Promise<T>): Promise<T> => {
-  // Adaptive ordering: the model that worked last goes first, so a
-  // quota-exhausted primary doesn't cost a failed round-trip on every request.
+  // Adaptive ordering: the model that worked last goes first, known-dead
+  // models are skipped, so a stale chain costs nothing after first failure.
   const ordered = preferredModel
     ? [preferredModel, ...MODEL_FALLBACKS.filter((m) => m !== preferredModel)]
     : [...MODEL_FALLBACKS];
   let lastQuotaError: any = null;
   let retryAfter = 60;
   for (const model of ordered) {
+    if (isModelKnownDead(model)) {
+      console.log(`[tutor] skipping known-dead model ${model}`);
+      continue;
+    }
     const tStart = Date.now();
     try {
       const result = await fn(model);
@@ -127,6 +152,7 @@ const withModelFallback = async <T>(fn: (model: string) => Promise<T>): Promise<
       }
       if (isModelGoneError(err)) {
         console.warn(`Gemini model ${model} unavailable, trying fallback...`);
+        markModelDead(model);
         continue;
       }
       if (isOverloadedError(err)) {
@@ -339,6 +365,10 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
   let lastQuotaError: any = null;
   let emitted = '';
   for (const model of ordered) {
+    if (isModelKnownDead(model)) {
+      console.log(`[tutor] skipping known-dead stream model ${model}`);
+      continue;
+    }
     const tStart = Date.now();
     try {
       const stream = await client.models.generateContentStream({
@@ -377,6 +407,7 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
       }
       if (isModelGoneError(err)) {
         console.warn(`Gemini streaming model ${model} unavailable, trying fallback...`);
+        markModelDead(model);
         continue;
       }
       if (isOverloadedError(err)) {
@@ -531,61 +562,105 @@ export async function generateStudyPlan(userRequest: string): Promise<StudyPlanE
   }
   dailyTasks.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const studyPlan: StudyPlanEntry[] = [];
-  for (const task of dailyTasks) {
-    const dateStr = task.date.toISOString().split('T')[0] ?? String(task.date.getTime());
-    const isDeadlineDay = task.dayNumber === task.totalDays;
-    const daysUntilDeadline = task.totalDays - task.dayNumber;
-
-    try {
-      const studyGuide = await generateDayGuide({
-        subject: task.event.subject,
-        type: task.event.type,
-        deadlineTitle: task.event.title,
-        dayNumber: task.dayNumber,
-        totalDays: task.totalDays,
-        daysUntilDeadline,
-        isDeadlineDay,
-      });
-
-      let title: string;
-      let eventType: 'Exam' | 'Assignment' | 'Revision';
-      if (isDeadlineDay) {
-        title = task.event.title;
-        eventType = task.event.type;
-      } else {
-        title = `${task.event.subject} Day ${task.dayNumber} - ${daysUntilDeadline} days to ${task.event.type.toLowerCase()}`;
-        eventType = 'Revision';
-      }
-
-      studyPlan.push({
-        title,
-        subject: task.event.subject,
-        date: dateStr,
-        type: eventType,
-        notes: JSON.stringify(studyGuide),
-      });
-    } catch (error) {
-      console.error('Error generating daily study guide:', task, error);
-      const fallbackNotes = isDeadlineDay
-        ? (task.event.type === 'Exam'
-            ? `${task.event.subject} exam day`
-            : task.event.type === 'Assignment'
-              ? `Complete and submit ${task.event.subject.toLowerCase()} assignment`
-              : `Review ${task.event.subject.toLowerCase()} materials`)
-        : `Day ${task.dayNumber} preparation for ${task.event.subject.toLowerCase()} ${task.event.type.toLowerCase()}`;
-
-      studyPlan.push({
-        title: isDeadlineDay ? task.event.title : `${task.event.subject} Day ${task.dayNumber}`,
-        subject: task.event.subject,
-        date: dateStr,
-        type: isDeadlineDay ? task.event.type : 'Revision',
-        notes: fallbackNotes,
-      });
-    }
+  // Safety bound: each day costs one AI call (quota + time). Cap total days
+  // so a vague prompt ("exams next year") can't burn hundreds of calls or
+  // blow past the serverless function timeout. Furthest deadlines first.
+  const MAX_PLAN_DAYS = 30;
+  const cappedTasks =
+    dailyTasks.length > MAX_PLAN_DAYS
+      ? dailyTasks.slice(-MAX_PLAN_DAYS)
+      : dailyTasks;
+  if (dailyTasks.length > MAX_PLAN_DAYS) {
+    console.log(`[study-plan] capped ${dailyTasks.length} days to ${MAX_PLAN_DAYS}`);
   }
 
+  // Day guides are independent — generate with bounded parallelism instead of
+  // sequentially (4 days x ~5s sequential = 20s; parallel ~= 6s).
+  const t0 = Date.now();
+  const studyPlan = await mapWithConcurrency(cappedTasks, 4, (task) => buildPlanEntry(task));
+  console.log(`[study-plan] ${studyPlan.length} days in ${Date.now() - t0}ms`);
+
   return studyPlan;
+}
+
+// Run fn over items with at most `limit` in flight. Results keep input order.
+// A single item failure must never fail the whole batch (each day falls back
+// to a plain-text guide instead).
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
+    while (next < items.length) {
+      const i = next++;
+      const item = items[i];
+      if (item === undefined) continue;
+      results[i] = await fn(item, i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function buildPlanEntry(task: {
+  date: Date;
+  event: EventInfo;
+  dayNumber: number;
+  totalDays: number;
+}): Promise<StudyPlanEntry> {
+  const dateStr = task.date.toISOString().split('T')[0] ?? String(task.date.getTime());
+  const isDeadlineDay = task.dayNumber === task.totalDays;
+  const daysUntilDeadline = task.totalDays - task.dayNumber;
+
+  try {
+    const studyGuide = await generateDayGuide({
+      subject: task.event.subject,
+      type: task.event.type,
+      deadlineTitle: task.event.title,
+      dayNumber: task.dayNumber,
+      totalDays: task.totalDays,
+      daysUntilDeadline,
+      isDeadlineDay,
+    });
+
+    let title: string;
+    let eventType: 'Exam' | 'Assignment' | 'Revision';
+    if (isDeadlineDay) {
+      title = task.event.title;
+      eventType = task.event.type;
+    } else {
+      title = `${task.event.subject} Day ${task.dayNumber} - ${daysUntilDeadline} days to ${task.event.type.toLowerCase()}`;
+      eventType = 'Revision';
+    }
+
+    return {
+      title,
+      subject: task.event.subject,
+      date: dateStr,
+      type: eventType,
+      notes: JSON.stringify(studyGuide),
+    };
+  } catch (error) {
+    console.error('Error generating daily study guide:', task, error);
+    const fallbackNotes = isDeadlineDay
+      ? (task.event.type === 'Exam'
+          ? `${task.event.subject} exam day`
+          : task.event.type === 'Assignment'
+            ? `Complete and submit ${task.event.subject.toLowerCase()} assignment`
+            : `Review ${task.event.subject.toLowerCase()} materials`)
+      : `Day ${task.dayNumber} preparation for ${task.event.subject.toLowerCase()} ${task.event.type.toLowerCase()}`;
+
+    return {
+      title: isDeadlineDay ? task.event.title : `${task.event.subject} Day ${task.dayNumber}`,
+      subject: task.event.subject,
+      date: dateStr,
+      type: isDeadlineDay ? task.event.type : 'Revision',
+      notes: fallbackNotes,
+    };
+  }
 }
 
 // --- Practice quiz generation --------------------------------------------

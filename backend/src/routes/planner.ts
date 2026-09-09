@@ -180,6 +180,69 @@ router.post('/events', [
   }
 });
 
+// Batch-create study events (used by AI schedule generation — one round trip
+// instead of N sequential POSTs)
+router.post('/events/batch', [
+  authenticateToken,
+  body('events').isArray({ min: 1, max: 31 }).withMessage('events must be an array of 1-31 items'),
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { events } = req.body as { events: Array<{
+      title: string; subject: string; event_date: string; event_type: string; notes?: string;
+    }> };
+
+    // Validate + normalize every item before touching the DB (all-or-nothing)
+    const rows: Array<[string, string, string, string, string, string]> = [];
+    for (const [i, e] of events.entries()) {
+      if (!e || typeof e.title !== 'string' || !e.title.trim() || e.title.trim().length > 200) {
+        res.status(400).json({ success: false, message: `events[${i}].title is required (1-200 chars)` } as ApiResponse);
+        return;
+      }
+      const normalizedSubject = normalizeSubject(e.subject);
+      if (!normalizedSubject) {
+        res.status(400).json({ success: false, message: `events[${i}].subject "${e.subject}" is invalid` } as ApiResponse);
+        return;
+      }
+      if (typeof e.event_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.event_date.trim()) || isNaN(new Date(e.event_date).getTime())) {
+        res.status(400).json({ success: false, message: `events[${i}].event_date must be YYYY-MM-DD` } as ApiResponse);
+        return;
+      }
+      if (!['Exam', 'Revision', 'Assignment'].includes(e.event_type)) {
+        res.status(400).json({ success: false, message: `events[${i}].event_type must be Exam/Revision/Assignment` } as ApiResponse);
+        return;
+      }
+      rows.push([userId, e.title.trim(), normalizedSubject, e.event_date.trim(), e.event_type, (e.notes || '').trim()]);
+    }
+
+    // Single multi-row INSERT
+    const values: any[] = [];
+    const valueGroups = rows.map((r) => {
+      const start = values.length + 1;
+      values.push(r[0], r[1], r[2], r[3], r[4], false, r[5]);
+      return `($${start}, $${start + 1}, $${start + 2}, $${start + 3}, $${start + 4}, $${start + 5}, $${start + 6})`;
+    });
+
+    const result = await query(
+      `INSERT INTO study_events (user_id, title, subject, event_date, event_type, is_completed, notes) VALUES ${valueGroups.join(', ')} RETURNING *`,
+      values
+    );
+
+    res.status(201).json({
+      success: true,
+      data: result.rows,
+      message: `${result.rows.length} study events created successfully`
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Batch create study events error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create study events',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    } as ApiResponse);
+  }
+});
+
 // Update study event
 router.put('/events/:id', [
   authenticateToken,

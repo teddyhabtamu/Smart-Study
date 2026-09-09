@@ -963,6 +963,34 @@ export const plannerAPI = {
     }));
   },
 
+  // Batch-create events in ONE request (AI schedule generation) instead of
+  // N sequential POSTs. Returns the created events in frontend shape.
+  createEventsBatch: (events: Omit<StudyEvent, 'id' | 'created_at' | 'updated_at'>[]): Promise<StudyEvent[]> => {
+    const apiEvents = events.map((event) => ({
+      title: event.title,
+      subject: event.subject,
+      event_date: event.date,
+      event_type: event.type,
+      notes: event.notes || ''
+    }));
+
+    return apiRequest('/planner/events/batch', {
+      method: 'POST',
+      body: JSON.stringify({ events: apiEvents }),
+    }).then((created: any) => ((created || []) as any[]).map((createdEvent: any) => ({
+      id: createdEvent.id,
+      title: createdEvent.title,
+      subject: createdEvent.subject,
+      date: createdEvent.event_date,
+      type: createdEvent.event_type,
+      isCompleted: createdEvent.is_completed,
+      isArchived: createdEvent.is_archived || false,
+      notes: createdEvent.notes,
+      created_at: createdEvent.created_at,
+      updated_at: createdEvent.updated_at
+    })));
+  },
+
   updateEvent: (id: string, updates: Partial<StudyEvent>): Promise<StudyEvent> => {
     // Map frontend field names to backend field names
     const apiUpdates: any = { ...updates };

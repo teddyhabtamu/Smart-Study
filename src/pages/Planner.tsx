@@ -15,7 +15,7 @@ import { PlannerEventSkeleton, TaskItemSkeleton } from '../components/Skeletons'
 
 
 const Planner: React.FC = () => {
-  const { studyEvents, fetchStudyEvents, createStudyEvent, updateStudyEvent, deleteStudyEvent, loading } = useData();
+  const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading } = useData();
   const { user, gainXP } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -24,6 +24,8 @@ const Planner: React.FC = () => {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Elapsed seconds while the AI schedule generates — drives staged progress text
+  const [generateElapsed, setGenerateElapsed] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
   const [isDeletingEvent, setIsDeletingEvent] = useState<string | null>(null);
   const [isArchivingEvent, setIsArchivingEvent] = useState<string | null>(null);
@@ -279,35 +281,43 @@ const Planner: React.FC = () => {
     if (!aiPrompt.trim()) return;
 
     setIsGenerating(true);
+    setGenerateElapsed(0);
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setGenerateElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
     try {
       const response = await aiTutorAPI.generateStudyPlan(aiPrompt);
 
       // The response already contains parsed JSON
       const plan = response.plan;
 
-      // Create events from the plan
-      for (const item of plan) {
-        if (item.title && item.subject && item.date && item.type) {
-          await createStudyEvent({
-            title: item.title,
-            subject: item.subject,
-            date: item.date,
-            type: item.type,
-            isCompleted: false,
-            isArchived: false,
-            notes: item.notes || ''
-          });
-        }
+      // Batch-create all events in ONE request (not N sequential POSTs)
+      const validItems = (plan || []).filter(
+        (item: any) => item.title && item.subject && item.date && item.type
+      ).map((item: any) => ({
+        title: item.title,
+        subject: item.subject,
+        date: item.date,
+        type: item.type,
+        isCompleted: false,
+        isArchived: false,
+        notes: item.notes || ''
+      }));
+
+      if (validItems.length > 0) {
+        await createStudyEventsBatch(validItems);
       }
 
       // Refresh the study events to ensure they're displayed
       await fetchStudyEvents();
 
-      addToast("Study plan generated successfully!", "success");
+      addToast(`Study plan generated successfully! (${validItems.length} sessions scheduled)`, "success");
     } catch (error) {
       console.error('AI generation error:', error);
       addToast("Failed to generate study plan. Please try again.", "error");
     } finally {
+      clearInterval(timer);
       setIsGenerating(false);
       setIsAIModalOpen(false);
       setAiPrompt('');
@@ -945,7 +955,10 @@ const Planner: React.FC = () => {
                  {isGenerating ? (
                    <>
                      <Loader2 size={16} className="animate-spin" />
-                     Generating...
+                     {generateElapsed < 8 ? 'Understanding your deadlines...' :
+                      generateElapsed < 20 ? 'Writing daily study guides...' :
+                      generateElapsed < 40 ? 'Scheduling sessions...' :
+                      'Almost there...'} {generateElapsed >= 3 && <span className="tabular-nums opacity-70">({generateElapsed}s)</span>}
                    </>
                  ) : (
                    <>

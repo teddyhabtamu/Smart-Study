@@ -113,6 +113,7 @@ interface DataContextType {
   deleteForumPost: (id: string) => Promise<void>;
 
   createStudyEvent: (event: Omit<StudyEvent, 'id' | 'created_at' | 'updated_at'>) => Promise<StudyEvent>;
+  createStudyEventsBatch: (events: Omit<StudyEvent, 'id' | 'created_at' | 'updated_at'>[]) => Promise<StudyEvent[]>;
   updateStudyEvent: (id: string, updates: Partial<StudyEvent>) => Promise<StudyEvent>;
   deleteStudyEvent: (id: string) => Promise<void>;
 
@@ -490,6 +491,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return createdEvent;
   };
 
+  // Batch-create events in one request (AI schedule generation)
+  const createStudyEventsBatch = async (events: Omit<StudyEvent, 'id' | 'created_at' | 'updated_at'>[]): Promise<StudyEvent[]> => {
+    if (events.length === 0) return [];
+    const createdEvents = await plannerAPI.createEventsBatch(events);
+    setStudyEvents(prev => [...prev, ...createdEvents]);
+
+    // Refresh dashboard if any event is for today
+    const today = new Date().toISOString().split('T')[0];
+    if (createdEvents.some(e => e.date === today)) {
+      await fetchDashboard();
+    }
+
+    return createdEvents;
+  };
+
   const updateStudyEvent = async (id: string, updates: Partial<StudyEvent>): Promise<StudyEvent> => {
     const updatedEvent = await plannerAPI.updateEvent(id, updates);
     setStudyEvents(prev => prev.map(event => event.id === id ? updatedEvent : event));
@@ -560,6 +576,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateForumPost,
       deleteForumPost,
       createStudyEvent,
+      createStudyEventsBatch,
       updateStudyEvent,
       deleteStudyEvent,
       updateUserStatus
