@@ -33,5 +33,6 @@ backend/email-templates/
 backend/.env
 *.env.local
 backend/.env.local
-*.md
-*.sql
+# Documentation is tracked (README, CHANGELOG, guides)
+# Database migrations are tracked (required by db:migrate)
+# (Previously *.md / *.sql were blanket-ignored — fixed 2026-09-09)
