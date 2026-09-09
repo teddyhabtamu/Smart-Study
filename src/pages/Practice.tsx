@@ -9,6 +9,26 @@ import CustomSelect from '../components/CustomSelect';
 import { SUBJECTS, GRADES } from '../constants';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
+import MarkdownRenderer, { MarkdownInline } from '../components/MarkdownRenderer';
+
+const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
+
+// Strip a model-added letter prefix ("A. ", "B) ", "(C) ") for display —
+// letter chips are rendered separately, so prefixes would read "A. A) ...".
+const stripOptionPrefix = (text: string): string =>
+  String(text ?? '').replace(/^\s*(\(?[A-D]\)?[.)]\s+)/, '');
+
+// Make raw markdown/LaTeX speakable: TTS would otherwise read "$", "^", "_"
+// aloud. Keeps the readable words, drops the notation.
+const stripForSpeech = (text: string): string =>
+  String(text ?? '')
+    .replace(/\$\$[\s\S]*?\$\$/g, ' mathematical expression ')
+    .replace(/\$([^$]+)\$/g, '$1')
+    .replace(/\\(frac|sqrt|times|cdot|leq|geq|neq|pm|alpha|beta|gamma|theta|pi|infty|sum|int)\b/g, '')
+    .replace(/[\\{}$^_]/g, '')
+    .replace(/[*_#>`|-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 interface Question {
   question: string;
@@ -366,10 +386,10 @@ const Practice: React.FC = () => {
         {/* Question Card */}
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 shadow-sm mb-6 sm:mb-8">
            <div className="flex items-start gap-3 mb-4 sm:mb-6">
-             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 leading-relaxed flex-1">
-               {question.question}
-             </h2>
-             <TTSButton text={question.question} size={16} className="sm:w-[18px] sm:h-[18px] text-zinc-400 hover:text-zinc-900 flex-shrink-0" />
+             <div className="text-lg sm:text-xl font-bold text-zinc-900 leading-relaxed flex-1">
+               <MarkdownInline content={question.question} />
+             </div>
+             <TTSButton text={stripForSpeech(question.question)} size={16} className="sm:w-[18px] sm:h-[18px] text-zinc-400 hover:text-zinc-900 flex-shrink-0" />
            </div>
 
            <div className="space-y-3">
@@ -379,16 +399,21 @@ const Practice: React.FC = () => {
                  <button
                    key={idx}
                    onClick={() => handleSelectOption(option)}
-                   className={`w-full text-left p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-between group ${
+                   className={`w-full text-left p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center gap-3 group ${
                      isSelected
                        ? 'border-zinc-900 bg-zinc-50'
                        : 'border-zinc-100 hover:border-zinc-300 hover:bg-zinc-50'
                    }`}
                  >
-                   <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-zinc-900' : 'text-zinc-600'}`}>
-                     {option}
+                   <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0 transition-colors ${
+                     isSelected ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700'
+                   }`}>
+                     {OPTION_LETTERS[idx] ?? idx + 1}
                    </span>
-                   {isSelected && <div className="w-4 h-4 sm:w-5 sm:h-5 bg-zinc-900 rounded-full flex items-center justify-center"><Check size={10} className="sm:w-3 sm:h-3 text-white" /></div>}
+                   <span className={`font-medium text-sm sm:text-base flex-1 ${isSelected ? 'text-zinc-900' : 'text-zinc-600'}`}>
+                     <MarkdownInline content={stripOptionPrefix(option)} />
+                   </span>
+                   {isSelected && <div className="w-4 h-4 sm:w-5 sm:h-5 bg-zinc-900 rounded-full flex items-center justify-center flex-shrink-0"><Check size={10} className="sm:w-3 sm:h-3 text-white" /></div>}
                  </button>
                );
              })}
@@ -486,6 +511,8 @@ const Practice: React.FC = () => {
                  {questions.map((q, idx) => {
                    const userAnswer = answers[idx];
                    const isCorrect = userAnswer === q.correctAnswer;
+                   const userLetter = q.options.indexOf(userAnswer);
+                   const correctLetter = q.options.indexOf(q.correctAnswer);
 
                    return (
                      <div key={idx} className={`p-4 sm:p-6 rounded-xl border ${isCorrect ? 'bg-white border-zinc-200' : 'bg-red-50 border-red-100'}`}>
@@ -495,24 +522,26 @@ const Practice: React.FC = () => {
                            }`}>
                               {isCorrect ? <Check size={12} className="sm:w-3.5 sm:h-3.5" /> : <X size={12} className="sm:w-3.5 sm:h-3.5" />}
                            </div>
-                           <div className="flex-1">
-                              <p className="font-bold text-zinc-900 mb-3 text-sm sm:text-base">{q.question}</p>
+                           <div className="flex-1 min-w-0">
+                              <div className="font-bold text-zinc-900 mb-3 text-sm sm:text-base">
+                                <MarkdownInline content={q.question} />
+                              </div>
                               <div className="space-y-1 mb-3">
                                  <p className="text-xs text-zinc-500">
-                                   Your Answer: <span className={isCorrect ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}>{userAnswer}</span>
+                                   Your Answer{userLetter >= 0 ? ` (${OPTION_LETTERS[userLetter]})` : ''}: <span className={isCorrect ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}><MarkdownInline content={stripOptionPrefix(userAnswer)} /></span>
                                  </p>
                                  {!isCorrect && (
                                    <p className="text-xs text-zinc-500">
-                                     Correct Answer: <span className="text-emerald-600 font-bold">{q.correctAnswer}</span>
+                                     Correct Answer{correctLetter >= 0 ? ` (${OPTION_LETTERS[correctLetter]})` : ''}: <span className="text-emerald-600 font-bold"><MarkdownInline content={stripOptionPrefix(q.correctAnswer)} /></span>
                                    </p>
                                  )}
                               </div>
                               <div className="text-xs bg-black/5 p-3 rounded-lg text-zinc-600 leading-relaxed relative">
                                  <div className="flex justify-between items-start mb-1">
                                     <span className="font-bold">Explanation:</span>
-                                    <TTSButton text={q.explanation} size={12} className="sm:w-3.5 sm:h-3.5 p-1 -mt-1 -mr-1" />
+                                    <TTSButton text={stripForSpeech(q.explanation)} size={12} className="sm:w-3.5 sm:h-3.5 p-1 -mt-1 -mr-1" />
                                  </div>
-                                 {q.explanation}
+                                 <MarkdownRenderer content={q.explanation} />
                               </div>
                            </div>
                         </div>

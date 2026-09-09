@@ -9,6 +9,32 @@ interface MarkdownRendererProps {
   content: string;
 }
 
+// Inline variant: tight, inherits surrounding typography — for quiz options,
+// short questions, answer lines. Same GFM + KaTeX math support, but without
+// block margins so it sits naturally inside buttons and small text.
+export const MarkdownInline: React.FC<MarkdownRendererProps> = ({ content }) => {
+  return (
+    <span className="markdown-inline">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          // Render paragraphs as plain spans to stay valid inside <p>/<button>
+          p: ({node, ...props}) => <span {...props} />,
+          strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
+          em: ({node, ...props}) => <em className="italic" {...props} />,
+          code: ({node, ...props}) => (
+            <code className="bg-zinc-100 px-1 py-0.5 rounded text-[0.9em] font-mono border border-zinc-200" {...props} />
+          ),
+          a: ({node, ...props}) => <span className="underline underline-offset-2" {...props} />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </span>
+  );
+};
+
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   return (
     <div className="markdown-body w-full">

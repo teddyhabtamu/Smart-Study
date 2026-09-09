@@ -597,6 +597,12 @@ export async function generatePracticeQuiz(
 ): Promise<any[]> {
   const prompt = `Generate ${count} ${difficulty} practice questions for ${subject} at Grade ${grade} level (Ethiopian curriculum). Each question must be multiple choice with 4 options, exactly one correct answer, and a brief explanation of why it is correct.
 
+Formatting rules (the app renders markdown + LaTeX, options get A/B/C/D chips automatically):
+- Write ALL math with LaTeX: inline $...$ (e.g. $f(x) = x^2 + 1$, $\\frac{a}{b}$), display $$...$$ for standalone equations.
+- NEVER prefix options with letters ("A. ", "B) ", ...) — chips are added by the app.
+- Keep each option short (one line); make wrong options plausible (common student mistakes), not obviously absurd.
+- Explanation: 1-2 sentences, plain words, LaTeX only where a formula is needed.
+
 Return ONLY a valid JSON array in exactly this format, with no markdown fences and no extra text:
 [
   {
