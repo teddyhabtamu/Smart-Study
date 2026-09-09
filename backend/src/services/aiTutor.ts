@@ -66,7 +66,7 @@ export class AIQuotaExceededError extends Error {
   }
 }
 
-const isQuotaError = (err: any): boolean => {
+export const isQuotaError = (err: any): boolean => {
   const msg = String(err?.message || '');
   const status = (err as any)?.status;
   return (
@@ -80,7 +80,7 @@ const isQuotaError = (err: any): boolean => {
 
 // A retired/unknown model (404 NOT_FOUND) should also fall through to the
 // next model rather than failing the request.
-const isModelGoneError = (err: any): boolean => {
+export const isModelGoneError = (err: any): boolean => {
   const msg = String(err?.message || '');
   const status = (err as any)?.status;
   return (
@@ -93,7 +93,7 @@ const isModelGoneError = (err: any): boolean => {
 
 // An overloaded model (503 UNAVAILABLE) is transient and capacity-specific —
 // the next model in the chain will usually serve fine.
-const isOverloadedError = (err: any): boolean => {
+export const isOverloadedError = (err: any): boolean => {
   const msg = String(err?.message || '');
   const status = (err as any)?.status;
   return (
@@ -105,7 +105,7 @@ const isOverloadedError = (err: any): boolean => {
   );
 };
 
-const quotaRetryAfter = (err: any): number => {
+export const quotaRetryAfter = (err: any): number => {
   try {
     const details = (err as any)?.error?.details || [];
     for (const d of details) {

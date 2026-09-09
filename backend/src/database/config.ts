@@ -40,7 +40,7 @@ if (config.supabase.url && config.supabase.serviceRoleKey) {
 // for serverless (Vercel) and works with node-postgres parameterized queries
 // (unnamed statements only; this codebase never uses named prepared statements).
 // ---------------------------------------------------------------------------
-const buildPoolConfig = () => {
+export const buildPoolConfig = () => {
   const raw = process.env.PG_POOLER_URL || config.database.url;
   if (!raw) {
     throw new Error('Neither PG_POOLER_URL nor DATABASE_URL is configured.');
@@ -86,7 +86,7 @@ const buildPoolConfig = () => {
 export const pool = new Pool(buildPoolConfig());
 
 // Retry helper for transient connection errors (pooler cold starts, timeouts)
-const isTransientError = (err: any): boolean => {
+export const isTransientError = (err: any): boolean => {
   const msg = String(err?.message || err || '').toLowerCase();
   return (
     msg.includes('connection terminated') ||
@@ -145,6 +145,18 @@ const JSONB_COLUMNS: Record<string, Set<string>> = {
   admin_activity_logs: new Set(['before', 'after', 'meta']),
 };
 
+// Pure value preparation (exported for unit tests).
+// See Table.prepareValue for the why.
+export const prepareColumnValue = (table: string, column: string, v: any): any => {
+  if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+    return JSON.stringify(v);
+  }
+  if (Array.isArray(v) && JSONB_COLUMNS[table]?.has(column)) {
+    return JSON.stringify(v);
+  }
+  return v;
+};
+
 // ---------------------------------------------------------------------------
 // Lightweight table helpers (replace the legacy SupabaseDB wrapper).
 // Thin, predictable wrappers over real SQL — used by routes that previously
@@ -159,16 +171,10 @@ export class Table {
   // which is correct for text[] columns (users.unlocked_badges, *.tags) but
   // INVALID for jsonb columns (chat_sessions.messages, users.preferences).
   // So: plain objects are always JSON-stringified; arrays only when the
-  // target column is jsonb (registry below); everything else passes through
+  // target column is jsonb (registry above); everything else passes through
   // for pg's native serialization.
   private prepareValue(column: string, v: any): any {
-    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-      return JSON.stringify(v);
-    }
-    if (Array.isArray(v) && JSONB_COLUMNS[this.name]?.has(column)) {
-      return JSON.stringify(v);
-    }
-    return v;
+    return prepareColumnValue(this.name, column, v);
   }
 
   private cols(row: Record<string, any>): { set: string[]; vals: any[] } {

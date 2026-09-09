@@ -6,7 +6,7 @@
     "start": "node dist/server.js",
     "dev": "nodemon",
     "build": "tsc --pretty && node scripts/build-info.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "db:create": "createdb smartstudy",
     "db:migrate": "tsx src/database/migrate.ts",
     "db:seed": "tsx src/database/seed.ts",
@@ -51,6 +51,7 @@
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "tsx": "^4.6.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.7"
   }
 }

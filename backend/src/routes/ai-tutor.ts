@@ -37,7 +37,7 @@ const upload = multer({
 // Safely extract the messages array from a chat session row.
 // The messages column is jsonb; older rows (and some Supabase returns) come
 // back as an object instead of an array, which breaks .map/.push.
-const extractMessages = (session: any): { role: string; text: string; timestamp?: string }[] => {
+export const extractMessages = (session: any): { role: string; text: string; timestamp?: string }[] => {
   const raw = session?.messages;
   if (Array.isArray(raw)) return raw;
   if (raw && typeof raw === 'object') {
