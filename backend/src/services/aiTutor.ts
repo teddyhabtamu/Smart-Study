@@ -426,241 +426,13 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
   );
 }
 
-// --- Study plan generation ------------------------------------------------
-// Parses a natural-language request ("physics exam after 5 days and math
-// assignment in 3 days") into a day-by-day study plan. Event extraction is
-// deterministic (regex-based, no AI) — the AI only writes each day's guide
-// via generateDayGuide (Gemini).
+// --- Study plan entries (shared shape with the frontend schedule) ----------
 export interface StudyPlanEntry {
   title: string;
   subject: string;
   date: string;
   type: string;
   notes: string;
-}
-
-interface EventInfo {
-  subject: string;
-  type: 'Exam' | 'Assignment' | 'Revision';
-  date: Date;
-  title: string;
-}
-
-const SUBJECT_ALIASES: Record<string, string> = {
-  math: 'Mathematics',
-  aptitude: 'Aptitude',
-  sat: 'SAT',
-  act: 'ACT',
-  gmat: 'GMAT',
-  gre: 'GRE',
-  toefl: 'TOEFL',
-  ielts: 'IELTS',
-};
-
-const canonicalSubject = (s: string): string =>
-  SUBJECT_ALIASES[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
-
-const KNOWN_SUBJECTS = [
-  'aptitude', 'physics', 'chemistry', 'biology', 'mathematics', 'math',
-  'english', 'history', 'geography', 'sat', 'act', 'gmat', 'gre', 'toefl', 'ielts',
-];
-
-const parseDate = (text: string, baseDate: Date): Date => {
-  const result = new Date(baseDate);
-  const daysMatch = text.match(/(?:after|in)\s+(\d+)\s+days?/i);
-  if (daysMatch && daysMatch[1]) {
-    result.setDate(baseDate.getDate() + parseInt(daysMatch[1]));
-    return result;
-  }
-  if (text.includes('tomorrow')) { result.setDate(baseDate.getDate() + 1); return result; }
-  if (text.includes('next week') || text.includes('in 7 days')) { result.setDate(baseDate.getDate() + 7); return result; }
-  if (/in 2 weeks|after 2 weeks|in 14 days/i.test(text)) { result.setDate(baseDate.getDate() + 14); return result; }
-  result.setDate(baseDate.getDate() + 1);
-  return result;
-};
-
-export async function generateStudyPlan(userRequest: string): Promise<StudyPlanEntry[]> {
-  const request = userRequest.toLowerCase();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const events: EventInfo[] = [];
-  const requestParts = request.split(/\s+and\s+/i);
-
-  for (const subject of KNOWN_SUBJECTS) {
-    if (request.includes(subject)) {
-      const relevantPart = requestParts.find((part) => part.includes(subject)) || request;
-
-      let eventType: 'Exam' | 'Assignment' | 'Revision' = 'Revision';
-      if (/exam|test/.test(relevantPart)) eventType = 'Exam';
-      else if (/assignment|homework|project/.test(relevantPart)) eventType = 'Assignment';
-
-      const subjectPattern = new RegExp(`${subject}[^.]*?(?:after|in)\\s+(\\d+)\\s+days?`, 'i');
-      const match = relevantPart.match(subjectPattern);
-      const subjectName = canonicalSubject(subject);
-
-      if (match && match[1]) {
-        const eventDate = new Date(today);
-        eventDate.setDate(today.getDate() + parseInt(match[1]));
-        events.push({
-          subject: subjectName,
-          type: eventType,
-          date: eventDate,
-          title: `${subjectName} ${eventType === 'Exam' ? 'Exam' : eventType === 'Assignment' ? 'Assignment' : 'Study Session'}`,
-        });
-      } else {
-        const daysMatch = relevantPart.match(/(?:after|in)\s+(\d+)\s+days?/i);
-        const nextWeekMatch = relevantPart.match(/next\s+week/i);
-        if (daysMatch && daysMatch[1]) {
-          const eventDate = new Date(today);
-          eventDate.setDate(today.getDate() + parseInt(daysMatch[1]));
-          events.push({ subject: subjectName, type: eventType, date: eventDate, title: `${subjectName} ${eventType}` });
-        } else if (nextWeekMatch) {
-          const eventDate = new Date(today);
-          eventDate.setDate(today.getDate() + 7);
-          events.push({ subject: subjectName, type: eventType, date: eventDate, title: `${subjectName} ${eventType}` });
-        }
-      }
-    }
-  }
-
-  // Fallback: single generic event
-  if (events.length === 0) {
-    let subject = 'Mathematics';
-    if (request.includes('physics')) subject = 'Physics';
-    else if (request.includes('chemistry')) subject = 'Chemistry';
-    else if (request.includes('biology')) subject = 'Biology';
-    else if (request.includes('english')) subject = 'English';
-    else if (request.includes('history')) subject = 'History';
-
-    let eventType: 'Exam' | 'Assignment' | 'Revision' = 'Revision';
-    if (/exam|test/.test(request)) eventType = 'Exam';
-    else if (/assignment|homework/.test(request)) eventType = 'Assignment';
-
-    events.push({
-      subject,
-      type: eventType,
-      date: parseDate(request, today),
-      title: `${subject} ${eventType === 'Revision' ? 'Study Session' : eventType}`,
-    });
-  }
-
-  events.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  // Build daily tasks from today until each deadline
-  const dailyTasks: Array<{ date: Date; event: EventInfo; dayNumber: number; totalDays: number }> = [];
-  for (const event of events) {
-    const daysUntilEvent = Math.ceil((event.date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysUntilEvent >= 0) {
-      const totalDays = daysUntilEvent + 1;
-      for (let day = 0; day < totalDays; day++) {
-        const taskDate = new Date(today);
-        taskDate.setDate(today.getDate() + day);
-        dailyTasks.push({ date: taskDate, event, dayNumber: day + 1, totalDays });
-      }
-    }
-  }
-  dailyTasks.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  // Safety bound: each day costs one AI call (quota + time). Cap total days
-  // so a vague prompt ("exams next year") can't burn hundreds of calls or
-  // blow past the serverless function timeout. Furthest deadlines first.
-  const MAX_PLAN_DAYS = 30;
-  const cappedTasks =
-    dailyTasks.length > MAX_PLAN_DAYS
-      ? dailyTasks.slice(-MAX_PLAN_DAYS)
-      : dailyTasks;
-  if (dailyTasks.length > MAX_PLAN_DAYS) {
-    console.log(`[study-plan] capped ${dailyTasks.length} days to ${MAX_PLAN_DAYS}`);
-  }
-
-  // Day guides are independent — generate with bounded parallelism instead of
-  // sequentially (4 days x ~5s sequential = 20s; parallel ~= 6s).
-  const t0 = Date.now();
-  const studyPlan = await mapWithConcurrency(cappedTasks, 4, (task) => buildPlanEntry(task));
-  console.log(`[study-plan] ${studyPlan.length} days in ${Date.now() - t0}ms`);
-
-  return studyPlan;
-}
-
-// Run fn over items with at most `limit` in flight. Results keep input order.
-// A single item failure must never fail the whole batch (each day falls back
-// to a plain-text guide instead).
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  const workers = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
-    while (next < items.length) {
-      const i = next++;
-      const item = items[i];
-      if (item === undefined) continue;
-      results[i] = await fn(item, i);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
-
-async function buildPlanEntry(task: {
-  date: Date;
-  event: EventInfo;
-  dayNumber: number;
-  totalDays: number;
-}): Promise<StudyPlanEntry> {
-  const dateStr = task.date.toISOString().split('T')[0] ?? String(task.date.getTime());
-  const isDeadlineDay = task.dayNumber === task.totalDays;
-  const daysUntilDeadline = task.totalDays - task.dayNumber;
-
-  try {
-    const studyGuide = await generateDayGuide({
-      subject: task.event.subject,
-      type: task.event.type,
-      deadlineTitle: task.event.title,
-      dayNumber: task.dayNumber,
-      totalDays: task.totalDays,
-      daysUntilDeadline,
-      isDeadlineDay,
-    });
-
-    let title: string;
-    let eventType: 'Exam' | 'Assignment' | 'Revision';
-    if (isDeadlineDay) {
-      title = task.event.title;
-      eventType = task.event.type;
-    } else {
-      title = `${task.event.subject} Day ${task.dayNumber} - ${daysUntilDeadline} days to ${task.event.type.toLowerCase()}`;
-      eventType = 'Revision';
-    }
-
-    return {
-      title,
-      subject: task.event.subject,
-      date: dateStr,
-      type: eventType,
-      notes: JSON.stringify(studyGuide),
-    };
-  } catch (error) {
-    console.error('Error generating daily study guide:', task, error);
-    const fallbackNotes = isDeadlineDay
-      ? (task.event.type === 'Exam'
-          ? `${task.event.subject} exam day`
-          : task.event.type === 'Assignment'
-            ? `Complete and submit ${task.event.subject.toLowerCase()} assignment`
-            : `Review ${task.event.subject.toLowerCase()} materials`)
-      : `Day ${task.dayNumber} preparation for ${task.event.subject.toLowerCase()} ${task.event.type.toLowerCase()}`;
-
-    return {
-      title: isDeadlineDay ? task.event.title : `${task.event.subject} Day ${task.dayNumber}`,
-      subject: task.event.subject,
-      date: dateStr,
-      type: isDeadlineDay ? task.event.type : 'Revision',
-      notes: fallbackNotes,
-    };
-  }
 }
 
 // --- Practice quiz generation --------------------------------------------
@@ -710,70 +482,148 @@ Return ONLY a valid JSON array in exactly this format, with no markdown fences a
   return questions;
 }
 
-// --- Study plan day-guide generation -------------------------------------
-// Used by the planner's AI study plan feature.
-export async function generateDayGuide(task: {
-  subject: string;
-  type: string;
-  dayNumber: number;
-  totalDays: number;
-  daysUntilDeadline: number;
-  isDeadlineDay: boolean;
-  deadlineTitle: string;
-}): Promise<{
-  howToComplete: string[];
-  guides: string[];
-  suggestions: string;
-  motivation: string[];
-}> {
-  const sessionContext = task.isDeadlineDay
-    ? `This is the FINAL DAY (Day ${task.dayNumber} of ${task.totalDays}) — the ${task.type.toLowerCase()} is TODAY.`
-    : `This is Day ${task.dayNumber} of ${task.totalDays} in your ${task.subject} study plan. You have ${task.daysUntilDeadline} days until your ${task.type.toLowerCase()}. Focus on building knowledge progressively.`;
+// --- Smart schedule generation (from scratch) -------------------------------
+// ONE AI call plans the entire schedule: it understands natural language
+// ("tomorrow physics assignment", "exam next week") natively, resolves
+// relative dates against today, picks correct event types, and balances the
+// daily load. The old regex-based extractor (split on "and", keyword match)
+// is gone — it mislabeled assignments as exams, ignored relative dates, and
+// spammed 3 sessions every day.
+export async function generateSmartPlan(
+  userRequest: string,
+  grade: number = 10
+): Promise<StudyPlanEntry[]> {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0] ?? '2026-01-01';
+  const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
 
-  const specificInstructions = task.isDeadlineDay
-    ? `For the deadline day, focus on mental preparation, time management, staying calm, and confident execution.`
-    : `For day ${task.dayNumber} of preparation, provide specific, actionable steps that build on previous days. Include a mix of review, new learning, and practice. Make it feel like a natural progression in the study journey.`;
+  const systemPrompt = `You are SmartStudy's expert study planner for Ethiopian secondary students (Grade ${grade}). You turn a student's plain-language description of upcoming deadlines into a concrete day-by-day study schedule.
 
-  const prompt = `Generate a JSON object for Day ${task.dayNumber} of a ${task.subject} study plan.
+Return ONLY valid JSON — no markdown fences, no commentary, no extra text.`;
 
-Subject: ${task.subject}
-Deadline: ${task.deadlineTitle} (${task.type})
-Progress: Day ${task.dayNumber} of ${task.totalDays} (${task.isDeadlineDay ? 'DEADLINE DAY' : task.daysUntilDeadline + ' days remaining'})
-Context: ${sessionContext}
+  const userPrompt = `Today is ${weekday}, ${todayStr}. Grade ${grade} student writes:
 
-${specificInstructions}
+"${userRequest}"
 
-Return ONLY this JSON structure:
+Build their study schedule as JSON in EXACTLY this shape:
 {
-  "howToComplete": ["step 1", "step 2", "step 3", "step 4"],
-  "guides": ["tip 1", "tip 2", "tip 3", "tip 4"],
-  "suggestions": "One encouraging sentence for today",
-  "motivation": ["message 1", "message 2", "message 3"]
+  "days": [
+    {
+      "date": "YYYY-MM-DD",
+      "subject": "Physics",
+      "title": "Short specific session title",
+      "type": "Revision",
+      "guide": {
+        "howToComplete": ["4 concrete steps for THIS session"],
+        "guides": ["4 practical study tips"],
+        "suggestions": "One encouraging sentence",
+        "motivation": ["3 short motivational lines"]
+      }
+    }
+  ]
 }
 
-Write naturally like a teacher. Create specific, unique content for this exact day in the ${task.subject} study journey. Make each day feel different and progressive.
+Rules — follow ALL of them:
+1. DATES: resolve every relative date from today (${todayStr}). "tomorrow" = the next calendar day, "day after tomorrow" = +2, "next week" = the same weekday next week (7 days out) unless the student names a day. NEVER invent dates in the past. Every "date" must be >= today.
+2. TYPES (only these three, exactly spelled): "Exam" for exams/tests, "Assignment" for assignments, homework, projects, group work, presentations, "Revision" for everything else (study sessions, preparation, review).
+3. DEADLINE DAYS hold only the deadline event(s) themselves — e.g. {"title": "Physics Assignment", "type": "Assignment"}. No extra revision sessions on a deadline day.
+4. LOAD: at most 2 sessions per day, prefer 1. Spread subjects across days so each deadline gets preparation time. Closer deadlines get priority on shared days.
+5. The day BEFORE a deadline is light: revision for that subject only, focused on readiness and confidence.
+6. LENGTH: at most 14 days total. If deadlines stretch further, cover the first 14 days starting today.
+7. TITLES are human and specific ("Physics: forces practice problems"), never mechanical ("Physics Day 3 - 5 days to exam").
+8. GUIDES are specific to THAT session's subject and situation (formulas for math/physics days, key terms for biology, etc.), written like a caring teacher. Keep each step to one sentence.
+9. If the request is vague or has no clear deadline, plan 7 days of balanced revision across the mentioned subjects (or Mathematics/Physics/Chemistry/Biology/English if none mentioned).
+10. Sort days chronologically by date.`;
 
-Return ONLY the JSON object, nothing else.`;
+  const parsePlan = (raw: string): StudyPlanEntry[] | null => {
+    try {
+      let cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start === -1 || end <= start) return null;
+      cleaned = cleaned.substring(start, end + 1);
+      const parsed = JSON.parse(cleaned);
+      if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) return null;
 
-  const raw = await complete(
-    'You are a helpful AI that generates JSON responses for study planning. Always respond with valid JSON only. Do not include any text before or after the JSON.',
-    prompt,
-    [],
-    0.3
-  );
+      const validTypes = new Set(['Exam', 'Assignment', 'Revision']);
+      const entries: StudyPlanEntry[] = [];
+      for (const d of parsed.days.slice(0, 14)) {
+        if (!d || typeof d !== 'object') continue;
+        const date = String(d.date || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+        if (date < todayStr) continue; // no past days, ever
+        const subject = String(d.subject || '').trim();
+        const title = String(d.title || '').trim();
+        if (!subject || !title) continue;
+        const type = validTypes.has(d.type) ? d.type : 'Revision';
+        const g = d.guide && typeof d.guide === 'object' ? d.guide : {};
+        entries.push({
+          title: title.slice(0, 200),
+          subject: subject.slice(0, 100),
+          date,
+          type,
+          notes: JSON.stringify({
+            howToComplete: Array.isArray(g.howToComplete) ? g.howToComplete.slice(0, 6).map(String) : [],
+            guides: Array.isArray(g.guides) ? g.guides.slice(0, 6).map(String) : [],
+            suggestions: String(g.suggestions || ''),
+            motivation: Array.isArray(g.motivation) ? g.motivation.slice(0, 5).map(String) : [],
+          }),
+        });
+      }
+      return entries.length > 0 ? entries : null;
+    } catch {
+      return null;
+    }
+  };
 
-  let cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start !== -1 && end > start) {
-    cleaned = cleaned.substring(start, end + 1);
+  // Attempt 1: full plan with guides
+  try {
+    const raw = await complete(systemPrompt, userPrompt, [], 0.4, 8192);
+    const parsed = parsePlan(raw);
+    if (parsed) {
+      console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
+      return parsed;
+    }
+    console.warn('[study-plan] first attempt unparseable, retrying with repair prompt');
+  } catch (err) {
+    console.error('[study-plan] first attempt failed:', (err as Error)?.message);
   }
 
-  const parsed = JSON.parse(cleaned);
-  return {
-    howToComplete: Array.isArray(parsed.howToComplete) ? parsed.howToComplete : [],
-    guides: Array.isArray(parsed.guides) ? parsed.guides : [],
-    suggestions: String(parsed.suggestions || ''),
-    motivation: Array.isArray(parsed.motivation) ? parsed.motivation : [],
-  };
+  // Attempt 2: explicit repair — ask for the same JSON, stricter
+  try {
+    const raw = await complete(
+      systemPrompt,
+      `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever.`,
+      [],
+      0.2,
+      8192
+    );
+    const parsed = parsePlan(raw);
+    if (parsed) {
+      console.log(`[study-plan] smart plan ok on repair: ${parsed.length} days`);
+      return parsed;
+    }
+  } catch (err) {
+    console.error('[study-plan] repair attempt failed:', (err as Error)?.message);
+  }
+
+  // Last resort: honest deterministic skeleton (7 light revision days). The
+  // frontend tooltip generates fallback guidance for plain-text notes, so
+  // these still render usefully.
+  console.warn('[study-plan] AI planning failed twice — returning skeleton schedule');
+  const skeleton: StudyPlanEntry[] = [];
+  const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English'];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const subject: string = subjects[i % subjects.length] ?? 'Mathematics';
+    skeleton.push({
+      title: `${subject} revision`,
+      subject,
+      date: d.toISOString().split('T')[0] ?? todayStr,
+      type: 'Revision',
+      notes: `Light revision session for ${subject}. Open your textbook, review recent topics, and solve a few practice problems.`,
+    });
+  }
+  return skeleton;
 }

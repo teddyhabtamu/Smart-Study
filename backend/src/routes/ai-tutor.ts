@@ -282,17 +282,18 @@ router.delete('/sessions/:id', authenticateToken, async (req: express.Request, r
 router.post('/generate-study-plan', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { prompt } = req.body;
-    // Grade is optional and not currently used
     const userId = req.user!.id;
+    const userGrade = req.user!.grade ?? 10;
 
-    // Import the specialized study plan generator
-    const { generateStudyPlan } = await import('../services/aiTutor');
+    // Import the smart schedule planner (single AI call, full structured plan)
+    const { generateSmartPlan } = await import('../services/aiTutor');
 
     // Generate structured study plan
-    const studyPlan = await generateStudyPlan(prompt);
+    const studyPlan = await generateSmartPlan(prompt, userGrade);
 
     // Award XP for using AI planner
-    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    const userRows = await query('SELECT xp FROM users WHERE id = $1', [userId]);
+    const user = userRows.rows[0];
     if (user) {
       const newXp = (user.xp || 0) + 5;
       const newLevel = Math.floor(newXp / 1000) + 1;
