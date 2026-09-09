@@ -129,6 +129,16 @@ export const getClient = async (): Promise<PoolClient> => {
   return client;
 };
 
+// Columns of type jsonb, per table (verified against information_schema).
+// Arrays written to these columns must be JSON-stringified; arrays written
+// to text[] columns (users.unlocked_badges, documents.tags, forum_posts.tags)
+// must NOT be — pg serializes those natively.
+const JSONB_COLUMNS: Record<string, Set<string>> = {
+  chat_sessions: new Set(['messages']),
+  users: new Set(['preferences']),
+  admin_activity_logs: new Set(['before', 'after', 'meta']),
+};
+
 // ---------------------------------------------------------------------------
 // Lightweight table helpers (replace the legacy SupabaseDB wrapper).
 // Thin, predictable wrappers over real SQL — used by routes that previously
@@ -137,12 +147,19 @@ export const getClient = async (): Promise<PoolClient> => {
 export class Table {
   constructor(public name: string) {}
 
-  // Prepare a row for insert/update: pg serializes JS arrays as Postgres
-  // array-literal text (invalid for jsonb), so objects/arrays must be
-  // JSON.stringify'd. Postgres casts the JSON string into jsonb on write,
-  // and pg parses it back to objects on read.
-  private prepareValue(v: any): any {
-    if (Array.isArray(v) || (v !== null && typeof v === 'object')) {
+  // Prepare a value for insert/update.
+  //
+  // Background: pg serializes JS arrays as Postgres array literals ({"a","b"}),
+  // which is correct for text[] columns (users.unlocked_badges, *.tags) but
+  // INVALID for jsonb columns (chat_sessions.messages, users.preferences).
+  // So: plain objects are always JSON-stringified; arrays only when the
+  // target column is jsonb (registry below); everything else passes through
+  // for pg's native serialization.
+  private prepareValue(column: string, v: any): any {
+    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+      return JSON.stringify(v);
+    }
+    if (Array.isArray(v) && JSONB_COLUMNS[this.name]?.has(column)) {
       return JSON.stringify(v);
     }
     return v;
@@ -150,7 +167,7 @@ export class Table {
 
   private cols(row: Record<string, any>): { set: string[]; vals: any[] } {
     const keys = Object.keys(row).filter((k) => row[k] !== undefined);
-    return { set: keys, vals: keys.map((k) => this.prepareValue(row[k])) };
+    return { set: keys, vals: keys.map((k) => this.prepareValue(k, row[k])) };
   }
 
   async all(orderBy?: string, limit?: number): Promise<any[]> {
