@@ -89,6 +89,17 @@ const readVisits = (): number => {
   }
 };
 
+// Manual trigger: any UI (e.g. the drawer row) can re-summon the popup on
+// demand, bypassing timers and cooldowns. Explicit user intent always wins.
+export const SHOW_PROMPT_EVENT = 'smartstudy:show-install-prompt';
+export const requestInstallPrompt = (): void => {
+  try {
+    window.dispatchEvent(new CustomEvent(SHOW_PROMPT_EVENT));
+  } catch {
+    // ignore
+  }
+};
+
 // High-visibility install prompt: bottom sheet on phones, floating card on
 // desktop. Timing rules (anti-annoyance by design):
 // - never on first paint (20s first visit, 10s returning)
@@ -139,6 +150,18 @@ export const InstallPrompt: React.FC = () => {
     }
     setVisible(true);
   }, [installed, canShow, installable, isIos, preview]);
+
+  // Manual summon (drawer row): explicit user intent bypasses timers and
+  // cooldowns, but never the capability gate or the installed state.
+  useEffect(() => {
+    const onSummon = () => {
+      if (installed) return;
+      // Re-read capability at tap time (event may have fired since mount)
+      setVisible(true);
+    };
+    window.addEventListener(SHOW_PROMPT_EVENT, onSummon);
+    return () => window.removeEventListener(SHOW_PROMPT_EVENT, onSummon);
+  }, [installed]);
 
   if (!visible || installed) return null;
   // iOS branch needs no prompt object; Chromium branch needs it
@@ -220,19 +243,27 @@ export const InstallPrompt: React.FC = () => {
   );
 };
 
-// Quiet permanent entry point in the nav drawer (Chromium only): the
-// recovery path for dismissed/never-shown popups. Hidden when installed,
-// when the browser never offered install, or in collapsed icon mode.
+// Quiet permanent entry point in the nav drawer: the recovery path for
+// dismissed/never-shown popups. Hidden when installed or in collapsed
+// icon mode. Chromium taps install directly; iOS taps summon the popup
+// with the manual steps (Apple gives no install API).
 export const InstallAppRow: React.FC<{ collapsed?: boolean; onNavigate?: () => void }> = ({
   collapsed = false,
   onNavigate,
 }) => {
-  const { installable, installed, promptInstall } = usePwaInstall();
+  const { installable, installed, promptInstall, isIos } = usePwaInstall();
   const [installing, setInstalling] = useState(false);
 
-  if (installed || !installable || collapsed) return null;
+  if (installed || collapsed) return null;
+  if (!installable && !isIos) return null;
 
-  const handleInstall = async () => {
+  const handleTap = async () => {
+    if (!installable) {
+      // iOS (or event not yet fired): open the popup with manual steps
+      requestInstallPrompt();
+      onNavigate?.();
+      return;
+    }
     setInstalling(true);
     try {
       await promptInstall();
@@ -245,7 +276,7 @@ export const InstallAppRow: React.FC<{ collapsed?: boolean; onNavigate?: () => v
   return (
     <div className="px-3 pb-2">
       <button
-        onClick={handleInstall}
+        onClick={handleTap}
         disabled={installing}
         className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-70"
       >
