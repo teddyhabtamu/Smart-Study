@@ -15,7 +15,6 @@ const isStandalone = (): boolean =>
 
 // Captures the PWA install prompt event so the UI can offer installation
 // on its own terms (instead of the browser's auto mini-infobar).
-// Returns { installable, installed, promptInstall }.
 export const usePwaInstall = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState<boolean>(() => isStandalone());
@@ -57,98 +56,147 @@ export const usePwaInstall = () => {
   return { installable: !!deferredPrompt && !installed, installed, promptInstall, isIos };
 };
 
-// Sidebar row offering app installation. Renders nothing unless useful:
-// - Chromium (Android/desktop): native install button when beforeinstallprompt fires.
-// - iOS Safari/Chrome: manual steps card (Apple gives no install API), dismissible.
-const IOS_HINT_KEY = 'smartstudy_ios_install_dismissed';
+// Dismissal is timestamp-based: a dismissed prompt returns after 7 days
+// instead of never (users change their mind) or every visit (nagging).
+const PROMPT_DISMISSED_KEY = 'smartstudy_install_prompt_dismissed';
+const PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const InstallAppRow: React.FC<{ collapsed?: boolean; onNavigate?: () => void }> = ({
-  collapsed = false,
-  onNavigate,
-}) => {
+const readDismissedAt = (): number => {
+  try {
+    return Number(localStorage.getItem(PROMPT_DISMISSED_KEY) || 0);
+  } catch {
+    return 0;
+  }
+};
+
+const writeDismissedNow = (): void => {
+  try {
+    localStorage.setItem(PROMPT_DISMISSED_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+};
+
+const VISITS_KEY = 'smartstudy_visit_count';
+const readVisits = (): number => {
+  try {
+    return Number(localStorage.getItem(VISITS_KEY) || 0);
+  } catch {
+    return 0;
+  }
+};
+
+// High-visibility install prompt: bottom sheet on phones, floating card on
+// desktop. Timing rules (anti-annoyance by design):
+// - never when installed, never during the first 45s of a first visit
+//   (15s for returning visitors who already know the app)
+// - dismissed → silent for 7 days
+// - Chromium gets the one-tap native button; iOS gets the two-tap manual
+//   steps (Apple provides no install API)
+export const InstallPrompt: React.FC = () => {
   const { installable, installed, promptInstall, isIos } = usePwaInstall();
+  const [visible, setVisible] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [iosDismissed, setIosDismissed] = useState<boolean>(() => {
+  const [canShow, setCanShow] = useState(false);
+
+  useEffect(() => {
+    // Count this visit, then schedule the prompt
+    let visits = readVisits();
     try {
-      return localStorage.getItem(IOS_HINT_KEY) === '1';
+      localStorage.setItem(VISITS_KEY, String(visits + 1));
     } catch {
-      return false;
+      // ignore
     }
-  });
+    const delay = visits >= 1 ? 15000 : 45000;
+    const timer = setTimeout(() => setCanShow(true), delay);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (installed) return null;
+  useEffect(() => {
+    if (installed || !canShow) return;
+    if (Date.now() - readDismissedAt() < PROMPT_COOLDOWN_MS) return;
+    // Only ever show when installation is actually possible
+    if (!installable && !isIos) return;
+    setVisible(true);
+  }, [installed, canShow, installable, isIos]);
 
-  if (installable) {
-    const handleInstall = async () => {
-      setInstalling(true);
-      try {
-        await promptInstall();
-      } finally {
-        setInstalling(false);
-        onNavigate?.();
+  if (!visible || installed) return null;
+  // iOS branch needs no prompt object; Chromium branch needs it
+  if (!installable && !isIos) return null;
+
+  const dismiss = () => {
+    writeDismissedNow();
+    setVisible(false);
+  };
+
+  const handleInstall = async () => {
+    setInstalling(true);
+    try {
+      const accepted = await promptInstall();
+      if (accepted) {
+        setVisible(false);
+        return;
       }
-    };
+      // Declined native dialog — treat like a dismissal (cooldown applies)
+      dismiss();
+    } finally {
+      setInstalling(false);
+    }
+  };
 
-    return (
-      <div className="px-3 pb-2">
-        <button
-          onClick={handleInstall}
-          disabled={installing}
-          title={collapsed ? 'Install app' : undefined}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-70 ${
-            collapsed ? 'justify-center' : ''
-          }`}
-        >
-          <Download size={18} className="flex-shrink-0" />
-          {!collapsed && <span>{installing ? 'Installing…' : 'Install app'}</span>}
-        </button>
-        {!collapsed && (
-          <p className="px-3 pt-1.5 text-[11px] text-zinc-400">Faster loads, works offline, home-screen icon.</p>
+  return (
+    <div
+      className="fixed z-[80] inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-96 animate-slide-up"
+      role="dialog"
+      aria-label="Install SmartStudy app"
+    >
+      <div className="bg-zinc-900 text-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-zinc-800 p-4 sm:p-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-start gap-3">
+          <img
+            src="/icon-192.png"
+            alt=""
+            className="w-11 h-11 rounded-xl flex-shrink-0"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm sm:text-base">Install SmartStudy</p>
+            <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
+              Faster loads, works offline, one tap from your home screen.
+            </p>
+          </div>
+          <button
+            onClick={dismiss}
+            className="text-zinc-500 hover:text-white p-1 -m-1 flex-shrink-0"
+            aria-label="Dismiss install prompt"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {installable ? (
+          <button
+            onClick={handleInstall}
+            disabled={installing}
+            className="mt-3 w-full py-2.5 bg-amber-400 text-zinc-900 font-bold rounded-xl hover:bg-amber-300 transition-colors disabled:opacity-70 text-sm flex items-center justify-center gap-2"
+          >
+            <Download size={16} />
+            {installing ? 'Installing…' : 'Install app'}
+          </button>
+        ) : (
+          <ol className="mt-3 space-y-1.5 text-xs sm:text-sm text-zinc-300 list-none bg-white/5 rounded-xl p-3">
+            <li className="flex items-center gap-1.5">
+              1. Tap
+              <Share size={13} className="text-zinc-400 flex-shrink-0" />
+              Share below
+            </li>
+            <li>2. Choose “Add to Home Screen”</li>
+          </ol>
         )}
       </div>
-    );
-  }
-
-  // iOS: no install API exists — show the two-tap manual path instead.
-  // (Skipped in collapsed icon-only mode where the card can't fit.)
-  if (isIos && !iosDismissed && !collapsed) {
-    const dismiss = () => {
-      setIosDismissed(true);
-      try {
-        localStorage.setItem(IOS_HINT_KEY, '1');
-      } catch {
-        // ignore
-      }
-    };
-    return (
-      <div className="px-3 pb-2">
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-xs font-bold text-zinc-900">Install SmartStudy</p>
-            <button
-              onClick={dismiss}
-              className="text-zinc-400 hover:text-zinc-700 p-0.5 -m-0.5"
-              aria-label="Dismiss install hint"
-            >
-              <X size={14} />
-            </button>
-          </div>
-          {!collapsed && (
-            <ol className="mt-1.5 space-y-1 text-[11px] text-zinc-600 list-none">
-              <li className="flex items-center gap-1.5">
-                1. Tap
-                <Share size={12} className="text-zinc-500 flex-shrink-0" />
-                Share below
-              </li>
-              <li>2. Choose “Add to Home Screen”</li>
-            </ol>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 };
 
 // Slim banner shown when the browser reports no connectivity.
