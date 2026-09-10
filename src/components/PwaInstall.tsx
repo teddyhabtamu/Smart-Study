@@ -274,7 +274,7 @@ export const InstallAppRow: React.FC<{ collapsed?: boolean; onNavigate?: () => v
   };
 
   return (
-    <div className="px-3 pb-2">
+    <div className="px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <button
         onClick={handleTap}
         disabled={installing}
