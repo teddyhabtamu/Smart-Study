@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SearchPalette from './SearchPalette';
-import { OfflineBanner, InstallPrompt } from './PwaInstall';
+import { OfflineBanner, InstallPrompt, InstallAppRow } from './PwaInstall';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
 
 interface LayoutProps {
@@ -428,6 +428,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </>
             )}
           </div>
+
+          {/* Quiet install entry (Chromium only, hidden when installed) —
+              recovery path if the popup was dismissed */}
+          <InstallAppRow collapsed={isCollapsed} onNavigate={() => setIsSidebarOpen(false)} />
 
           {/* Footer / Profile - Hidden on mobile (moved to header) */}
           <div className="hidden lg:block p-4 border-t border-zinc-100 relative overflow-visible">

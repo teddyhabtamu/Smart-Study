@@ -56,10 +56,13 @@ export const usePwaInstall = () => {
   return { installable: !!deferredPrompt && !installed, installed, promptInstall, isIos };
 };
 
-// Dismissal is timestamp-based: a dismissed prompt returns after 7 days
-// instead of never (users change their mind) or every visit (nagging).
+// Dismissal is timestamp-based with platform-differentiated cooldowns:
+// Chromium dismissals stay silent 7 days (the drawer row below is the
+// permanent quiet path back, so accidental closes are recoverable there);
+// iOS has no other path back, so its cooldown is 24h.
 const PROMPT_DISMISSED_KEY = 'smartstudy_install_prompt_dismissed';
-const PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const CHROMIUM_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const IOS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const readDismissedAt = (): number => {
   try {
@@ -88,8 +91,9 @@ const readVisits = (): number => {
 
 // High-visibility install prompt: bottom sheet on phones, floating card on
 // desktop. Timing rules (anti-annoyance by design):
-// - never on first paint (30s first visit, 10s returning)
-// - dismissed → silent for 7 days
+// - never on first paint (20s first visit, 10s returning)
+// - dismissed → platform cooldown (Chromium 7d since the drawer row below
+//   is the permanent path back; iOS 24h since it has no other path)
 // - installed → never again
 // QA override: append ?pwa=preview to force-show immediately (native action
 // when the browser fired beforeinstallprompt, manual steps otherwise).
@@ -120,7 +124,7 @@ export const InstallPrompt: React.FC = () => {
     } catch {
       // ignore
     }
-    const delay = visits >= 1 ? 10000 : 30000;
+    const delay = visits >= 1 ? 10000 : 20000;
     const timer = setTimeout(() => setCanShow(true), delay);
     return () => clearTimeout(timer);
   }, [preview]);
@@ -128,7 +132,8 @@ export const InstallPrompt: React.FC = () => {
   useEffect(() => {
     if (installed || !canShow) return;
     if (!preview) {
-      if (Date.now() - readDismissedAt() < PROMPT_COOLDOWN_MS) return;
+      const cooldown = isIos ? IOS_COOLDOWN_MS : CHROMIUM_COOLDOWN_MS;
+      if (Date.now() - readDismissedAt() < cooldown) return;
       // Only ever show when installation is actually possible
       if (!installable && !isIos) return;
     }
@@ -211,6 +216,42 @@ export const InstallPrompt: React.FC = () => {
           </ol>
         )}
       </div>
+    </div>
+  );
+};
+
+// Quiet permanent entry point in the nav drawer (Chromium only): the
+// recovery path for dismissed/never-shown popups. Hidden when installed,
+// when the browser never offered install, or in collapsed icon mode.
+export const InstallAppRow: React.FC<{ collapsed?: boolean; onNavigate?: () => void }> = ({
+  collapsed = false,
+  onNavigate,
+}) => {
+  const { installable, installed, promptInstall } = usePwaInstall();
+  const [installing, setInstalling] = useState(false);
+
+  if (installed || !installable || collapsed) return null;
+
+  const handleInstall = async () => {
+    setInstalling(true);
+    try {
+      await promptInstall();
+    } finally {
+      setInstalling(false);
+      onNavigate?.();
+    }
+  };
+
+  return (
+    <div className="px-3 pb-2">
+      <button
+        onClick={handleInstall}
+        disabled={installing}
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-70"
+      >
+        <Download size={18} className="flex-shrink-0" />
+        <span>{installing ? 'Installing…' : 'Install app'}</span>
+      </button>
     </div>
   );
 };
