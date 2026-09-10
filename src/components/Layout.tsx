@@ -322,7 +322,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 h-dvh bg-white z-50 transition-all duration-300 border-r border-zinc-200 flex flex-col overflow-visible
+        className={`fixed lg:sticky top-0 h-svh lg:h-screen bg-white z-50 transition-all duration-300 border-r border-zinc-200 flex flex-col overflow-visible
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
           ${isCollapsed ? 'lg:w-[80px]' : 'lg:w-[260px]'}
