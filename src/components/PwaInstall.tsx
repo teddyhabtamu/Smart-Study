@@ -88,18 +88,31 @@ const readVisits = (): number => {
 
 // High-visibility install prompt: bottom sheet on phones, floating card on
 // desktop. Timing rules (anti-annoyance by design):
-// - never when installed, never during the first 45s of a first visit
-//   (15s for returning visitors who already know the app)
+// - never on first paint (30s first visit, 10s returning)
 // - dismissed → silent for 7 days
-// - Chromium gets the one-tap native button; iOS gets the two-tap manual
-//   steps (Apple provides no install API)
+// - installed → never again
+// QA override: append ?pwa=preview to force-show immediately (native action
+// when the browser fired beforeinstallprompt, manual steps otherwise).
+const isPreviewForced = (): boolean => {
+  try {
+    return new URLSearchParams(window.location.search).get('pwa') === 'preview';
+  } catch {
+    return false;
+  }
+};
+
 export const InstallPrompt: React.FC = () => {
   const { installable, installed, promptInstall, isIos } = usePwaInstall();
   const [visible, setVisible] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [canShow, setCanShow] = useState(false);
+  const [preview] = useState<boolean>(() => isPreviewForced());
 
   useEffect(() => {
+    if (preview) {
+      setCanShow(true);
+      return;
+    }
     // Count this visit, then schedule the prompt
     let visits = readVisits();
     try {
@@ -107,22 +120,25 @@ export const InstallPrompt: React.FC = () => {
     } catch {
       // ignore
     }
-    const delay = visits >= 1 ? 15000 : 45000;
+    const delay = visits >= 1 ? 10000 : 30000;
     const timer = setTimeout(() => setCanShow(true), delay);
     return () => clearTimeout(timer);
-  }, []);
+  }, [preview]);
 
   useEffect(() => {
     if (installed || !canShow) return;
-    if (Date.now() - readDismissedAt() < PROMPT_COOLDOWN_MS) return;
-    // Only ever show when installation is actually possible
-    if (!installable && !isIos) return;
+    if (!preview) {
+      if (Date.now() - readDismissedAt() < PROMPT_COOLDOWN_MS) return;
+      // Only ever show when installation is actually possible
+      if (!installable && !isIos) return;
+    }
     setVisible(true);
-  }, [installed, canShow, installable, isIos]);
+  }, [installed, canShow, installable, isIos, preview]);
 
   if (!visible || installed) return null;
   // iOS branch needs no prompt object; Chromium branch needs it
-  if (!installable && !isIos) return null;
+  // (preview mode bypasses the capability gate for QA)
+  if (!installable && !isIos && !preview) return null;
 
   const dismiss = () => {
     writeDismissedNow();
