@@ -14,9 +14,9 @@ const PRO_PLAN = {
   priceLabel: '100 Birr',
   billingLabel: 'One-time payment · yours forever',
   channel: 'Telebirr',
-  // FILL IN: the merchant number customers pay to (shown with a copy button
+  // The merchant number customers pay to (shown with a copy button
   // so single-phone users who can't scan the QR can still pay).
-  merchantNumber: '',
+  merchantNumber: '0960967099',
   telegramUrl: 'https://t.me/ethio_smartstudy',
   telegramHandle: '@ethio_smartstudy',
 };
