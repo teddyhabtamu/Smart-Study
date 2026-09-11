@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Document, VideoLesson, Video, ForumPost, StudyEvent, User } from '../types';
 import { documentsAPI, videosAPI, forumAPI, plannerAPI, adminAPI, dashboardAPI } from '../services/api';
 
@@ -153,6 +153,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [dashboardData, setDashboardData] = useState<DataContextType['dashboardData']>(null);
 
+  // Monotonic request ids per collection. Filter/search keystrokes fire
+  // overlapping requests; without this a slow earlier response overwrites a
+  // fresh one (stale grid) or wipes it with an error. Stale responses are
+  // ignored entirely — only the latest request may touch state.
+  const requestSeq = useRef({ documents: 0, videos: 0 });
+
   // Loading states
   const [loading, setLoading] = useState({
     documents: false,
@@ -185,16 +191,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Data fetching functions
   const fetchDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number; append?: boolean }) => {
+    const requestId = ++requestSeq.current.documents;
     try {
       setLoadingState('documents', true);
       setErrorState('documents', null);
-      
+
       // Clear documents first if not appending to prevent flicker
       if (!params?.append) {
         setDocuments([]);
       }
-      
+
       const response = await documentsAPI.getAll(params);
+      if (requestId !== requestSeq.current.documents) return; // superseded
       
       // Client-side filtering for excludeTag (safety measure) - filter BEFORE setting state
       let filteredDocs = response.documents;
@@ -232,6 +240,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
+      if (requestId !== requestSeq.current.documents) return; // superseded
       console.error('Fetch documents error:', error);
       setErrorState('documents', error.message || 'Failed to fetch documents');
       if (!params?.append) {
@@ -241,14 +250,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDocuments(snapshot);
       }
     } finally {
-      setLoadingState('documents', false);
+      if (requestId === requestSeq.current.documents) setLoadingState('documents', false);
     }
   }, []);
 
   const fetchMoreDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number }) => {
+    const requestId = ++requestSeq.current.documents;
     try {
       setLoadingState('documents', true);
       const response = await documentsAPI.getAll(params);
+      if (requestId !== requestSeq.current.documents) return { hasMore: true }; // superseded: keep current state
       
       // Client-side filtering for excludeTag (safety measure) - filter BEFORE setting state
       let filteredDocs = response.documents;
@@ -275,19 +286,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
+      if (requestId !== requestSeq.current.documents) return { hasMore: true };
       console.error('Fetch more documents error:', error);
       setErrorState('documents', error.message || 'Failed to fetch more documents');
       return { hasMore: false };
     } finally {
-      setLoadingState('documents', false);
+      if (requestId === requestSeq.current.documents) setLoadingState('documents', false);
     }
   }, []);
 
   const fetchVideos = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; append?: boolean }) => {
+    const requestId = ++requestSeq.current.videos;
     try {
       setLoadingState('videos', true);
       setErrorState('videos', null);
       const response = await videosAPI.getAll(params);
+      if (requestId !== requestSeq.current.videos) return; // superseded
       const transformedVideos = response.videos.map(transformVideoToVideoLesson);
       
       if (params?.append) {
@@ -304,6 +318,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
+      if (requestId !== requestSeq.current.videos) return; // superseded
       console.error('Fetch videos error:', error);
       setErrorState('videos', error.message || 'Failed to fetch videos');
       if (!params?.append) {
@@ -311,14 +326,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setVideos(loadSnapshot<VideoLesson>('smartstudy_videos_snapshot'));
       }
     } finally {
-      setLoadingState('videos', false);
+      if (requestId === requestSeq.current.videos) setLoadingState('videos', false);
     }
   }, []);
 
   const fetchMoreVideos = useCallback(async (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => {
+    const requestId = ++requestSeq.current.videos;
     try {
       setLoadingState('videos', true);
       const response = await videosAPI.getAll(params);
+      if (requestId !== requestSeq.current.videos) return { hasMore: true }; // superseded: keep current state
       const transformedVideos = response.videos.map(transformVideoToVideoLesson);
       // Avoid duplicates when loading more - only add videos that don't already exist
       setVideos(prev => {
@@ -328,11 +345,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return { hasMore: response.pagination.hasMore };
     } catch (error: any) {
+      if (requestId !== requestSeq.current.videos) return { hasMore: true };
       console.error('Fetch more videos error:', error);
       setErrorState('videos', error.message || 'Failed to fetch more videos');
       return { hasMore: false };
     } finally {
-      setLoadingState('videos', false);
+      if (requestId === requestSeq.current.videos) setLoadingState('videos', false);
     }
   }, []);
 

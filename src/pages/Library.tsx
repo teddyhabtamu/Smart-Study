@@ -31,57 +31,58 @@ const Library: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
 
+  // Debounced search: the fetch effect below fires per value, so typing
+  // directly would spam a request per keystroke (and race them).
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Single param builder so initial load, retry, and load-more can't drift
+  const buildParams = (limit: number, offset: number): any => {
+    const params: any = {
+      limit,
+      offset,
+      excludeTag: 'past-exam', // Exclude past exams from library
+    };
+    if (selectedSubject !== 'All') params.subject = selectedSubject;
+    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
+    if (debouncedSearch.trim()) params.search = debouncedSearch;
+    if (showSavedOnly) params.bookmarked = true;
+    if (sortBy !== 'newest') params.sort = sortBy;
+    return params;
+  };
+
   // Fetch initial documents on mount and when filters change
   useEffect(() => {
     // Reset pagination state when filters change
     setHasMore(true);
     setLoadingMore(false);
-    
-    const params: any = {
-      limit: INITIAL_LIMIT,
-      offset: 0,
-      excludeTag: 'past-exam', // Exclude past exams from library
-    };
 
-    if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
-    if (searchTerm.trim()) params.search = searchTerm;
-    if (showSavedOnly) params.bookmarked = true;
-    if (sortBy !== 'newest') params.sort = sortBy;
-
-    fetchDocuments(params).then((result) => {
+    fetchDocuments(buildParams(INITIAL_LIMIT, 0)).then((result) => {
       if (result) {
         setHasMore(result.hasMore);
       }
     });
-  }, [fetchDocuments, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchDocuments, selectedSubject, selectedGrade, debouncedSearch, showSavedOnly, sortBy]);
 
   // Load more documents function
   const loadMoreDocuments = useCallback(async () => {
     if (loadingMore || !hasMore) return;
 
     setLoadingMore(true);
-    const params: any = {
-      limit: LOAD_MORE_LIMIT,
-      offset: documents.length,
-      excludeTag: 'past-exam', // Exclude past exams from library
-    };
-
-    if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = selectedGrade === 'General' ? 0 : parseInt(selectedGrade);
-    if (searchTerm.trim()) params.search = searchTerm;
-    if (showSavedOnly) params.bookmarked = true;
-    if (sortBy !== 'newest') params.sort = sortBy;
-
     try {
-      const result = await fetchMoreDocuments(params);
+      const result = await fetchMoreDocuments(buildParams(LOAD_MORE_LIMIT, documents.length));
       setHasMore(result.hasMore);
     } catch (error) {
       console.error('Failed to load more documents:', error);
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, documents.length, selectedSubject, selectedGrade, searchTerm, showSavedOnly, sortBy, fetchMoreDocuments]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingMore, hasMore, documents.length, selectedSubject, selectedGrade, debouncedSearch, showSavedOnly, sortBy, fetchMoreDocuments]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -206,8 +207,10 @@ const Library: React.FC = () => {
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
           <p className="text-red-800 font-medium">Failed to load documents</p>
           <p className="text-red-600 text-sm mt-1">{errors.documents}</p>
+          {/* Retry keeps the visible filters — a bare refetch would silently
+              drop them and show unfiltered results under a filtered UI */}
           <button
-            onClick={() => fetchDocuments()}
+            onClick={() => fetchDocuments(buildParams(INITIAL_LIMIT, 0))}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             Try Again
@@ -255,7 +258,9 @@ const Library: React.FC = () => {
         </>
       )}
 
-      {filteredDocs.length === 0 && !loading.documents && (
+      {/* Suppressed while the error panel above shows — otherwise failure
+          reads as "no results" and offers a misleading clear-filters */}
+      {filteredDocs.length === 0 && !loading.documents && !errors.documents && (
         <div className="py-12 sm:py-20 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50 px-4">
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-100 rounded-xl flex items-center justify-center mx-auto mb-3 text-zinc-400">
              <Search size={16} className="sm:w-5 sm:h-5" />
@@ -265,7 +270,7 @@ const Library: React.FC = () => {
             {showSavedOnly ? "You haven't saved any documents matching these filters." : "Try adjusting your search or filters."}
           </p>
           <button
-            onClick={() => {setSearchTerm(''); setSelectedSubject('All'); setSelectedGrade('All'); setShowSavedOnly(false);}}
+            onClick={() => {setSearchTerm(''); setSelectedSubject('All'); setSelectedGrade('All'); setShowSavedOnly(false); setSortBy('newest');}}
             className="mt-4 text-xs font-medium text-zinc-900 hover:text-black bg-zinc-100 px-3 py-1.5 rounded-md transition-colors"
           >
             Clear all filters
@@ -332,13 +337,14 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
             </div>
           )}
 
+          {/* Top-left: the bookmark action owns top-right on every card */}
           {doc.is_premium && (
             user?.isPremium ? (
-              <div className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-amber-400 text-zinc-900 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-amber-400 text-zinc-900 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
                 <Crown size={8} className="sm:w-2.5 sm:h-2.5" /> Pro
               </div>
             ) : (
-              <div className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                 <Lock size={8} className="sm:w-2.5 sm:h-2.5" /> Premium
               </div>
             )

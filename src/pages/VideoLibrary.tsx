@@ -57,6 +57,30 @@ const VideoLibrary: React.FC = () => {
 
   const observerTarget = useRef<HTMLDivElement>(null);
   const prevLocationRef = useRef<string>('');
+  // Sequence for the chapter-topics fetch below (same stale-response guard
+  // as the DataContext collections)
+  const chapterSeq = useRef(0);
+
+  // Debounced search: fetch effects fire per value, so raw keystrokes would
+  // spam a request per character (and race them).
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Single param builder so list fetch, back-nav refetch, retry, and
+  // load-more can't drift apart
+  const buildParams = (limit: number, offset: number): any => {
+    const params: any = { limit, offset };
+    if (selectedSubject !== 'All') params.subject = selectedSubject;
+    if (selectedGrade !== 'All') params.grade = selectedGrade;
+    if (selectedChapter !== 'All') params.chapter = selectedChapter;
+    if (debouncedSearch.trim()) params.search = debouncedSearch;
+    if (showSavedOnly) params.bookmarked = true;
+    if (sortBy !== 'newest') params.sort = sortBy;
+    return params;
+  };
 
   const isLandingMode = selectedGrade === 'All' && !searchTerm.trim() && !showSavedOnly;
   const hasBookmarks = user && user.bookmarks && user.bookmarks.length > 0;
@@ -84,31 +108,31 @@ const VideoLibrary: React.FC = () => {
     setHasMore(true);
     setLoadingMore(false);
 
-    const params: any = { limit: INITIAL_LIMIT, offset: 0 };
-    if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = selectedGrade;
-    if (selectedChapter !== 'All') params.chapter = selectedChapter;
-    if (searchTerm.trim()) params.search = searchTerm;
-    if (showSavedOnly) params.bookmarked = true;
-    if (sortBy !== 'newest') params.sort = sortBy;
-
-    fetchVideos(params).then((result) => {
+    fetchVideos(buildParams(INITIAL_LIMIT, 0)).then((result) => {
       if (result) setHasMore(result.hasMore);
     });
-  }, [fetchVideos, isLandingMode, selectedSubject, selectedGrade, selectedChapter, searchTerm, showSavedOnly, sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchVideos, isLandingMode, selectedSubject, selectedGrade, selectedChapter, debouncedSearch, showSavedOnly, sortBy]);
 
-  // Fetch chapters when grade and subject change
+  // Fetch chapters when grade and subject change. Guarded against races: a
+  // slow response for a previous grade/subject must not overwrite the current
+  // options.
   useEffect(() => {
     if (selectedGrade !== 'All' && selectedSubject !== 'All') {
+      const requestId = ++chapterSeq.current;
       videosAPI.getTopics(selectedGrade as number, selectedSubject)
         .then((topics: string[]) => {
+          if (requestId !== chapterSeq.current) return; // superseded
           if (topics && topics.length > 0) {
             setChapterOptions([{ label: 'All Chapters', value: 'All' }, ...topics.map(t => ({ label: t, value: t }))]);
           } else {
             setChapterOptions([{ label: 'All Chapters', value: 'All' }]);
           }
         })
-        .catch(() => setChapterOptions([{ label: 'All Chapters', value: 'All' }]));
+        .catch(() => {
+          if (requestId !== chapterSeq.current) return; // superseded
+          setChapterOptions([{ label: 'All Chapters', value: 'All' }]);
+        });
     } else {
       setChapterOptions([{ label: 'All Chapters', value: 'All' }]);
     }
@@ -120,35 +144,25 @@ const VideoLibrary: React.FC = () => {
     const currentPath = location.pathname;
     const prevPath = prevLocationRef.current;
     if (currentPath === '/videos' && prevPath.startsWith('/video/') && !isLandingMode) {
-      const params: any = { limit: INITIAL_LIMIT, offset: 0 };
-      if (selectedSubject !== 'All') params.subject = selectedSubject;
-      if (selectedGrade !== 'All') params.grade = selectedGrade;
-      if (selectedChapter !== 'All') params.chapter = selectedChapter;
-      if (searchTerm.trim()) params.search = searchTerm;
-      fetchVideos(params).then((result) => { if (result) setHasMore(result.hasMore); });
+      fetchVideos(buildParams(INITIAL_LIMIT, 0)).then((result) => { if (result) setHasMore(result.hasMore); });
     }
     prevLocationRef.current = currentPath;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
   const loadMoreVideos = useCallback(async () => {
     if (loadingMore || !hasMore || isLandingMode) return;
     setLoadingMore(true);
-    const params: any = { limit: LOAD_MORE_LIMIT, offset: videos.length };
-    if (selectedSubject !== 'All') params.subject = selectedSubject;
-    if (selectedGrade !== 'All') params.grade = selectedGrade;
-    if (selectedChapter !== 'All') params.chapter = selectedChapter;
-    if (searchTerm.trim()) params.search = searchTerm;
-    if (showSavedOnly) params.bookmarked = true;
-    if (sortBy !== 'newest') params.sort = sortBy;
     try {
-      const result = await fetchMoreVideos(params);
+      const result = await fetchMoreVideos(buildParams(LOAD_MORE_LIMIT, videos.length));
       setHasMore(result.hasMore);
     } catch (error) {
       console.error('Failed to load more videos:', error);
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, isLandingMode, videos.length, selectedSubject, selectedGrade, selectedChapter, searchTerm, showSavedOnly, sortBy, fetchMoreVideos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingMore, hasMore, isLandingMode, videos.length, selectedSubject, selectedGrade, selectedChapter, debouncedSearch, showSavedOnly, sortBy, fetchMoreVideos]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -325,7 +339,8 @@ const VideoLibrary: React.FC = () => {
             >
               All Subjects
             </button>
-            {SUBJECTS.map((subject) => (
+            {/* SUBJECTS[0] is 'All' — filtered so it doesn't duplicate the button above */}
+            {SUBJECTS.filter((subject) => subject !== 'All').map((subject) => (
               <button
                 key={subject}
                 onClick={() => setSelectedSubject(subject)}
@@ -381,7 +396,8 @@ const VideoLibrary: React.FC = () => {
             <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
               <p className="text-red-800 font-semibold text-sm">Failed to load videos</p>
               <p className="text-red-600 text-xs mt-1">{errors.videos}</p>
-              <button onClick={() => fetchVideos()} className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
+              {/* Retry keeps the visible filters — a bare refetch would drop them */}
+              <button onClick={() => fetchVideos(buildParams(INITIAL_LIMIT, 0))} className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
                 Try Again
               </button>
             </div>
@@ -429,7 +445,7 @@ const VideoLibrary: React.FC = () => {
                 {showSavedOnly ? "No bookmarked videos match these filters." : "Try adjusting your filters or search term."}
               </p>
               <button
-                onClick={() => { setSearchTerm(''); setSelectedSubject('All'); setSelectedChapter('All'); setShowSavedOnly(false); }}
+                onClick={() => { setSearchTerm(''); setSelectedSubject('All'); setSelectedChapter('All'); setShowSavedOnly(false); setSortBy('newest'); }}
                 className="mt-4 text-xs font-semibold text-white bg-zinc-900 px-4 py-2 rounded-lg hover:bg-black transition-colors"
               >
                 Clear filters
@@ -474,7 +490,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
           disabled={isBookmarking}
           className={`absolute top-2.5 right-2.5 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isBookmarked
             ? 'bg-zinc-900 text-white shadow-md'
-            : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow opacity-0 group-hover:opacity-100'
+            : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow'
             }`}
         >
           {isBookmarking ? <Loader2 size={12} className="animate-spin" /> : <Bookmark size={12} className={isBookmarked ? 'fill-current' : ''} />}
