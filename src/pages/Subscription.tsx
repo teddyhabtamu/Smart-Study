@@ -46,6 +46,16 @@ const Subscription: React.FC = () => {
     return () => setMounted(false);
   }, []);
 
+  // If the admin activates the account while the payment modal is open
+  // (manual activation takes a few hours — the user may well be staring at
+  // the "waiting" step), flip to the success screen instead of leaving them
+  // on a stale waiting room. This is also the only path that reaches it.
+  useEffect(() => {
+    if (isModalOpen && user?.isPremium && (paymentStep === 'waiting' || paymentStep === 'confirm_sent')) {
+      setPaymentStep('success');
+    }
+  }, [isModalOpen, user?.isPremium, paymentStep]);
+
   // Retrieve the previous path or default to dashboard
   const from = (location.state as any)?.from || '/dashboard';
 
@@ -308,10 +318,10 @@ const Subscription: React.FC = () => {
                     <h4 className="font-semibold text-zinc-900 text-sm">Send Receipt To:</h4>
                     <div className="space-y-2">
                       <p className="text-zinc-700 text-sm">
-                        <strong>Telegram:</strong> <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">@ethio_smartstudy</a>
+                        <strong>Telegram:</strong> <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">{PRO_PLAN.telegramHandle}</a>
                       </p>
                       <p className="text-zinc-700 text-sm">
-                        Or direct link: <span className="font-mono">t.me/ethio_smartstudy</span>
+                        Or direct link: <span className="font-mono">{PRO_PLAN.telegramUrl.replace('https://', '')}</span>
                       </p>
                     </div>
                     <p className="text-zinc-600 text-xs mt-3">
