@@ -33,6 +33,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const mainContentRef = useRef<HTMLDivElement>(null);
 
+  // Lock background scroll while the mobile drawer is open
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isSidebarOpen]);
+
 
   // Redirect unauthorized users only when they're on protected pages (and auth is loaded)
   useEffect(() => {
@@ -385,7 +395,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Navigation */}
-          <div className="flex-1 px-3 py-2 space-y-8 overflow-y-auto overflow-x-hidden hide-scrollbar">
+          <div className="flex-1 px-3 py-2 space-y-8 overflow-y-auto overflow-x-hidden hide-scrollbar overscroll-contain">
             {(user?.role === 'ADMIN' || user?.role === 'MODERATOR') ? (
               <>
                 <div className="space-y-1">
