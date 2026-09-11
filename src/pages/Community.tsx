@@ -214,7 +214,7 @@ const Community: React.FC = () => {
               Ask Question
             </button>
             {user && !user.isPremium && (
-              <p className="text-[11px] text-zinc-400 text-center">1 free question per day · Pro asks unlimited</p>
+              <p className="text-[11px] text-zinc-500 text-center">1 free question per day · Pro asks unlimited</p>
             )}
           </div>
         </div>
@@ -615,7 +615,7 @@ const Community: React.FC = () => {
                         <CheckCircle size={8} className="sm:w-2.5 sm:h-2.5" /> SOLVED
                       </span>
                     )}
-                    <span className="text-xs text-zinc-400 ml-auto flex items-center gap-1">
+                    <span className="text-xs text-zinc-500 ml-auto flex items-center gap-1">
                       <Eye size={10} className="sm:w-3 sm:h-3" /> {post.views}
                     </span>
                   </div>
@@ -642,7 +642,7 @@ const Community: React.FC = () => {
 
                       <span className="text-xs font-medium text-zinc-700">{post.author}</span>
                       <span
-                        className="text-xs text-zinc-400"
+                        className="text-xs text-zinc-500"
                         title={createdAt ? new Date(createdAt).toLocaleString() : undefined}
                       >
                         • {formatRelativeTime(createdAt || '')}

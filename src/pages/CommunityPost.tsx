@@ -445,7 +445,7 @@ const CommunityPost: React.FC = () => {
               placeholder="Question Title"
             />
           ) : (
-            <h1 className="text-base sm:text-lg font-bold text-zinc-900 leading-none mb-1 truncate">{post.title}</h1>
+            <h1 className="text-base sm:text-lg font-bold text-zinc-900 leading-snug mb-1 line-clamp-2">{post.title}</h1>
           )}
           <p className="text-xs text-zinc-500 flex items-center gap-1.5 sm:gap-2 mt-1">
             <span>{post.subject}</span>
@@ -832,7 +832,7 @@ const CommunityPost: React.FC = () => {
                         rows={3}
                       ></textarea>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
-                         <p className="text-xs text-zinc-400">Helpful answers earn XP when upvoted.</p>
+                         <p className="text-xs text-zinc-500">Helpful answers earn XP when upvoted.</p>
                          <button
                            type="submit"
                            disabled={!replyContent.trim() || isPostingComment}
@@ -855,21 +855,21 @@ const CommunityPost: React.FC = () => {
                       <div className="space-y-3">
                          {relatedPosts.length > 0 ? relatedPosts.map(rp => (
                             <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
-                               <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-relaxed mb-1">
-                                  {rp.title}
-                               </h4>
-                               <div className="flex items-center gap-2 text-[10px] text-zinc-400">
-                                  <span>{rp.votes} votes</span>
-                                  <span>•</span>
-                                  <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
-                               </div>
-                            </Link>
-                         )) : (
-                            <p className="text-xs text-zinc-400">No related discussions found.</p>
-                         )}
-                      </div>
-                   </div>
-                </div>
+                       <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-zinc-900 group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
+                          {rp.title}
+                       </h4>
+                       <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                          <span>{rp.votes} votes</span>
+                          <span>•</span>
+                          <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
+                       </div>
+                    </Link>
+                 )) : (
+                    <p className="text-xs text-zinc-500">No related discussions found.</p>
+                 )}
+              </div>
+           </div>
+        </div>
              </div>
           </div>
         </div>
@@ -884,17 +884,17 @@ const CommunityPost: React.FC = () => {
               <div className="space-y-4">
                  {relatedPosts.length > 0 ? relatedPosts.map(rp => (
                     <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
-                       <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-relaxed mb-1">
+                       <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-zinc-900 group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
                           {rp.title}
                        </h4>
-                       <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                       <div className="flex items-center gap-2 text-[11px] text-zinc-500">
                           <span>{rp.votes} votes</span>
                           <span>•</span>
                           <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
                        </div>
                     </Link>
                  )) : (
-                    <p className="text-xs text-zinc-400">No related discussions found.</p>
+                    <p className="text-xs text-zinc-500">No related discussions found.</p>
                  )}
               </div>
            </div>
