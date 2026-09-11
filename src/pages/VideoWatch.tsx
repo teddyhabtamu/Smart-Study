@@ -383,7 +383,7 @@ const VideoWatch: React.FC = () => {
              </Link>
           </div>
           <p className="mt-4 sm:mt-6 text-xs text-zinc-400 px-2">
-            Join thousands of Ethiopian students learning smarter today.
+            Join students across Ethiopia learning smarter today.
           </p>
         </div>
       </div>

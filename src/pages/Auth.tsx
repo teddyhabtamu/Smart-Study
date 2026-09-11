@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { UserRole } from '../types';
 import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star, Eye, EyeOff, MailCheck, AlertCircle } from 'lucide-react';
@@ -28,7 +28,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   });
   
   // Update view when prop changes (for direct URL navigation)
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialType === 'login' || initialType === 'register') {
       setView(initialType);
     }
@@ -49,6 +49,13 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const [showResend, setShowResend] = useState(false);
   // Resend cooldown countdown (seconds remaining)
   const [resendCooldown, setResendCooldown] = useState(0);
+  // Interval handle so the countdown stops if the page unmounts mid-cooldown
+  const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (resendTimer.current) clearInterval(resendTimer.current);
+    };
+  }, []);
 
   // Google OAuth failure reasons land here as ?error=... — render inline
   // (with retry) instead of a vanishing toast, then clear the param.
@@ -66,13 +73,16 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
   // Resend verification email with a 60s client cooldown (backend also
   // throttles at 3 per 15 min and returns 429 with a clear message).
+  // (Redirect-for-signed-in-users effect lives below the loading state.)
   const handleResendVerification = async (targetEmail: string) => {
     if (!targetEmail || resendCooldown > 0) return;
     setResendCooldown(60);
-    const timer = setInterval(() => {
+    if (resendTimer.current) clearInterval(resendTimer.current);
+    resendTimer.current = setInterval(() => {
       setResendCooldown((prev) => {
         if (prev <= 1) {
-          clearInterval(timer);
+          if (resendTimer.current) clearInterval(resendTimer.current);
+          resendTimer.current = null;
           return 0;
         }
         return prev - 1;
@@ -88,6 +98,15 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
   // Password strength checker (shared component — same rules on reset page)
   const passwordStrength = password ? getPasswordStrength(password) : null;
+
+  // Already signed in (e.g. back-button to /login)? Don't show the form —
+  // bounce to the dashboard. Guarded by !isLoading so the post-login submit
+  // (which navigates admins to /admin itself) can't be overridden.
+  useEffect(() => {
+    if (user && !isLoading) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -572,12 +591,12 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
               <div className="pt-6 md:pt-8 border-t border-white/10 flex gap-6 md:gap-8">
                  <div>
-                    <div className="text-2xl md:text-3xl font-bold">10k+</div>
-                    <div className="text-zinc-400 text-xs md:text-sm">Active Students</div>
+                    <div className="text-2xl md:text-3xl font-bold">800+</div>
+                    <div className="text-zinc-400 text-xs md:text-sm">Video Lessons</div>
                  </div>
                  <div>
-                    <div className="text-2xl md:text-3xl font-bold">5k+</div>
-                    <div className="text-zinc-400 text-xs md:text-sm">Learning Resources</div>
+                    <div className="text-2xl md:text-3xl font-bold">15</div>
+                    <div className="text-zinc-400 text-xs md:text-sm">Subjects</div>
                  </div>
               </div>
            </div>

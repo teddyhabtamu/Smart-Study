@@ -49,16 +49,17 @@ const About: React.FC = () => {
             </div>
             <div className="bg-zinc-100 rounded-2xl p-6 sm:p-8 flex items-center justify-center min-h-[250px] sm:min-h-[300px]">
                <div className="text-center">
-                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-zinc-900 mb-2">10k+</div>
-                  <div className="text-zinc-500 text-sm sm:text-base">Students Empowered</div>
+                  {/* Real platform numbers — no vanity multipliers */}
+                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-zinc-900 mb-2">800+</div>
+                  <div className="text-zinc-500 text-sm sm:text-base">Video Lessons</div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-6 sm:mt-8">
                      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm">
-                        <div className="font-bold text-zinc-900 text-lg sm:text-xl">1.2k</div>
-                        <div className="text-xs text-zinc-400">Video Lessons</div>
+                        <div className="font-bold text-zinc-900 text-lg sm:text-xl">15</div>
+                        <div className="text-xs text-zinc-400">Subjects</div>
                      </div>
                      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm">
-                        <div className="font-bold text-zinc-900 text-lg sm:text-xl">5k+</div>
-                        <div className="text-xs text-zinc-400">Resources</div>
+                        <div className="font-bold text-zinc-900 text-lg sm:text-xl">9–12</div>
+                        <div className="text-xs text-zinc-400">Grades</div>
                      </div>
                   </div>
                </div>

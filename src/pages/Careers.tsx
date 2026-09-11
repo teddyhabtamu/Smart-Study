@@ -110,7 +110,7 @@ const Careers: React.FC = () => {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
            <div className="bg-zinc-50 p-4 sm:p-6 md:p-8 rounded-2xl border border-zinc-100">
               <h3 className="font-bold text-zinc-900 mb-3 text-base sm:text-lg">Impact at Scale</h3>
-              <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed">Your work will directly help thousands of students across Ethiopia succeed in their national exams.</p>
+              <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed">Your work will directly help students across Ethiopia succeed in their national exams.</p>
            </div>
            <div className="bg-zinc-50 p-4 sm:p-6 md:p-8 rounded-2xl border border-zinc-100">
               <h3 className="font-bold text-zinc-900 mb-3 text-base sm:text-lg">Remote-First Culture</h3>

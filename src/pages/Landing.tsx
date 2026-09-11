@@ -71,15 +71,16 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* Stats / Line Separator */}
+      {/* Stats / Line Separator — every number below is real (see DB):
+          809 videos / 15 subjects / grades 9-12. No vanity multipliers. */}
       <div className="border-y border-zinc-100 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
             {[
-              { label: "Active Students", value: "10k+" },
-              { label: "Resources", value: "5,000+" },
-              { label: "Video Lessons", value: "1,200+" },
-              { label: "Questions Solved", value: "50k+" },
+              { label: "Video Lessons", value: "800+" },
+              { label: "Subjects", value: "15" },
+              { label: "Grades Covered", value: "9–12" },
+              { label: "Free to Start", value: "100%" },
             ].map((stat, i) => (
               <div key={i} className="text-center md:text-left">
                 <div className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-1">{stat.value}</div>
@@ -128,7 +129,7 @@ const Landing: React.FC = () => {
             <Link to="/library" className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group block">
                <BookOpen size={28} className="sm:w-8 sm:h-8 text-zinc-900 mb-4 sm:mb-6" />
                <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-2">Digital Library</h3>
-               <p className="text-zinc-500 mb-4 sm:mb-6 text-sm sm:text-base">Access thousands of textbooks and exam papers.</p>
+               <p className="text-zinc-500 mb-4 sm:mb-6 text-sm sm:text-base">Textbooks and exam papers for every grade.</p>
                <div className="flex -space-x-2">
                   {[1,2,3].map(i => (
                      <div key={i} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-200 border-2 border-white"></div>
@@ -158,7 +159,7 @@ const Landing: React.FC = () => {
                   </div>
                   <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-3 sm:mb-4">Study Groups & Forums</h3>
                   <p className="text-zinc-500 text-base sm:text-lg">
-                     Join thousands of students discussing complex topics, sharing notes, and preparing for national exams together.
+                     Join students across Ethiopia discussing tough topics, sharing notes, and preparing for national exams together.
                   </p>
                </div>
                <div className="flex-shrink-0 w-full md:w-auto">
@@ -176,7 +177,7 @@ const Landing: React.FC = () => {
       <section className="py-16 sm:py-20 bg-zinc-50 border-y border-zinc-200">
          <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-10 sm:mb-16">
-               <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-3 sm:mb-4">Trusted by Top Students</h2>
+               <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-3 sm:mb-4">What Students Say</h2>
                <p className="text-zinc-500 text-sm sm:text-base">Don't just take our word for it.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -225,10 +226,10 @@ const Landing: React.FC = () => {
             </div>
             <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
                {[
-                 { q: "Is SmartStudy free?", a: "Yes! Creating an account is free and gives you access to the library and community. We also offer a Pro plan for advanced AI features." },
+                 { q: "Is SmartStudy free?", a: "Yes! Creating an account is free and gives you access to the library and community. The optional Pro plan unlocks premium library and videos, unlimited quizzes, and the AI study planner." },
                  { q: "What grades do you cover?", a: "We currently focus on High School education (Grades 9-12) following the new Ethiopian curriculum." },
-                 { q: "Can I use it offline?", a: "Yes, our mobile app supports offline access for downloaded materials. The web version requires an internet connection." },
-                 { q: "Is the content verified?", a: "Our educational materials are sourced from the Ministry of Education and verified partners to ensure accuracy." }
+                 { q: "Can I use it offline?", a: "You can install SmartStudy on your phone from the browser, and your saved snapshots stay available offline. The web version needs an internet connection for AI features." },
+                 { q: "Is the content verified?", a: "Our library is organized around the Ethiopian high-school curriculum (Grades 9-12). Always cross-check critical exam facts with your textbooks." }
                ].map((item, i) => (
                  <div key={i} className="p-5 sm:p-6 rounded-2xl border border-zinc-200 hover:border-zinc-300 transition-colors">
                     <h3 className="font-bold text-zinc-900 mb-2 flex items-start gap-2 text-sm sm:text-base">
@@ -248,7 +249,7 @@ const Landing: React.FC = () => {
          <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center relative z-10">
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tighter mb-6 sm:mb-8">Start smart today.</h2>
             <p className="text-base sm:text-lg md:text-xl text-zinc-400 mb-8 sm:mb-12 max-w-2xl mx-auto px-4">
-               Join the fastest growing education platform in Ethiopia.
+               Join students across Ethiopia learning smarter.
                Free to start, affordable to upgrade.
             </p>
             <Link to="/register" className="inline-flex items-center justify-center h-12 sm:h-14 px-8 sm:px-10 bg-white text-black rounded-full text-base sm:text-lg font-bold hover:bg-zinc-200 transition-all hover:scale-105">
