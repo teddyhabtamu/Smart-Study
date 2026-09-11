@@ -142,12 +142,15 @@ const VideoWatch: React.FC = () => {
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Per-feature session counter (see DocumentView note): video previews
+    // must not consume document previews and vice versa. sessionStorage
+    // matches the "for this session" copy shown on the gate.
     if (!user) {
-      const views = parseInt(localStorage.getItem('smartstudy_guest_views') || '0');
+      const views = parseInt(sessionStorage.getItem('smartstudy_guest_video_views') || '0');
       if (views >= 1) {
         setIsRestricted(true);
       } else {
-        localStorage.setItem('smartstudy_guest_views', (views + 1).toString());
+        sessionStorage.setItem('smartstudy_guest_video_views', (views + 1).toString());
       }
     } else {
       setIsRestricted(false);

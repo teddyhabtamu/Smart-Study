@@ -10,6 +10,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
+import { stripForSpeech } from '../utils/textUtils';
 import { Document } from '../types';
 import { DocumentViewSkeleton } from '../components/Skeletons';
 
@@ -108,6 +109,10 @@ const DocumentView: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        // Fresh doc: drop the previous doc's AI summary immediately so it
+        // never renders under the new title (regenerated below on success)
+        setSummary(null);
+        setIsSummaryLoading(false);
         const document = await documentsAPI.getById(id);
         setDoc(document);
       } catch (err: any) {
@@ -120,22 +125,26 @@ const DocumentView: React.FC = () => {
     fetchDocument();
   }, [id]);
 
-  // --- GUEST RESTRICTION LOGIC ---
+  // --- GUEST RESTRICTION LOGIC (per-feature session counter) ---
+  // NOTE: docs and videos use SEPARATE keys. They previously shared one
+  // localStorage counter, so watching a video consumed document previews
+  // and vice versa. sessionStorage matches the "for this session" copy —
+  // localStorage would persist the lock across sessions.
   useEffect(() => {
     if (!doc) return;
     if (!user) {
-      const views = parseInt(localStorage.getItem('smartstudy_guest_views') || '0');
+      const views = parseInt(sessionStorage.getItem('smartstudy_guest_doc_views') || '0');
       if (views >= 2) { // Allow 2 free views
         setIsRestricted(true);
       } else {
-        localStorage.setItem('smartstudy_guest_views', (views + 1).toString());
+        sessionStorage.setItem('smartstudy_guest_doc_views', (views + 1).toString());
       }
     } else {
       setIsRestricted(false);
     }
   }, [user, doc]);
 
-  // --- LOAD FEATURES (Summary, Notes, Chat) ---
+  // --- LOAD FEATURES (Notes, Chat) ---
   useEffect(() => {
     if (doc && !isRestricted) {
       // Load Notes
@@ -149,22 +158,30 @@ const DocumentView: React.FC = () => {
           setChatHistory(JSON.parse(savedChat));
         } catch (e) { setChatHistory([]); }
       }
-
-      // Generate Summary (If not already cached in a real app, typically we'd check if summary exists)
-      if (!summary) {
-        setIsSummaryLoading(true);
-        aiTutorAPI.chat(`Provide a concise 3-sentence summary of the document titled: "${doc.title}". Description: ${doc.description}`, doc.subject, 10)
-          .then(res => {
-            setSummary(res.response);
-            setIsSummaryLoading(false);
-          })
-          .catch(err => {
-            setSummary('Summary unavailable.');
-            setIsSummaryLoading(false);
-          });
-      }
     }
-  }, [doc, isRestricted]); // Removed summary dependency to avoid loop if summary set elsewhere
+  }, [doc, isRestricted]);
+
+  // --- AI SUMMARY (separate effect: cancellable, correct grade) ---
+  // Uses the DOCUMENT's grade (a hardcoded 10 was sent before) and ignores
+  // late responses from a previous doc (stale summary under a new title).
+  useEffect(() => {
+    if (!doc || isRestricted || summary) return;
+    let cancelled = false;
+    setIsSummaryLoading(true);
+    aiTutorAPI.chat(`Provide a concise 3-sentence summary of the document titled: "${doc.title}". Description: ${doc.description}`, doc.subject, doc.grade)
+      .then(res => {
+        if (cancelled) return;
+        setSummary(res.response);
+        setIsSummaryLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSummary('Summary unavailable.');
+        setIsSummaryLoading(false);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, isRestricted]);
 
   // Save Chat persistence
   useEffect(() => {
@@ -211,7 +228,9 @@ const DocumentView: React.FC = () => {
         setChatInput(`[Image with text]\n\n${text}`);
         addToast('Text extracted from image. You can edit and send it.', 'success');
       } else {
-        setChatInput('[Image uploaded - no text detected]');
+        // Leave the input empty: sending a literal placeholder to the model
+        // would waste the user's message on junk text.
+        setChatInput('');
         addToast('No text could be extracted from the image. You can still add a question.', 'info');
       }
     } catch (error: any) {
@@ -267,8 +286,10 @@ const DocumentView: React.FC = () => {
       const response = await aiTutorAPI.chat(fullPrompt, doc.subject, doc.grade);
       setChatHistory(prev => [...prev, { role: 'model', text: response.response }]);
     } catch (error: any) {
+      // Toast only: persisting an "Error: ..." string as a model message
+      // would re-render it as a tutor answer on every revisit.
       console.error('AI chat error in DocumentView:', error);
-      setChatHistory(prev => [...prev, { role: 'model', text: `Error: ${error.message || 'I encountered an error processing your request.'}` }]);
+      addToast(error.message || 'I encountered an error processing your request.', 'error');
     } finally {
       setIsChatLoading(false);
     }
@@ -279,9 +300,7 @@ const DocumentView: React.FC = () => {
     setIsQuizLoading(true);
     try {
       const prompt = `Create a 5-question multiple choice quiz based on: "${doc.title}" - ${doc.description}. Format with Markdown.`;
-      console.log('Generating quiz for document:', { title: doc.title, subject: doc.subject, grade: doc.grade });
       const response = await aiTutorAPI.chat(prompt, doc.subject, doc.grade);
-      console.log('Quiz generation response:', response);
       setQuizContent(response.response);
     } catch (error: any) {
       console.error('Quiz generation error in DocumentView:', error);
@@ -292,17 +311,38 @@ const DocumentView: React.FC = () => {
   };
 
   const handleDownload = async () => {
-    if (!doc?.file_url) {
+    if (!doc?.file_url && !doc?.id) {
       addToast("No file available.", "error");
       return;
     }
     setIsDownloading(true);
-    // Simulate API delay or tracking
-    setTimeout(() => {
-      window.open(doc.file_url, '_blank');
-      addToast("Download started.", "success");
+    try {
+      if (user && doc) {
+        // Authenticated: go through the download endpoint so the count
+        // increments and premium is re-checked server-side. (Previously the
+        // endpoint existed but nothing called it — counts were frozen.)
+        const { downloadUrl } = await documentsAPI.download(doc.id);
+        const opened = window.open(downloadUrl || doc.file_url, '_blank');
+        if (!opened) {
+          addToast("Pop-up blocked — allow pop-ups to download the file.", "error");
+        } else {
+          addToast("Download started.", "success");
+        }
+      } else if (doc?.file_url) {
+        // Guests have no download endpoint (auth required): open directly.
+        const opened = window.open(doc.file_url, '_blank');
+        if (!opened) {
+          addToast("Pop-up blocked — allow pop-ups to download the file.", "error");
+        } else {
+          addToast("Download started.", "success");
+        }
+      }
+    } catch (error: any) {
+      console.error('Download failed:', error);
+      addToast(error.message || "Download failed.", "error");
+    } finally {
       setIsDownloading(false);
-    }, 800);
+    }
   };
 
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -320,6 +360,8 @@ const DocumentView: React.FC = () => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    // Release the blob URL — otherwise every download leaks until reload
+    setTimeout(() => URL.revokeObjectURL(element.href), 1000);
     addToast("Notes saved to device.", "success");
   };
 
@@ -345,14 +387,14 @@ const DocumentView: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto py-12 px-6 animate-fade-in text-center">
         <div className="bg-white border border-zinc-200 rounded-3xl p-12 shadow-xl max-w-lg mx-auto relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+          <div className="absolute top-0 left-0 w-full h-2 bg-zinc-900"></div>
           <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-6 text-zinc-900 shadow-inner">
             <Lock size={32} />
           </div>
           <h2 className="text-2xl font-bold text-zinc-900 mb-3">Preview Limit Reached</h2>
           <p className="text-zinc-500 mb-8 leading-relaxed">
             You've viewed your free documents for this session. <br />
-            Sign in to unlock unlimited access to our library and AI tools.
+            Sign in to unlock full access to our library and AI tools.
           </p>
           <div className="space-y-3">
             <Link to="/register" className="block w-full py-3.5 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-200">
@@ -430,7 +472,7 @@ const DocumentView: React.FC = () => {
                 <span className="font-medium">Download</span>
               </button>
             ) : (
-              <Link to="/pricing" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 transition-all shadow-sm">
+              <Link to="/subscription" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 transition-all shadow-sm">
                  <Lock size={16} /> <span className="font-medium">Unlock</span>
               </Link>
             )}
@@ -512,7 +554,7 @@ const DocumentView: React.FC = () => {
           <button
             onClick={() => setMobileView('tools')}
             className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
-              mobileView === 'tools' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-500'
+              mobileView === 'tools' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'
             }`}
           >
             <Sparkles size={14} className="sm:w-4 sm:h-4" /> AI Tools
@@ -608,8 +650,8 @@ const DocumentView: React.FC = () => {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex-1 py-4 text-sm font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
-                  activeTab === tab.id 
-                    ? 'border-blue-600 text-blue-600 bg-blue-50/10' 
+                  activeTab === tab.id
+                    ? 'border-zinc-900 text-zinc-900 bg-zinc-50'
                     : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
                 }`}
               >
@@ -625,20 +667,20 @@ const DocumentView: React.FC = () => {
             {activeTab === 'chat' && (
               <div className="flex flex-col min-h-full">
                 {/* Summary Card */}
-                <div className="p-4 bg-gradient-to-br from-indigo-50 to-white border-b border-indigo-100">
+                <div className="p-4 bg-gradient-to-br from-zinc-100 to-white border-b border-zinc-200">
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
-                      <Sparkles size={12} className="text-indigo-500"/> AI Summary
+                    <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-1">
+                      <Sparkles size={12} className="text-zinc-500"/> AI Summary
                     </h4>
-                    {summary && <TTSButton text={summary} size={14} className="text-indigo-400 hover:text-indigo-600" />}
+                    {summary && <TTSButton text={stripForSpeech(summary)} size={14} className="text-zinc-400 hover:text-zinc-900" />}
                   </div>
                   {isSummaryLoading ? (
                     <div className="space-y-2 animate-pulse">
-                      <div className="h-2 bg-indigo-200/50 rounded w-full"></div>
-                      <div className="h-2 bg-indigo-200/50 rounded w-3/4"></div>
+                      <div className="h-2 bg-zinc-200/70 rounded w-full"></div>
+                      <div className="h-2 bg-zinc-200/70 rounded w-3/4"></div>
                     </div>
                   ) : (
-                    <div className="text-xs sm:text-sm text-indigo-900/80 leading-relaxed">
+                    <div className="text-xs sm:text-sm text-zinc-700 leading-relaxed">
                       <MarkdownRenderer content={summary || ''} />
                     </div>
                   )}
@@ -654,7 +696,7 @@ const DocumentView: React.FC = () => {
                       <p className="text-sm text-zinc-500">Ask questions about this document.</p>
                       <div className="mt-4 flex flex-wrap justify-center gap-2">
                         {["Explain the main concept", "List key dates", "Summarize in bullets"].map(q => (
-                          <button key={q} onClick={() => setChatInput(q)} className="text-xs bg-white border border-zinc-200 px-3 py-1.5 rounded-full hover:border-blue-300 hover:text-blue-600 transition-colors">
+                          <button key={q} onClick={() => setChatInput(q)} className="text-xs bg-white border border-zinc-200 px-3 py-1.5 rounded-full hover:border-zinc-400 hover:text-zinc-900 transition-colors">
                             {q}
                           </button>
                         ))}
@@ -664,7 +706,7 @@ const DocumentView: React.FC = () => {
                   
                   {chatHistory.map((msg, i) => (
                     <div key={i} className={`flex gap-3 animate-fade-in ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold shadow-sm ${msg.role === 'user' ? 'bg-zinc-800 text-white' : 'bg-blue-600 text-white'}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold shadow-sm ${msg.role === 'user' ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-white'}`}>
                         {msg.role === 'user' ? 'You' : <Bot size={14}/>}
                       </div>
                       <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
@@ -679,9 +721,9 @@ const DocumentView: React.FC = () => {
                   
                   {isChatLoading && (
                      <div className="flex gap-2 items-center text-zinc-400 text-xs pl-10">
-                        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"/>
-                        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"/>
-                        <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"/>
+                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"/>
+                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-75"/>
+                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-150"/>
                      </div>
                   )}
                 </div>
@@ -780,7 +822,7 @@ const DocumentView: React.FC = () => {
           {/* Chat Input Area (Fixed at bottom of sidebar) */}
           {activeTab === 'chat' && (
             <div className="p-4 bg-white border-t border-zinc-100 flex-shrink-0">
-              <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-2 bg-zinc-50 border border-zinc-200 rounded-xl p-2 transition-shadow focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-300">
+              <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-2 bg-zinc-50 border border-zinc-200 rounded-xl p-2 transition-shadow focus-within:ring-2 focus-within:ring-zinc-900/5 focus-within:border-zinc-400">
                 {/* Image Preview */}
                 {imagePreview && (
                   <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
@@ -813,7 +855,7 @@ const DocumentView: React.FC = () => {
                   htmlFor="document-image-upload-input"
                   className={`p-2 mb-0.5 rounded-lg transition-colors flex items-center justify-center cursor-pointer ${
                     isProcessingImage
-                      ? 'bg-blue-50 text-blue-600'
+                      ? 'bg-zinc-100 text-zinc-900'
                       : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
                   } ${isChatLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title="Upload Image with Text"
