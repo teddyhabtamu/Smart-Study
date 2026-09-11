@@ -276,12 +276,12 @@ router.put('/events/:id', [
 
     // Award XP for completing events. This is the ONLY award path — the old
     // frontend also called gainXP(50) after this update, double-paying every
-    // completion (e.g. Revision paid 20 + 50). Guarded to false→true so
-    // re-saving an already-completed event pays nothing.
+    // completion (e.g. Revision paid 20 + 50). Guarded to the FIRST false→true
+    // transition via xp_awarded, so uncomplete→re-complete cycles pay nothing.
     let xpGained = 0;
     let newLevel: number | undefined;
     let leveledUp = false;
-    if (updates.is_completed === true && !event.is_completed) {
+    if (updates.is_completed === true && !event.is_completed && !event.xp_awarded) {
       const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
       if (user) {
         const oldLevel = user.level || 1;
@@ -303,6 +303,11 @@ router.put('/events/:id', [
 
         // Create notification
         await NotificationService.createStudyGoalCompletedNotification(userId, event.title, xpGain);
+
+        // Latch the payout so re-completing this event never pays again.
+        // (Folded into the same update below would also work; explicit here
+        // keeps the economy rule next to the award.)
+        updates.xp_awarded = true;
       }
     }
 
