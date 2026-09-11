@@ -10,6 +10,7 @@ import { ChatSession } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
+import { stripForSpeech } from '../utils/textUtils';
 import { aiTutorAPI, usersAPI } from '../services/api';
 import { useSEO, pageSEO } from '../utils/seoUtils';
 
@@ -108,9 +109,6 @@ const AITutor: React.FC = () => {
           setSessions(chatSessions);
         } catch (error) {
           console.error('Failed to load chat sessions:', error);
-          // Fallback to localStorage if backend fails
-          const savedSessions = localStorage.getItem(`chat_history_${user.id}`);
-          if (savedSessions) setSessions(JSON.parse(savedSessions));
         } finally {
           setSessionsLoading(false);
         }
@@ -305,29 +303,13 @@ const AITutor: React.FC = () => {
       addToast('Chat session deleted successfully', 'success');
     } catch (error) {
       console.error('Failed to delete session:', error);
-      // Fallback: remove from local state
-      const newSessions = sessions.filter(s => s.id !== deleteConfirmation.sessionId);
-      setSessions(newSessions);
-      if (activeSessionId === deleteConfirmation.sessionId) handleNewChat();
+      // Keep local state untouched: the session still exists server-side and
+      // would reappear on refresh. Pretending it was deleted is worse than
+      // showing the error.
       addToast('Failed to delete chat session', 'error');
     } finally {
       setIsDeletingSession(false);
       setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' });
-    }
-  };
-
-  // Save or update session (now simplified since backend handles this)
-  const saveSession = async (newMessages: { role: string; text: string }[]) => {
-    // The backend now handles session creation and message saving automatically
-    // This function is kept for potential future use or fallback scenarios
-    if (!user) return;
-
-    try {
-      // Just refresh the sessions list to ensure UI is up to date
-      const chatSessions = await aiTutorAPI.getChatSessions();
-      setSessions(chatSessions);
-    } catch (error) {
-      console.error('Failed to refresh sessions:', error);
     }
   };
 
@@ -351,7 +333,9 @@ const AITutor: React.FC = () => {
         setInput(`[Image with text]\n\n${text}`);
         addToast('Text extracted from image. You can edit and send it.', 'success');
       } else {
-        setInput('[Image uploaded - no text detected]');
+        // Leave the input empty: sending the literal placeholder below to the
+        // model would waste a prompt on junk text.
+        setInput('');
         addToast('No text could be extracted from the image. You can still add a question.', 'info');
       }
     } catch (error: any) {
@@ -414,13 +398,8 @@ const AITutor: React.FC = () => {
     }
     setShowSettings(false); // Close settings if open
 
-    // Increment usage for guests
-    if (!user) {
-      const newCount = guestPromptCount + 1;
-      setGuestPromptCount(newCount);
-      localStorage.setItem('smartstudy_guest_prompts', newCount.toString());
-      localStorage.setItem('smartstudy_guest_prompts_date', new Date().toDateString());
-    }
+    // NOTE: guest usage is counted after a SUCCESSFUL response (see below),
+    // never up front — a failed generation must not burn a free prompt.
 
     const newHistory = [...messages, { role: 'user', text: userMsg }];
     setMessages(newHistory);
@@ -464,6 +443,14 @@ const AITutor: React.FC = () => {
       const finalHistory = [...newHistory, { role: 'model', text: aiResponse.response }];
       setMessages(finalHistory);
 
+      // Count guest usage only on success — failures keep their free prompt.
+      if (!user) {
+        const newCount = guestPromptCount + 1;
+        setGuestPromptCount(newCount);
+        localStorage.setItem('smartstudy_guest_prompts', newCount.toString());
+        localStorage.setItem('smartstudy_guest_prompts_date', new Date().toDateString());
+      }
+
       const newSessionId = aiResponse.sessionId || activeSessionId || null;
       if (newSessionId) {
         setActiveSessionId(newSessionId);
@@ -501,6 +488,8 @@ const AITutor: React.FC = () => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    // Release the blob URL — otherwise every export leaks memory until reload.
+    setTimeout(() => URL.revokeObjectURL(element.href), 1000);
     
     addToast("Chat history downloaded.", "success");
     setShowSettings(false);
@@ -582,7 +571,7 @@ const AITutor: React.FC = () => {
                   </div>
                   <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 flex-shrink-0 transition-all"
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 flex-shrink-0 transition-all"
                   >
                     <Trash2 size={12} className="sm:w-3.5 sm:h-3.5" />
                   </button>
@@ -743,8 +732,8 @@ const AITutor: React.FC = () => {
                     {idx === streamingIndex && (
                       <span className="streaming-cursor" aria-hidden="true" />
                     )}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <TTSButton text={msg.text} size={12} className="sm:w-3.5 sm:h-3.5 bg-white/80 hover:bg-white shadow-sm" />
+                    <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                       <TTSButton text={stripForSpeech(msg.text)} size={12} className="sm:w-3.5 sm:h-3.5 bg-white/80 hover:bg-white shadow-sm" />
                     </div>
                   </>
                 )}
@@ -797,7 +786,7 @@ const AITutor: React.FC = () => {
                  </div>
                  <h3 className="font-bold text-zinc-900 mb-2 text-sm sm:text-base">Free Limit Reached</h3>
                  <p className="text-xs sm:text-sm text-zinc-500 mb-4 sm:mb-6 max-w-sm mx-auto">
-                   You've used your 5 free AI Tutor questions. Sign in to your account to continue chatting unlimitedly.
+                    You've used your 5 free AI Tutor questions. Sign in to keep chatting.
                  </p>
                  <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
                     <Link to="/login" className="px-4 sm:px-6 py-2 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm">

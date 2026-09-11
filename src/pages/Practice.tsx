@@ -10,6 +10,7 @@ import { SUBJECTS, GRADES } from '../constants';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
 import MarkdownRenderer, { MarkdownInline } from '../components/MarkdownRenderer';
+import { stripForSpeech } from '../utils/textUtils';
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 
@@ -17,18 +18,6 @@ const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 // letter chips are rendered separately, so prefixes would read "A. A) ...".
 const stripOptionPrefix = (text: string): string =>
   String(text ?? '').replace(/^\s*(\(?[A-D]\)?[.)]\s+)/, '');
-
-// Make raw markdown/LaTeX speakable: TTS would otherwise read "$", "^", "_"
-// aloud. Keeps the readable words, drops the notation.
-const stripForSpeech = (text: string): string =>
-  String(text ?? '')
-    .replace(/\$\$[\s\S]*?\$\$/g, ' mathematical expression ')
-    .replace(/\$([^$]+)\$/g, '$1')
-    .replace(/\\(frac|sqrt|times|cdot|leq|geq|neq|pm|alpha|beta|gamma|theta|pi|infty|sum|int)\b/g, '')
-    .replace(/[\\{}$^_]/g, '')
-    .replace(/[*_#>`|-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 
 interface Question {
   question: string;
