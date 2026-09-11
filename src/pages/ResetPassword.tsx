@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { GraduationCap, Lock, CheckCircle2, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { GraduationCap, Lock, CheckCircle2, Loader2, AlertCircle, Eye, EyeOff, MailWarning } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { getPasswordStrength, PasswordStrengthMeter } from '../components/PasswordStrength';
 
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
@@ -40,6 +41,13 @@ const ResetPassword: React.FC = () => {
       return;
     }
 
+    // Same bar as registration: weak passwords are rejected with guidance
+    // instead of a dead disabled button.
+    if (getPasswordStrength(password).strength === 'weak') {
+      setError('Password is too weak — use at least 8 characters with a mix of letters and numbers.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -73,7 +81,37 @@ const ResetPassword: React.FC = () => {
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
           <h2 className="text-2xl font-bold text-zinc-900 mb-2">Password Reset Successful!</h2>
-          <p className="text-zinc-600 mb-6">Your password has been updated. Redirecting to login...</p>
+          <p className="text-zinc-600 mb-6">Your password has been updated. Sign in with your new password.</p>
+          <button
+            onClick={() => navigate('/login')}
+            className="w-full py-3 px-4 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 transition-all"
+          >
+            Go to Login now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No token at all (opened page directly, link mangled): dedicated invalid
+  // state instead of a grey dead form. Recovery is one tap away.
+  if (!token && !isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-zinc-200 p-8 text-center">
+          <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <MailWarning size={28} className="text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-2">Link invalid or expired</h2>
+          <p className="text-zinc-600 mb-6 text-sm leading-relaxed">
+            Reset links expire after 1 hour and work only once. Request a fresh one — it takes seconds.
+          </p>
+          <button
+            onClick={() => navigate('/login?view=forgot')}
+            className="w-full py-3 px-4 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 transition-all"
+          >
+            Request a new reset link
+          </button>
         </div>
       </div>
     );
@@ -137,7 +175,8 @@ const ResetPassword: React.FC = () => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-zinc-500 ml-1">Must be at least 6 characters</p>
+              <p className="mt-1 text-xs text-zinc-500 ml-1">Use at least 8 characters with a mix of letters and numbers</p>
+              <PasswordStrengthMeter password={password} />
             </div>
 
             <div>

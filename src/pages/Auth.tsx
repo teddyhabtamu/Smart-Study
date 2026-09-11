@@ -1,23 +1,31 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { UserRole } from '../types';
-import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star, Eye, EyeOff, MailCheck, AlertCircle } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
+import { getPasswordStrength, PasswordStrengthMeter } from '../components/PasswordStrength';
 
 interface AuthProps {
   type: 'login' | 'register';
 }
 
+type AuthView = 'login' | 'register' | 'forgot' | 'pending' | 'forgot-sent';
+
 const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToast();
   const { login, register, user } = useAuth();
-  
+
   // Local state to handle 'forgot' view without changing URL necessarily
-  const [view, setView] = useState<'login' | 'register' | 'forgot'>(initialType);
+  const [view, setView] = useState<AuthView>(() => {
+    // Deep-linkable forgot view: /login?view=forgot survives back/refresh
+    if (searchParams.get('view') === 'forgot') return 'forgot';
+    return initialType;
+  });
   
   // Update view when prop changes (for direct URL navigation)
   React.useEffect(() => {
@@ -35,48 +43,63 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // Inline form error (persists on screen, unlike toasts)
+  const [formError, setFormError] = useState<string | null>(null);
+  // Unverified-login recovery: offer resend right where the error appears
+  const [showResend, setShowResend] = useState(false);
+  // Resend cooldown countdown (seconds remaining)
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Password strength checker
-  const getPasswordStrength = (pwd: string): { strength: 'weak' | 'medium' | 'strong'; score: number; checks: { label: string; met: boolean }[] } => {
-    const checks = [
-      { label: 'At least 8 characters', met: pwd.length >= 8 },
-      { label: 'Contains uppercase letter', met: /[A-Z]/.test(pwd) },
-      { label: 'Contains lowercase letter', met: /[a-z]/.test(pwd) },
-      { label: 'Contains number', met: /[0-9]/.test(pwd) },
-      { label: 'Contains special character', met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd) },
-    ];
-    
-    const metCount = checks.filter(c => c.met).length;
-    let strength: 'weak' | 'medium' | 'strong' = 'weak';
-    let score = 0;
-    
-    if (metCount <= 2) {
-      strength = 'weak';
-      score = metCount;
-    } else if (metCount <= 4) {
-      strength = 'medium';
-      score = metCount;
-    } else {
-      strength = 'strong';
-      score = metCount;
-    }
-    
-    return { strength, score, checks };
+  // Google OAuth failure reasons land here as ?error=... — render inline
+  // (with retry) instead of a vanishing toast, then clear the param.
+  const oauthError = searchParams.get('error');
+  const oauthErrorCopy: Record<string, string> = {
+    cancelled: 'Google sign-in was cancelled before completing. Please try again.',
+    invalid: 'Google sign-in failed. Please try again or use email instead.',
+    verify_failed: 'We could not verify your Google account. Please try again.',
   };
 
+  const clearOauthError = () => {
+    searchParams.delete('error');
+    setSearchParams(searchParams, { replace: true });
+  };
+
+  // Resend verification email with a 60s client cooldown (backend also
+  // throttles at 3 per 15 min and returns 429 with a clear message).
+  const handleResendVerification = async (targetEmail: string) => {
+    if (!targetEmail || resendCooldown > 0) return;
+    setResendCooldown(60);
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    try {
+      const res = await authAPI.resendVerification(targetEmail);
+      addToast(res.message || 'Verification email sent. Please check your inbox (and spam folder).', 'success');
+    } catch (error: any) {
+      addToast(error.message || 'Could not resend. Please try again later.', 'error');
+    }
+  };
+
+  // Password strength checker (shared component — same rules on reset page)
   const passwordStrength = password ? getPasswordStrength(password) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setFormError(null);
+    setShowResend(false);
 
     try {
-      // FORGOT PASSWORD FLOW
+      // FORGOT PASSWORD FLOW — stay on a confirmation panel, keep the email
       if (view === 'forgot') {
         await authAPI.forgotPassword(email);
-        addToast("If an account with that email exists, a password reset link has been sent.", "success");
-        setView('login');
-        setEmail(''); // Clear email field
+        setView('forgot-sent');
         return;
       }
 
@@ -84,7 +107,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       if (view === 'login') {
         const loggedInUser = await login(email, password);
         addToast("Login successful!", "success");
-        
+
         // Redirect admin to management panel, others to dashboard
         // Check if user is admin (compare as string to avoid type narrowing issues)
         if (loggedInUser && (String(loggedInUser.role) === 'ADMIN' || String(loggedInUser.role) === 'MODERATOR')) {
@@ -97,54 +120,57 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       // REGISTER FLOW
       else if (view === 'register') {
         if (password !== confirmPassword) {
-          addToast("Passwords do not match. Please try again.", "error");
+          setFormError("Passwords do not match. Please try again.");
           setIsLoading(false);
           return;
         }
-        
+
         if (passwordStrength && passwordStrength.strength === 'weak') {
-          addToast("Password is too weak. Please use a stronger password.", "error");
+          setFormError("Password is too weak — use at least 8 characters with a mix of letters and numbers.");
           setIsLoading(false);
           return;
         }
-        
+
         await register(name, email, password, grade ? Number(grade) : undefined);
-        
-        // Registration now requires email verification
-        // The register function doesn't set user/token when email verification is required
-        // Show verification message
-        addToast("Registration successful! Please check your email to verify your account before logging in.", "success");
-        
-        // Clear form
-        setName('');
-        setEmail('');
+
+        // Registration requires email verification — move to a dedicated
+        // pending screen that KEEPS the email (no retyping) and offers resend.
+        // Only clear secrets, never the email address.
         setPassword('');
         setConfirmPassword('');
-        setGrade('');
-        
-        // Switch to login view so user can see the message and try to login after verification
-        setView('login');
+        setView('pending');
       }
 
     } catch (error: any) {
       console.error('Auth error:', error);
-      addToast(error.message || "Authentication failed. Please try again.", "error");
+      const message = error.message || "Authentication failed. Please try again.";
+      setFormError(message);
+      // Unverified account? Offer the fix right here instead of a dead end.
+      if (message.toLowerCase().includes('verif')) {
+        setShowResend(true);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleLogin = () => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (!apiUrl) {
+      addToast("Google login is not configured. Please use email instead.", "error");
+      return;
+    }
     setIsGoogleLoading(true);
     try {
       // Redirect to Google OAuth
-      window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
+      window.location.href = `${apiUrl}/auth/google`;
     } catch (error) {
       console.error('Google login error:', error);
       addToast("Failed to initiate Google login. Please try again.", "error");
       setIsGoogleLoading(false);
     }
   };
+  const googleLabel = view === 'register' ? 'Sign up with Google' : 'Sign in with Google';
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -164,15 +190,89 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               {view === 'login' && 'Welcome back'}
               {view === 'register' && 'Create an account'}
               {view === 'forgot' && 'Reset Password'}
+              {view === 'pending' && 'Check your inbox'}
+              {view === 'forgot-sent' && 'Check your inbox'}
             </h2>
             <p className="mt-2 text-sm sm:text-base text-zinc-500">
               {view === 'login' && 'Please enter your details to sign in.'}
               {view === 'register' && 'Start your learning journey today.'}
               {view === 'forgot' && "Don't worry, we'll send you reset instructions."}
+              {view === 'pending' && 'One last step — verify your email to activate your account.'}
+              {view === 'forgot-sent' && 'If an account exists for that email, a reset link is on its way.'}
             </p>
           </div>
 
           <div className="mt-6 sm:mt-8 md:mt-10">
+            {view === 'login' && oauthError && oauthErrorCopy[oauthError] && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 leading-relaxed flex items-start gap-2">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  {oauthErrorCopy[oauthError]}
+                  <button
+                    type="button"
+                    onClick={clearOauthError}
+                    className="ml-2 font-semibold underline hover:text-amber-950"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+            {(view === 'pending' || view === 'forgot-sent') ? (
+              <div className="text-center space-y-6">
+                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <MailCheck size={28} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-zinc-600 leading-relaxed">
+                    {view === 'pending' ? (
+                      <>We sent a verification link to <span className="font-bold text-zinc-900 break-all">{email}</span>.<br />Click it to activate your account, then come back and sign in.</>
+                    ) : (
+                      <>If an account exists for <span className="font-bold text-zinc-900 break-all">{email}</span>, a reset link is on its way — check spam too.</>
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => handleResendVerification(email)}
+                    disabled={resendCooldown > 0}
+                    className="w-full py-3 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm sm:text-base"
+                  >
+                    {resendCooldown > 0
+                      ? `Resend email in ${resendCooldown}s`
+                      : view === 'pending' ? 'Resend verification email' : 'Resend reset email'}
+                  </button>
+                  {view === 'pending' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setView('login'); }}
+                        className="w-full py-3 bg-white border border-zinc-200 text-zinc-900 font-medium rounded-xl hover:bg-zinc-50 transition-all text-sm sm:text-base"
+                      >
+                        I've verified — Sign In
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setView('register'); }}
+                        className="w-full text-sm text-zinc-500 hover:text-zinc-900"
+                      >
+                        Wrong email? Start over
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setView('login'); }}
+                      className="w-full text-center text-sm font-medium text-zinc-500 hover:text-zinc-900 flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <ArrowLeft size={16} /> Back to Sign In
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+            <>
             {view !== 'forgot' && (
               <>
                 <button
@@ -190,7 +290,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                       </svg>
-                      <span className="text-sm">Sign in with Google</span>
+                      <span className="text-sm">{googleLabel}</span>
                     </>
                   )}
                 </button>
@@ -218,7 +318,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       type="text"
                       required
                       className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
-                      placeholder="John Doe"
+                      placeholder="e.g. Hana Tesfaye"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
@@ -303,54 +403,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       </button>
                     </div>
                     {view === 'register' && password && (
-                      <div className="mt-2 space-y-2">
-                        {/* Strength Indicator */}
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all duration-300 ${
-                                passwordStrength?.strength === 'weak'
-                                  ? 'bg-red-500 w-1/3'
-                                  : passwordStrength?.strength === 'medium'
-                                  ? 'bg-amber-500 w-2/3'
-                                  : 'bg-emerald-500 w-full'
-                              }`}
-                            />
-                          </div>
-                          <span
-                            className={`text-xs font-medium ${
-                              passwordStrength?.strength === 'weak'
-                                ? 'text-red-600'
-                                : passwordStrength?.strength === 'medium'
-                                ? 'text-amber-600'
-                                : 'text-emerald-600'
-                            }`}
-                          >
-                            {passwordStrength?.strength === 'weak' ? 'Weak' : passwordStrength?.strength === 'medium' ? 'Medium' : 'Strong'}
-                          </span>
-                        </div>
-                        {/* Requirements Checklist */}
-                        <div className="space-y-1">
-                          {passwordStrength?.checks.map((check, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs">
-                              <div
-                                className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                  check.met ? 'bg-emerald-500' : 'bg-zinc-200'
-                                }`}
-                              >
-                                {check.met && (
-                                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className={check.met ? 'text-zinc-600' : 'text-zinc-400'}>
-                                {check.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <PasswordStrengthMeter password={password} />
                     )}
                   </div>
 
@@ -390,24 +443,49 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                 </>
               )}
 
+              {/* Inline error box (persists; toasts disappear) */}
+              {formError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 leading-relaxed">
+                  {formError}
+                  {showResend && (
+                    <button
+                      type="button"
+                      onClick={() => handleResendVerification(email)}
+                      disabled={resendCooldown > 0}
+                      className="mt-2 w-full py-2 bg-white border border-red-200 text-red-800 font-medium rounded-lg hover:bg-red-100/50 disabled:opacity-50 transition-all text-sm"
+                    >
+                      {resendCooldown > 0 ? `Resend email in ${resendCooldown}s` : 'Resend verification email'}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={
-                  isLoading || 
-                  isGoogleLoading || 
-                  (view === 'register' && password !== confirmPassword) ||
-                  (view === 'register' && passwordStrength !== null && passwordStrength.strength === 'weak')
-                }
-                className="w-full flex justify-center py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
+                disabled={isLoading || isGoogleLoading}
+                className="w-full flex justify-center items-center gap-2 py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
               >
                 {isLoading ? (
-                  <Loader2 size={20} className="animate-spin" />
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    {view === 'login' ? 'Signing in…' : view === 'register' ? 'Creating account…' : 'Sending…'}
+                  </>
                 ) : (
                   view === 'login' ? 'Sign In' : view === 'register' ? 'Create Account' : 'Send Reset Link'
                 )}
               </button>
+              {view === 'register' && (
+                <p className="text-center text-xs text-zinc-400 leading-relaxed">
+                  By creating an account you agree to our{' '}
+                  <Link to="/terms-of-service" className="underline hover:text-zinc-700">Terms of Service</Link>
+                  {' '}and{' '}
+                  <Link to="/privacy-policy" className="underline hover:text-zinc-700">Privacy Policy</Link>.
+                </p>
+              )}
             </form>
+            </>)}
 
+            {(view === 'login' || view === 'register' || view === 'forgot') && (
             <div className="mt-6">
               {view === 'login' ? (
                 <p className="text-center text-sm text-zinc-500">
@@ -432,6 +510,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                 </button>
               )}
             </div>
+            )}
 
             {/* Mobile Testimonial */}
             <div className="mt-6 sm:mt-8 lg:hidden p-4 bg-zinc-900 text-white rounded-xl relative overflow-hidden">

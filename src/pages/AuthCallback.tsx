@@ -15,6 +15,11 @@ const AuthCallback: React.FC = () => {
     const refreshToken = searchParams.get('refreshToken');
     const success = searchParams.get('success');
 
+    const fail = (reason: 'cancelled' | 'invalid' | 'verify_failed') => {
+      // Pass the reason to login so it renders inline (toasts disappear)
+      navigate(`/login?error=${reason}`, { replace: true });
+    };
+
     if (success === 'true' && token) {
       // Save tokens
       localStorage.setItem('auth_token', token);
@@ -34,23 +39,23 @@ const AuthCallback: React.FC = () => {
             }
           }).catch(err => {
             console.error('Login error:', err);
-            addToast("Login failed", "error");
-            navigate('/login');
+            fail('verify_failed');
           });
         } else {
-          addToast("Login failed", "error");
-          navigate('/login');
+          fail('verify_failed');
         }
       }).catch(error => {
         console.error('Verify error:', error);
-        addToast("Login failed", "error");
-        navigate('/login');
+        fail('verify_failed');
       });
+    } else if (searchParams.get('error')) {
+      // Backend rejected (e.g. banned account) — surface its message
+      fail('invalid');
     } else {
-      addToast("Login failed", "error");
-      navigate('/login');
+      // User cancelled at Google, or no token returned
+      fail('cancelled');
     }
-  }, [searchParams, login, addToast, navigate]);
+  }, [searchParams, login, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 px-4">
@@ -84,8 +89,11 @@ const AuthCallback: React.FC = () => {
       </div>
       
       {/* SmartStudy Text */}
-      <p className="text-sm sm:text-base text-zinc-400 font-medium tracking-wide">
-        SmartStudy
+      <p className="text-sm sm:text-base text-zinc-900 font-semibold tracking-wide">
+        Signing you in with Google…
+      </p>
+      <p className="text-xs sm:text-sm text-zinc-400 font-medium tracking-wide mt-1">
+        Please keep this page open — it only takes a moment.
       </p>
     </div>
   );

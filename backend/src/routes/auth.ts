@@ -896,16 +896,31 @@ router.post('/resend-verification', [
       return;
     }
 
+    // Throttle: max 3 verification emails per 15 minutes per account
+    // (protects the email quota from abuse; checked BEFORE deleting old tokens)
+    const recentSends = await query(
+      `SELECT COUNT(*) as count FROM tokens
+       WHERE user_id = $1 AND type = 'email-verification'
+       AND created_at > NOW() - INTERVAL '15 minutes'`,
+      [user.id]
+    );
+    if (parseInt(recentSends.rows[0]?.count || '0', 10) >= 3) {
+      res.status(429).json({
+        success: false,
+        message: 'Too many requests. Please wait 15 minutes before requesting another verification email.'
+      } as ApiResponse);
+      return;
+    }
+
     // Generate new verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
-    // Delete old verification tokens for this user
-    await query(
-      'DELETE FROM tokens WHERE user_id = $1 AND type = $2',
-      [user.id, 'email-verification']
-    );
+    // NOTE: old tokens are intentionally NOT deleted here — the throttle
+    // above counts recent sends, and deleting first would wipe the evidence.
+    // Stale tokens expire in 24h and are single-use via used_at, so keeping
+    // a few live ones per user is harmless. At most ~3 can exist (throttle).
 
     // Store new verification token
     await query(

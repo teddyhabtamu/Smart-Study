@@ -13,7 +13,9 @@ const VerifyEmail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [resendEmail, setResendEmail] = useState('');
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     const tokenParam = searchParams.get('token');
@@ -21,10 +23,32 @@ const VerifyEmail: React.FC = () => {
       setError('Invalid or missing verification token. Please check your email link.');
       setIsLoading(false);
     } else {
-      setToken(tokenParam);
       verifyEmail(tokenParam);
     }
   }, [searchParams]);
+
+  const handleResend = async () => {
+    if (!resendEmail.trim() || resendCooldown > 0) return;
+    setIsResending(true);
+    try {
+      const res = await authAPI.resendVerification(resendEmail.trim());
+      addToast(res.message || 'Verification email sent. Check your inbox (and spam).', 'success');
+      setResendCooldown(60);
+      const timer = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      addToast(err.message || 'Could not resend. Please try again later.', 'error');
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const verifyEmail = async (verificationToken: string) => {
     try {
@@ -70,7 +94,13 @@ const VerifyEmail: React.FC = () => {
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
           <h2 className="text-2xl font-bold text-zinc-900 mb-2">Email Verified Successfully!</h2>
-          <p className="text-zinc-600 mb-6">Your email has been verified. Redirecting to dashboard...</p>
+          <p className="text-zinc-600 mb-6">Your email has been verified. Welcome to SmartStudy!</p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="w-full py-3 px-4 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 transition-all"
+          >
+            Continue to Dashboard
+          </button>
         </div>
       </div>
     );
@@ -119,17 +149,27 @@ const VerifyEmail: React.FC = () => {
               <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
                 <div className="flex items-start gap-3">
                   <Mail className="w-5 h-5 text-zinc-600 flex-shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium text-zinc-900 mb-1">Need a new verification email?</p>
                     <p className="text-xs text-zinc-600 mb-3">
-                      If your verification link has expired, you can request a new one.
+                      Links expire after 24 hours. Enter your account email below and we'll send a fresh one.
                     </p>
-                    <button
-                      onClick={() => navigate('/login')}
-                      className="text-sm font-semibold text-zinc-900 hover:underline"
-                    >
-                      Go to Login
-                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={resendEmail}
+                        onChange={(e) => setResendEmail(e.target.value)}
+                        className="flex-1 min-w-0 px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-900 placeholder-zinc-400"
+                      />
+                      <button
+                        onClick={handleResend}
+                        disabled={isResending || resendCooldown > 0 || !resendEmail.trim()}
+                        className="px-3 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                      >
+                        {isResending ? 'Sending…' : resendCooldown > 0 ? `${resendCooldown}s` : 'Resend'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
