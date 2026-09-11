@@ -103,6 +103,9 @@ export interface Video {
   updated_at: string;
   user_has_liked?: boolean;
   user_has_completed?: boolean;
+  // Paid by POST /videos/:id/complete on the first completion only (100);
+  // re-completing after an uncomplete returns 0
+  xpGained?: number;
 }
 
 export interface VideoLesson {

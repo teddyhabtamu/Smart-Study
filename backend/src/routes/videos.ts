@@ -511,6 +511,12 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
       return;
     }
 
+    // How much XP completing NOW is worth. Re-completing after an
+    // uncomplete pays nothing: the row is deleted on uncomplete, but the
+    // per-user history check below latches the first payout per video.
+    // (Previously the frontend awarded a flat 100 on every success.)
+    let xpGained = 0;
+
     if (completed) {
       // Check if already completed to avoid duplicate XP
       const { data: existingCompletion, error: existingErr } = await supabaseAdmin
@@ -531,6 +537,25 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
 
       const isNewCompletion = !existingCompletion || existingCompletion.length === 0;
 
+      // Latch the payout: uncompleting deletes the row above, so a
+      // re-complete would look "new". The history table survives deletes —
+      // if this video already paid out once, it pays nothing again.
+      let alreadyPaid = false;
+      if (isNewCompletion) {
+        try {
+          const paidRows = await dbQuery(
+            `SELECT id FROM xp_history WHERE user_id = $1 AND source = 'video' AND source_id = $2 LIMIT 1`,
+            [userId, id]
+          );
+          alreadyPaid = paidRows.rows.length > 0;
+        } catch (histErr) {
+          console.error('Complete lesson: failed to check payout history:', histErr);
+        }
+      }
+      if (isNewCompletion && !alreadyPaid) {
+        xpGained = 100;
+      }
+
       // Mark as complete (idempotent)
       const { error: upsertErr } = await supabaseAdmin
         .from('video_completions')
@@ -545,13 +570,13 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
         return;
       }
 
-      // Record XP history only if this is a new completion
-      // Note: XP is also awarded via frontend gainXP call, but we record it here too for tracking
-      if (isNewCompletion) {
+      // Record XP history only when XP is actually paid out. The credit
+      // itself is applied by the frontend's gainXP call with this value.
+      if (xpGained > 0) {
         try {
           await dbAdmin.insert('xp_history', {
             user_id: userId,
-            amount: 100,
+            amount: xpGained,
             source: 'video',
             source_id: id,
             description: 'Completed video lesson'
@@ -612,7 +637,8 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
       likes: updatedVideoRow.likes || 0,
       uploadedAt: updatedVideoRow.created_at,
       isPremium: updatedVideoRow.is_premium,
-      user_has_completed: !!completionRow
+      user_has_completed: !!completionRow,
+      xpGained
     };
 
     res.json({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, Share2, MoreHorizontal, Lock, Bookmark, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, Share2, Lock, Bookmark, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { videosAPI, aiTutorAPI } from '../services/api';
 import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { useData } from '../context/DataContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import TTSButton from '../components/TTSButton';
+import { stripForSpeech } from '../utils/textUtils';
 import { VideoWatchSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
@@ -214,7 +215,9 @@ const VideoWatch: React.FC = () => {
         setChatInput(`[Image with text]\n\n${text}`);
         addToast('Text extracted from image. You can edit and send it.', 'success');
       } else {
-        setChatInput('[Image uploaded - no text detected]');
+        // Leave the input empty: sending a literal placeholder to the model
+        // would waste the user's message on junk text.
+        setChatInput('');
         addToast('No text could be extracted from the image. You can still add a question.', 'info');
       }
     } catch (error: any) {
@@ -250,8 +253,10 @@ const VideoWatch: React.FC = () => {
       const response = await aiTutorAPI.chat(fullPrompt, video.subject, video.grade);
       setChatHistory(prev => [...prev, { role: 'model', text: response.response }]);
     } catch (error: any) {
+      // Toast only: persisting an "Error: ..." string as a model message
+      // would re-render it as a tutor answer on every revisit.
       console.error('AI chat error in VideoWatch:', error);
-      setChatHistory(prev => [...prev, { role: 'model', text: `Error: ${error.message || 'Sorry, I encountered an error. Please try again.'}` }]);
+      addToast(error.message || 'Sorry, I encountered an error. Please try again.', 'error');
     } finally {
       setIsChatLoading(false);
     }
@@ -263,9 +268,7 @@ const VideoWatch: React.FC = () => {
 
     try {
       const prompt = `Generate a 5-question quiz based on this video lesson: "${video.title}" - ${video.description}. Include multiple choice questions with answers.`;
-      console.log('Generating quiz for video:', { title: video.title, subject: video.subject, grade: video.grade });
       const response = await aiTutorAPI.chat(prompt, video.subject, video.grade);
-      console.log('Quiz generation response (VideoWatch):', response);
       setQuizContent(response.response);
     } catch (error: any) {
       console.error('Quiz generation error in VideoWatch:', error);
@@ -419,9 +422,22 @@ const VideoWatch: React.FC = () => {
     }
   };
 
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    addToast("Link copied to clipboard!", "success");
+  const handleShare = async () => {
+    const url = window.location.href;
+    // Prefer the native share sheet on mobile; fall back to clipboard.
+    // Only toast on actual success — the old code always claimed success.
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: video?.title || 'SmartStudy lesson', url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      addToast("Link copied to clipboard!", "success");
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return; // user dismissed the sheet
+      console.error('Share failed:', error);
+      addToast("Could not share. Copy the address bar link manually.", "error");
+    }
   };
   
   const handleCompleteLesson = async () => {
@@ -434,24 +450,27 @@ const VideoWatch: React.FC = () => {
 
     setIsCompleting(true);
     try {
-      console.log('Completing lesson for video:', video.id);
       const response = await videosAPI.complete(video.id, true);
-      console.log('Lesson completion API call successful', response);
 
       if (response) {
         // Update video state with server response
         setVideo((prev: Video | null) => prev ? { ...prev, user_has_completed: response.user_has_completed } : null);
         setIsCompleted(response.user_has_completed || false);
-        console.log('isCompleted set to:', response.user_has_completed);
       } else {
         setIsCompleted(true);
       }
 
-      // Only award XP if we successfully marked as complete
-      const { leveledUp, newLevel } = await gainXP(100);
-      addToast("+100 XP Lesson Completed!", "success");
-      if (leveledUp) {
-        setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+      // XP only on the first payout per video (server latches via history).
+      // Re-completing after an uncomplete returns xpGained 0 — no farm.
+      const xp = response?.xpGained ?? 0;
+      if (xp > 0) {
+        const { leveledUp, newLevel } = await gainXP(xp);
+        addToast(`+${xp} XP Lesson Completed!`, "success");
+        if (leveledUp) {
+          setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+        }
+      } else {
+        addToast("Lesson completed!", "success");
       }
     } catch (error: any) {
       console.error('Failed to complete lesson:', error);
@@ -473,6 +492,8 @@ const VideoWatch: React.FC = () => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    // Release the blob URL — otherwise every download leaks until reload
+    setTimeout(() => URL.revokeObjectURL(element.href), 1000);
     addToast("Notes downloaded successfully.", "success");
   };
 
@@ -480,12 +501,12 @@ const VideoWatch: React.FC = () => {
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 animate-fade-in relative pb-8 sm:pb-12">
        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-zinc-500">
           <Link to="/videos" className="hover:text-zinc-900 transition-colors flex items-center gap-1">
-             <ChevronLeft size={14} className="sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Back to Classroom</span><span className="xs:hidden">Back</span>
+             <ChevronLeft size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Back to Classroom</span><span className="sm:hidden">Back</span>
           </Link>
           <span className="text-zinc-300">/</span>
           <span className="truncate">{video.subject}</span>
-          <span className="text-zinc-300 hidden xs:inline">/</span>
-          <span className="text-zinc-900 font-medium truncate max-w-[120px] xs:max-w-[200px]">{video.title}</span>
+          <span className="text-zinc-300 hidden sm:inline">/</span>
+          <span className="text-zinc-900 font-medium truncate max-w-[120px] sm:max-w-[200px]">{video.title}</span>
        </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -556,14 +577,14 @@ const VideoWatch: React.FC = () => {
                          {isCompleting ? (
                            <>
                              <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
-                             <span className="hidden xs:inline">Completing...</span>
-                             <span className="xs:hidden">...</span>
+                             <span className="hidden sm:inline">Completing...</span>
+                             <span className="sm:hidden">...</span>
                            </>
                          ) : (
                            <>
                              {isCompleted ? <CheckCircle size={14} className="sm:w-4 sm:h-4" /> : <CheckCircle size={14} className="sm:w-4 sm:h-4" />}
-                             <span className="hidden xs:inline">{isCompleted ? 'Completed' : 'Complete Lesson'}</span>
-                             <span className="xs:hidden">{isCompleted ? 'Done' : 'Complete'}</span>
+                             <span className="hidden sm:inline">{isCompleted ? 'Completed' : 'Complete Lesson'}</span>
+                             <span className="sm:hidden">{isCompleted ? 'Done' : 'Complete'}</span>
                            </>
                          )}
                        </button>
@@ -592,7 +613,7 @@ const VideoWatch: React.FC = () => {
                        ) : (
                          <Bookmark size={14} className={isBookmarked ? "fill-current text-amber-600" : ""} />
                        )}
-                       <span className="hidden xs:inline">{isBookmarked ? 'Saved' : 'Save'}</span>
+                       <span className="hidden sm:inline">{isBookmarked ? 'Saved' : 'Save'}</span>
                      </button>
                    </div>
                 </div>
@@ -618,26 +639,22 @@ const VideoWatch: React.FC = () => {
                          )}
                          {video.likes}
                       </button>
-                      <button 
+                      <button
                         onClick={handleShare}
                         className="flex items-center gap-2 px-4 py-2 bg-zinc-100 text-zinc-700 rounded-full text-sm font-medium hover:bg-zinc-200 transition-colors"
                       >
                          <Share2 size={16} /> Share
                       </button>
-                      
-                      <button className="p-2 bg-zinc-100 rounded-full hover:bg-zinc-200 transition-colors">
-                         <MoreHorizontal size={16} />
-                      </button>
-                   </div>
+                    </div>
                 </div>
 
                 <div className="pt-6 flex gap-4">
                    <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-900 font-bold text-lg flex-shrink-0">
                       {video.instructor?.charAt(0) || '?'}
                    </div>
-                   <div>
-                      <h3 className="font-bold text-zinc-900">{video.instructor}</h3>
-                      <p className="text-xs text-zinc-500 mb-3">Verified Educational Channel • 100+ Lessons</p>
+                    <div>
+                       <h3 className="font-bold text-zinc-900">{video.instructor || 'SmartStudy'}</h3>
+                       <p className="text-xs text-zinc-500 mb-3">{video.subject} • {video.grade === 0 ? 'General' : `Grade ${video.grade}`}</p>
                       <p className="text-sm text-zinc-700 leading-relaxed bg-zinc-50 p-4 rounded-lg border border-zinc-100">
                          {video.description}
                       </p>
@@ -690,7 +707,7 @@ const VideoWatch: React.FC = () => {
                                  </h4>
                                  <p className="text-[10px] text-zinc-500 mt-1 truncate">{rv.instructor}</p>
                                  <div className="flex items-center gap-1 mt-auto">
-                                   {rv.isPremium && <span className="text-[9px] bg-amber-100 text-amber-700 px-1 rounded font-bold">PRO</span>}
+                                   {((rv as any).isPremium ?? (rv as any).is_premium) && <span className="text-[9px] bg-amber-100 text-amber-700 px-1 rounded font-bold">PRO</span>}
                                  </div>
                               </div>
                            </Link>
@@ -754,8 +771,8 @@ const VideoWatch: React.FC = () => {
                                 {msg.role === 'user' ? msg.text : (
                                   <>
                                     <MarkdownRenderer content={msg.text} />
-                                    <div className="absolute -top-1 -right-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                       <TTSButton text={msg.text} size={14} quality="high" className="bg-white border border-zinc-100 shadow-sm p-1" />
+                                    <div className="absolute -top-1 -right-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                       <TTSButton text={stripForSpeech(msg.text)} size={14} quality="high" className="bg-white border border-zinc-100 shadow-sm p-1" />
                                     </div>
                                   </>
                                 )}
@@ -875,7 +892,7 @@ const VideoWatch: React.FC = () => {
                     {quizContent && (
                        <div className="prose prose-sm prose-zinc text-xs relative">
                           <div className="flex justify-end mb-2">
-                             <TTSButton text={quizContent} size={16} quality="high" className="bg-zinc-50 hover:bg-zinc-100" />
+                             <TTSButton text={stripForSpeech(quizContent)} size={16} quality="high" className="bg-zinc-50 hover:bg-zinc-100" />
                           </div>
                           <MarkdownRenderer content={quizContent} />
                           <button 
