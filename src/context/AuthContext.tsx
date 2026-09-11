@@ -10,7 +10,6 @@ interface AuthContextType {
   updateUser: (data: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   toggleBookmark: (itemId: string, itemType?: 'document' | 'video') => Promise<void>;
-  gainXP: (amount: number) => Promise<{ leveledUp: boolean; newLevel: number }>;
   markNotificationsAsRead: (notificationIds?: string[]) => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -504,23 +503,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const gainXP = async (amount: number): Promise<{ leveledUp: boolean; newLevel: number }> => {
-    if (!user) return { leveledUp: false, newLevel: 1 };
-
-    try {
-      const result = await usersAPI.gainXP(amount);
-      await refreshUser(); // Refresh user data
-      // Ensure consistent return type
-      return {
-        leveledUp: result.leveledUp,
-        newLevel: result.level || 1
-      };
-    } catch (error) {
-      console.error('Gain XP error:', error);
-      throw error;
-    }
-  };
-
   const markNotificationsAsRead = async (notificationIds?: string[]) => {
     if (!user) return;
 
@@ -629,7 +611,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateUser,
       changePassword,
       toggleBookmark,
-      gainXP,
       markNotificationsAsRead,
       deleteNotification,
       refreshUser,

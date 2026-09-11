@@ -13,7 +13,7 @@ import { VideoWatchSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
 const VideoWatch: React.FC = () => {
-  const { user, toggleBookmark, gainXP } = useAuth();
+  const { user, toggleBookmark, refreshUser } = useAuth();
   const { id } = useParams();
   const location = useLocation();
   const { addToast } = useToast();
@@ -463,13 +463,14 @@ const VideoWatch: React.FC = () => {
         setIsCompleted(true);
       }
 
-      // XP only on the first payout per video (server latches via history).
-      // Re-completing after an uncomplete returns xpGained 0 — no farm.
+      // XP is credited server-side on the first payout per video (the
+      // response carries it) — never minted from the client. Sync the header.
       const xp = response?.xpGained ?? 0;
       if (xp > 0) {
-        const { leveledUp, newLevel } = await gainXP(xp);
+        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
         addToast(`+${xp} XP Lesson Completed!`, "success");
-        if (leveledUp) {
+        if (response?.leveledUp && response?.newLevel) {
+          const newLevel = response.newLevel;
           setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
         }
       } else {

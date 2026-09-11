@@ -59,7 +59,7 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
 
     const term = searchTerm.trim();
     const limitNum = Math.min(parseInt(limit as string) || 10, 50); // Max 50 results per type
-    const offsetNum = parseInt(offset as string) || 0;
+    const offsetNum = Math.max(0, parseInt(offset as string) || 0); // Never negative (pg rejects OFFSET -n)
 
     // User info for premium filtering
     const userId = req.user?.id;
@@ -108,6 +108,7 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
           isPremium: doc.is_premium,
           previewImage: doc.preview_image,
           author: doc.author,
+          created_at: doc.created_at,
           rank: Number(doc.rank) || 0
         }));
       } catch (error) {
@@ -151,6 +152,7 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
           isPremium: vid.is_premium,
           thumbnail: vid.thumbnail,
           instructor: vid.instructor,
+          created_at: vid.created_at,
           rank: Number(vid.rank) || 0
         }));
       } catch (error) {
@@ -252,8 +254,8 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
     }
 
     const term = searchQuery.trim();
-    const limitNum = Math.min(parseInt(limit) || 20, 100);
-    const offsetNum = parseInt(offset) || 0;
+    const limitNum = Math.min(parseInt(limit as string) || 20, 100);
+    const offsetNum = Math.max(0, parseInt(offset as string) || 0); // Never negative (pg rejects OFFSET -n)
     const isPremium = req.user?.is_premium || false;
 
     const results: any = {
@@ -479,16 +481,20 @@ router.get('/suggest', async (req: express.Request, res: express.Response): Prom
 
     const term = prefix.trim();
     const limitNum = Math.min(parseInt(limit as string) || 5, 20);
+    const isPremiumSuggester = req.user?.is_premium || false;
 
-    // Get suggestions from different content types
+    // Get suggestions from different content types. Premium titles are
+    // hidden from guests/free users, same as the search endpoints — titles
+    // alone would otherwise leak the premium catalog.
     const suggestions: string[] = [];
+    const premiumClause = isPremiumSuggester ? '' : ' AND is_premium = false';
 
     try {
       // Document titles
       const docQuery = `
         SELECT DISTINCT title
         FROM documents
-        WHERE title ILIKE $1
+        WHERE title ILIKE $1${premiumClause}
         ORDER BY title
         LIMIT $2
       `;
@@ -499,7 +505,7 @@ router.get('/suggest', async (req: express.Request, res: express.Response): Prom
       const vidQuery = `
         SELECT DISTINCT title
         FROM videos
-        WHERE title ILIKE $1
+        WHERE title ILIKE $1${premiumClause}
         ORDER BY title
         LIMIT $2
       `;

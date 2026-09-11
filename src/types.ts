@@ -106,6 +106,8 @@ export interface Video {
   // Paid by POST /videos/:id/complete on the first completion only (100);
   // re-completing after an uncomplete returns 0
   xpGained?: number;
+  newLevel?: number;
+  leveledUp?: boolean;
 }
 
 export interface VideoLesson {

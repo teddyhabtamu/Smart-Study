@@ -5,6 +5,7 @@ import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, StudyEvent, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
+import { awardXP } from '../services/xpService';
 
 const router = express.Router();
 
@@ -278,37 +279,29 @@ router.put('/events/:id', [
     // frontend also called gainXP(50) after this update, double-paying every
     // completion (e.g. Revision paid 20 + 50). Guarded to the FIRST false→true
     // transition via xp_awarded, so uncomplete→re-complete cycles pay nothing.
+    // Credited through the shared awardXP helper (level math, badges,
+    // history, level-up notification in one place).
     let xpGained = 0;
     let newLevel: number | undefined;
     let leveledUp = false;
     if (updates.is_completed === true && !event.is_completed && !event.xp_awarded) {
-      const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
-      if (user) {
-        const oldLevel = user.level || 1;
-        const xpGain = event.event_type === 'Exam' ? 50 : event.event_type === 'Revision' ? 20 : 30;
-        const newXp = (user.xp || 0) + xpGain;
-        newLevel = Math.floor(newXp / 1000) + 1;
-        leveledUp = newLevel > oldLevel;
-        xpGained = xpGain;
-        dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
+      const xpGain = event.event_type === 'Exam' ? 50 : event.event_type === 'Revision' ? 20 : 30;
+      const award = await awardXP(userId, xpGain, {
+        source: 'study_event',
+        source_id: eventId,
+        description: `Completed ${event.event_type}: ${event.title}`
+      });
+      xpGained = award.xpGained;
+      newLevel = award.newLevel;
+      leveledUp = award.leveledUp;
 
-        // Record XP history
-        await dbAdmin.insert('xp_history', {
-          user_id: userId,
-          amount: xpGain,
-          source: 'study_event',
-          source_id: eventId,
-          description: `Completed ${event.event_type}: ${event.title}`
-        });
+      // Latch the payout so re-completing this event never pays again.
+      // (Folded into the same update below would also work; explicit here
+      // keeps the economy rule next to the award.)
+      updates.xp_awarded = true;
 
-        // Create notification
-        await NotificationService.createStudyGoalCompletedNotification(userId, event.title, xpGain);
-
-        // Latch the payout so re-completing this event never pays again.
-        // (Folded into the same update below would also work; explicit here
-        // keeps the economy rule next to the award.)
-        updates.xp_awarded = true;
-      }
+      // Create notification
+      await NotificationService.createStudyGoalCompletedNotification(userId, event.title, xpGain);
     }
 
     const updated = await dbAdmin.update('study_events', eventId, {
@@ -421,24 +414,14 @@ router.post('/practice', [
     const userId = req.user!.id;
     const { subject, duration, topics = [] } = req.body;
 
-    // Update user's practice attempts
+    // Update user's practice attempts + credit through the shared helper
+    // (previously inline with no badge checks)
     const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
     if (user) {
       const newAttempts = (user.practice_attempts || 0) + 1;
       const xpGain = Math.min(duration, 60); // Max 60 XP per session
-      const newXp = (user.xp || 0) + xpGain;
-      const newLevel = Math.floor(newXp / 1000) + 1;
-
-      dbAdmin.update('users', userId, {
-        practice_attempts: newAttempts,
-        xp: newXp,
-        level: newLevel
-      });
-
-      // Record XP history
-      await dbAdmin.insert('xp_history', {
-        user_id: userId,
-        amount: xpGain,
+      await dbAdmin.update('users', userId, { practice_attempts: newAttempts });
+      await awardXP(userId, xpGain, {
         source: 'practice_session',
         source_id: null,
         description: `Practice session: ${subject} (${duration} minutes)`
@@ -469,22 +452,24 @@ router.post('/practice', [
   }
 });
 
-// Record quiz completion (practice quiz)
+// Record quiz completion (practice quiz). XP is computed AND credited here
+// from the submitted score — never trusted from the client amount. The old
+// generic /users/gain-xp endpoint let any caller mint arbitrary XP.
 router.post('/practice/quiz-complete', [
   authenticateToken,
   body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
   body('score').isInt({ min: 0 }).withMessage('Score must be a non-negative integer'),
-  body('totalQuestions').isInt({ min: 1 }).withMessage('Total questions must be at least 1'),
+  body('totalQuestions').isInt({ min: 1, max: 10 }).withMessage('Total questions must be between 1 and 10'),
   body('timeSpent').isString().trim().isLength({ min: 1 }).withMessage('Time spent is required'),
-  body('xpEarned').isInt({ min: 0 }).withMessage('XP earned must be a non-negative integer'),
+  body('xpEarned').optional().isInt({ min: 0 }).withMessage('XP earned must be a non-negative integer'),
   body('isHighScore').optional().isBoolean().withMessage('isHighScore must be a boolean')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { subject, score, totalQuestions, timeSpent, xpEarned, isHighScore = false } = req.body;
+    const { subject, score, totalQuestions, timeSpent, isHighScore = false } = req.body;
 
     // Indexed lookup (never a full-table scan)
-    const userRows = await query('SELECT id, name, email, practice_attempts FROM users WHERE id = $1', [userId]);
+    const userRows = await query('SELECT id, name, email, xp, level, practice_attempts FROM users WHERE id = $1', [userId]);
     const user = userRows.rows[0];
     if (!user) {
       res.status(404).json({
@@ -494,7 +479,19 @@ router.post('/practice/quiz-complete', [
       return;
     }
 
-    // Update user's practice attempts
+    // Clamp the claim into the legal range, then price it: 10 XP per
+    // correct answer. A forged 100/10 still pays at most 100.
+    const safeTotal = Math.min(Math.max(Number(totalQuestions) || 1, 1), 10);
+    const safeScore = Math.min(Math.max(Number(score) || 0, 0), safeTotal);
+    const award = await awardXP(userId, safeScore * 10, {
+      source: 'practice_quiz',
+      source_id: null,
+      description: `Practice quiz: ${subject} (${safeScore}/${safeTotal})`
+    });
+    const serverXp = award.xpGained;
+    const newLevel = award.newLevel;
+
+    // Update user's practice attempts (XP already credited above)
     const newAttempts = (user.practice_attempts || 0) + 1;
     await dbAdmin.update('users', userId, {
       practice_attempts: newAttempts
@@ -512,10 +509,10 @@ router.post('/practice/quiz-complete', [
         user.email,
         user.name,
         subject,
-        score,
-        totalQuestions,
+        safeScore,
+        safeTotal,
         timeSpent,
-        xpEarned,
+        serverXp,
         isHighScore
       ).catch(error => {
         console.error('❌ Failed to send practice session completed email:', error);
@@ -527,10 +524,13 @@ router.post('/practice/quiz-complete', [
       success: true,
       data: {
         subject,
-        score,
-        totalQuestions,
+        score: safeScore,
+        totalQuestions: safeTotal,
         timeSpent,
-        xpEarned,
+        xpEarned: serverXp,
+        xpGained: serverXp,
+        newLevel,
+        leveledUp: award.leveledUp,
         isHighScore
       },
       message: 'Quiz completion recorded successfully'

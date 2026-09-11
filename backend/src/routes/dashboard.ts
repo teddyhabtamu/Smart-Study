@@ -53,11 +53,13 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
 
     const user = userResult.rows[0];
 
-    // Get today's study events
+    // Get today's study events. Archived tasks are excluded: they were
+    // deliberately put away and must not resurface in Today's Plan or
+    // inflate the daily goal.
     const todaysEventsResult = await query(`
       SELECT id, title, subject, event_type as type, is_completed, notes, event_date
       FROM study_events
-      WHERE user_id = $1 AND event_date = $2
+      WHERE user_id = $1 AND event_date = $2 AND is_archived IS NOT TRUE
       ORDER BY created_at ASC
     `, [userId, todayStr]);
 

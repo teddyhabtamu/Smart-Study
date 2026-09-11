@@ -5,6 +5,7 @@ import { authenticateToken, requirePremium, validateRequest, optionalAuth } from
 import { ApiResponse, Video, User } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
+import { awardXP } from '../services/xpService';
 import { createHash } from 'crypto';
 import { logAdminActivity } from '../services/adminAuditLog';
 import { YouTubeService } from '../services/youtubeService';
@@ -516,6 +517,8 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
     // per-user history check below latches the first payout per video.
     // (Previously the frontend awarded a flat 100 on every success.)
     let xpGained = 0;
+    let newLevel: number | undefined;
+    let leveledUp = false;
 
     if (completed) {
       // Check if already completed to avoid duplicate XP
@@ -570,20 +573,20 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
         return;
       }
 
-      // Record XP history only when XP is actually paid out. The credit
-      // itself is applied by the frontend's gainXP call with this value.
+      // Credit through the shared helper (level math, badges, history,
+      // level-up notification) — never via a client-chosen amount.
       if (xpGained > 0) {
         try {
-          await dbAdmin.insert('xp_history', {
-            user_id: userId,
-            amount: xpGained,
+          const award = await awardXP(userId, xpGained, {
             source: 'video',
             source_id: id,
             description: 'Completed video lesson'
           });
+          newLevel = award.newLevel;
+          leveledUp = award.leveledUp;
         } catch (xpError) {
-          console.error('Failed to record video completion XP history:', xpError);
-          // Don't fail the request if XP history recording fails
+          console.error('Failed to award video completion XP:', xpError);
+          // Don't fail the request if XP recording fails
         }
       }
     } else {
@@ -638,7 +641,9 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
       uploadedAt: updatedVideoRow.created_at,
       isPremium: updatedVideoRow.is_premium,
       user_has_completed: !!completionRow,
-      xpGained
+      xpGained,
+      newLevel,
+      leveledUp
     };
 
     res.json({

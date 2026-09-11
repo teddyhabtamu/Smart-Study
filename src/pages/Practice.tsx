@@ -29,7 +29,7 @@ interface Question {
 const STORAGE_KEY = 'smartstudy_practice_state';
 
 const Practice: React.FC = () => {
-  const { user, gainXP } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -154,10 +154,9 @@ const Practice: React.FC = () => {
       const { questions: quizData, xpGained } = await generatePracticeQuiz(subject, grade, difficulty, parseInt(qCount));
 
       if (quizData && quizData.length > 0) {
-        // Award XP for generating questions (handled by backend)
-        if (gainXP && xpGained > 0) {
-          gainXP(xpGained);
-        }
+        // Generation XP is credited server-side (see generate endpoint) —
+        // just sync the header. The old gainXP(+5) call here double-paid it.
+        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
 
         setQuestions(quizData);
         setView('quiz');
@@ -232,24 +231,23 @@ const Practice: React.FC = () => {
     // Show results immediately — never gate the UI on the network
     setView('result');
 
-    // Award XP in the background
-    const xpEarned = correctCount * 10;
-    if (xpEarned > 0) {
-      gainXP(xpEarned).then(({ leveledUp, newLevel }) => {
-        if (leveledUp) {
-          setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "success"), 1000);
-        }
-      }).catch((error) => console.error('Background XP award failed:', error));
-    }
-
-    // Record quiz completion in the background (email is server-side async)
+    // XP is computed AND credited server-side in quiz-complete (clamped to
+    // the submitted score — the old client-minted gainXP call is gone).
+    // Sync the header + celebrate from the authoritative response.
     plannerAPI.recordQuizCompletion({
       subject,
       score: correctCount,
       totalQuestions: questions.length,
       timeSpent,
-      xpEarned,
       isHighScore: newBest
+    }).then((res: any) => {
+      const xp = res?.xpGained ?? 0;
+      if (xp > 0) {
+        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
+      }
+      if (res?.leveledUp && res?.newLevel) {
+        setTimeout(() => addToast(`Level Up! You are now Level ${res.newLevel}`, "success"), 1000);
+      }
     }).catch((error) => console.error('Background quiz record failed:', error));
   };
 

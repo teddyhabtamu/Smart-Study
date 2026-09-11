@@ -477,11 +477,8 @@ export const usersAPI = {
       method: 'DELETE',
     }),
 
-  gainXP: (amount: number): Promise<{ xp: number; level: number; leveledUp: boolean }> =>
-    apiRequest('/users/gain-xp', {
-      method: 'POST',
-      body: JSON.stringify({ amount }),
-    }),
+  // NOTE: no gainXP helper — POST /users/gain-xp was removed (client-minted
+  // XP). Awards happen inside the action endpoints; pages sync via refreshUser.
 
   markNotificationsRead: (notificationIds?: string[]): Promise<void> =>
     apiRequest('/users/notifications/read', {
@@ -1063,9 +1060,9 @@ export const plannerAPI = {
     score: number;
     totalQuestions: number;
     timeSpent: string;
-    xpEarned: number;
+    xpEarned?: number;
     isHighScore?: boolean;
-  }): Promise<{ subject: string; score: number; totalQuestions: number; timeSpent: string; xpEarned: number; isHighScore: boolean }> =>
+  }): Promise<{ subject: string; score: number; totalQuestions: number; timeSpent: string; xpEarned: number; xpGained: number; newLevel?: number; leveledUp: boolean; isHighScore: boolean }> =>
     apiRequest('/planner/practice/quiz-complete', {
       method: 'POST',
       body: JSON.stringify(data),

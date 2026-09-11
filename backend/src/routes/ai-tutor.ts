@@ -5,6 +5,7 @@ import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
+import { awardXP } from '../services/xpService';
 
 // Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
 // user-friendly message; everything else → 500.
@@ -675,22 +676,25 @@ router.post('/generate-practice-quiz', authenticateToken, async (req: express.Re
 
     // Award XP for generating practice questions + consume one daily window
     // slot (free users). Charged only on success — failed generations are free.
-    const newXp = (user.xp || 0) + 5;
-    const newLevel = Math.floor(newXp / 1000) + 1;
+    // Credited through the shared helper (previously an inline update with no
+    // history entry and no badge checks).
+    const award = await awardXP(userId, 5, {
+      source: 'practice_generation',
+      source_id: null,
+      description: `Generated practice quiz: ${subject}`
+    });
     await query(
       `UPDATE users
-       SET xp = $1,
-           level = $2,
-           daily_quiz_count = CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) + 1 ELSE 1 END,
+       SET daily_quiz_count = CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) + 1 ELSE 1 END,
            daily_quiz_date = CURRENT_DATE,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [newXp, newLevel, userId]
+       WHERE id = $1`,
+      [userId]
     );
 
     res.json({
       success: true,
-      data: { questions, xpGained: 5 }
+      data: { questions, xpGained: award.xpGained }
     } as ApiResponse);
   } catch (error) {
     console.error('Generate practice quiz error:', error);
