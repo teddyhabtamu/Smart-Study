@@ -2,24 +2,43 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Check, X, ShieldCheck, Loader2, Crown, Calendar, CreditCard, AlertCircle } from 'lucide-react';
+import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { usersAPI } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
-interface SubscriptionProps {
-  onUpgrade?: () => void;
-}
+const PRO_PLAN = {
+// Single source of truth for the Pro plan. Amount/channel must match what
+// the admin actually charges — the UI stated three different feature sets
+// and fabricated purchase details before this cleanup.
+  name: 'Student Pro',
+  priceLabel: '100 Birr',
+  billingLabel: 'One-time payment · yours forever',
+  channel: 'Telebirr',
+  // FILL IN: the merchant number customers pay to (shown with a copy button
+  // so single-phone users who can't scan the QR can still pay).
+  merchantNumber: '',
+  telegramUrl: 'https://t.me/ethio_smartstudy',
+  telegramHandle: '@ethio_smartstudy',
+};
 
-const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
-  const { user, refreshUser } = useAuth();
+// The honest Pro feature set — identical list as Profile Member Hub.
+const PRO_FEATURES = [
+  { title: 'Premium document library', sub: 'Full textbook & study-guide collection' },
+  { title: 'Premium video lessons', sub: 'Complete tutorial library, all grades' },
+  { title: 'Unlimited AI practice quizzes', sub: 'No daily limits' },
+  { title: 'AI Smart Schedule planner', sub: 'Personal plans built around your deadlines' },
+];
+
+const FREE_FEATURES = ['Browse entire catalog', 'Limited previews', 'Community access'];
+
+const Subscription: React.FC = () => {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'scan' | 'confirm_sent' | 'waiting' | 'success'>('scan');
-  const [transactionId, setTransactionId] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [copiedNumber, setCopiedNumber] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -30,42 +49,20 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
   // Retrieve the previous path or default to dashboard
   const from = (location.state as any)?.from || '/dashboard';
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsVerifying(true);
-
+  const copyMerchantNumber = async () => {
     try {
-      // Call the real API to upgrade to premium
-      await usersAPI.upgradePremium();
-
-      // Wait a moment for the backend to process
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Refresh user data to get updated premium status
-      await refreshUser();
-
-      // Show success toast
-      addToast('Successfully upgraded to Student Pro!', 'success');
-
-      setIsVerifying(false);
-      setPaymentStep('success');
-
-      // Navigate to profile page to see the changes
-      setTimeout(() => {
-        navigate('/profile');
-      }, 1000);
-
-    } catch (error: any) {
-      console.error('Premium upgrade error:', error);
-      setIsVerifying(false);
-      addToast('Failed to process premium upgrade. Please try again.', 'error');
+      await navigator.clipboard.writeText(PRO_PLAN.merchantNumber);
+      setCopiedNumber(true);
+      addToast('Number copied to clipboard', 'success');
+      setTimeout(() => setCopiedNumber(false), 2000);
+    } catch {
+      addToast('Could not copy — please type the number manually', 'error');
     }
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setPaymentStep('scan');
-    setTransactionId('');
   };
 
   const handleSuccessContinue = () => {
@@ -76,11 +73,14 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
 
   // RENDER: Active Subscription View
   if (user?.isPremium) {
+    const memberSince = user.premiumSince
+      ? new Date(user.premiumSince).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+      : null;
     return (
       <div className="max-w-4xl mx-auto py-8 sm:py-12 animate-fade-in px-4 sm:px-6">
         <div className="text-center mb-8 sm:mb-12">
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-3">Manage Subscription</h1>
-          <p className="text-zinc-500 text-sm sm:text-base">View your plan details and billing history.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-3">Student Pro</h1>
+          <p className="text-zinc-500 text-sm sm:text-base">Your membership details.</p>
         </div>
 
         <div className="max-w-xl mx-auto bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
@@ -90,62 +90,66 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 relative z-10">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="p-2 sm:p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 flex-shrink-0">
-                  <Crown size={20} className="sm:w-7 sm:h-7 text-zinc-600" />
+                  <Crown size={20} className="sm:w-7 sm:h-7 text-amber-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg sm:text-xl font-bold">Student Pro</h3>
-                  <p className="text-zinc-400 text-sm">Active Subscription</p>
+                  <h3 className="text-lg sm:text-xl font-bold">{PRO_PLAN.name}</h3>
+                  <p className="text-zinc-400 text-sm">{PRO_PLAN.billingLabel}</p>
                 </div>
               </div>
-              <span className="self-start sm:ml-auto bg-zinc-900/10 text-zinc-700 border border-zinc-900/20 px-2 sm:px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+              <span className="self-start sm:ml-auto bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 px-2 sm:px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                 <ShieldCheck size={10} className="sm:w-3 sm:h-3" /> Active
               </span>
             </div>
           </div>
-          
-          {/* Plan Details */}
+
+          {/* Plan Details — only what we actually know */}
           <div className="p-6 sm:p-8 space-y-6 sm:space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 sm:gap-y-6 gap-x-4 pb-6 sm:pb-8 border-b border-zinc-100">
               <div>
-                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Billing Cycle</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Billing</p>
                 <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
-                  <Calendar size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> One-time Payment
+                  <Calendar size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {PRO_PLAN.priceLabel} · one-time
                 </p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Purchase Date</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Member since</p>
                 <p className="text-zinc-900 font-medium text-sm sm:text-base break-words">
-                  {new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                  {memberSince ?? '—'}
                 </p>
               </div>
               <div className="sm:col-span-2">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Payment Method</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Paid via</p>
                 <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
-                  <CreditCard size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> Telebirr (**92)
+                  <CreditCard size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {PRO_PLAN.channel} · manual activation
                 </p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Amount</p>
-                <p className="text-zinc-900 font-medium text-sm sm:text-base">100 ETB</p>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-bold text-zinc-900 text-sm sm:text-base">Active Plan Features</h4>
+              <h4 className="font-bold text-zinc-900 text-sm sm:text-base">Your Pro perks</h4>
               <div className="grid grid-cols-1 gap-3">
-                {['Unlimited Downloads', 'AI Tutor (Deep Think)', 'Offline Access', 'Priority Support', 'Ad-free Experience', 'Exclusive Content'].map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-zinc-600">
-                    <Check size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-600 flex-shrink-0" /> {f}
+                {PRO_FEATURES.map((f) => (
+                  <div key={f.title} className="flex items-start gap-3">
+                    <Check size={14} className="sm:w-4 sm:h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-zinc-900">{f.title}</p>
+                      <p className="text-xs text-zinc-500">{f.sub}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            
+
             <div className="bg-zinc-50 rounded-lg p-3 sm:p-4 flex gap-3 items-start text-xs sm:text-sm text-zinc-800 leading-relaxed border border-zinc-200">
-               <AlertCircle size={14} className="sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 text-zinc-600" />
+               <MessageCircle size={14} className="sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 text-zinc-600" />
                <p>
-                 Need an invoice for reimbursement? <a href="#" className="underline font-semibold hover:text-zinc-950 text-xs sm:text-sm">Download latest invoice</a>.
+                 Questions about your membership? Message us on Telegram{' '}
+                 <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-zinc-950">
+                   {PRO_PLAN.telegramHandle}
+                 </a>{' '}
+                 and we'll sort it out.
                </p>
             </div>
           </div>
@@ -173,13 +177,13 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
              <p className="text-sm text-zinc-500 mt-2">Essential access for every student.</p>
            </div>
 
-           <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-             {['Browse entire catalog', 'Limited previews', 'Community access'].map((f, i) => (
-               <div key={i} className="flex items-center gap-3 text-sm text-zinc-600">
-                 <Check size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {f}
-               </div>
-             ))}
-           </div>
+            <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+              {FREE_FEATURES.map((f, i) => (
+                <div key={i} className="flex items-center gap-3 text-sm text-zinc-600">
+                  <Check size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {f}
+                </div>
+              ))}
+            </div>
 
            <button className="w-full py-3 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-zinc-200 transition-colors cursor-default text-sm sm:text-base">
              Current Plan
@@ -198,13 +202,17 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
              <p className="text-sm text-zinc-400 mt-2">Unlock your full potential.</p>
            </div>
 
-           <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8 relative z-10">
-             {['Unlimited downloads', 'Full AI Tutor access', 'Offline mode', 'Priority support'].map((f, i) => (
-               <div key={i} className="flex items-center gap-3 text-sm text-zinc-300">
-                 <Check size={14} className="sm:w-4 sm:h-4 text-zinc-600" /> {f}
-               </div>
-             ))}
-           </div>
+            <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8 relative z-10">
+              {PRO_FEATURES.map((f) => (
+                <div key={f.title} className="flex items-start gap-3 text-sm text-zinc-300">
+                  <Check size={14} className="sm:w-4 sm:h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-white">{f.title}</p>
+                    <p className="text-xs text-zinc-400">{f.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
 
            <button
              onClick={() => setIsModalOpen(true)}
@@ -218,20 +226,20 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
       {/* Payment Modal using Portal */}
       {isModalOpen && mounted && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-slide-up">
-            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-slide-up max-h-[90vh]">
+            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 flex-shrink-0">
               <span className="font-bold text-zinc-900">Subscribe to Pro</span>
               <button onClick={closeModal} className="p-1 text-zinc-400 hover:text-zinc-900 rounded-full hover:bg-zinc-200 transition-colors">
                 <X size={20} />
               </button>
             </div>
-            
-            <div className="p-8">
+
+            <div className="p-6 sm:p-8 overflow-y-auto">
               {paymentStep === 'scan' && (
                 <div className="text-center space-y-6">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-zinc-900">Pay 100 Birr for Full Access</h3>
-                    <p className="text-sm text-zinc-500">Scan the QR code to make a one-time payment.</p>
+                    <h3 className="text-lg font-bold text-zinc-900">Pay {PRO_PLAN.priceLabel} for Full Access</h3>
+                    <p className="text-sm text-zinc-500">One payment via {PRO_PLAN.channel} — no subscription, no renewals.</p>
                   </div>
 
                   <div className="w-48 h-48 bg-white border-2 border-zinc-900 rounded-xl mx-auto flex items-center justify-center relative p-2">
@@ -242,10 +250,29 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
                      />
                   </div>
 
+                  {PRO_PLAN.merchantNumber ? (
+                    <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left space-y-2">
+                      <p className="text-sm text-zinc-700">
+                        On one phone and can't scan? Pay <strong>{PRO_PLAN.priceLabel}</strong> directly to:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-zinc-900 text-base tracking-wider">{PRO_PLAN.merchantNumber}</span>
+                        <button
+                          onClick={copyMerchantNumber}
+                          className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                          title="Copy number"
+                        >
+                          {copiedNumber ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-zinc-500">Use your Telebirr app → Send Money, then continue below.</p>
+                    </div>
+                  ) : null}
+
                   <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-100 text-left">
                     <div className="flex justify-between text-sm">
                       <span className="text-zinc-500">Amount:</span>
-                      <span className="font-bold text-zinc-900">100 Birr (One-time)</span>
+                      <span className="font-bold text-zinc-900">{PRO_PLAN.priceLabel} ({PRO_PLAN.billingLabel.split('·')[0].trim()})</span>
                     </div>
                   </div>
 
@@ -253,8 +280,8 @@ const Subscription: React.FC<SubscriptionProps> = ({ onUpgrade }) => {
                     <h4 className="font-semibold text-zinc-900 text-sm">After Payment:</h4>
                     <p className="text-zinc-700 text-sm leading-relaxed">
                       Send your payment receipt to our Telegram channel for account activation.<br/>
-                      <strong>Telegram:</strong> <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">@ethio_smartstudy</a> or <span className="font-mono">t.me/ethio_smartstudy</span><br/>
-                      <span className="text-xs text-zinc-600">Your account will be upgraded within a minute after verification.</span>
+                      <strong>Telegram:</strong> <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">{PRO_PLAN.telegramHandle}</a><br/>
+                      <span className="text-xs text-zinc-600">Include your account email in the message so we can find you. Activation is manual — usually within a few hours, and you'll get an email confirmation.</span>
                     </p>
                   </div>
 

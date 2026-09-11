@@ -117,7 +117,7 @@ const App: React.FC = () => {
           element={
             <Layout>
               {user ? (
-                <Subscription onUpgrade={() => updateUser({ isPremium: true })} />
+                <Subscription />
               ) : (
                 <Navigate to="/login" />
               )}

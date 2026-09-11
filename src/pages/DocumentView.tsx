@@ -59,6 +59,7 @@ const DocumentView: React.FC = () => {
   // Mobile & Tab State
   const [activeTab, setActiveTab] = useState<'chat' | 'quiz' | 'notes'>('chat');
   const [mobileView, setMobileView] = useState<'doc' | 'tools'>('doc');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Feature State
   const [summary, setSummary] = useState<string | null>(null);
@@ -437,12 +438,65 @@ const DocumentView: React.FC = () => {
           
           {/* Mobile Actions Menu */}
            <div className="md:hidden">
-              <button className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg"
+                aria-label="Document actions"
+              >
                 <MoreHorizontal size={20} />
               </button>
            </div>
         </div>
       </header>
+
+      {/* Mobile actions bottom sheet (mirrors desktop actions) */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-[200] flex items-end justify-center" role="dialog" aria-label="Document actions">
+          <div className="absolute inset-0 bg-zinc-900/50 backdrop-blur-sm animate-fade-in" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="relative w-full bg-white rounded-t-2xl shadow-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] animate-slide-up">
+            <div className="w-10 h-1 rounded-full bg-zinc-200 mx-auto mb-3" />
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 px-1 truncate">{doc.title}</p>
+            <div className="space-y-1">
+              <button
+                onClick={async () => {
+                  setIsMobileMenuOpen(false);
+                  if (!user) return;
+                  setIsBookmarking(true);
+                  try {
+                    await toggleBookmark(doc.id, 'document');
+                  } catch (error) {
+                    console.error('Failed to toggle bookmark:', error);
+                  } finally {
+                    setIsBookmarking(false);
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-zinc-50 text-sm font-medium text-zinc-800 transition-colors"
+              >
+                <Bookmark size={18} className={isBookmarked ? "fill-current text-amber-500" : "text-zinc-500"} />
+                {isBookmarked ? 'Remove from saved' : 'Save for later'}
+              </button>
+              {canDownload ? (
+                <button
+                  onClick={() => { setIsMobileMenuOpen(false); handleDownload(); }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-zinc-50 text-sm font-medium text-zinc-800 transition-colors"
+                >
+                  <Download size={18} className="text-zinc-500" />
+                  Download
+                </button>
+              ) : (
+                <Link
+                  to="/subscription"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-zinc-900 text-white text-sm font-medium transition-colors"
+                >
+                  <Lock size={18} className="text-amber-400" />
+                  Go Pro to Unlock
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. MOBILE VIEW TOGGLE */}
       <div className="md:hidden px-3 sm:px-4 py-2 bg-white border-b border-zinc-200 flex-shrink-0">
@@ -516,15 +570,25 @@ const DocumentView: React.FC = () => {
                 </div>
              )}
 
-             {/* Premium Overlay for Documents that are locked but have no preview */}
-             {!canDownload && !user && (
-                <div className="absolute inset-0 bg-white/80 backdrop-blur-md flex flex-col items-center justify-center z-20">
+             {/* Premium gate: one rule for everyone. Premium documents require
+                 Pro to preview — guests AND free accounts alike. (Previously
+                 only guests were blocked while free users could read the full
+                 text, contradicting the locks everywhere else.) */}
+             {!canDownload && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-md flex flex-col items-center justify-center z-20 p-6 text-center">
                    <Lock size={48} className="text-zinc-300 mb-4" />
                    <h3 className="text-xl font-bold text-zinc-800">Premium Content</h3>
-                   <p className="text-zinc-500 mb-6">Subscribe to view this document.</p>
-                   <Link to="/pricing" className="px-8 py-3 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 transition-transform hover:scale-105 shadow-xl">
-                      Upgrade Now
-                   </Link>
+                   <p className="text-zinc-500 mb-6 max-w-xs">This document is exclusive to Student Pro members.</p>
+                   <div className="flex flex-col sm:flex-row gap-3">
+                     {!user && (
+                       <Link to="/login" className="px-8 py-3 bg-white border border-zinc-300 text-zinc-900 rounded-xl font-medium hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2">
+                         <LogIn size={18} /> Sign In
+                       </Link>
+                     )}
+                     <Link to="/subscription" className="px-8 py-3 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 transition-transform hover:scale-105 shadow-xl">
+                        Go Pro to Unlock
+                     </Link>
+                   </div>
                 </div>
              )}
           </div>

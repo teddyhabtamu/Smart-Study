@@ -497,11 +497,6 @@ export const usersAPI = {
       method: 'DELETE',
     }),
 
-  upgradePremium: (): Promise<{ id: string; name: string; email: string; isPremium: boolean }> =>
-    apiRequest('/users/upgrade-premium', {
-      method: 'POST',
-    }),
-
   getLeaderboard: (limit?: number): Promise<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number; isUser?: boolean }[]> =>
     apiRequest(`/users/leaderboard${limit ? `?limit=${limit}` : ''}`, {}, false),
 };

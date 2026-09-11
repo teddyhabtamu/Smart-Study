@@ -794,71 +794,10 @@ router.put('/:userId/premium', [
 });
 
 // Upgrade to premium (subscription)
-router.post('/upgrade-premium', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-
-    // Import supabase for direct API calls
-    const { supabase } = await import('../database/config');
-
-    // Update user to premium using Supabase directly
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .update({
-        is_premium: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select('id, name, email, is_premium')
-      .single();
-
-    if (userError) {
-      console.error('User update error:', userError);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to upgrade to premium'
-      } as ApiResponse);
-      return;
-    }
-
-    if (!userData) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      } as ApiResponse);
-      return;
-    }
-
-    // Create premium upgrade notification
-    try {
-      await NotificationService.createPremiumUpgradeNotification(userId);
-    } catch (notificationError) {
-      console.error('Notification creation error:', notificationError);
-      // Don't fail the whole request for notification error
-    }
-
-    // Send premium upgrade email (non-blocking)
-    if (userData.email && userData.name) {
-      console.log('📧 Triggering premium upgrade email for user:', { email: userData.email, name: userData.name });
-      EmailService.sendPremiumUpgradeEmail(userData.email, userData.name).catch(error => {
-        console.error('❌ Failed to send premium upgrade email:', error);
-        // Don't fail the request if email fails
-      });
-    }
-
-    res.json({
-      success: true,
-      data: userData,
-      message: 'Successfully upgraded to premium!'
-    } as ApiResponse);
-  } catch (error) {
-    console.error('Premium upgrade error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to upgrade to premium'
-    } as ApiResponse);
-  }
-});
+// NOTE: there is intentionally NO self-service premium upgrade endpoint.
+// Premium may only be granted through the admin route (PUT /admin/users/:id/premium)
+// after manual Telebirr receipt verification. A previous /upgrade-premium
+// endpoint allowed any authenticated user to self-activate Pro and was removed.
 
 // Change password
 router.put('/password', [
