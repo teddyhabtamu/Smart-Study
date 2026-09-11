@@ -407,8 +407,8 @@ const Dashboard: React.FC = () => {
            </div>
 
            {/* Membership card: upsell for free users, recognition for Pro */}
-           {displayUser?.isPremium ? (
-             <Link to="/profile" className="block bg-gradient-to-br from-zinc-900 to-amber-950 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden hover:shadow-lg transition-shadow">
+            {displayUser?.isPremium ? (
+              <Link to="/profile?tab=pro" className="block bg-gradient-to-br from-zinc-900 to-amber-950 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden hover:shadow-lg transition-shadow">
                 <Crown size={96} className="absolute -right-4 -bottom-4 text-white/5 rotate-12" aria-hidden="true" />
                 <div className="relative z-10 flex items-center gap-3">
                    <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0">

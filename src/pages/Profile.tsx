@@ -28,10 +28,6 @@ const Profile: React.FC = () => {
   const [avatar, setAvatar] = useState<string | undefined>(user?.avatar);
 
 
-  // Guard against null user (shouldn't happen due to route protection)
-  if (!user) {
-    return <div>Loading...</div>;
-  }
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -46,11 +42,16 @@ const Profile: React.FC = () => {
     return () => setMounted(false);
   }, []);
 
-  // Update local state when user data changes
+  // Update local state when user data changes (grade + prefs included:
+  // without them an async profile load leaves grade '' while the real
+  // grade exists — and saving would then wipe it to null)
   useEffect(() => {
     if (user) {
       setName(user.name);
       setAvatar(user.avatar);
+      setGrade(user.grade ? String(user.grade) : '');
+      setEmailNotifs(user.preferences?.emailNotifications ?? true);
+      setStudyReminders(user.preferences?.studyReminders ?? true);
     }
   }, [user]);
 
@@ -69,8 +70,8 @@ const Profile: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Notification State
-  const [emailNotifs, setEmailNotifs] = useState(user.preferences?.emailNotifications ?? true);
-  const [studyReminders, setStudyReminders] = useState(user.preferences?.studyReminders ?? true);
+  const [emailNotifs, setEmailNotifs] = useState(user?.preferences?.emailNotifications ?? true);
+  const [studyReminders, setStudyReminders] = useState(user?.preferences?.studyReminders ?? true);
   const [notificationView, setNotificationView] = useState<NotificationView>('preferences');
   const [notificationTypeFilter, setNotificationTypeFilter] = useState<'all' | 'info' | 'success' | 'warning' | 'error'>('all');
 
@@ -82,7 +83,7 @@ const Profile: React.FC = () => {
     const tabParam = searchParams.get('tab') as Tab | null;
     const viewParam = searchParams.get('view') as NotificationView | null;
     
-    if (tabParam && ['general', 'security', 'notifications', 'achievements'].includes(tabParam)) {
+    if (tabParam && ['general', 'security', 'notifications', 'achievements', 'pro'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
     
@@ -135,6 +136,12 @@ const Profile: React.FC = () => {
   }, [activeTab, notificationView]);
 
   // --- Helpers ---
+  // Guard against null user (route renders <Navigate> instead, and logout
+  // unmounts this page — but the guard MUST sit below every hook call, or
+  // the user→null transition crashes React with a hooks-count mismatch)
+  if (!user) {
+    return <div>Loading...</div>;
+  }
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
@@ -594,7 +601,7 @@ const Profile: React.FC = () => {
                         { icon: Zap, label: 'Level', value: String(user.level ?? 1) },
                         { icon: Star, label: 'Total XP', value: String(user.xp ?? 0) },
                         { icon: Flame, label: 'Day streak', value: String(user.streak ?? 0) },
-                        { icon: BrainCircuit, label: 'Quizzes taken', value: String(user.practiceAttempts ?? 0) },
+                        { icon: BrainCircuit, label: 'Practice sessions', value: String(user.practiceAttempts ?? 0) },
                       ].map(({ icon: Icon, label, value }) => (
                         <div key={label} className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 sm:p-4 text-center">
                           <Icon size={18} className="mx-auto mb-1.5 text-amber-600" />
@@ -979,23 +986,23 @@ const Profile: React.FC = () => {
                          }
                          
                          return filteredNotifications.map((notif) => {
-                             const getTypeIcon = (type: string) => {
-                               switch (type) {
-                                 case 'success': return <CheckCircle size={16} className="text-emerald-600" />;
-                                 case 'warning': return <AlertTriangle size={16} className="text-amber-600" />;
-                                 case 'error': return <AlertCircle size={16} className="text-red-600" />;
-                                 default: return <Info size={16} className="text-blue-600" />;
-                               }
-                             };
+                              const getTypeIcon = (type: string) => {
+                                switch (type) {
+                                  case 'success': return <CheckCircle size={16} className="text-emerald-600" />;
+                                  case 'warning': return <AlertTriangle size={16} className="text-amber-600" />;
+                                  case 'error': return <AlertCircle size={16} className="text-red-600" />;
+                                  default: return <Info size={16} className="text-zinc-500" />;
+                                }
+                              };
 
-                             const getTypeColor = (type: string) => {
-                               switch (type) {
-                                 case 'success': return 'border-l-emerald-500 bg-emerald-50/30';
-                                 case 'warning': return 'border-l-amber-500 bg-amber-50/30';
-                                 case 'error': return 'border-l-red-500 bg-red-50/30';
-                                 default: return 'border-l-blue-500 bg-blue-50/30';
-                               }
-                             };
+                              const getTypeColor = (type: string) => {
+                                switch (type) {
+                                  case 'success': return 'border-l-emerald-500 bg-emerald-50/30';
+                                  case 'warning': return 'border-l-amber-500 bg-amber-50/30';
+                                  case 'error': return 'border-l-red-500 bg-red-50/30';
+                                  default: return 'border-l-zinc-400 bg-zinc-50/50';
+                                }
+                              };
 
                              const actionUrl = getNotificationActionUrl(notif);
                              const isClickable = !!actionUrl;
@@ -1010,9 +1017,9 @@ const Profile: React.FC = () => {
                                      : `${getTypeColor(notif.type)} hover:shadow-sm`
                                  } ${isClickable ? 'cursor-pointer' : ''}`}
                                >
-                                 {!notif.isRead && (
-                                   <div className="absolute top-4 right-4 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                                 )}
+                                  {!notif.isRead && (
+                                    <div className="absolute top-4 right-4 w-2 h-2 bg-zinc-900 rounded-full animate-pulse"></div>
+                                  )}
                                  <div className="flex gap-3">
                                    <div className="flex-shrink-0 mt-0.5">
                                      {getTypeIcon(notif.type)}
@@ -1020,9 +1027,9 @@ const Profile: React.FC = () => {
                                    <div className="flex-1 min-w-0">
                                      <div className="flex items-start justify-between gap-2">
                                        <p className="text-sm font-semibold text-zinc-900 leading-tight">{notif.title}</p>
-                                       {isClickable && (
-                                         <ExternalLink size={12} className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                                       )}
+                                        {isClickable && (
+                                          <ExternalLink size={12} className="text-zinc-400 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                                        )}
                                      </div>
                                      <p className="text-xs text-zinc-600 mt-1 leading-relaxed">{notif.message}</p>
                                      <div className="flex items-center gap-2 mt-2">
@@ -1032,19 +1039,20 @@ const Profile: React.FC = () => {
                                        </p>
                                      </div>
                                    </div>
-                                   <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                     {!notif.isRead && (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           markNotificationsAsRead([notif.id]);
-                                         }}
-                                         className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all duration-200"
-                                         title="Mark as read"
-                                       >
-                                         <Check size={14} />
-                                       </button>
-                                     )}
+                                    {/* Hover-reveal on desktop; always visible on touch (no hover) */}
+                                    <div className="flex flex-col gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                      {!notif.isRead && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            markNotificationsAsRead([notif.id]);
+                                          }}
+                                          className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-all duration-200"
+                                          title="Mark as read"
+                                        >
+                                          <Check size={14} />
+                                        </button>
+                                      )}
                                      <button
                                        onClick={(e) => {
                                          e.stopPropagation();
