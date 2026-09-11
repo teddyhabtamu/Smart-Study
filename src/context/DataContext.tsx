@@ -107,6 +107,7 @@ interface DataContextType {
     forumPosts: string | null;
     studyEvents: string | null;
     users: string | null;
+    dashboard: string | null;
   };
 
   // Data fetching functions

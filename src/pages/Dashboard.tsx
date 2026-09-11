@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { useLocation } from 'react-router-dom';
 import { StudyEvent } from '../types';
 import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
@@ -73,7 +72,6 @@ const Dashboard: React.FC = () => {
   // Use dashboard user data if available, otherwise fall back to auth user
   const displayUser = dashboardData?.user || user;
   const navigate = useNavigate();
-  const location = useLocation();
   const [greeting, setGreeting] = useState('');
   const [quickQuestion, setQuickQuestion] = useState('');
 
@@ -154,8 +152,10 @@ const Dashboard: React.FC = () => {
   const todaysTasks = dashboardData?.todaysEvents || [];
   const completedToday = dashboardData?.progress.todayCompleted || 0;
   const totalToday = dashboardData?.progress.todayTotal || 0;
-  const progressPercentage = dashboardData?.progress.todayPercentage || 0;
+  // Clamp: a corrupt >100% value would overdraw the progress ring
+  const progressPercentage = Math.min(100, Math.max(0, dashboardData?.progress.todayPercentage || 0));
   const recentSaved = dashboardData?.recentBookmarks.slice(0, 5) || [];
+  const dashboardFailed = !!errors.dashboard && !loading.dashboard;
   const progressToNextLevel = dashboardData?.progress.levelProgress || Math.min(100, Math.round(((user.xp - (user.level - 1) * 1000) / 1000) * 100));
   const xpToNextLevel = dashboardData?.progress.xpToNextLevel || (user.level * 1000 - user.xp);
 
@@ -175,23 +175,44 @@ const Dashboard: React.FC = () => {
            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 mb-1">
              {greeting}, {displayUser?.name?.split(' ')[0] || 'Student'}!
            </h1>
-           <p className="text-zinc-500 text-sm sm:text-base">
-             Ready to make some progress? You have <span className="font-semibold text-zinc-900">{totalToday - completedToday} tasks</span> remaining today.
-           </p>
+            <p className="text-zinc-500 text-sm sm:text-base">
+              {loading.dashboard && !dashboardData ? (
+                'Loading your plan for today…'
+              ) : dashboardFailed ? (
+                "Couldn't load today's plan. Your data is safe — try again."
+              ) : (
+                <>Ready to make some progress? You have <span className="font-semibold text-zinc-900">{totalToday - completedToday} tasks</span> remaining today.</>
+              )}
+            </p>
          </div>
          <div className="flex items-center gap-2 sm:gap-3 bg-white p-2 rounded-xl border border-zinc-200 shadow-sm w-full md:w-auto justify-center md:justify-start">
             <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-100 text-zinc-700 rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Daily Streak">
-                <Flame size={14} className={`fill-current ${(displayUser?.streak || 0) > 0 ? 'text-orange-500' : 'text-zinc-400'}`} />
-                <span className="hidden xs:inline">{displayUser?.streak || 0} Day Streak</span>
-                <span className="xs:hidden">{displayUser?.streak || 0}</span>
+               <Flame size={14} className={`fill-current ${(displayUser?.streak || 0) > 0 ? 'text-orange-500' : 'text-zinc-400'}`} />
+               {/* No xs: breakpoint exists in this project — sm: carries the compact/full switch */}
+               <span className="hidden sm:inline">{displayUser?.streak || 0} Day Streak</span>
+               <span className="sm:hidden">{displayUser?.streak || 0}</span>
             </div>
             <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-900 text-white rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Total XP">
-                <Trophy size={14} className="fill-current" />
-                <span className="hidden xs:inline">{displayUser?.xp || 0} XP</span>
-                <span className="xs:hidden">{displayUser?.xp || 0}</span>
+               <Trophy size={14} className="fill-current" />
+               <span className="hidden sm:inline">{displayUser?.xp || 0} XP</span>
+               <span className="sm:hidden">{displayUser?.xp || 0}</span>
             </div>
          </div>
       </div>
+
+      {/* Dashboard fetch failed: say so with a retry — otherwise empty
+          sections masquerade as an empty account */}
+      {dashboardFailed && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3" role="alert">
+          <p className="text-sm text-red-700 flex-1">Couldn't load your dashboard. Check your connection and try again.</p>
+          <button
+            onClick={() => fetchDashboard()}
+            className="px-4 py-2 bg-white border border-red-200 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors self-start sm:self-auto"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         
@@ -306,9 +327,9 @@ const Dashboard: React.FC = () => {
                  <span className="text-xs text-zinc-500 font-medium">{Math.round(progressPercentage)}%</span>
               </div>
 
-              <div className="relative pt-2 pb-4 sm:pb-6 flex justify-center">
-                 {/* CSS Radial Progress Mockup */}
-                 <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-6 sm:border-8 border-zinc-100 flex items-center justify-center relative">
+               <div className="relative pt-2 pb-4 sm:pb-6 flex justify-center">
+                  {/* Ring drawn by the SVG below; the wrapper carries no border */}
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center relative">
                     <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
                        <circle
                          cx="50" cy="50" r="46"
