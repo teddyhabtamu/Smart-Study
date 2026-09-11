@@ -203,6 +203,7 @@ export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   errors?: any[];
+  code?: string; // machine-readable error code (e.g. FREE_LIMIT_REACHED)
 }
 
 // JWT payload type

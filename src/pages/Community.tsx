@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Lock, Trophy, Loader2, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Trophy, Loader2, ChevronDown, SlidersHorizontal, Crown } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { SUBJECTS, GRADES } from '../constants';
 import { ForumPost, UserRole } from '../types';
@@ -27,11 +27,15 @@ const Community: React.FC = () => {
   }, [updateSEO]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
+  const [selectedGrade, setSelectedGrade] = useState('All');
   const [mounted, setMounted] = useState(false);
   const [leaderboard, setLeaderboard] = useState<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number; isUser?: boolean }[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // True when a free user hits the daily question limit: the modal swaps to
+  // an upgrade panel, draft preserved behind it.
+  const [freeLimitHit, setFreeLimitHit] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newSubject, setNewSubject] = useState('Mathematics');
@@ -42,12 +46,12 @@ const Community: React.FC = () => {
 
   useEffect(() => {
     setMounted(true);
-    fetchForumPosts(); // Fetch forum posts on mount
     fetchLeaderboard(); // Fetch leaderboard data
     return () => setMounted(false);
   }, [fetchForumPosts]);
 
-  // Refresh posts when navigating back to this page
+  // Refresh posts when navigating back to this page (also fires on mount,
+  // so no separate mount fetch — avoids the old double-fetch flicker)
   useEffect(() => {
     fetchForumPosts();
   }, [location.pathname, fetchForumPosts]);
@@ -57,39 +61,20 @@ const Community: React.FC = () => {
       setLeaderboardLoading(true);
       const data = await usersAPI.getLeaderboard(5); // Get top 5 learners
 
-      // Sort by XP descending and take top 5 to ensure we have the highest XP users
+      // Sort by XP descending and take the true top 5. No replacement tricks:
+      // if you're not in the top 5 you simply aren't shown — the footer row
+      // below covers your own progress honestly.
       const sortedData = data
         .sort((a, b) => b.xp - a.xp)
         .slice(0, 5);
 
       let processedLeaderboard = [...sortedData];
 
-      // If user is logged in, check if they're in the top 5
+      // If user is logged in, just mark them where they actually placed
       if (user) {
-        const currentUserInLeaderboard = processedLeaderboard.find(learner => learner.id === user.id);
-
-        if (currentUserInLeaderboard) {
-          // Mark current user in the list
-          processedLeaderboard = processedLeaderboard.map(learner =>
-            learner.id === user.id ? { ...learner, isUser: true } : learner
-          );
-        } else {
-          // User is not in top 5, check if they should replace the lowest ranked user
-          const lowestRanked = processedLeaderboard[processedLeaderboard.length - 1];
-          if (user.xp > lowestRanked.xp) {
-            // Replace the lowest ranked user with current user
-            processedLeaderboard[processedLeaderboard.length - 1] = {
-              id: user.id,
-              name: user.name,
-              xp: user.xp,
-              level: user.level,
-              initial: user.name.charAt(0).toUpperCase(),
-              avatar: user.avatar,
-              rank: lowestRanked.rank, // Keep the rank
-              isUser: true
-            };
-          }
-        }
+        processedLeaderboard = processedLeaderboard.map(learner =>
+          learner.id === user.id ? { ...learner, isUser: true } : learner
+        );
       }
 
       // Update ranks based on the final sorted order
@@ -103,21 +88,7 @@ const Community: React.FC = () => {
       setLeaderboard(processedLeaderboard);
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error);
-      // Fallback: show current user if logged in
-      if (user) {
-        setLeaderboard([{
-          id: user.id,
-          name: user.name,
-          xp: user.xp,
-          level: user.level,
-          initial: user.name.charAt(0).toUpperCase(),
-          avatar: user.avatar,
-          rank: 1,
-          isUser: true
-        }]);
-      } else {
-        setLeaderboard([]);
-      }
+      setLeaderboard([]);
     } finally {
       setLeaderboardLoading(false);
     }
@@ -128,7 +99,8 @@ const Community: React.FC = () => {
       post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       post.content.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSubject = selectedSubject === 'All' || post.subject === selectedSubject;
-    return matchesSearch && matchesSubject;
+    const matchesGrade = selectedGrade === 'All' || String(post.grade ?? '') === selectedGrade;
+    return matchesSearch && matchesSubject && matchesGrade;
   });
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -139,6 +111,7 @@ const Community: React.FC = () => {
     }
 
     setIsCreatingPost(true);
+    setFreeLimitHit(false);
     try {
       await createForumPost({
         title: newTitle,
@@ -156,9 +129,15 @@ const Community: React.FC = () => {
 
       // Refresh the posts list to show the new post
       fetchForumPosts();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create forum post:', error);
-      // TODO: Show error toast
+      // Daily free limit: keep the draft open and show the upgrade path
+      // instead of wiping their writing with a toast.
+      if (error?.code === 'FREE_LIMIT_REACHED' || String(error?.message || '').includes('free question')) {
+        setFreeLimitHit(true);
+      } else {
+        addToast(error?.message || 'Failed to post. Your draft is kept — please try again.', 'error');
+      }
     } finally {
       setIsCreatingPost(false);
     }
@@ -179,12 +158,11 @@ const Community: React.FC = () => {
     setVotingPosts(prev => new Set(prev).add(postId));
 
     try {
-      await forumAPI.votePost(postId, 1); // Always upvote from list view
+      await forumAPI.votePost(postId, 1); // Server toggles (repeat vote removes it)
 
-      // Refresh the forum posts to get updated vote counts
+      // Refresh counts quietly — no success toast for something this small,
+      // and no optimistic guess that could disagree with the server.
       await fetchForumPosts();
-
-      addToast('Post upvoted!', 'success');
     } catch (error) {
       console.error('Failed to vote on post:', error);
       addToast('Failed to vote. Please try again.', 'error');
@@ -198,10 +176,7 @@ const Community: React.FC = () => {
   };
 
   const handlePostClick = (postId: string) => {
-    if (!user) {
-      navigate('/login', { state: { from: `/community/${postId}` } });
-      return;
-    }
+    // Guests can read (lurk) — voting, commenting and AI stay gated inside.
     navigate(`/community/${postId}`);
   };
 
@@ -211,11 +186,9 @@ const Community: React.FC = () => {
       return;
     }
 
-    if (!user.isPremium) {
-      navigate('/subscription', { state: { from: location.pathname } });
-      return;
-    }
-
+    // Free accounts get 1 question/day (enforced server-side); Pro unlimited.
+    // Everyone reaches the composer — the limit only appears at submit time.
+    setFreeLimitHit(false);
     setIsModalOpen(true);
   };
 
@@ -232,13 +205,18 @@ const Community: React.FC = () => {
             <p className="text-zinc-500 text-sm sm:text-base">Ask questions, share knowledge, and learn together.</p>
           </div>
 
-          <button
-            onClick={handleAskQuestion}
-            className="px-4 sm:px-5 py-2 sm:py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/10 group self-start sm:self-auto"
-          >
-            {user && !user.isPremium ? <Lock size={14} className="sm:w-4 sm:h-4 text-zinc-400 group-hover:text-white transition-colors" /> : <Plus size={14} className="sm:w-4 sm:h-4" />}
-            Ask Question
-          </button>
+          <div className="flex flex-col gap-2 self-start sm:self-auto">
+            <button
+              onClick={handleAskQuestion}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/10 group"
+            >
+              <Plus size={14} className="sm:w-4 sm:h-4" />
+              Ask Question
+            </button>
+            {user && !user.isPremium && (
+              <p className="text-[11px] text-zinc-400 text-center">1 free question per day · Pro asks unlimited</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -313,6 +291,13 @@ const Community: React.FC = () => {
                  No learners found
                </div>
              )}
+             {user && !leaderboard.some(l => l.isUser) && (
+               <div className="mt-2 p-2 rounded-lg bg-zinc-50 border border-zinc-100 text-center">
+                 <p className="text-xs text-zinc-600">
+                   You have <span className="font-bold text-zinc-900">{(user.xp || 0).toLocaleString()} XP</span> — keep learning to reach the top.
+                 </p>
+               </div>
+             )}
           </div>
           {leaderboard.length > 3 && (
             <div className="mt-3 pt-3 border-t border-zinc-100">
@@ -347,8 +332,8 @@ const Community: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">Subject</label>
-                <div className="space-y-1">
-                  {SUBJECTS.slice(0, 6).map(sub => (
+                <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                  {SUBJECTS.map(sub => (
                     <button
                       key={sub}
                       onClick={() => setSelectedSubject(sub)}
@@ -359,6 +344,25 @@ const Community: React.FC = () => {
                       }`}
                     >
                       {sub === 'All' ? 'All Topics' : sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">Grade</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['All', '9', '10', '11', '12'].map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setSelectedGrade(g)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        selectedGrade === g
+                          ? 'bg-zinc-900 text-white'
+                          : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                      }`}
+                    >
+                      {g === 'All' ? 'All' : `G${g}`}
                     </button>
                   ))}
                 </div>
@@ -377,6 +381,7 @@ const Community: React.FC = () => {
                 <SlidersHorizontal size={16} className="text-zinc-500" />
                 <span className="text-sm font-medium text-zinc-900">
                   {selectedSubject === 'All' ? 'All Topics' : selectedSubject}
+                  {selectedGrade !== 'All' && ` • Grade ${selectedGrade}`}
                   {searchTerm && ` • "${searchTerm}"`}
                 </span>
               </div>
@@ -442,12 +447,32 @@ const Community: React.FC = () => {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="block text-sm font-semibold text-zinc-900 mb-3">Grade</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {['All', '9', '10', '11', '12'].map(g => (
+                          <button
+                            key={g}
+                            onClick={() => setSelectedGrade(g)}
+                            className={`p-2.5 rounded-lg text-sm font-medium transition-colors border ${
+                              selectedGrade === g
+                                ? 'bg-zinc-900 text-white border-zinc-900'
+                                : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
+                            }`}
+                          >
+                            {g === 'All' ? 'All' : `G${g}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Apply Filters Button */}
                     <div className="pt-4 border-t border-zinc-100 space-y-3">
                       <div className="flex gap-3">
                         <button
                           onClick={() => {
                             setSelectedSubject('All');
+                            setSelectedGrade('All');
                             setSearchTerm('');
                           }}
                           className="flex-1 py-2.5 bg-zinc-100 text-zinc-700 font-medium rounded-lg hover:bg-zinc-200 transition-colors text-sm"
@@ -512,6 +537,13 @@ const Community: React.FC = () => {
                ) : (
                  <div className="text-center py-4 text-zinc-500 text-sm">
                    No learners found
+                 </div>
+               )}
+               {user && !leaderboard.some(l => l.isUser) && (
+                 <div className="mt-2 p-2.5 rounded-lg bg-zinc-50 border border-zinc-100 text-center">
+                   <p className="text-xs text-zinc-600">
+                     You have <span className="font-bold text-zinc-900">{(user.xp || 0).toLocaleString()} XP</span> — keep learning to climb into the top 5.
+                   </p>
                  </div>
                )}
             </div>
@@ -627,8 +659,22 @@ const Community: React.FC = () => {
           )})}
 
           {!loading.forumPosts && !errors.forumPosts && filteredPosts.length === 0 && (
-            <div className="text-center py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl">
+            <div className="text-center py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl px-4">
               <p className="text-zinc-500">No discussions found matching your filters.</p>
+              <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
+                <button
+                  onClick={() => { setSelectedSubject('All'); setSelectedGrade('All'); setSearchTerm(''); }}
+                  className="px-4 py-2 bg-white border border-zinc-200 text-zinc-700 text-sm font-medium rounded-lg hover:bg-zinc-100 transition-colors"
+                >
+                  Clear filters
+                </button>
+                <button
+                  onClick={handleAskQuestion}
+                  className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
+                >
+                  Be the first to ask
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -641,11 +687,39 @@ const Community: React.FC = () => {
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative animate-slide-up flex flex-col max-h-[90vh]">
               <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
                 <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Ask the Community</h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
+                <button onClick={() => { setIsModalOpen(false); setFreeLimitHit(false); }} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
                   <X size={18} className="sm:w-5 sm:h-5" />
                 </button>
               </div>
 
+              {freeLimitHit ? (
+                <div className="p-6 sm:p-8 text-center space-y-4 overflow-y-auto">
+                  <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                    <Crown size={24} className="text-amber-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900 text-base sm:text-lg">You've used today's free question</h4>
+                    <p className="text-sm text-zinc-500 mt-1 leading-relaxed">
+                      Free accounts get 1 community question per day. Your draft above is saved —
+                      upgrade to Pro to post it now, or come back tomorrow.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => { setIsModalOpen(false); setFreeLimitHit(false); navigate('/subscription'); }}
+                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm"
+                    >
+                      Go Pro — ask unlimited questions
+                    </button>
+                    <button
+                      onClick={() => setFreeLimitHit(false)}
+                      className="w-full py-2 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+                    >
+                      Back to my draft
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={handleCreatePost} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Question Title</label>
@@ -693,6 +767,7 @@ const Community: React.FC = () => {
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </div>,
           document.body

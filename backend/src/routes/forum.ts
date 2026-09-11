@@ -160,6 +160,7 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
         created_at: comment.created_at,
         updated_at: comment.updated_at,
         author: commentAuthor?.name,
+        author_id: comment.author_id,
         author_role: commentAuthor?.role,
         author_avatar: commentAuthor?.avatar
       };
@@ -212,6 +213,7 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
       created_at: post.created_at,
       updated_at: post.updated_at,
       author: author?.name,
+      author_id: post.author_id,
       author_role: author?.role,
       author_avatar: author?.avatar,
       userVote: userPostVote, // Add user's vote on this post
@@ -240,6 +242,24 @@ router.post('/posts', authenticateToken, async (req: express.Request, res: expre
     console.log('Creating forum post, body:', req.body);
     const { title, content, subject, grade, tags = [] } = req.body;
     const author_id = req.user!.id;
+
+    // Free accounts get 1 question per day (server date); Pro is unlimited.
+    // The gate lives here — not just in the UI — so it can't be bypassed.
+    if (!req.user!.is_premium) {
+      const todayCount = await query(
+        `SELECT COUNT(*) as count FROM forum_posts
+         WHERE author_id = $1 AND created_at >= CURRENT_DATE`,
+        [author_id]
+      );
+      if (parseInt(todayCount.rows[0]?.count || '0', 10) >= 1) {
+        res.status(403).json({
+          success: false,
+          code: 'FREE_LIMIT_REACHED',
+          message: "You've used today's free question. Go Pro to ask unlimited questions."
+        } as ApiResponse);
+        return;
+      }
+    }
 
     const postData = {
       title,

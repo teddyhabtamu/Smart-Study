@@ -152,6 +152,9 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
     // Handle general error messages
     if (errorData.message) {
       const error = new Error(errorData.message);
+      if (errorData.code) {
+        (error as any).code = errorData.code;
+      }
       // Check if the error message indicates a timeout/network issue
       const messageLower = errorData.message.toLowerCase();
       // 500 errors often mean backend can't reach database (network issue)
@@ -209,6 +212,11 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
     // Handle general error messages
     if (data.message) {
       const error = new Error(data.message);
+      // Carry machine-readable backend codes (e.g. FREE_LIMIT_REACHED) so
+      // callers can branch instead of string-matching messages.
+      if (data.code) {
+        (error as any).code = data.code;
+      }
       // Check if the error message indicates a timeout/network issue
       const messageLower = data.message.toLowerCase();
       // Note: We can't check response.status here since response is already parsed

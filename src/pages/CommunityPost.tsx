@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle, MoreVertical } from 'lucide-react';
 import { UserRole, ForumComment } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { useData } from '../context/DataContext';
@@ -65,12 +65,16 @@ const CommunityPost: React.FC = () => {
   const [isSavingComment, setIsSavingComment] = useState(false);
   const [isMarkingSolution, setIsMarkingSolution] = useState(false);
 
-  useEffect(() => {
-    // Wait for auth loading to finish before checking user
-    if (!isLoading && !user) {
+  // Guests can read (lurk) freely; only writing/voting requires login.
+  // Each action handler redirects with a return-to instead of this page
+  // bouncing guests away on mount.
+  const requireLogin = () => {
+    if (!user) {
       navigate('/login', { state: { from: window.location.pathname } });
+      return true;
     }
-  }, [isLoading, user, navigate]);
+    return false;
+  };
 
   useEffect(() => {
     // Fetch full post with comments when component mounts
@@ -97,7 +101,7 @@ const CommunityPost: React.FC = () => {
     }
   }, [post]);
 
-  if (isLoading || !user || loadingPost) {
+  if (isLoading || loadingPost) {
     return <CommunityPostDetailSkeleton />;
   }
 
@@ -115,20 +119,14 @@ const CommunityPost: React.FC = () => {
 
   const handleVote = async () => {
     if (!fullPost) return;
+    if (requireLogin()) return;
 
     setIsVotingPost(true);
     try {
-      // Determine the vote value based on current state
+      // The server toggles: repeating the same vote REMOVES it. So undoing
+      // an upvote means sending 1 again — never -1 (that would downvote).
       const currentVote = fullPost.userVote || 0;
-      let voteValue: 1 | -1;
-
-      if (currentVote === 1) {
-        // Currently upvoted, clicking will remove vote
-        voteValue = -1;
-      } else {
-        // Not upvoted or downvoted, clicking will upvote
-        voteValue = 1;
-      }
+      const voteValue: 1 | -1 = 1;
 
       const response = await forumAPI.votePost(post.id, voteValue);
 
@@ -136,7 +134,7 @@ const CommunityPost: React.FC = () => {
       if (fullPost) {
         setFullPost({
           ...fullPost,
-          votes: response.data?.votes || fullPost.votes,
+          votes: response.data?.votes ?? fullPost.votes,
           userVote: currentVote === 1 ? undefined : 1 // Toggle between voted and not voted
         });
       }
@@ -153,26 +151,34 @@ const CommunityPost: React.FC = () => {
     }
   };
 
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    addToast("Discussion link copied!", "success");
+  const handleShare = async () => {
+    const url = window.location.href;
+    // Prefer the native share sheet on mobile; fall back to clipboard.
+    // Only toast on actual success — the old code always claimed success.
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: fullPost?.title || 'SmartStudy discussion', url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      addToast("Discussion link copied!", "success");
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return; // user dismissed the sheet
+      console.error('Share failed:', error);
+      addToast("Could not share. Copy the address bar link manually.", "error");
+    }
   };
 
   const handleCommentVote = async (commentId: string) => {
     if (!fullPost) return;
+    if (requireLogin()) return;
 
     setIsVotingComment(true);
     try {
+      // Same server toggle contract as posts: repeat removes. Send 1 to
+      // undo an upvote — never -1 (that would downvote instead).
       const currentVote = fullPost?.userCommentVotes?.[commentId] || 0;
-      let voteValue: 1 | -1;
-
-      if (currentVote === 1) {
-        // Currently upvoted, clicking will remove vote
-        voteValue = -1;
-      } else {
-        // Not upvoted, clicking will upvote
-        voteValue = 1;
-      }
+      const voteValue: 1 | -1 = 1;
 
       const response = await forumAPI.voteComment(commentId, voteValue);
 
@@ -211,7 +217,8 @@ const CommunityPost: React.FC = () => {
 
   // --- AI Answer Logic ---
   const handleGenerateAIAnswer = async () => {
-    if (!user.isPremium) {
+    if (requireLogin()) return;
+    if (!user!.isPremium) {
       navigate('/subscription', { state: { from: window.location.pathname } });
       return;
     }
@@ -365,8 +372,11 @@ const CommunityPost: React.FC = () => {
   };
 
   const handleAcceptSolution = async (commentId: string) => {
-    // Only author can mark solution
-    if (user.name !== post.author) return;
+    // Only author can mark solution (id compare; name fallback for old cache)
+    if (requireLogin()) return;
+    const postAuthorId = (post as any)?.author_id;
+    const isOwner = postAuthorId ? String(user!.id) === String(postAuthorId) : user!.name === post.author;
+    if (!isOwner) return;
 
     setIsMarkingSolution(true);
     try {
@@ -382,7 +392,7 @@ const CommunityPost: React.FC = () => {
       const refreshedPost = await forumAPI.getPost(post.id);
       setFullPost(refreshedPost);
 
-      addToast("Comment marked as solution!", "success");
+      addToast(hasAcceptedSolution ? "Solution updated!" : "Comment marked as solution!", "success");
     } catch (error) {
       console.error('Failed to accept solution:', error);
       addToast("Failed to mark solution. Please try again.", "error");
@@ -393,7 +403,8 @@ const CommunityPost: React.FC = () => {
 
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyContent.trim() || !post || !user) return;
+    if (!replyContent.trim() || !post) return;
+    if (requireLogin()) return;
 
     setIsPostingComment(true);
     try {
@@ -413,8 +424,9 @@ const CommunityPost: React.FC = () => {
     }
   };
 
-  const isAuthor = user.name === post.author;
-  const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
+  const postAuthorId = (post as any)?.author_id;
+  const isAuthor = !!user && (postAuthorId ? String(user.id) === String(postAuthorId) : user.name === post.author);
+  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MODERATOR;
 
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col gap-3 sm:gap-4 animate-fade-in relative">
@@ -448,9 +460,10 @@ const CommunityPost: React.FC = () => {
                <div className="relative">
                  <button
                    onClick={() => setShowMobileMenu(!showMobileMenu)}
+                   aria-label="More actions"
                    className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
                  >
-                   <HelpCircle size={18} />
+                   <MoreVertical size={18} />
                  </button>
                  {showMobileMenu && (
                    <>
@@ -670,7 +683,7 @@ const CommunityPost: React.FC = () => {
                             className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
                          >
                             {isGeneratingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                            {user.isPremium ? "Generate Verified Answer" : "Unlock Verified Answer"}
+                            {user?.isPremium ? "Generate Verified Answer" : "Unlock Verified Answer"}
                          </button>
                       </div>
                    )}
@@ -759,7 +772,7 @@ const CommunityPost: React.FC = () => {
                                  {isVotingComment ? <Loader2 size={12} className="sm:w-3.5 sm:h-3.5 animate-spin" /> : <ThumbsUp size={12} className="sm:w-3.5 sm:h-3.5" />}
                                  {comment.votes} Helpful
                                </button>
-                               {(user.name === comment.author || isAdmin) && (
+                               {(!!user && (user.name === comment.author || (comment as any).author_id === user.id) || isAdmin) && (
                                  <div className="flex items-center gap-2 sm:gap-3">
                                    <button
                                      onClick={() => handleEditComment(comment)}
@@ -779,15 +792,16 @@ const CommunityPost: React.FC = () => {
                                )}
                             </div>
 
-                            {/* Hide "Mark as Solution" if a solution already exists */}
-                            {isAuthor && !hasAcceptedSolution && !commentIsAccepted && (
+                            {/* Author can mark a solution, or switch it to a
+                                better answer — the server unaccepts the old one. */}
+                            {isAuthor && !commentIsAccepted && (
                               <button
                                 onClick={() => handleAcceptSolution(comment.id)}
                                 disabled={isMarkingSolution}
                                 className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-zinc-400 hover:text-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors px-2 py-1 rounded hover:bg-emerald-50 self-start sm:self-auto"
                               >
                                 {isMarkingSolution ? <Loader2 size={12} className="sm:w-3.5 sm:h-3.5 animate-spin" /> : <CheckCircle size={12} className="sm:w-3.5 sm:h-3.5" />}
-                                {isMarkingSolution ? 'Marking...' : 'Mark as Solution'}
+                                {isMarkingSolution ? 'Marking...' : hasAcceptedSolution ? 'Switch Solution' : 'Mark as Solution'}
                               </button>
                             )}
                          </div>
@@ -798,6 +812,17 @@ const CommunityPost: React.FC = () => {
                 {/* Reply Form - NOT STICKY ANYMORE */}
                 <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 mt-6 sm:mt-8">
                    <h3 className="font-bold text-zinc-900 mb-3 sm:mb-4 text-sm sm:text-base">Post a Reply</h3>
+                   {!user ? (
+                     <div className="text-center py-4">
+                       <p className="text-sm text-zinc-500 mb-3">Log in to join the discussion and help others.</p>
+                       <button
+                         onClick={() => navigate('/login', { state: { from: window.location.pathname } })}
+                         className="px-5 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
+                       >
+                         Log in to reply
+                       </button>
+                     </div>
+                   ) : (
                    <form onSubmit={handleSubmitReply}>
                       <textarea
                         value={replyContent}
@@ -806,17 +831,44 @@ const CommunityPost: React.FC = () => {
                         className="w-full p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 resize-none text-sm sm:text-base transition-all mb-3 sm:mb-4"
                         rows={3}
                       ></textarea>
-                      <div className="flex justify-end">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                         <p className="text-xs text-zinc-400">Helpful answers earn XP when upvoted.</p>
                          <button
                            type="submit"
                            disabled={!replyContent.trim() || isPostingComment}
-                           className="px-4 sm:px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2 text-sm sm:text-base touch-manipulation"
+                           className="px-4 sm:px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center justify-center gap-2 text-sm sm:text-base touch-manipulation"
                          >
                            {isPostingComment ? <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" /> : <Send size={14} className="sm:w-4 sm:h-4" />}
                            {isPostingComment ? 'Posting...' : 'Post Answer'}
                          </button>
                       </div>
                    </form>
+                   )}
+                </div>
+
+                {/* Related on mobile: below the answers, inside the scroll */}
+                <div className="lg:hidden">
+                   <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
+                      <h3 className="font-bold text-zinc-900 text-sm mb-3 flex items-center gap-2">
+                         <HelpCircle size={16} className="text-zinc-500" /> Related Questions
+                      </h3>
+                      <div className="space-y-3">
+                         {relatedPosts.length > 0 ? relatedPosts.map(rp => (
+                            <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
+                               <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-relaxed mb-1">
+                                  {rp.title}
+                               </h4>
+                               <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                                  <span>{rp.votes} votes</span>
+                                  <span>•</span>
+                                  <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
+                               </div>
+                            </Link>
+                         )) : (
+                            <p className="text-xs text-zinc-400">No related discussions found.</p>
+                         )}
+                      </div>
+                   </div>
                 </div>
              </div>
           </div>
