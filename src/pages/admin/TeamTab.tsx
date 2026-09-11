@@ -41,9 +41,18 @@ const TeamTab: React.FC = () => {
 
   const roleOptions: Option[] = [
     { label: 'Content Manager (Can upload & edit)', value: 'Content Manager' },
-    { label: 'Super Admin (Full access)', value: 'Super Admin' },
-    { label: 'Viewer (Read only)', value: 'Viewer' }
+    { label: 'Super Admin (Full access)', value: 'Super Admin' }
+    // NOTE: no "Viewer (read-only)" option — the backend only knows ADMIN /
+    // MODERATOR, so that label previously invited full content managers
+    // under a read-only promise.
   ];
+
+  // created_at/joinedDate are optional — never render "Invalid Date"
+  const formatMemberDate = (value?: string): string => {
+    if (!value) return '—';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+  };
 
   // Fetch admin team members
   const fetchAdmins = useCallback(async () => {
@@ -193,9 +202,9 @@ const TeamTab: React.FC = () => {
                                      Active
                                    </span>
                                  </div>
-                                 <span className="text-zinc-400 text-[10px]">
-                                   {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
-                                 </span>
+                                  <span className="text-zinc-400 text-[10px]">
+                                    {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
+                                  </span>
                                </div>
                              </div>
                            ))
@@ -247,7 +256,7 @@ const TeamTab: React.FC = () => {
                                        </span>
                                     </td>
                                     <td className="px-6 py-4 text-zinc-500 text-xs">
-                                       {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                       {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <button
@@ -325,7 +334,7 @@ const TeamTab: React.FC = () => {
                                    </span>
                                  </div>
                                  <span className="text-zinc-400 text-[10px]">
-                                   Invited {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                   Invited {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
                                  </span>
                                </div>
                              </div>
@@ -374,7 +383,7 @@ const TeamTab: React.FC = () => {
                                        </span>
                                     </td>
                                     <td className="px-6 py-4 text-zinc-500 text-xs">
-                                       {new Date((member as any).created_at || (member as any).joinedDate || '').toLocaleDateString()}
+                                       {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <button

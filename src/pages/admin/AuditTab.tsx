@@ -10,6 +10,13 @@ const AuditTab: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditSearch, setAuditSearch] = useState('');
+  // Debounced: the fetch effect fires per value, so raw keystrokes would
+  // spam a request per character
+  const [debouncedAuditSearch, setDebouncedAuditSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAuditSearch(auditSearch), 400);
+    return () => clearTimeout(t);
+  }, [auditSearch]);
   const [auditExpandedId, setAuditExpandedId] = useState<string | null>(null);
   const [auditPagination, setAuditPagination] = useState<{ total: number; limit: number; offset: number; hasMore: boolean }>({
     total: 0,
@@ -23,7 +30,7 @@ const AuditTab: React.FC = () => {
       setAuditLoading(true);
       const limit = 50;
       const offset = opts?.offset ?? 0;
-      const result = await adminAPI.getAuditLogs({ limit, offset, search: auditSearch.trim() || undefined });
+      const result = await adminAPI.getAuditLogs({ limit, offset, search: debouncedAuditSearch.trim() || undefined });
       setAuditLogs(result.logs || []);
       setAuditPagination(result.pagination || { total: 0, limit, offset, hasMore: false });
     } catch (error: any) {
@@ -32,7 +39,7 @@ const AuditTab: React.FC = () => {
     } finally {
       setAuditLoading(false);
     }
-  }, [addToast, auditSearch]);
+  }, [addToast, debouncedAuditSearch]);
 
   const formatAuditValue = useCallback((value: any): string => {
     if (value === null || value === undefined) return '—';

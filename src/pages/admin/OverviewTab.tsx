@@ -10,14 +10,19 @@ const OverviewTab: React.FC = () => {
   const { documents, videos, forumPosts, allUsers } = useData();
   const [adminStats, setAdminStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const fetchAdminStats = useCallback(async () => {
     try {
       setStatsLoading(true);
+      setStatsError(null);
       const stats = await adminAPI.getAdminStats();
       setAdminStats(stats);
     } catch (error: any) {
       console.error('Failed to fetch admin stats:', error);
+      // Surface failure with a retry — otherwise the tab shows skeletons
+      // forever and reads as "still loading"
+      setStatsError(error.message || 'Failed to load system stats');
     } finally {
       setStatsLoading(false);
     }
@@ -45,7 +50,20 @@ const OverviewTab: React.FC = () => {
 
   return (
         <div className="space-y-4 sm:space-y-8 animate-fade-in">
-              {/* Stats Cards */}
+              {/* Stats Cards (no growth pills: we store no historical
+                  baselines, so any "+x%" would be invented) */}
+          {statsError && !adminStats && !statsLoading ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+              <p className="text-red-800 font-medium text-sm">Failed to load system stats</p>
+              <p className="text-red-600 text-xs mt-1">{statsError}</p>
+              <button
+                onClick={fetchAdminStats}
+                className="mt-4 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {adminLoading || !adminStats ? (
               <>
@@ -59,7 +77,6 @@ const OverviewTab: React.FC = () => {
                 <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
                       <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Users size={18} className="sm:w-5 sm:h-5" /></div>
-                      <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">+12%</span>
                    </div>
                    <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalUsers.toLocaleString()}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Total Students</div>
@@ -67,7 +84,6 @@ const OverviewTab: React.FC = () => {
                 <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
                       <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Crown size={18} className="sm:w-5 sm:h-5" /></div>
-                      <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">+5%</span>
                    </div>
                    <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Premium Subscribers</div>
@@ -75,7 +91,6 @@ const OverviewTab: React.FC = () => {
                 <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
                       <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><FileText size={18} className="sm:w-5 sm:h-5" /></div>
-                      <span className="text-[10px] sm:text-xs font-bold text-zinc-400 bg-zinc-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">New</span>
                    </div>
                    <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Learning Resources</div>
@@ -90,10 +105,15 @@ const OverviewTab: React.FC = () => {
               </>
             )}
           </div>
+          )}
 
           {/* Recent Activity */}
-          {adminLoading || !adminStats ? (
+          {adminLoading ? (
             <RecentActivitySkeleton />
+          ) : !adminStats ? (
+            <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 text-center py-8 text-zinc-500">
+              <p className="text-sm">{statsError || 'No recent activity to display'}</p>
+            </div>
           ) : (
             <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
               <h3 className="font-bold text-zinc-900 mb-4">Recent System Activity</h3>

@@ -22,7 +22,6 @@ const ContentTab: React.FC = () => {
   }, []);
 
   const [contentCategory, setContentCategory] = useState<'documents' | 'videos' | 'past-exams'>('documents');
-  const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,7 +91,6 @@ const ContentTab: React.FC = () => {
     setDocFileType(FileType.PDF);
     setDocFileUrl('');
     setDocThumbnailUrl('');
-    setFile(null);
 
     // Video reset
     setVideoUrl('');
@@ -111,9 +109,10 @@ const ContentTab: React.FC = () => {
 
   // --- Handlers ---
 
-  const handleEditDocument = (doc: Document) => {
-    console.log('Editing document:', { id: doc.id, title: doc.title });
-    setContentCategory('documents');
+  const handleEditDocument = (doc: Document, category: 'documents' | 'past-exams' = 'documents') => {
+    // Stay on the tab the admin was looking at: editing a past exam from
+    // the Past Exams list used to flip the whole form to Documents.
+    setContentCategory(category);
     setEditingId(doc.id);
     setTitle(doc.title);
     setDescription(doc.description);
@@ -164,8 +163,6 @@ const ContentTab: React.FC = () => {
           // Verify document exists before updating
           const documentExists = documents.find(doc => doc.id === editingId);
           if (!documentExists) {
-            console.error('Document not found in local state:', editingId);
-            console.log('Available document IDs:', documents.map(d => d.id));
             addToast('Document not found. Refreshing document list...', 'warning');
             await fetchDocuments();
             resetForm();
@@ -203,13 +200,14 @@ const ContentTab: React.FC = () => {
             }
           }
 
-          console.log('Updating document:', { id: editingId, updateData });
           await updateDocument(editingId, updateData);
           addToast(contentCategory === 'past-exams' ? 'Past exam updated successfully!' : 'Document updated successfully!', 'success');
         } else {
           // Create Document or Past Exam - Use adminAPI for proper field mapping
+          // (title falls back to a placeholder: there is no file picker, so
+          // the old `file.name` fallback it replaced was dead code)
           const documentData: any = {
-            title: title || (file ? file.name.split('.')[0] : contentCategory === 'past-exams' ? "New Past Exam" : "New Document"),
+            title: title || (contentCategory === 'past-exams' ? "New Past Exam" : "New Document"),
             description: description || (contentCategory === 'past-exams' ? "Past exam paper for practice." : "New uploaded material."),
             subject,
             grade: grade === 'General' ? 0 : parseInt(grade),
@@ -255,8 +253,10 @@ const ContentTab: React.FC = () => {
           await updateVideo(editingId, updateData);
           addToast('Video lesson updated successfully!', 'success');
         } else {
-          // Create Video
-          await createVideo({
+          // Create Video (no stock thumbnail: the card renders a gradient
+          // fallback when thumbnail is absent, which beats hotlinking a
+          // random Unsplash photo into every imageless lesson)
+          const videoData: any = {
             title: title || "New Video Lesson",
             description: description || "Video description.",
             subject,
@@ -264,10 +264,12 @@ const ContentTab: React.FC = () => {
             isPremium,
             video_url: videoUrl,
             instructor: videoInstructor,
-            thumbnail: videoThumbnail || "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80",
             views: 0,
             likes: 0
-          });
+          };
+          // Omit entirely when empty: the backend rejects '' as a URL
+          if (videoThumbnail.trim()) videoData.thumbnail = videoThumbnail.trim();
+          await createVideo(videoData);
           addToast('Video lesson published successfully!', 'success');
         }
       }
@@ -633,8 +635,8 @@ const ContentTab: React.FC = () => {
                        </div>
                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
                          <button 
-                           onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
-                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                           onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document, contentCategory === 'past-exams' ? 'past-exams' : 'documents') : handleEditVideo(item as VideoLesson)}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
                          >
                            <Edit2 size={14} /> Edit
                          </button>
@@ -705,11 +707,12 @@ const ContentTab: React.FC = () => {
                             </span>
                           </div>
                        </td>
-                       <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <button 
-                               onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document) : handleEditVideo(item as VideoLesson)}
-                               className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                        <td className="px-6 py-4 text-right">
+                           {/* Hover-reveal on desktop; always visible on touch (no hover) */}
+                           <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document, contentCategory === 'past-exams' ? 'past-exams' : 'documents') : handleEditVideo(item as VideoLesson)}
+                                className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
                              >
                                <Edit2 size={16} />
                              </button>

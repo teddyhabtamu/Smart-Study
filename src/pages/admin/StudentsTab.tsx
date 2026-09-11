@@ -37,6 +37,13 @@ const StudentsTab: React.FC = () => {
 
   const filteredStudents = allUsers.filter(s => s.role === UserRole.STUDENT && ((s.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (s.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())));
 
+  // joinedDate is optional — never render "Invalid Date"
+  const formatJoined = (value?: string): string => {
+    if (!value) return '—';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+  };
+
   const openStatusConfirmation = (student: any) => {
     const currentStatus = student.status || 'Active';
     const isActive = currentStatus === 'Active';
@@ -170,9 +177,9 @@ const StudentsTab: React.FC = () => {
                          {student.isPremium ? 'Downgrade' : 'Upgrade'}
                        </button>
                      </div>
-                     <div className="mt-2 text-[10px] text-zinc-400">
-                       Joined {new Date(student.joinedDate || '').toLocaleDateString()}
-                     </div>
+                      <div className="mt-2 text-[10px] text-zinc-400">
+                        Joined {formatJoined(student.joinedDate)}
+                      </div>
                    </div>
                  ))}
                  {filteredStudents.length === 0 && (
@@ -220,7 +227,7 @@ const StudentsTab: React.FC = () => {
                            )}
                         </td>
                         <td className="px-6 py-4 text-zinc-500 text-xs">
-                           {new Date(student.joinedDate || '').toLocaleDateString()}
+                           {formatJoined(student.joinedDate)}
                         </td>
                         <td className="px-6 py-4 text-right">
                            <div className="flex justify-end items-center gap-2">

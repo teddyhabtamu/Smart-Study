@@ -25,6 +25,7 @@ const CommunityTab: React.FC = () => {
     id: null,
     title: null
   });
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
 
   const handleDeletePost = (id: string, title: string) => {
     setDeletePostConfirmation({
@@ -35,8 +36,9 @@ const CommunityTab: React.FC = () => {
   };
 
   const confirmDeletePost = async () => {
-    if (!deletePostConfirmation.id) return;
+    if (!deletePostConfirmation.id || isDeletingPost) return;
 
+    setIsDeletingPost(true);
     try {
       await deleteForumPost(deletePostConfirmation.id);
       await fetchForumPosts(); // Refresh posts list
@@ -46,6 +48,8 @@ const CommunityTab: React.FC = () => {
       console.error('Delete post error:', error);
       const errorMessage = error?.message || 'Failed to delete post. Please try again.';
       addToast(errorMessage, 'error');
+    } finally {
+      setIsDeletingPost(false);
     }
   };
 
@@ -58,7 +62,7 @@ const CommunityTab: React.FC = () => {
          <div className="space-y-4 sm:space-y-6 animate-fade-in">
             <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
               <h2 className="text-base sm:text-lg font-bold text-zinc-900 mb-2">Community Moderation</h2>
-              <p className="text-xs sm:text-sm text-zinc-500">Review flagged posts and manage discussions.</p>
+              <p className="text-xs sm:text-sm text-zinc-500">Review and manage discussions.</p>
             </div>
 
             {loading.forumPosts ? (
@@ -83,13 +87,13 @@ const CommunityTab: React.FC = () => {
                          <p className="text-xs sm:text-sm text-zinc-600 line-clamp-2 mb-3 bg-zinc-50 p-2 sm:p-3 rounded-lg border border-zinc-100 italic">
                             "{post.content}"
                          </p>
-                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
-                            <span className="truncate">Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
-                            <span className="hidden sm:inline">•</span>
-                            <span className="text-[10px] sm:text-xs">{post.createdAt}</span>
-                            <span className="hidden sm:inline">•</span>
-                            <span className="text-[10px] sm:text-xs">{post.comment_count} comments</span>
-                         </div>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
+                             <span className="truncate">Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
+                             <span className="hidden sm:inline">•</span>
+                             <span className="text-[10px] sm:text-xs">{(post as any).created_at ? new Date((post as any).created_at).toLocaleDateString() : '—'}</span>
+                             <span className="hidden sm:inline">•</span>
+                             <span className="text-[10px] sm:text-xs">{post.comment_count} comments</span>
+                          </div>
                       </div>
                    </div>
                  ))}
@@ -125,9 +129,10 @@ const CommunityTab: React.FC = () => {
                 </button>
                 <button
                   onClick={confirmDeletePost}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  disabled={isDeletingPost}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Delete Forever
+                  {isDeletingPost ? 'Deleting…' : 'Delete Forever'}
                 </button>
               </div>
             </div>
