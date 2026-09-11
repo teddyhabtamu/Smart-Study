@@ -15,6 +15,11 @@ const aiErrorResponse = (error: any): { status: number; message: string } => {
   return { status: 500, message: 'Failed to generate AI response' };
 };
 
+// Free tier: 1 AI-generated quiz per UTC day, enforced here (the scarce
+// resource is generation). The old gate was client-side only on a lifetime
+// counter, so direct API calls bypassed it entirely.
+const FREE_DAILY_QUIZ_LIMIT = 1;
+
 const router = express.Router();
 
 // Configure multer for image uploads (memory storage)
@@ -645,14 +650,43 @@ router.post('/generate-practice-quiz', authenticateToken, async (req: express.Re
       return;
     }
 
+    // Server-side daily gate for free users. Postgres compares the window
+    // date so day rollover needs no cron and no timezone guessing.
+    if (!user.is_premium) {
+      const usedRes = await query(
+        `SELECT CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) ELSE 0 END AS used_today
+         FROM users WHERE id = $1`,
+        [userId]
+      );
+      const usedToday = Number(usedRes.rows[0]?.used_today || 0);
+      if (usedToday >= FREE_DAILY_QUIZ_LIMIT) {
+        res.status(429).json({
+          success: false,
+          message: "You've used your free daily practice session. Upgrade to Student Pro for unlimited AI-generated quizzes.",
+          code: 'DAILY_LIMIT_REACHED'
+        } as ApiResponse);
+        return;
+      }
+    }
+
     // Generate questions via the dedicated Gemini quiz generator
     const { generatePracticeQuiz } = await import('../services/aiTutor');
     const questions = await generatePracticeQuiz(subject, Number(grade), difficulty, Math.min(Number(count) || 5, 10));
 
-    // Award XP for generating practice questions
+    // Award XP for generating practice questions + consume one daily window
+    // slot (free users). Charged only on success — failed generations are free.
     const newXp = (user.xp || 0) + 5;
     const newLevel = Math.floor(newXp / 1000) + 1;
-    await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
+    await query(
+      `UPDATE users
+       SET xp = $1,
+           level = $2,
+           daily_quiz_count = CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) + 1 ELSE 1 END,
+           daily_quiz_date = CURRENT_DATE,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [newXp, newLevel, userId]
+    );
 
     res.json({
       success: true,

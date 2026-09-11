@@ -57,18 +57,11 @@ export const generatePracticeQuiz = async (subject: string, grade: string, diffi
   } catch (error) {
     console.error('Practice quiz generation error:', error);
 
-    // Fallback to basic questions if API fails
-    const fallbackQuestions = [];
-    for (let i = 0; i < Math.min(count, 3); i++) {
-      fallbackQuestions.push({
-        question: `Practice question ${i + 1} for ${subject} (Grade ${grade})`,
-        options: ["Option A", "Option B", "Option C", "Option D"],
-        correctAnswer: "Option A",
-        explanation: "This is a practice question. The AI service is currently unavailable."
-      });
-    }
-
-    return { questions: fallbackQuestions, xpGained: 0 };
+    // Never fabricate quiz content: placeholder questions with a hardcoded
+    // "Option A" answer would teach wrong answers and count as a fake
+    // success downstream. Surface the failure so the UI can explain it.
+    // (Limit/quota errors carry a machine-readable code for the UI.)
+    throw error;
   }
 };
 

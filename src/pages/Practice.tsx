@@ -40,7 +40,7 @@ interface Question {
 const STORAGE_KEY = 'smartstudy_practice_state';
 
 const Practice: React.FC = () => {
-  const { user, gainXP, updateUser } = useAuth();
+  const { user, gainXP } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -62,7 +62,6 @@ const Practice: React.FC = () => {
     return () => clearInterval(timer);
   }, [view]);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
   
   // Config State (grade defaults to the user's real school grade when set)
   const [subject, setSubject] = useState('Mathematics');
@@ -86,14 +85,16 @@ const Practice: React.FC = () => {
   const [score, setScore] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
 
-  // Restore State on Mount
+  // Restore State on Mount. Guard against empty/corrupt payloads — a
+  // restored 'result' view with zero questions renders NaN% and a trophy
+  // for nothing.
   useEffect(() => {
     const savedState = localStorage.getItem(STORAGE_KEY);
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState);
         // Only restore if user is still in a quiz session
-        if (parsed.view === 'quiz' || parsed.view === 'result') {
+        if ((parsed.view === 'quiz' || parsed.view === 'result') && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
           setQuestions(parsed.questions || []);
           setCurrentQIndex(parsed.currentQIndex || 0);
           setAnswers(parsed.answers || {});
@@ -149,24 +150,17 @@ const Practice: React.FC = () => {
       return;
     }
 
-    // Check Limit: If not premium and has used >= 1 attempt
-    if (!user.isPremium && (user.practiceAttempts || 0) >= 1) {
-      setView('limit');
-      return;
-    }
-
+    // No client-side gate: the free daily limit is enforced server-side at
+    // generation time (the old local check ran on a lifetime counter that
+    // never reset and never persisted). A 429 with DAILY_LIMIT_REACHED lands
+    // in the limit view below.
     setIsStarting(true);
     setView('loading');
-    
+
     try {
       const { questions: quizData, xpGained } = await generatePracticeQuiz(subject, grade, difficulty, parseInt(qCount));
 
       if (quizData && quizData.length > 0) {
-        // Increment usage for free users
-        if (!user.isPremium) {
-          updateUser({ practiceAttempts: (user.practiceAttempts || 0) + 1 });
-        }
-
         // Award XP for generating questions (handled by backend)
         if (gainXP && xpGained > 0) {
           gainXP(xpGained);
@@ -183,10 +177,14 @@ const Practice: React.FC = () => {
         addToast("Failed to generate quiz. Please try again.", "error");
         setView('config');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      addToast("An error occurred while generating questions.", "error");
-      setView('config');
+      if (e?.code === 'DAILY_LIMIT_REACHED') {
+        setView('limit');
+      } else {
+        addToast("An error occurred while generating questions.", "error");
+        setView('config');
+      }
     } finally {
       setIsStarting(false);
     }
@@ -225,7 +223,6 @@ const Practice: React.FC = () => {
 
     // Show results immediately — never gate the UI on the network
     setView('result');
-    setIsCalculating(false);
 
     // Award XP in the background
     const xpEarned = correctCount * 10;
@@ -246,11 +243,6 @@ const Practice: React.FC = () => {
       xpEarned,
       isHighScore: false // TODO: Implement high score tracking
     }).catch((error) => console.error('Background quiz record failed:', error));
-  };
-
-  const calculateResults = async () => {
-    // Kept for compatibility; finishQuiz() is the instant path used by handleNext.
-    finishQuiz();
   };
 
   const resetQuiz = () => {
@@ -301,8 +293,6 @@ const Practice: React.FC = () => {
   }
 
   if (view === 'config') {
-    const attemptsLeft = user && !user.isPremium ? Math.max(0, 1 - (user.practiceAttempts || 0)) : '∞';
-
     return (
       <div className="max-w-2xl mx-auto py-8 sm:py-12 px-4 sm:px-6 animate-fade-in">
         <div className="text-center mb-8 sm:mb-10">
@@ -310,11 +300,15 @@ const Practice: React.FC = () => {
             <BrainCircuit size={24} className="sm:w-8 sm:h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">Practice Center</h1>
-          <p className="text-zinc-500 mt-2 text-sm sm:text-base">Generate unlimited quizzes powered by AI to master any subject.</p>
+          <p className="text-zinc-500 mt-2 text-sm sm:text-base">
+            {user?.isPremium
+              ? 'Generate unlimited quizzes powered by AI to master any subject.'
+              : 'Generate an AI quiz to master any subject — 1 free quiz per day.'}
+          </p>
 
           {!user?.isPremium && user && (
              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-zinc-100 rounded-full text-xs font-medium text-zinc-600 border border-zinc-200">
-               <Lock size={12} /> Free Practices Left: {attemptsLeft}
+               <Lock size={12} /> 1 free quiz per day
              </div>
           )}
         </div>
@@ -458,17 +452,10 @@ const Practice: React.FC = () => {
            </button>
            <button
              onClick={handleNext}
-             disabled={!answers[currentQIndex] || isCalculating}
+             disabled={!answers[currentQIndex]}
              className="px-6 sm:px-8 py-3 bg-zinc-900 text-white font-bold rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-zinc-900/10 text-sm sm:text-base flex items-center justify-center gap-2"
            >
-             {isCalculating ? (
-               <>
-                 <Loader2 size={16} className="animate-spin" />
-                 Calculating...
-               </>
-             ) : (
-               currentQIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'
-             )}
+             {currentQIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
            </button>
         </div>
 
