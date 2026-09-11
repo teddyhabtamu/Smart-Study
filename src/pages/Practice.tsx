@@ -73,6 +73,8 @@ const Practice: React.FC = () => {
   const [answers, setAnswers] = useState<{[key: number]: string}>({}); // Index -> Selected Option
   const [score, setScore] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  // True when this result beat the stored per-subject best (local baseline)
+  const [isNewBest, setIsNewBest] = useState(false);
 
   // Restore State on Mount. Guard against empty/corrupt payloads — a
   // restored 'result' view with zero questions renders NaN% and a trophy
@@ -88,6 +90,7 @@ const Practice: React.FC = () => {
           setCurrentQIndex(parsed.currentQIndex || 0);
           setAnswers(parsed.answers || {});
           setScore(parsed.score || 0);
+          setIsNewBest(!!parsed.isNewBest);
           setView(parsed.view);
           
           // Restore config too just in case
@@ -113,11 +116,12 @@ const Practice: React.FC = () => {
         currentQIndex,
         answers,
         score,
+        isNewBest,
         config: { subject, grade, difficulty, qCount }
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     }
-  }, [view, questions, currentQIndex, answers, score, subject, grade, difficulty, qCount]);
+  }, [view, questions, currentQIndex, answers, score, isNewBest, subject, grade, difficulty, qCount]);
 
   // Options
   const subjectOptions = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
@@ -203,6 +207,21 @@ const Practice: React.FC = () => {
     });
     setScore(correctCount);
 
+    // Per-subject best baseline (local): beaten only by strictly topping a
+    // real previous record — the first quiz of a subject sets the baseline
+    // silently instead of celebrating itself.
+    const pct = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+    const bestKey = `smartstudy_quiz_best_${subject}`;
+    let prevBest = 0;
+    try {
+      prevBest = Number(localStorage.getItem(bestKey) || 0) || 0;
+    } catch { /* private mode: no baseline, no celebration */ }
+    const newBest = prevBest > 0 && pct > prevBest;
+    setIsNewBest(newBest);
+    if (questions.length > 0 && pct > prevBest) {
+      try { localStorage.setItem(bestKey, String(pct)); } catch { /* ignore */ }
+    }
+
     // Calculate time spent
     const endTime = new Date();
     const timeSpentMs = startTime ? endTime.getTime() - startTime.getTime() : 0;
@@ -230,7 +249,7 @@ const Practice: React.FC = () => {
       totalQuestions: questions.length,
       timeSpent,
       xpEarned,
-      isHighScore: false // TODO: Implement high score tracking
+      isHighScore: newBest
     }).catch((error) => console.error('Background quiz record failed:', error));
   };
 
@@ -240,6 +259,7 @@ const Practice: React.FC = () => {
     setQuestions([]);
     setAnswers({});
     setScore(0);
+    setIsNewBest(false);
     // Clear persisted state
     localStorage.removeItem(STORAGE_KEY);
   };
@@ -496,7 +516,12 @@ const Practice: React.FC = () => {
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 backdrop-blur-sm">
                  <Trophy size={32} className="sm:w-10 sm:h-10" />
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold mb-2">{percentage}%</h1>
+               <h1 className="text-3xl sm:text-4xl font-bold mb-2">{percentage}%</h1>
+               {isNewBest && (
+                 <div className="inline-flex items-center gap-1.5 bg-amber-400 text-zinc-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
+                   <Trophy size={12} /> New best!
+                 </div>
+               )}
               <p className="text-zinc-300 text-base sm:text-lg mb-4 sm:mb-6">
                 You answered {score} out of {questions.length} correctly.
               </p>

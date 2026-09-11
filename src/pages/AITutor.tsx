@@ -55,6 +55,10 @@ const AITutor: React.FC = () => {
   const [subjectFocus, setSubjectFocus] = useState('General');
   const [deepThinking, setDeepThinking] = useState(false);
   const [userGrade, setUserGrade] = useState<number>(10); // Default to 10, will be updated from user profile
+  // True once the grade above is final (profile value, legacy heuristic, or
+  // confirmed default) — the dashboard deep-link waits for this so the first
+  // message never goes out with a stale grade context.
+  const [gradeReady, setGradeReady] = useState(false);
 
   // Guest usage tracking
   const [guestPromptCount, setGuestPromptCount] = useState(0);
@@ -137,6 +141,8 @@ const AITutor: React.FC = () => {
   // (kept so existing users without a set grade keep roughly-correct context)
   // > default 10.
   useEffect(() => {
+    // Reset on account switch so a deep-link never uses the previous user's grade
+    setGradeReady(false);
     const loadUserGrade = async () => {
       if (user?.grade) {
         setUserGrade(user.grade);
@@ -170,7 +176,7 @@ const AITutor: React.FC = () => {
       }
     };
 
-    loadUserGrade();
+    loadUserGrade().finally(() => setGradeReady(true));
   }, [user]);
 
   // Cleanup image preview on unmount
@@ -182,16 +188,23 @@ const AITutor: React.FC = () => {
     };
   }, [imagePreview]);
 
-  // Handle Initial Prompt from Dashboard
+  // Latest handleSend for the deep-link effect below. The effect is gated
+  // on gradeReady (not on handleSend identity), so without this ref it would
+  // call the first-render closure with a stale grade and guest counter.
+  const handleSendRef = useRef<(text?: string) => Promise<void>>(async () => {});
+
+  // Handle Initial Prompt from Dashboard — waits for the grade so the first
+  // message carries the right school context. The processed-ref keeps this
+  // exactly-once across the extra runs that gradeReady causes.
   useEffect(() => {
     const state = location.state as { initialPrompt?: string };
-    if (state?.initialPrompt && !hasProcessedInitialPrompt.current) {
+    if (state?.initialPrompt && gradeReady && !hasProcessedInitialPrompt.current) {
       hasProcessedInitialPrompt.current = true;
-      handleSend(state.initialPrompt);
+      handleSendRef.current(state.initialPrompt);
       // Clear state to prevent re-sending on refresh
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [location.state, gradeReady]);
 
   // Speech Recognition Setup
   useEffect(() => {
@@ -476,6 +489,8 @@ const AITutor: React.FC = () => {
       setStreamingIndex(null);
     }
   };
+  // Keep the ref above in sync (assignment during render is safe for refs)
+  handleSendRef.current = handleSend;
 
   const handleExportChat = () => {
     if (messages.length <= 1) return;
