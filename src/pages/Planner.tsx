@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -54,7 +54,7 @@ const typeDot = (type: string): string => {
 
 const Planner: React.FC = () => {
   const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading } = useData();
-  const { user, gainXP } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -156,11 +156,12 @@ const Planner: React.FC = () => {
     setSelectedEventId(eventId);
   };
   
-  // Close tooltip function
-  const closeTooltip = () => {
+  // Close tooltip function (memoized: two effects depend on it, and an
+  // inline closure would resubscribe their listeners on every render)
+  const closeTooltip = useCallback(() => {
     setSelectedEventId(null);
     setTooltipPosition(null);
-  };
+  }, []);
 
   // Track if we've fetched events to prevent duplicate calls
   const hasFetchedEventsRef = useRef(false);
@@ -232,7 +233,7 @@ const Planner: React.FC = () => {
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-  const upcomingEvents = studyEvents.filter(e => !e.isCompleted && !e.isArchived && new Date(e.date) >= new Date(new Date().setHours(0,0,0,0))).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const upcomingEvents = studyEvents.filter(e => !e.isCompleted && !e.isArchived && daysUntil(e.date) >= 0).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const completedCount = studyEvents.filter(e => e.isCompleted && !e.isArchived).length;
   
   // Group events by date
@@ -285,12 +286,16 @@ const Planner: React.FC = () => {
   const handleTaskToggle = async (id: string, isCompleted: boolean) => {
     setIsCompletingEvent(id);
     try {
-      await updateStudyEvent(id, { isCompleted: !isCompleted });
+      // The backend awards typed XP on false→true (Exam 50 / Assignment 30 /
+      // Revision 20) and returns it — no second gainXP call here. The old
+      // code called gainXP(50) on top, double-paying every completion.
+      const updated = await updateStudyEvent(id, { isCompleted: !isCompleted });
       if (!isCompleted) { // If marking as complete
-        const { leveledUp, newLevel } = await gainXP(50);
-        addToast("+50 XP Task Completed!", "success");
-        if (leveledUp) {
-          setTimeout(() => addToast(`Level Up! You are now Level ${newLevel}`, "info"), 500);
+        await refreshUser(); // sync header XP/level with the award
+        const xp = updated.xpGained ?? 0;
+        addToast(xp > 0 ? `+${xp} XP Task Completed!` : "Task completed!", "success");
+        if (updated.leveledUp && updated.newLevel) {
+          setTimeout(() => addToast(`Level Up! You are now Level ${updated.newLevel}`, "info"), 500);
         }
       }
     } catch (error) {
@@ -393,20 +398,22 @@ const Planner: React.FC = () => {
 
       if (validItems.length > 0) {
         await createStudyEventsBatch(validItems);
+        // Refresh the study events to ensure they're displayed
+        await fetchStudyEvents();
+        addToast(`Study plan generated successfully! (${validItems.length} sessions scheduled)`, "success");
+        // Only dismiss + clear on success — a failure keeps the modal open
+        // with the prompt intact so the user can retry or rephrase.
+        setIsAIModalOpen(false);
+        setAiPrompt('');
+      } else {
+        addToast("The AI returned no usable sessions. Try rephrasing your goal with clearer deadlines.", "warning");
       }
-
-      // Refresh the study events to ensure they're displayed
-      await fetchStudyEvents();
-
-      addToast(`Study plan generated successfully! (${validItems.length} sessions scheduled)`, "success");
     } catch (error) {
       console.error('AI generation error:', error);
-      addToast("Failed to generate study plan. Please try again.", "error");
+      addToast("Failed to generate study plan. Your prompt is preserved — please try again.", "error");
     } finally {
       clearInterval(timer);
       setIsGenerating(false);
-      setIsAIModalOpen(false);
-      setAiPrompt('');
     }
   };
 
@@ -455,11 +462,13 @@ const Planner: React.FC = () => {
       // Notes is not valid JSON, will use fallback
     }
     
-    // Fallback to generated guide if AI content not available
-    const daysUntil = Math.ceil((new Date(event.date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    const isUpcoming = daysUntil > 0;
-    const isToday = daysUntil === 0;
-    const isPast = daysUntil < 0;
+    // Fallback to generated guide if AI content not available. Reuses the
+    // module-level daysUntil() (same as the urgency pills) so the guide
+    // never disagrees with the badge next to the task.
+    const daysLeft = daysUntil(event.date);
+    const isUpcoming = daysLeft > 0;
+    const isToday = daysLeft === 0;
+    const isPast = daysLeft < 0;
     const eventTitle = event.title.toLowerCase();
     const subject = event.subject;
 
@@ -467,17 +476,25 @@ const Planner: React.FC = () => {
     let howToCompleteSteps: string[] = [];
     
     if (event.type === 'Exam') {
-      if (isUpcoming && daysUntil > 0) {
-        const day1End = Math.max(1, Math.floor(daysUntil * 0.3));
+      if (isUpcoming && daysLeft >= 4) {
+        const day1End = Math.max(1, Math.floor(daysLeft * 0.3));
         const day2Start = Math.max(2, day1End + 1);
-        const day2End = Math.max(2, Math.floor(daysUntil * 0.7));
+        const day2End = Math.max(2, Math.floor(daysLeft * 0.7));
         const day3Start = Math.max(3, day2End + 1);
-        
+
         howToCompleteSteps = [
           `Day 1-${day1End}: Review all ${subject} concepts. Focus on understanding fundamentals and key formulas.`,
           `Day ${day2Start}-${day2End}: Practice ${subject} problems. Work on past exam questions and identify weak areas.`,
-          `Day ${day3Start}-${daysUntil - 1}: Intensive review. Focus on difficult topics and take timed practice tests.`,
-          `Day ${daysUntil} (Exam Day): Final review. Go through key formulas (30 min), get good sleep, and stay confident.`
+          `Day ${day3Start}-${daysLeft - 1}: Intensive review. Focus on difficult topics and take timed practice tests.`,
+          `Day ${daysLeft} (Exam Day): Final review. Go through key formulas (30 min), get good sleep, and stay confident.`
+        ];
+      } else if (isUpcoming) {
+        // 1-3 days out the phased split above produces nonsense ranges
+        // (e.g. "Day 3-1"), so use a compact countdown instead.
+        howToCompleteSteps = [
+          `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''}: list the ${subject} topics most likely to appear and rank them by confidence.`,
+          `Drill past ${subject} questions on your weakest topics first, then review mistakes the same day.`,
+          `Do a final pass over ${subject} formulas and key facts, then rest — cramming all night hurts more than it helps.`
         ];
       } else if (isToday) {
         howToCompleteSteps = [
@@ -524,7 +541,7 @@ const Planner: React.FC = () => {
           `Spend extra time on topics you find hard, but don't forget to review what you're good at too`
         ],
         suggestions: isUpcoming 
-          ? `You have ${daysUntil} day${daysUntil > 1 ? 's' : ''} to get ready for your ${subject} exam. Start with a good review of everything, then spend time practicing problems. Make sure to give each topic the time it needs.`
+          ? `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''} to get ready for your ${subject} exam. Start with a good review of everything, then spend time practicing problems. Make sure to give each topic the time it needs.`
           : isToday
           ? `It's your ${subject} exam today! Do a quick 30-minute review of your notes, drink plenty of water, get enough sleep, and go in feeling confident. You've got this!`
           : `Think about how your ${subject} exam went. What did you do well? What would you change? Use this to do even better next time.`,
@@ -546,7 +563,7 @@ const Planner: React.FC = () => {
           `Double-check that you've done everything the assignment asked for before you submit`
         ],
         suggestions: isUpcoming
-          ? `You have ${daysUntil} day${daysUntil > 1 ? 's' : ''} to finish your ${subject} assignment. Start by making sure you understand what's needed and gathering your materials. Work on it a bit each day so you're not rushing at the end.`
+          ? `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''} to finish your ${subject} assignment. Start by making sure you understand what's needed and gathering your materials. Work on it a bit each day so you're not rushing at the end.`
           : isToday
           ? `Finish up your ${subject} assignment today! Check that you've met all the requirements, fix any mistakes, make sure the formatting looks good, and submit it feeling confident.`
           : `Nice work finishing your ${subject} assignment! Think about what you learned and how you can use it going forward.`,
@@ -568,7 +585,7 @@ const Planner: React.FC = () => {
           `Try explaining ${subject} concepts to someone else or just out loud to yourself`
         ],
         suggestions: isUpcoming
-          ? `You have ${daysUntil} day${daysUntil > 1 ? 's' : ''} for this ${subject} study session. Use this time to build a solid understanding. Review your ${subject} materials regularly and make sure everything makes sense.`
+          ? `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''} for this ${subject} study session. Use this time to build a solid understanding. Review your ${subject} materials regularly and make sure everything makes sense.`
           : isToday
           ? `Make today's ${subject} study session count! Set clear goals, find a quiet place to focus, and remember to take breaks when you need them.`
           : `Great job finishing this ${subject} study session! Keep up the good work with your next study plan.`,
@@ -652,7 +669,7 @@ const Planner: React.FC = () => {
                                   {u.label}
                                 </span>
                                 <span className="text-xs font-medium text-zinc-500">
-                                   {new Date(event.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                   {new Date(String(event.date).slice(0, 10) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                 </span>
                               </span>
                             );
@@ -708,7 +725,7 @@ const Planner: React.FC = () => {
                </div>
                <div className="min-w-0">
                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">XP Reward</p>
-                 <p className="text-sm text-zinc-700">Complete tasks to earn <span className="font-bold">50 XP</span> each!</p>
+                 <p className="text-sm text-zinc-700">Complete tasks to earn up to <span className="font-bold">50 XP</span> each!</p>
                </div>
            </div>
         </div>
@@ -887,8 +904,8 @@ const Planner: React.FC = () => {
            ) : Object.keys(groupedEvents).length > 0 ? (
              visibleDateKeys.map(dateKey => (
                <div key={dateKey} className="animate-slide-up">
-                  <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 sticky top-0 bg-zinc-50/95 py-2 backdrop-blur-sm z-10 flex items-center justify-between">
-                    {new Date(dateKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                   <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 sticky top-0 bg-zinc-50/95 py-2 backdrop-blur-sm z-10 flex items-center justify-between">
+                     {new Date(dateKey + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                     <span className="text-[10px] bg-zinc-100 px-2 py-0.5 rounded-full text-zinc-400 font-medium">
                       {groupedEvents[dateKey].length} Tasks
                     </span>
@@ -924,7 +941,7 @@ const Planner: React.FC = () => {
                                ? 'text-emerald-500'
                                : 'text-zinc-300 hover:text-emerald-500'
                            } disabled:opacity-50 disabled:cursor-not-allowed`}
-                           title={event.isCompleted ? "Mark as pending" : "Complete task (+50 XP)"}
+                            title={event.isCompleted ? "Mark as pending" : "Complete task"}
                          >
                            {isCompletingEvent === event.id ? (
                              <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
@@ -979,7 +996,8 @@ const Planner: React.FC = () => {
                             </p>
                          </div>
 
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Hover-reveal on desktop; always visible on touch (no hover) + keyboard focus */}
+                        <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
                           {statusFilter === 'archived' ? (
                             <button
                               onClick={(e) => {

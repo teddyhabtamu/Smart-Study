@@ -175,4 +175,9 @@ export interface StudyEvent {
   isCompleted: boolean;
   isArchived: boolean;
   notes?: string;
+  // Transient award info returned by PUT /planner/events/:id on a
+  // false→true completion (typed amount: Exam 50 / Assignment 30 / Revision 20)
+  xpGained?: number;
+  newLevel?: number;
+  leveledUp?: boolean;
 }

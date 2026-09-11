@@ -274,13 +274,22 @@ router.put('/events/:id', [
 
     const updates = req.body;
 
-    // Award XP for completing events
+    // Award XP for completing events. This is the ONLY award path — the old
+    // frontend also called gainXP(50) after this update, double-paying every
+    // completion (e.g. Revision paid 20 + 50). Guarded to false→true so
+    // re-saving an already-completed event pays nothing.
+    let xpGained = 0;
+    let newLevel: number | undefined;
+    let leveledUp = false;
     if (updates.is_completed === true && !event.is_completed) {
       const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
       if (user) {
+        const oldLevel = user.level || 1;
         const xpGain = event.event_type === 'Exam' ? 50 : event.event_type === 'Revision' ? 20 : 30;
         const newXp = (user.xp || 0) + xpGain;
-        const newLevel = Math.floor(newXp / 1000) + 1;
+        newLevel = Math.floor(newXp / 1000) + 1;
+        leveledUp = newLevel > oldLevel;
+        xpGained = xpGain;
         dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
 
         // Record XP history
@@ -304,7 +313,7 @@ router.put('/events/:id', [
 
     res.json({
       success: true,
-      data: updated,
+      data: { ...updated, xpGained, newLevel, leveledUp },
       message: 'Study event updated successfully'
     } as ApiResponse<StudyEvent>);
   } catch (error) {

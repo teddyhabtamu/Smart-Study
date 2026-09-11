@@ -1039,7 +1039,11 @@ export const plannerAPI = {
       isArchived: updatedEvent.is_archived || false,
       notes: updatedEvent.notes,
       created_at: updatedEvent.created_at,
-      updated_at: updatedEvent.updated_at
+      updated_at: updatedEvent.updated_at,
+      // Award info on false→true completions (absent otherwise)
+      xpGained: updatedEvent.xpGained ?? 0,
+      newLevel: updatedEvent.newLevel,
+      leveledUp: updatedEvent.leveledUp ?? false
     }));
   },
 
