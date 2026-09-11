@@ -173,45 +173,34 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Why SmartStudy — real product capabilities, not invented quotes */}
       <section className="py-16 sm:py-20 bg-zinc-50 border-y border-zinc-200">
          <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-10 sm:mb-16">
-               <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-3 sm:mb-4">What Students Say</h2>
-               <p className="text-zinc-500 text-sm sm:text-base">Don't just take our word for it.</p>
+               <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-3 sm:mb-4">Why Students Choose SmartStudy</h2>
+               <p className="text-zinc-500 text-sm sm:text-base">Everything below is in the product today.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                {[
                  {
-                   name: "Dagim T.",
-                   grade: "Grade 12",
-                   text: "SmartStudy helped me ace my entrance exams. The AI tutor explains physics concepts better than my textbook!"
+                   title: "AI Tutor That Explains",
+                   text: "Step-by-step help in math, physics, chemistry and more — tuned to your grade level, with voice and image questions.",
                  },
                  {
-                   name: "Lidya M.",
-                   grade: "Grade 10",
-                   text: "I love the community feature. Being able to ask questions and get verified answers instantly has saved me so much time.",
+                   title: "Practice That Adapts",
+                   text: "AI-generated quizzes with instant answers and explanations, plus XP and levels that keep you going.",
                  },
                  {
-                   name: "Abel K.",
-                   grade: "Grade 11",
-                   text: "The library is vast and the offline mode is a lifesaver. I can study anywhere without worrying about data.",
-                 }
+                   title: "Community Answers",
+                   text: "Ask questions, get peer answers, and mark solutions — with past national exam papers to drill on.",
+                 },
                ].map((t, i) => (
                  <div key={i} className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 shadow-sm hover:shadow-md transition-all">
                     <div className="flex gap-1 mb-4">
                        {[1,2,3,4,5].map(star => <Star key={star} size={12} className="sm:w-[14px] sm:h-[14px] fill-amber-400 text-amber-400" />)}
                     </div>
-                    <p className="text-zinc-600 mb-4 sm:mb-6 leading-relaxed text-sm sm:text-base">"{t.text}"</p>
-                    <div className="flex items-center gap-3">
-                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-100 rounded-full flex items-center justify-center font-bold text-zinc-600 text-sm sm:text-base">
-                          {t.name.charAt(0)}
-                       </div>
-                       <div>
-                          <p className="font-bold text-sm text-zinc-900">{t.name}</p>
-                          <p className="text-xs text-zinc-500">{t.grade}</p>
-                       </div>
-                    </div>
+                    <p className="font-bold text-sm text-zinc-900 mb-2">{t.title}</p>
+                    <p className="text-zinc-600 leading-relaxed text-sm sm:text-base">{t.text}</p>
                  </div>
                ))}
             </div>

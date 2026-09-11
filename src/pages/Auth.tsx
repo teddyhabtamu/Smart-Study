@@ -531,23 +531,22 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             </div>
             )}
 
-            {/* Mobile Testimonial */}
+            {/* Mobile highlights — real capabilities, no invented quotes */}
             <div className="mt-6 sm:mt-8 lg:hidden p-4 bg-zinc-900 text-white rounded-xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/20 rounded-full blur-2xl -mr-4 -mt-4"></div>
                <div className="relative z-10">
                   <div className="flex gap-1 mb-3">
                      {[1,2,3,4,5].map(i => <Star key={i} size={12} className="fill-amber-400 text-amber-400" />)}
                   </div>
-                  <blockquote className="text-sm font-medium leading-relaxed mb-4">
-                    "This platform completely changed how I study. The AI tutor explains complex physics concepts in a way that actually makes sense."
-                  </blockquote>
+                  <p className="text-sm font-medium leading-relaxed mb-4">
+                     AI tutor, practice quizzes, past exam papers, and a study community — free to start.
+                  </p>
                   <div className="flex items-center gap-3">
                      <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center font-bold text-sm backdrop-blur-sm border border-white/20">
-                        S
+                        <GraduationCap size={14} />
                      </div>
                      <div>
-                        <div className="font-bold text-xs">Samuel K.</div>
-                        <div className="text-zinc-400 text-xs">Grade 12 Student</div>
+                        <div className="font-bold text-xs">Grades 9–12</div>
+                        <div className="text-zinc-400 text-xs">Ethiopian curriculum</div>
                      </div>
                   </div>
                </div>
@@ -569,25 +568,25 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
         </div>
 
         <div className="absolute inset-0 flex flex-col justify-center items-center p-6 md:p-8 lg:p-12 text-white z-10">
-           <div className="max-w-md md:max-w-lg space-y-6 md:space-y-8">
-              <div className="space-y-2">
-                 <div className="flex gap-1 mb-3 md:mb-4">
-                    {[1,2,3,4,5].map(i => <Star key={i} size={18} className="md:w-5 md:h-5 fill-amber-400 text-amber-400" />)}
-                 </div>
-                 <blockquote className="text-lg md:text-xl lg:text-2xl font-medium leading-relaxed">
-                   "This platform completely changed how I study. The AI tutor explains complex physics concepts in a way that actually makes sense."
-                 </blockquote>
-              </div>
-              
-              <div className="flex items-center gap-3 md:gap-4">
-                 <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10 rounded-full flex items-center justify-center font-bold text-base md:text-lg backdrop-blur-sm border border-white/20">
-                    S
-                 </div>
-                 <div>
-                    <div className="font-bold text-sm md:text-base">Samuel K.</div>
-                    <div className="text-zinc-400 text-xs md:text-sm">Grade 12 Student • Addis Ababa</div>
-                 </div>
-              </div>
+            <div className="max-w-md md:max-w-lg space-y-6 md:space-y-8">
+               <div className="space-y-2">
+                  <div className="flex gap-1 mb-3 md:mb-4">
+                     {[1,2,3,4,5].map(i => <Star key={i} size={18} className="md:w-5 md:h-5 fill-amber-400 text-amber-400" />)}
+                  </div>
+                  <p className="text-lg md:text-xl lg:text-2xl font-medium leading-relaxed">
+                     AI tutor, practice quizzes, past exam papers, and a study community — everything in one place.
+                  </p>
+               </div>
+
+               <div className="flex items-center gap-3 md:gap-4">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
+                     <GraduationCap size={20} className="md:w-6 md:h-6" />
+                  </div>
+                  <div>
+                     <div className="font-bold text-sm md:text-base">Grades 9–12</div>
+                     <div className="text-zinc-400 text-xs md:text-sm">Ethiopian curriculum · Free to start</div>
+                  </div>
+               </div>
 
               <div className="pt-6 md:pt-8 border-t border-white/10 flex gap-6 md:gap-8">
                  <div>

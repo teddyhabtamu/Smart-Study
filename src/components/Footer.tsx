@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Twitter, Linkedin, Github } from 'lucide-react';
+import { GraduationCap, Linkedin, Send } from 'lucide-react';
 
 const Footer: React.FC = () => {
   return (
@@ -40,19 +40,21 @@ const Footer: React.FC = () => {
                 </ul>
              </div>
 
-             <div>
-                <h4 className="font-bold text-zinc-900 mb-4">Connect</h4>
-                <div className="flex gap-4">
-                   <a href="#" className="text-zinc-400 hover:text-zinc-900"><Twitter size={20} /></a>
-                   <a href="https://www.linkedin.com/company/smartstudy-official" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-900"><Linkedin size={20} /></a>
-                   <a href="#" className="text-zinc-400 hover:text-zinc-900"><Github size={20} /></a>
-                </div>
-             </div>
+              <div>
+                 <h4 className="font-bold text-zinc-900 mb-4">Connect</h4>
+                 <div className="flex gap-4">
+                    {/* Only channels that actually exist: Telegram support +
+                        LinkedIn. The old Twitter/GitHub href="#" links just
+                        jumped to the top of the page. */}
+                    <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" title="Telegram" className="text-zinc-400 hover:text-zinc-900"><Send size={20} /></a>
+                    <a href="https://www.linkedin.com/company/smartstudy-official" target="_blank" rel="noopener noreferrer" title="LinkedIn" className="text-zinc-400 hover:text-zinc-900"><Linkedin size={20} /></a>
+                 </div>
+              </div>
           </div>
           
-          <div className="border-t border-zinc-200 pt-8 flex flex-col md:flex-row justify-center items-center gap-4 text-sm text-zinc-400">
-             <p>© 2024 SmartStudy. All rights reserved.</p>
-          </div>
+           <div className="border-t border-zinc-200 pt-8 flex flex-col md:flex-row justify-center items-center gap-4 text-sm text-zinc-400">
+              <p>© {new Date().getFullYear()} SmartStudy. All rights reserved.</p>
+           </div>
        </div>
     </footer>
   );

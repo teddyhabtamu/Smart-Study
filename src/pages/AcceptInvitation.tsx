@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GraduationCap, Lock, CheckCircle2, Loader2, AlertCircle, Crown, Eye, EyeOff } from 'lucide-react';
 import { authAPI } from '../services/api';
@@ -18,6 +18,14 @@ const AcceptInvitation: React.FC = () => {
   const [token, setToken] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // Redirect timer handle so unmounting within the 2s window can't navigate
+  // a dead page
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const tokenParam = searchParams.get('token');
@@ -66,7 +74,7 @@ const AcceptInvitation: React.FC = () => {
       addToast('Invitation accepted! Your account has been activated.', 'success');
       
       // Redirect to dashboard after 2 seconds
-      setTimeout(() => {
+      redirectTimer.current = setTimeout(() => {
         navigate('/dashboard');
       }, 2000);
     } catch (error: any) {

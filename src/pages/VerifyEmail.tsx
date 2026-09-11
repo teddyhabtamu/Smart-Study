@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GraduationCap, CheckCircle2, Loader2, AlertCircle, Mail } from 'lucide-react';
 import { authAPI } from '../services/api';
@@ -16,6 +16,15 @@ const VerifyEmail: React.FC = () => {
   const [resendEmail, setResendEmail] = useState('');
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  // Timer handles so unmounting mid-countdown/redirect doesn't act on a dead page
+  const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (resendTimer.current) clearInterval(resendTimer.current);
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const tokenParam = searchParams.get('token');
@@ -34,10 +43,12 @@ const VerifyEmail: React.FC = () => {
       const res = await authAPI.resendVerification(resendEmail.trim());
       addToast(res.message || 'Verification email sent. Check your inbox (and spam).', 'success');
       setResendCooldown(60);
-      const timer = setInterval(() => {
+      if (resendTimer.current) clearInterval(resendTimer.current);
+      resendTimer.current = setInterval(() => {
         setResendCooldown((prev) => {
           if (prev <= 1) {
-            clearInterval(timer);
+            if (resendTimer.current) clearInterval(resendTimer.current);
+            resendTimer.current = null;
             return 0;
           }
           return prev - 1;
@@ -69,7 +80,7 @@ const VerifyEmail: React.FC = () => {
         addToast('Email verified successfully! Welcome to SmartStudy!', 'success');
         
         // Redirect to dashboard after 2 seconds
-        setTimeout(() => {
+        redirectTimer.current = setTimeout(() => {
           navigate('/dashboard');
         }, 2000);
       } else {
