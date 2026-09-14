@@ -3,6 +3,8 @@ import https from 'https';
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config';
 import { query, supabaseAdmin, dbAdmin } from '../database/config';
+import { BADGE_DEFINITIONS } from '../constants';
+import { NotificationService } from './notificationService';
 
 export interface EmailNotificationData {
   to: string;
@@ -739,9 +741,10 @@ export class EmailService {
       
       // Get all users with email notifications enabled
       const usersResult = await query(
-        `SELECT id, name, email, preferences, is_premium 
-         FROM users 
-         WHERE email IS NOT NULL AND email != ''`
+        `SELECT id, name, email, preferences, is_premium
+         FROM users
+         WHERE email IS NOT NULL AND email != ''
+           AND status NOT IN ('Banned', 'Suspended', 'Inactive')`
       );
 
       if (usersResult.rows.length === 0) {
@@ -869,9 +872,10 @@ export class EmailService {
       
       // Get all users with email notifications enabled
       const usersResult = await query(
-        `SELECT id, name, email, preferences, is_premium 
-         FROM users 
-         WHERE email IS NOT NULL AND email != ''`
+        `SELECT id, name, email, preferences, is_premium
+         FROM users
+         WHERE email IS NOT NULL AND email != ''
+           AND status NOT IN ('Banned', 'Suspended', 'Inactive')`
       );
 
       if (usersResult.rows.length === 0) {
@@ -999,9 +1003,10 @@ export class EmailService {
       
       // Get all users with email notifications enabled
       const usersResult = await query(
-        `SELECT id, name, email, preferences, is_premium 
-         FROM users 
-         WHERE email IS NOT NULL AND email != ''`
+        `SELECT id, name, email, preferences, is_premium
+         FROM users
+         WHERE email IS NOT NULL AND email != ''
+           AND status NOT IN ('Banned', 'Suspended', 'Inactive')`
       );
 
       if (usersResult.rows.length === 0) {
@@ -1561,16 +1566,10 @@ export class EmailService {
   ): Promise<string[]> {
     try {
       const newUnlockedBadges: string[] = [];
-      
-      // Badge requirements (matching frontend constants)
-      const badgeRequirements = [
-        { id: 'b1', requiredLevel: 1, name: 'First Steps', description: 'Create your account and start learning.' },
-        { id: 'b2', requiredLevel: 5, name: 'Dedicated Student', description: 'Reach Level 5 by earning XP.' },
-        { id: 'b3', requiredLevel: 10, name: 'Scholar', description: 'Reach Level 10 and master your subjects.' },
-        { id: 'b4', requiredStreak: 7, name: 'Streak Master', description: 'Maintain a 7-day study streak.' },
-        { id: 'b5', requiredLevel: 2, name: 'Community Pillar', description: 'Contribute helpful answers in the forum.' },
-        { id: 'b6', requiredLevel: 20, name: 'Top of the Class', description: 'Reach Level 20. You are an expert!' }
-      ];
+
+      // Badge requirements — canonical definitions (see constants.ts), so
+      // level thresholds and names can't drift from the XP award path.
+      const badgeRequirements = BADGE_DEFINITIONS;
 
       // Check which badges should be unlocked
       for (const badge of badgeRequirements) {
@@ -1609,6 +1608,19 @@ export class EmailService {
         await dbAdmin.update('users', userId, {
           unlocked_badges: allUnlockedBadges
         });
+
+        // In-app notification per unlocked badge (previously email-only —
+        // see xpService awardXP for the same rule on the XP path).
+        for (const badgeId of newUnlockedBadges) {
+          const badge = badgeRequirements.find(b => b.id === badgeId);
+          if (badge) {
+            try {
+              await NotificationService.createBadgeUnlockedNotification(userId, badge.name);
+            } catch (notifError) {
+              console.error(`❌ Failed to create badge notification for badge ${badgeId}:`, notifError);
+            }
+          }
+        }
 
         // Get user details for email
         const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
@@ -1981,10 +1993,14 @@ export class EmailService {
       console.log('📧 Starting weekly digest email batch...');
       
       const users = await dbAdmin.get('users');
-      const eligibleUsers = users.filter((u: any) => 
-        u.email && 
-        u.name && 
-        u.role !== 'ADMIN' // Don't send to admins
+      // Staff excluded; banned/suspended/deactivated accounts must not get
+      // engagement emails.
+      const ineligibleStatuses = ['Banned', 'Suspended', 'Inactive'];
+      const eligibleUsers = users.filter((u: any) =>
+        u.email &&
+        u.name &&
+        u.role !== 'ADMIN' && // Don't send to admins
+        !ineligibleStatuses.includes(u.status)
       );
 
       console.log(`📧 Found ${eligibleUsers.length} eligible users for weekly digest`);

@@ -402,12 +402,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setErrorState('dashboard', null);
       const data = await dashboardAPI.getData();
 
-      // Transform todaysEvents to match StudyEvent interface
+      // Transform todaysEvents to match StudyEvent interface. The date comes
+      // from the server (event_date) — never recomputed as UTC-today here,
+      // which disagreed with the planner's local-midnight dates near midnight
+      // and mis-grouped merged events.
       const transformedEvents: StudyEvent[] = data.todaysEvents.map(event => ({
         id: event.id,
         title: event.title,
         subject: event.subject,
-        date: new Date().toISOString().split('T')[0], // Today's date
+        date: event.date || new Date().toISOString().split('T')[0],
         type: event.type,
         isCompleted: event.isCompleted,
         isArchived: event.isArchived || false,

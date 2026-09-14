@@ -534,7 +534,7 @@ Rules — follow ALL of them:
 8. HONESTY — NEVER invent specifics the student didn't state. If they didn't name chapters/topics (e.g. they said "maths exam" with no topic), keep guides at subject level ("review your class notes", "redo homework problems") — do NOT invent chapter names like "Algebra and Functions" or "Calculus and Vectors". Only use topics the student actually mentioned.
 9. GUIDES must be concrete and grounded: reference the student's real deadline ("your Physics assignment is tomorrow"), their grade level, and actionable steps — never generic filler repeated across days ("open your textbook" every day is forbidden). Each day's guide must feel written for THAT day.
 10. Sort days chronologically by date.
-11. SUBJECTS must use exactly these canonical names: Mathematics, Physics, Chemistry, Biology, English, History, Geography, Aptitude, SAT, ACT, GMAT, GRE, TOEFL, IELTS. Never "Maths", "Math", "Bio", etc.`;
+11. SUBJECTS must use exactly these canonical names: Mathematics, English, History, Chemistry, Physics, Biology, Civics, Geography, Economics, Business, ICT, Amharic, Afaan Oromoo, Tigrigna, Aptitude. Never "Maths", "Math", "Bio", "IT", etc. (these are the only names the planner accepts).`;
 
   const parsePlan = (raw: string): StudyPlanEntry[] | null => {
     try {

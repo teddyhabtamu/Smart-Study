@@ -1285,6 +1285,7 @@ export const dashboardAPI = {
       isCompleted: boolean;
       isArchived?: boolean;
       notes?: string;
+      date: string;
     }>;
     recentBookmarks: Array<{
       id: string;

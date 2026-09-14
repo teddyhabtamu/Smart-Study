@@ -9,6 +9,7 @@ import { awardXP } from '../services/xpService';
 import { createHash } from 'crypto';
 import { logAdminActivity } from '../services/adminAuditLog';
 import { YouTubeService } from '../services/youtubeService';
+import { CONTENT_SUBJECTS } from '../constants';
 
 const router = express.Router();
 
@@ -812,7 +813,7 @@ router.post('/', [
   requirePremium,
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('grade').isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
   body('video_url').isURL().withMessage('Valid video URL required'),
   body('duration').optional().matches(/^(\d{1,2}:)?\d{1,2}:\d{2}$/).withMessage('Duration must be in format MM:SS or HH:MM:SS'),
@@ -876,7 +877,7 @@ router.put('/:id', [
   authenticateToken,
   body('title').optional().trim().isLength({ min: 1, max: 500 }),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']),
+  body('subject').optional().isIn(CONTENT_SUBJECTS),
   body('grade').optional().custom((value) => {
     if (value === undefined || value === null) return true;
     const grade = parseInt(value);

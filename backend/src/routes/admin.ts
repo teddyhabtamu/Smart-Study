@@ -10,6 +10,7 @@ import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
 import { logAdminActivity } from '../services/adminAuditLog';
 import { supabaseAdmin } from '../database/config';
+import { CONTENT_SUBJECTS } from '../constants';
 
 const router = express.Router();
 
@@ -503,7 +504,7 @@ router.get('/content', requireRole(['ADMIN', 'MODERATOR']), async (req: express.
 router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('grade').custom((value) => {
     const grade = parseInt(value);
     if (grade === 0 || (grade >= 9 && grade <= 12)) {
@@ -582,7 +583,7 @@ router.post('/documents', requireRole(['ADMIN', 'MODERATOR']), [
 router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('grade').custom((value) => {
     const grade = parseInt(value);
     if (grade === 0 || (grade >= 9 && grade <= 12)) {

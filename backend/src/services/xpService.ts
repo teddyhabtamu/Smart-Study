@@ -1,6 +1,7 @@
 import { query, dbAdmin } from '../database/config';
 import { NotificationService } from './notificationService';
 import { EmailService } from './emailService';
+import { BADGE_DEFINITIONS } from '../constants';
 
 // ---------------------------------------------------------------------------
 // awardXP: the ONLY way XP enters a user account.
@@ -22,13 +23,7 @@ export interface AwardXPResult {
   newBadges: string[];
 }
 
-const LEVEL_BADGES = [
-  { id: 'b1', requiredLevel: 1, name: 'First Steps', description: 'Create your account and start learning.' },
-  { id: 'b2', requiredLevel: 5, name: 'Dedicated Student', description: 'Reach Level 5 by earning XP.' },
-  { id: 'b3', requiredLevel: 10, name: 'Scholar', description: 'Reach Level 10 and master your subjects.' },
-  { id: 'b5', requiredLevel: 2, name: 'Community Pillar', description: 'Contribute helpful answers in the forum.' },
-  { id: 'b6', requiredLevel: 20, name: 'Top of the Class', description: 'Reach Level 20. You are an expert!' }
-];
+const LEVEL_BADGES = BADGE_DEFINITIONS.filter((b) => b.requiredLevel !== undefined) as { id: string; requiredLevel: number; name: string; description: string }[];
 
 export const awardXP = async (
   userId: string,
@@ -91,6 +86,16 @@ export const awardXP = async (
 
   if (leveledUp) {
     await NotificationService.createLevelUpNotification(userId, newLevel);
+  }
+
+  // In-app notification per unlocked badge. Previously badges only sent
+  // email, so anyone not reading email never learned they'd earned one
+  // (createBadgeUnlockedNotification existed but had zero callers).
+  for (const badgeId of newUnlockedBadges) {
+    const badge = LEVEL_BADGES.find((b) => b.id === badgeId);
+    if (badge) {
+      await NotificationService.createBadgeUnlockedNotification(userId, badge.name);
+    }
   }
 
   if (newUnlockedBadges.length > 0 && currentUser.email && currentUser.name) {

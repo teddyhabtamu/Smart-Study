@@ -7,6 +7,7 @@ import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
 import axios from 'axios';
 import { logAdminActivity } from '../services/adminAuditLog';
+import { CONTENT_SUBJECTS } from '../constants';
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {
@@ -489,7 +490,7 @@ router.post('/', [
   requirePremium, // Only premium users can upload? Or should this be admin only?
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('grade').custom((value) => {
     const grade = parseInt(value);
     if (grade === 0 || (grade >= 9 && grade <= 12)) {
@@ -560,7 +561,7 @@ router.put('/:id', [
   authenticateToken,
   body('title').optional().trim().isLength({ min: 1, max: 500 }),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']),
+  body('subject').optional().isIn(CONTENT_SUBJECTS),
   body('grade').optional().custom((value) => {
     if (value === undefined || value === null) return true;
     const grade = parseInt(value);

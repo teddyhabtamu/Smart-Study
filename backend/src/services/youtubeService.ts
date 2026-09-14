@@ -3,26 +3,15 @@ import fs from 'fs';
 import path from 'path';
 import { dbAdmin, supabaseAdmin } from '../database/config';
 import { config } from '../config';
+import { CONTENT_SUBJECTS } from '../constants';
 
 const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3';
 
-// Subjects we currently support
-export const SUBJECTS = [
-    'Mathematics',
-    'English',
-    'History',
-    'Chemistry',
-    'Physics',
-    'Biology',
-    'Civics',
-    'Geography',
-    'Economics',
-    'Business',
-    'Amharic',
-    'Afaan Oromoo',
-    'Tigrigna',
-    'Information Technology'
-];
+// Import allowlist = the canonical content taxonomy (see constants.ts), so
+// synced videos always carry subjects the API accepts and the filters offer.
+// Previously this was a third hand-copied list ('Information Technology'
+// vs the DB's 'ICT'), which is how unfilterable subjects got imported.
+export const SUBJECTS = CONTENT_SUBJECTS;
 
 export const GRADES = [9, 10, 11, 12];
 

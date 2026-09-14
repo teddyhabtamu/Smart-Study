@@ -279,5 +279,5 @@ export const MOCK_FORUM_POSTS: ForumPost[] = [
   }
 ];
 
-export const SUBJECTS = ['All', 'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Civics', 'History', 'Geography', 'Aptitude', 'SAT', 'ACT', 'GMAT', 'GRE', 'TOEFL', 'IELTS'];
+export const SUBJECTS = ['All', 'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Civics', 'History', 'Geography', 'Economics', 'Business', 'ICT', 'Amharic', 'Afaan Oromoo', 'Tigrigna', 'Aptitude'];
 export const GRADES = ['All', '9', '10', '11', '12', 'General'];

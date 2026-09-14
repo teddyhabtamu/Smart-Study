@@ -31,7 +31,6 @@ const normalizeRole = (role: any): UserRole => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastNotificationCheck, setLastNotificationCheck] = useState<Date>(new Date());
   
   // Request deduplication - prevent multiple simultaneous calls
   const profileRequestRef = useRef<Promise<any> | null>(null);
@@ -143,7 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // Show notification to user (only once per session)
               if (!networkErrorShownRef.current) {
                 networkErrorShownRef.current = true;
-                // Try to use global dispatcher, fallback to custom event
+                // Single toast: the dispatcher/event fallback already handles
+                // provider readiness. (Previously this fired 4 stacked copies
+                // via staggered timeouts on every backend outage.)
                 const showToast = () => {
                   // Try global dispatcher first (set by ToastProvider)
                   if ((window as any).__toastDispatcher) {
@@ -162,12 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     window.dispatchEvent(event);
                   }
                 };
-                // Try multiple times to ensure ToastProvider is ready
                 showToast();
-                setTimeout(showToast, 300);
-                setTimeout(showToast, 600);
-                setTimeout(showToast, 1000);
-                setTimeout(showToast, 2000);
               }
             } catch (parseError) {
               console.error('Failed to parse cached user:', parseError);
@@ -252,7 +248,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Update user with new notifications
         if (trulyNewNotifications.length > 0 || newlyReadNotifications.length > 0) {
           setUser(prev => prev ? { ...prev, notifications: newNotifications } : null);
-          setLastNotificationCheck(new Date());
 
           // Show browser notification for new unread notifications
           if (trulyNewNotifications.length > 0) {
@@ -534,13 +529,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Check if we have a recent fetch (within cache duration) and not forcing
+    // Check if we have a recent fetch (within cache duration) and not forcing.
+    // A fresh cache means no fetch at all (this fn returns void) — the
+    // previous version only reused a still-pending promise, so the 30s cache
+    // never hit and every caller paid a full profile round-trip.
     const now = new Date();
     if (!force && lastProfileFetchRef.current) {
       const timeSinceLastFetch = now.getTime() - lastProfileFetchRef.current.getTime();
-      if (timeSinceLastFetch < PROFILE_CACHE_DURATION && profileRequestRef.current) {
-        // Return the existing promise if it's still pending
-        return profileRequestRef.current;
+      if (timeSinceLastFetch < PROFILE_CACHE_DURATION) {
+        return;
       }
     }
 
@@ -584,9 +581,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       lastProfileFetchRef.current = new Date();
     } catch (error: any) {
       console.error('Refresh user error:', error);
-      // If refresh fails due to auth error, user might be logged out
+      // If refresh fails due to auth error, the account is gone/blocked —
+      // clear everything, mirroring the boot path (token + refresh + cache).
       if (error?.message?.includes('401') || error?.message?.includes('403') || error?.message?.includes('Unauthorized')) {
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('smartstudy_user');
         setUser(null);
       } else if (error?.isTimeout || error?.isNetworkError) {
         // For timeout/network errors, keep existing user data and don't throw

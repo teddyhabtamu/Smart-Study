@@ -6,6 +6,7 @@ import { ApiResponse, StudyEvent, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
 import { awardXP } from '../services/xpService';
+import { CONTENT_SUBJECTS } from '../constants';
 
 const router = express.Router();
 
@@ -23,6 +24,18 @@ const normalizeSubject = (subject: string): string | null => {
     'chemistry': 'Chemistry',
     'physics': 'Physics',
     'biology': 'Biology',
+    'civics': 'Civics',
+    'geography': 'Geography',
+    'economics': 'Economics',
+    'business': 'Business',
+    'ict': 'ICT',
+    'information technology': 'ICT',
+    'amharic': 'Amharic',
+    'afaan oromoo': 'Afaan Oromoo',
+    'oromoo': 'Afaan Oromoo',
+    'tigrigna': 'Tigrigna',
+    'tigrinya': 'Tigrigna',
+    'aptitude': 'Aptitude',
     'sat': 'SAT',
     'act': 'ACT',
     'gmat': 'GMAT',
@@ -34,7 +47,7 @@ const normalizeSubject = (subject: string): string | null => {
   };
 
   const lowerSubject = normalized.toLowerCase();
-  return subjectMap[lowerSubject] || (['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude', 'SAT', 'ACT', 'GMAT', 'GRE', 'TOEFL', 'IELTS'].includes(normalized) ? normalized : null);
+  return subjectMap[lowerSubject] || (CONTENT_SUBJECTS.includes(normalized) || ['SAT', 'ACT', 'GMAT', 'GRE', 'TOEFL', 'IELTS'].includes(normalized) ? normalized : null);
 };
 
 // Get user's study events
@@ -102,7 +115,7 @@ router.post('/events', [
       console.error('Invalid subject received:', subject);
       res.status(400).json({
         success: false,
-        message: `Invalid subject: "${subject}". Must be one of: Mathematics, English, History, Chemistry, Physics, Biology, Aptitude, SAT, ACT, GMAT, GRE, TOEFL, IELTS`,
+        message: `Invalid subject: "${subject}". Must be one of: ${[...CONTENT_SUBJECTS, 'SAT', 'ACT', 'GMAT', 'GRE', 'TOEFL', 'IELTS'].join(', ')}`,
         errors: [{ field: 'subject', message: 'Invalid subject value' }]
       } as ApiResponse);
       return;
@@ -248,7 +261,7 @@ router.post('/events/batch', [
 router.put('/events/:id', [
   authenticateToken,
   body('title').optional().trim().isLength({ min: 1, max: 200 }),
-  body('subject').optional().isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']),
+  body('subject').optional().isIn(CONTENT_SUBJECTS),
   body('event_date').optional().isString().isLength({ min: 10, max: 10 }).withMessage('Valid date required'),
   body('event_type').optional().isIn(['Exam', 'Revision', 'Assignment']),
   body('is_completed').optional().isBoolean(),
@@ -406,7 +419,7 @@ router.get('/stats', authenticateToken, async (req: express.Request, res: expres
 // Record practice session
 router.post('/practice', [
   authenticateToken,
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('duration').isInt({ min: 1, max: 480 }).withMessage('Duration must be between 1 and 480 minutes'),
   body('topics').optional().isArray().withMessage('Topics must be an array')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
@@ -457,7 +470,7 @@ router.post('/practice', [
 // generic /users/gain-xp endpoint let any caller mint arbitrary XP.
 router.post('/practice/quiz-complete', [
   authenticateToken,
-  body('subject').isIn(['Mathematics', 'English', 'History', 'Chemistry', 'Physics', 'Biology', 'Aptitude']).withMessage('Valid subject required'),
+  body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('score').isInt({ min: 0 }).withMessage('Score must be a non-negative integer'),
   body('totalQuestions').isInt({ min: 1, max: 10 }).withMessage('Total questions must be between 1 and 10'),
   body('timeSpent').isString().trim().isLength({ min: 1 }).withMessage('Time spent is required'),
