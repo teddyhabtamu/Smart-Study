@@ -412,16 +412,17 @@ router.get('/google/callback', (req: express.Request, res: express.Response, nex
   // and real breakdowns as err. Both must land back on the login page — a
   // relative failureRedirect would point at the API host, and an err would
   // render raw JSON at this URL (the banned-user bug).
+  //
+  // The redirect carries short CODES (error=account_blocked&status=banned),
+  // never free text: the login page owns the user-facing copy and only
+  // renders whitelisted keys (see Auth.tsx oauthErrorCopy).
   passport.authenticate('google', { session: false }, async (err: any, user: any, info: any) => {
     const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
     if (err || !user) {
-      const blockedWord = !err && info?.message && ['banned', 'suspended', 'deactivated'].includes(info.message)
-        ? info.message
-        : null;
-      const message = blockedWord
-        ? `Your account has been ${blockedWord}. Please contact support for assistance.`
-        : 'Authentication failed';
-      return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(message)}`);
+      if (!err && info?.message && ['banned', 'suspended', 'deactivated'].includes(info.message)) {
+        return res.redirect(`${frontendUrl}/login?error=account_blocked&status=${info.message}`);
+      }
+      return res.redirect(`${frontendUrl}/login?error=auth_failed`);
     }
     try {
       // Generate JWT + refresh token for the authenticated user
@@ -431,7 +432,7 @@ router.get('/google/callback', (req: express.Request, res: express.Response, nex
       return res.redirect(`${frontendUrl}/auth/callback?token=${token}&refreshToken=${refreshToken}&success=true`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
-      return res.redirect(`${frontendUrl}/login?error=Authentication failed`);
+      return res.redirect(`${frontendUrl}/login?error=auth_failed`);
     }
   })(req, res, next);
 });

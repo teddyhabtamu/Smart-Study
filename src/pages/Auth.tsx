@@ -57,17 +57,30 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
     };
   }, []);
 
-  // Google OAuth failure reasons land here as ?error=... — render inline
-  // (with retry) instead of a vanishing toast, then clear the param.
+  // Google OAuth failure reasons land here as ?error=<code> — render inline
+  // (with retry) instead of a vanishing toast, then clear the param. Only
+  // whitelisted codes render; anything else is ignored (the backend sends
+  // codes, never free text).
   const oauthError = searchParams.get('error');
+  const oauthStatus = searchParams.get('status');
   const oauthErrorCopy: Record<string, string> = {
     cancelled: 'Google sign-in was cancelled before completing. Please try again.',
     invalid: 'Google sign-in failed. Please try again or use email instead.',
     verify_failed: 'We could not verify your Google account. Please try again.',
+    auth_failed: 'Google sign-in failed. Please try again or use email instead.',
+    account_blocked:
+      oauthStatus === 'suspended'
+        ? 'Your account has been suspended. Please contact support for assistance.'
+        : oauthStatus === 'deactivated'
+          ? 'Your account has been deactivated. Please contact support for assistance.'
+          : oauthStatus === 'banned'
+            ? 'Your account has been banned. Please contact support for assistance.'
+            : 'Your account is currently unable to sign in. Please contact support for assistance.',
   };
 
   const clearOauthError = () => {
     searchParams.delete('error');
+    searchParams.delete('status');
     setSearchParams(searchParams, { replace: true });
   };
 
