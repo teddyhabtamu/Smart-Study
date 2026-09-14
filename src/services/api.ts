@@ -301,7 +301,13 @@ const apiRequest = async <T>(
   let lastError: any;
   let refreshed401 = false;
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  // Retries are for idempotent reads only. A timed-out POST/PUT/DELETE may
+  // have succeeded server-side — retrying it double-applies the write
+  // (double forum posts, vote toggles that un-vote, double quiz XP).
+  const method = (options.method || 'GET').toUpperCase();
+  const maxAttempts = (method === 'GET' || method === 'HEAD') ? retries + 1 : 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const response = await fetch(url, {
         ...config,
@@ -331,10 +337,11 @@ const apiRequest = async <T>(
       }
 
       // If it's a timeout error and we have retries left, wait and retry
-      if (isNetworkError(lastError) && attempt < retries) {
+      // (reads only — writes have maxAttempts 1, so this never fires for them)
+      if (isNetworkError(lastError) && attempt < maxAttempts - 1) {
         const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
         console.warn(
-          `API request failed (attempt ${attempt + 1}/${retries + 1}): ${endpoint}. Retrying in ${delay}ms...`,
+          `API request failed (attempt ${attempt + 1}/${maxAttempts}): ${endpoint}. Retrying in ${delay}ms...`,
           lastError
         );
 
@@ -352,12 +359,17 @@ const apiRequest = async <T>(
   }
 
   // If we've exhausted all retries, throw a user-friendly error
-  console.error(`API request failed after ${retries + 1} attempts: ${endpoint}`, lastError);
+  console.error(`API request failed after ${maxAttempts} attempt(s): ${endpoint}`, lastError);
   const friendlyMessage = getUserFriendlyErrorMessage(lastError, endpoint);
   const timeoutError = new Error(friendlyMessage);
   (timeoutError as any).originalError = lastError;
   (timeoutError as any).isTimeout = isConnectionTimeoutError(lastError) || lastError?.isTimeout;
   (timeoutError as any).isNetworkError = isNetworkError(lastError) || lastError?.isNetworkError;
+  // Preserve machine-readable fields: the friendly rewrite must not swallow
+  // backend codes (FREE_LIMIT_REACHED, DAILY_LIMIT_REACHED) or HTTP status —
+  // callers branch on them.
+  if (lastError?.code) (timeoutError as any).code = lastError.code;
+  if (lastError?.status) (timeoutError as any).status = lastError.status;
   throw timeoutError;
 };
 
