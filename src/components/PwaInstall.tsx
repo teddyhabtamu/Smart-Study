@@ -308,7 +308,7 @@ export const OfflineBanner: React.FC = () => {
 
   return (
     <div className="bg-amber-500 text-zinc-900 text-center text-xs sm:text-sm font-semibold px-4 py-2 sticky top-0 z-[60]">
-      You're offline — showing your saved library. New content needs a connection.
+      You're offline — your last loaded library lists are shown where available. New content needs a connection.
     </div>
   );
 };

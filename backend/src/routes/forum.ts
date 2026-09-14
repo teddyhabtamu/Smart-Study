@@ -236,10 +236,17 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
   }
 });
 
-// Create forum post
-router.post('/posts', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+// Create forum post. Validated like updates (title 5+, content 10+) —
+// previously unvalidated, so empty one-word posts could be stored.
+router.post('/posts', [
+  authenticateToken,
+  body('title').trim().isLength({ min: 5, max: 500 }).withMessage('Title must be between 5 and 500 characters'),
+  body('content').trim().isLength({ min: 10 }).withMessage('Content must be at least 10 characters'),
+  body('subject').optional().isString().trim().isLength({ max: 100 }),
+  body('grade').optional().isInt({ min: 0, max: 12 }).toInt(),
+  body('tags').optional().isArray()
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    console.log('Creating forum post, body:', req.body);
     const { title, content, subject, grade, tags = [] } = req.body;
     const author_id = req.user!.id;
 
@@ -275,7 +282,6 @@ router.post('/posts', authenticateToken, async (req: express.Request, res: expre
     };
 
     const inserted = await dbAdmin.insert('forum_posts', postData);
-    console.log('Inserted post:', inserted);
 
     res.status(201).json({
       success: true,
@@ -577,13 +583,9 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
     const userId = req.user!.id;
     const userRole = req.user!.role;
 
-    console.log('Delete post request:', { id, userId, userRole });
-
     // Check if user is the author or admin
     const posts = await dbAdmin.get('forum_posts');
     const postCheck = posts.filter(p => p.id === id);
-
-    console.log('Found posts:', postCheck.length);
 
     if (postCheck.length === 0) {
       res.status(404).json({
@@ -592,8 +594,6 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
       } as ApiResponse);
       return;
     }
-
-    console.log('Post author_id:', postCheck[0].author_id, 'userId:', userId, 'userRole:', userRole);
 
     const roleStr = String(userRole || '').toUpperCase();
     const isTeam = roleStr === 'ADMIN' || roleStr === 'MODERATOR';
@@ -606,10 +606,8 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
       return;
     }
 
-    console.log('Deleting post:', id);
     const beforePost = postCheck[0];
     await dbAdmin.delete('forum_posts', id);
-    console.log('Post deleted successfully');
 
     // Audit log for admin/moderator deletions (non-blocking)
     if (isTeam) {
@@ -642,13 +640,14 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
 });
 
 // Create comment on post
-router.post('/posts/:postId/comments', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/posts/:postId/comments', [
+  authenticateToken,
+  body('content').trim().isLength({ min: 1, max: 5000 }).withMessage('Comment must be between 1 and 5000 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { postId } = req.params;
     const { content } = req.body;
     const author_id = req.user!.id;
-
-    console.log('Create comment request:', { postId, content: content.substring(0, 50), author_id });
 
     // Check if post exists
     const post = await dbAdmin.findOne('forum_posts', p => p.id === postId);
@@ -670,7 +669,6 @@ router.post('/posts/:postId/comments', authenticateToken, async (req: express.Re
     };
 
     const inserted = await dbAdmin.insert('forum_comments', commentData);
-    console.log('Comment created:', { id: inserted.id, postId, author_id });
 
     // Send notification to post author (if not commenting on own post)
     if (post.author_id !== author_id) {
@@ -737,16 +735,11 @@ router.put('/comments/:id', [
     const { content } = req.body;
     const userId = req.user!.id;
 
-    console.log('Update comment request:', { id, content: content.substring(0, 50), userId });
-
     // Check if comment exists using the same method as creation (dbAdmin)
     const comments = await dbAdmin.get('forum_comments');
     const comment = comments.find(c => c.id === id);
 
-    console.log('Comment found via dbAdmin:', !!comment, 'Comment data:', comment);
-
     if (!comment) {
-      console.log('Comment not found via dbAdmin, checking all comments:', comments.map(c => c.id));
       res.status(404).json({
         success: false,
         message: 'Comment not found'
@@ -768,8 +761,6 @@ router.put('/comments/:id', [
       content,
       is_edited: true
     });
-
-    console.log('Comment updated:', updatedComment);
 
     res.json({
       success: true,

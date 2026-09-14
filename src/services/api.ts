@@ -508,7 +508,7 @@ export const usersAPI = {
 
 // Documents API
 export const documentsAPI = {
-  getAll: (params: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number } = {}): Promise<{
+  getAll: (params: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number; bookmarked?: boolean; sort?: string } = {}): Promise<{
     documents: Document[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {
@@ -550,7 +550,7 @@ export const videosAPI = {
   getTopics: (grade: number, subject: string): Promise<string[]> =>
     apiRequest(`/videos/topics?grade=${grade}&subject=${encodeURIComponent(subject)}`),
 
-  getAll: (params: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; chapter?: string } = {}): Promise<{
+  getAll: (params: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number; chapter?: string; bookmarked?: boolean; sort?: string } = {}): Promise<{
     videos: Video[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {

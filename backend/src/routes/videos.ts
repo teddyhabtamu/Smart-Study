@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, query } from 'express-validator';
 import { query as dbQuery, dbAdmin, supabaseAdmin } from '../database/config';
-import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
+import { authenticateToken, requireRole, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Video, User } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
@@ -10,6 +10,7 @@ import { createHash } from 'crypto';
 import { logAdminActivity } from '../services/adminAuditLog';
 import { YouTubeService } from '../services/youtubeService';
 import { CONTENT_SUBJECTS } from '../constants';
+import { sanitizeOrTerm } from '../utils/postgrest';
 
 const router = express.Router();
 
@@ -103,19 +104,26 @@ router.get('/', optionalAuth, [
       query = query.eq('chapter', chapter);
     }
 
-    // Apply search filter using OR logic
-    if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,instructor.ilike.%${search}%`);
+    // Apply search filter using OR logic. Term is stripped of PostgREST
+    // or-syntax chars (see utils/postgrest) so "a,b" can't 500 the listing.
+    const safeSearch = search ? sanitizeOrTerm(search as string) : '';
+    if (safeSearch) {
+      query = query.or(`title.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%,instructor.ilike.%${safeSearch}%`);
     }
 
     // Apply sorting + server-side pagination
     query = query.order(orderByField, { ascending: orderByAsc });
 
-    // Bookmark filter needs IDs first (bookmarks live in Postgres via pool)
+    // Bookmark filter needs IDs first (bookmarks live in Postgres via pool).
+    // Guests get an empty set, not a 401 — same as the documents listing
+    // (guests simply can't have bookmarks).
     let bookmarkedVideoIds: string[] | null = null;
     if (bookmarked === 'true') {
       if (!userId) {
-        res.status(401).json({ success: false, message: 'Authentication required' } as ApiResponse);
+        res.json({
+          success: true,
+          data: { videos: [], pagination: { total: 0, limit: limitNum, offset: startIndex, hasMore: false } }
+        } as ApiResponse);
         return;
       }
       const bmResult = await dbQuery('SELECT item_id FROM bookmarks WHERE user_id = $1 AND item_type = $2', [userId, 'video']);
@@ -807,16 +815,16 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
   }
 });
 
-// Create video (Admin only)
+// Create video (Admin only — staff gate; requirePremium previously let any Pro
+// student inject public videos while locking out non-premium moderators)
 router.post('/', [
   authenticateToken,
-  requirePremium,
+  requireRole(['ADMIN', 'MODERATOR']),
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
   body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
   body('grade').isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
   body('video_url').isURL().withMessage('Valid video URL required'),
-  body('duration').optional().matches(/^(\d{1,2}:)?\d{1,2}:\d{2}$/).withMessage('Duration must be in format MM:SS or HH:MM:SS'),
   body('instructor').optional().trim().isLength({ max: 255 }),
   body('thumbnail').optional().isURL(),
   body('is_premium').optional().isBoolean()
@@ -887,7 +895,6 @@ router.put('/:id', [
     throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
   }),
   body('video_url').optional().isURL(),
-  body('duration').optional().matches(/^(\d{1,2}:)?\d{1,2}:\d{2}$/),
   body('instructor').optional().trim().isLength({ max: 255 }),
   body('thumbnail').optional().isURL(),
   body('is_premium').optional().isBoolean()
@@ -903,7 +910,21 @@ router.put('/:id', [
     }
 
     const { id } = req.params;
-    const updates = req.body;
+
+    // Explicit allowlist. A previous version interpolated every req.body key
+    // into SET, so any premium caller could forge views/likes, reassign
+    // uploaded_by, or 500 the query with unknown columns (e.g. duration,
+    // which the videos table doesn't have).
+    const { title, description, subject, grade, video_url, instructor, thumbnail, is_premium } = req.body;
+    const updates: any = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (subject !== undefined) updates.subject = subject;
+    if (grade !== undefined) updates.grade = grade;
+    if (video_url !== undefined) updates.video_url = video_url;
+    if (instructor !== undefined) updates.instructor = instructor;
+    if (thumbnail !== undefined) updates.thumbnail = thumbnail;
+    if (is_premium !== undefined) updates.is_premium = is_premium;
 
     // Capture before snapshot for audit (best-effort)
     let beforeVideo: any = null;

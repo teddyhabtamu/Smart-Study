@@ -90,7 +90,7 @@ const VideoLibrary: React.FC = () => {
     if (!isLandingMode) return;
     setTopVideosLoading(true);
 
-    // videosAPI.getAll with bookmarked=true works on the backend even though the type doesn't list it
+    // Saved-only landing picks: bookmarked filter is a first-class API param
     const params: any = { limit: 8 };
     if (hasBookmarks) params.bookmarked = true;
 

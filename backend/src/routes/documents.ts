@@ -1,13 +1,14 @@
 import express from 'express';
 import { body, query } from 'express-validator';
 import { query as dbQuery, db, dbAdmin, supabaseAdmin } from '../database/config';
-import { authenticateToken, requirePremium, validateRequest, optionalAuth } from '../middleware/auth';
+import { authenticateToken, requireRole, validateRequest, optionalAuth } from '../middleware/auth';
 import { ApiResponse, Document, User } from '../types';
 import { EmailService } from '../services/emailService';
 import { NotificationService } from '../services/notificationService';
 import axios from 'axios';
 import { logAdminActivity } from '../services/adminAuditLog';
 import { CONTENT_SUBJECTS } from '../constants';
+import { sanitizeOrTerm } from '../utils/postgrest';
 
 // Helper function to convert Google Drive sharing links to direct URLs
 const convertGoogleDriveUrl = (url: string): string => {
@@ -94,16 +95,14 @@ router.get('/', optionalAuth, [
     // Handle bookmarked filter separately (client-side filtering since it's user-specific)
     let bookmarkedDocIds: string[] = [];
     if (bookmarked === 'true') {
-      if (!userId) {
-        // Unauthenticated users can't have bookmarks
-        bookmarkedDocIds = [];
-      } else {
-        // Get user's bookmarks
-        const userResult = await dbQuery('SELECT bookmarks FROM users WHERE id = $1', [userId]);
-        if (userResult.rows.length > 0) {
-          bookmarkedDocIds = userResult.rows[0].bookmarks || [];
-        }
+      if (userId) {
+        // Bookmarks live in the bookmarks table (there is no users.bookmarks
+        // column — selecting it 500d every Saved view).
+        const bmResult = await dbQuery('SELECT item_id FROM bookmarks WHERE user_id = $1 AND item_type = $2', [userId, 'document']);
+        bookmarkedDocIds = bmResult.rows.map((r: any) => r.item_id);
       }
+      // Unauthenticated users (or none saved) fall through to the empty
+      // result below.
     }
 
     // Determine sort order
@@ -117,45 +116,10 @@ router.get('/', optionalAuth, [
       orderByAsc = true;
     }
 
-    // Use Supabase directly for better search support
-    // Build all filter conditions
-    const andConditions: string[] = [];
-    
-    if (!isPremium) {
-      andConditions.push('is_premium.eq.false');
-    }
-
-    if (subject) {
-      andConditions.push(`subject.eq.${subject}`);
-    }
-
-    if (grade) {
-      andConditions.push(`grade.eq.${parseInt(grade)}`);
-    }
-
-    // Filter by tag - Supabase uses cs (contains) for array contains
-    if (tag) {
-      andConditions.push(`tags.cs.{"${tag}"}`);
-    }
-
-    // Exclude documents with specific tag - use ncs (not contains)
-    if (excludeTag) {
-      andConditions.push(`tags.ncs.{"${excludeTag}"}`);
-    }
-
-    // Handle bookmarked filter
-    if (bookmarked === 'true') {
-      if (bookmarkedDocIds.length === 0) {
-        // No bookmarks, return empty result
-        andConditions.push('id.eq.00000000-0000-0000-0000-000000000000');
-      } else {
-        // Use in operator for multiple IDs
-        const ids = bookmarkedDocIds.join(',');
-        andConditions.push(`id.in.(${ids})`);
-      }
-    }
-
-    // Build the query
+    // Use Supabase directly for better search support.
+    // (A previous revision also built PostgREST AND-strings in an
+    // `andConditions` array here, but that block was dead — the fluent query
+    // below is the only thing executed. Removed to end the confusion.)
     let query = supabaseAdmin
       .from('documents')
       .select('id, title, description, subject, grade, file_type, file_size, file_url, is_premium, downloads, preview_image, tags, author, created_at, updated_at', { count: 'exact' });
@@ -186,8 +150,11 @@ router.get('/', optionalAuth, [
 
     // Apply search filter - Supabase should combine this with previous AND filters
     // The .or() method when chained after .eq() should create: (AND filters) AND (search OR)
-    if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,author.ilike.%${search}%`);
+    // The term is stripped of PostgREST or-syntax chars (see utils/postgrest)
+    // so searches like "waves, optics" can't 500 the listing.
+    const safeSearch = search ? sanitizeOrTerm(search) : '';
+    if (safeSearch) {
+      query = query.or(`title.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%,author.ilike.%${safeSearch}%`);
     }
 
     // Apply sorting
@@ -254,9 +221,10 @@ router.get('/', optionalAuth, [
 router.get('/image-proxy/:fileId', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { fileId } = req.params;
-    console.log('Image proxy request received for fileId:', fileId);
-    
-    if (!fileId || fileId.length < 5) {
+
+    // Drive IDs are [A-Za-z0-9_-]; anything else is a query-string smuggling
+    // attempt into the Google URL below (or junk). Reject early.
+    if (!fileId || !/^[A-Za-z0-9_-]{5,128}$/.test(fileId)) {
       res.status(400).json({
         success: false,
         message: 'Invalid file ID'
@@ -282,7 +250,8 @@ router.get('/image-proxy/:fileId', optionalAuth, async (req: express.Request, re
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
-          timeout: 10000 // 10 second timeout
+          timeout: 10000, // 10 second timeout
+          maxContentLength: 5 * 1024 * 1024 // 5MB cap — previews only, never full files
         });
 
         if (response.status === 200 && response.data) {
@@ -435,9 +404,10 @@ router.get('/:id/download', authenticateToken, async (req: express.Request, res:
     const userId = req.user!.id;
     const isPremium = req.user!.is_premium;
 
-    // Get document info
+    // Get document info. Column is file_url (a previous revision selected a
+    // nonexistent file_path, so Postgres errored and EVERY download 500d).
     const docResult = await dbQuery(`
-      SELECT title, file_path, is_premium FROM documents WHERE id = $1
+      SELECT title, file_url, is_premium FROM documents WHERE id = $1
     `, [id]);
 
     if (docResult.rows.length === 0) {
@@ -459,18 +429,25 @@ router.get('/:id/download', authenticateToken, async (req: express.Request, res:
       return;
     }
 
+    // No file attached (metadata-only entry) — say so before counting anything.
+    if (!document.file_url) {
+      res.status(404).json({
+        success: false,
+        message: 'No file available for this document yet'
+      } as ApiResponse);
+      return;
+    }
+
     // Increment download count
     await dbQuery(
       'UPDATE documents SET downloads = downloads + 1 WHERE id = $1',
       [id]
     );
 
-    // In a real implementation, you would serve the actual file
-    // For now, return file info
     res.json({
       success: true,
       data: {
-        downloadUrl: document.file_path || `/api/documents/${id}/file`,
+        downloadUrl: document.file_url,
         filename: document.title
       },
       message: 'Download initiated'
@@ -487,7 +464,10 @@ router.get('/:id/download', authenticateToken, async (req: express.Request, res:
 // Create document (Admin only)
 router.post('/', [
   authenticateToken,
-  requirePremium, // Only premium users can upload? Or should this be admin only?
+  requireRole(['ADMIN', 'MODERATOR']),
+  // Staff only. A previous requirePremium gate let ANY Pro student inject
+  // public library documents (no upload UI exists for them — curl-only), while
+  // locking out non-premium moderators. Matches the admin create route.
   body('title').trim().isLength({ min: 1, max: 500 }).withMessage('Title is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
   body('subject').isIn(CONTENT_SUBJECTS).withMessage('Valid subject required'),
