@@ -406,36 +406,35 @@ router.get('/google',
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
-router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login', session: false }),
-  async (req: express.Request, res: express.Response): Promise<void> => {
+router.get('/google/callback', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Custom passport callback (not failureRedirect): the strategy reports
+  // blocked accounts as a clean failure with info.message = the status word,
+  // and real breakdowns as err. Both must land back on the login page — a
+  // relative failureRedirect would point at the API host, and an err would
+  // render raw JSON at this URL (the banned-user bug).
+  passport.authenticate('google', { session: false }, async (err: any, user: any, info: any) => {
+    const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+    if (err || !user) {
+      const blockedWord = !err && info?.message && ['banned', 'suspended', 'deactivated'].includes(info.message)
+        ? info.message
+        : null;
+      const message = blockedWord
+        ? `Your account has been ${blockedWord}. Please contact support for assistance.`
+        : 'Authentication failed';
+      return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(message)}`);
+    }
     try {
-      // req.user is guaranteed to exist here due to successful authentication
-      const user = req.user as User;
-
-      // Block banned, suspended, AND deactivated accounts (see login gate above).
-      const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
-      if (user.status && blockedStatuses[user.status]) {
-        const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-        const redirectUrl = `${frontendUrl}/login?error=${encodeURIComponent(`Your account has been ${blockedStatuses[user.status]}. Please contact support for assistance.`)}`;
-        res.redirect(redirectUrl);
-        return;
-      }
-
       // Generate JWT + refresh token for the authenticated user
       const { token, refreshToken } = await issueTokenPair(user);
 
       // Redirect to frontend auth callback with token
-      const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&refreshToken=${refreshToken}&success=true`;
-      res.redirect(redirectUrl);
+      return res.redirect(`${frontendUrl}/auth/callback?token=${token}&refreshToken=${refreshToken}&success=true`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
-      const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-      res.redirect(`${frontendUrl}/login?error=Authentication failed`);
+      return res.redirect(`${frontendUrl}/login?error=Authentication failed`);
     }
-  }
-);
+  })(req, res, next);
+});
 
 // Forgot password endpoint - Request password reset
 router.post('/forgot-password', [

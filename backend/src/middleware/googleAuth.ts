@@ -96,12 +96,16 @@ passport.use(new GoogleStrategy({
         // Don't fail authentication if email fails
       });
     } else {
-      // User exists, check if banned or suspended
+      // User exists — blocked accounts must fail authentication HERE, before
+      // any token is issued. Signal with `done(null, false, { message })`
+      // (passport "failure", not "error"): an Error would bypass the route's
+      // redirect and Express would render raw JSON at the callback URL.
+      // The callback route turns the code into the full login-page message.
       user = existingUser;
-      
-      // Check if user is banned or suspended
-      if (user.status === 'Banned' || user.status === 'Suspended') {
-        return done(new Error(`Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`), undefined);
+
+      const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
+      if (user.status && blockedStatuses[user.status]) {
+        return done(null, false, { message: blockedStatuses[user.status] });
       }
       
       // Send login success email for existing users logging in via OAuth (non-blocking)
@@ -288,7 +292,7 @@ passport.serializeUser((user: any, done: (err: any, id?: string) => void) => {
 });
 
 // Deserialize user from session
-passport.deserializeUser(async (id: string, done: (err: any, user?: any) => void) => {
+passport.deserializeUser(async (id: string, done: (err: any, user?: any, info?: any) => void) => {
   try {
     const { data: user, error: userError } = await supabase
       .from('users')
@@ -300,9 +304,10 @@ passport.deserializeUser(async (id: string, done: (err: any, user?: any) => void
       return done(null, false);
     }
 
-    // Check if user is banned or suspended
-    if (user.status === 'Banned' || user.status === 'Suspended') {
-      return done(new Error(`Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`), undefined);
+    // Block banned, suspended, AND deactivated accounts (same gate as above).
+    const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
+    if (user.status && blockedStatuses[user.status]) {
+      return done(null, false, { message: blockedStatuses[user.status] });
     }
 
     // Get bookmarks
