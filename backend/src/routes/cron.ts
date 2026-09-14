@@ -41,9 +41,10 @@ const checkCronAuth = (req: express.Request, res: express.Response): boolean => 
 router.get('/daily', async (req: express.Request, res: express.Response): Promise<void> => {
   if (!checkCronAuth(req, res)) return;
   try {
+    const deadline = Date.now() + BUDGET_MS;
     const { SchedulerService } = await import('../services/schedulerService');
-    await SchedulerService.triggerStudyReminders();
-    await SchedulerService.triggerDailyTasks();
+    await SchedulerService.triggerStudyReminders({ deadline });
+    await SchedulerService.triggerDailyTasks({ deadline });
     res.json({ success: true, message: 'Daily tasks completed' } as ApiResponse);
   } catch (error) {
     console.error('Cron daily error:', error);

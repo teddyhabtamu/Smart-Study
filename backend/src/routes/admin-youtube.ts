@@ -44,15 +44,18 @@ router.post('/sync', authenticateToken, requireRole(['ADMIN', 'MODERATOR']), asy
 
 /**
  * Trigger a full sync (CRON endpoint)
+ * Time-boxed like the cron caller: a full 60-combination run cannot fit in
+ * a 30s serverless invocation, so partial counts are reported honestly
+ * instead of dying mid-run.
  */
 router.post('/sync-all', authenticateToken, requireRole(['ADMIN', 'MODERATOR']), async (req: Request, res: Response): Promise<void> => {
     const adminUserId = req.user!.id;
 
     try {
-        const result = await YouTubeService.syncAllGradesAndSubjects(adminUserId);
+        const result = await YouTubeService.syncAllGradesAndSubjects(adminUserId, { deadline: Date.now() + 25_000 });
         res.json({
             success: true,
-            message: `Global sync completed. Added ${result.added} new videos. Encountered ${result.errors} errors.`,
+            message: `Global sync completed. Added ${result.added} new videos. Encountered ${result.errors} errors.${result.stoppedEarly ? ' Stopped early on time budget — rerun to cover more combinations (existing videos are skipped, but each search costs API quota).' : ''}`,
             data: result
         });
     } catch (error) {

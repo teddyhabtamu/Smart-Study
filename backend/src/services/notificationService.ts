@@ -1,4 +1,4 @@
-import { dbAdmin, supabaseAdmin } from '../database/config';
+import { dbAdmin, query } from '../database/config';
 import { EmailService } from './emailService';
 
 export type NotificationType = 'INFO' | 'WARNING' | 'SUCCESS' | 'ERROR';
@@ -39,19 +39,16 @@ export class NotificationService {
 
   /**
    * Delete a notification by ID
+   * Single indexed DELETE scoped to the owner — no full-table scan, and a
+   * user can never delete another user's row by ID enumeration.
    */
   static async delete(notificationId: string, userId: string): Promise<boolean> {
     try {
-      const notification = await dbAdmin.findOne('notifications', (n: any) =>
-        n.id === notificationId && n.user_id === userId
+      const result = await query(
+        'DELETE FROM notifications WHERE id = $1 AND user_id = $2',
+        [notificationId, userId]
       );
-
-      if (!notification) {
-        return false;
-      }
-
-      await dbAdmin.delete('notifications', notificationId);
-      return true;
+      return (result.rowCount ?? 0) > 0;
     } catch (error) {
       console.error('Failed to delete notification:', error);
       throw error;
@@ -59,31 +56,24 @@ export class NotificationService {
   }
 
   /**
-   * Mark notifications as read for a user
+   * Mark notifications as read for a user.
+   * Two indexed UPDATEs (no per-row round-trips, no full-table scans).
    */
   static async markAsRead(userId: string, notificationIds?: string[]): Promise<void> {
     try {
       if (notificationIds && notificationIds.length > 0) {
-        // Mark specific notifications as read — verifying ownership first, so
-        // one user can't flip another user's notifications by ID enumeration.
-        for (const id of notificationIds) {
-          const existing = await dbAdmin.findOne('notifications', (n: any) =>
-            n.id === id && n.user_id === userId
-          );
-          if (existing) {
-            await dbAdmin.update('notifications', id, { is_read: true });
-          }
-        }
+        // Ownership enforced in the WHERE clause — foreign IDs are simply
+        // unaffected instead of flipping another user's rows.
+        await query(
+          'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND id = ANY($2) AND is_read IS DISTINCT FROM TRUE',
+          [userId, notificationIds]
+        );
       } else {
         // Mark all notifications as read for the user
-        const notifications = await dbAdmin.get('notifications');
-        const userNotifications = notifications.filter((n: any) =>
-          n.user_id === userId && !n.is_read
+        await query(
+          'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read IS DISTINCT FROM TRUE',
+          [userId]
         );
-
-        for (const notification of userNotifications) {
-          await dbAdmin.update('notifications', notification.id, { is_read: true });
-        }
       }
     } catch (error) {
       console.error('Failed to mark notifications as read:', error);
@@ -92,27 +82,22 @@ export class NotificationService {
   }
 
   /**
-   * Get notifications for a user
+   * Get notifications for a user — indexed, newest first, paginated in SQL.
    */
   static async getForUser(userId: string, limit?: number, offset?: number): Promise<any[]> {
     try {
-      let notifications = await dbAdmin.get('notifications');
-      notifications = notifications.filter((n: any) => n.user_id === userId);
-
-      // Sort by creation date (newest first)
-      notifications.sort((a: any, b: any) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      // Apply pagination
+      let sql = 'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC';
+      const params: any[] = [userId];
+      if (limit !== undefined) {
+        params.push(limit);
+        sql += ` LIMIT $${params.length}`;
+      }
       if (offset) {
-        notifications = notifications.slice(offset);
+        params.push(offset);
+        sql += ` OFFSET $${params.length}`;
       }
-      if (limit) {
-        notifications = notifications.slice(0, limit);
-      }
-
-      return notifications;
+      const result = await query(sql, params);
+      return result.rows;
     } catch (error) {
       console.error('Failed to get notifications for user:', error);
       throw error;
@@ -120,14 +105,15 @@ export class NotificationService {
   }
 
   /**
-   * Get unread count for a user
+   * Get unread count for a user — COUNT(*) in SQL, not a full-table fetch.
    */
   static async getUnreadCount(userId: string): Promise<number> {
     try {
-      const notifications = await dbAdmin.get('notifications');
-      return notifications.filter((n: any) =>
-        n.user_id === userId && !n.is_read
-      ).length;
+      const result = await query(
+        'SELECT COUNT(*)::int AS count FROM notifications WHERE user_id = $1 AND is_read IS DISTINCT FROM TRUE',
+        [userId]
+      );
+      return result.rows[0]?.count ?? 0;
     } catch (error) {
       console.error('Failed to get unread count:', error);
       return 0;
@@ -299,57 +285,35 @@ export class NotificationService {
   }
 
   /**
-   * Notify all users about new resources (in-app notification only, no emails)
+   * Notify all users about new resources (in-app notification only, no emails).
+   * Single bulk INSERT ... SELECT — one round-trip regardless of user count,
+   * so this fits in a serverless time budget. Per-row inserts (N round-trips)
+   * would time out as the user base grows, and fire-and-forget callers on
+   * Vercel may be frozen after the response anyway.
    */
   static async notifyUsersAboutNewResources(isPremium?: boolean): Promise<void> {
     try {
       console.log('🔔 Notifying all users about new resources (in-app only)');
-      
-      // Get all users using Supabase directly. Only accounts that can actually
-      // sign in (Active) — writing rows for banned/deactivated users just
-      // accumulates unread notifications nobody will ever open.
-      const { data: users, error: usersError } = await supabaseAdmin
-        .from('users')
-        .select('id, is_premium, status')
-        .eq('status', 'Active');
 
-      if (usersError) {
-        console.error('❌ Failed to fetch users for new resource notification:', usersError);
-        return;
-      }
+      // Only accounts that can actually sign in (Active). Staff see new
+      // content through admin panels, not user notifications.
+      const result = isPremium
+        ? await query(
+            `INSERT INTO notifications (user_id, title, message, type)
+             SELECT id, 'New resources available',
+               'New content has been added to the library. Check it out!', 'INFO'
+             FROM users WHERE status = 'Active' AND is_premium = TRUE
+             RETURNING id`
+          )
+        : await query(
+            `INSERT INTO notifications (user_id, title, message, type)
+             SELECT id, 'New resources available',
+               'New content has been added to the library. Check it out!', 'INFO'
+             FROM users WHERE status = 'Active'
+             RETURNING id`
+          );
 
-      if (!users || users.length === 0) {
-        console.log('🔔 No users found to notify about new resources');
-        return;
-      }
-
-      let notifiedCount = 0;
-      let skippedCount = 0;
-
-      // Create in-app notification for each user
-      for (const user of users) {
-        try {
-          // For premium content, only notify premium users
-          if (isPremium && !user.is_premium) {
-            skippedCount++;
-            continue;
-          }
-
-          // Create in-app notification
-          await this.create({
-            user_id: user.id,
-            title: 'New resources available',
-            message: 'New content has been added to the library. Check it out!',
-            type: 'INFO'
-          });
-
-          notifiedCount++;
-        } catch (error) {
-          console.error(`❌ Error creating notification for user ${user.id}:`, error);
-        }
-      }
-
-      console.log(`🔔 New resources notification summary: ${notifiedCount} in-app notifications created, ${skippedCount} users skipped`);
+      console.log(`🔔 New resources notification summary: ${result.rowCount ?? 0} in-app notifications created`);
     } catch (error) {
       console.error('❌ Failed to notify users about new resources:', error);
     }

@@ -1,4 +1,4 @@
-import { dbAdmin } from '../database/config';
+import { dbAdmin, query } from '../database/config';
 import { NotificationService } from './notificationService';
 
 export class SchedulerService {
@@ -56,54 +56,65 @@ export class SchedulerService {
   }
 
   /**
-   * Check for upcoming study events and send reminders
+   * Check for upcoming study events and send reminders.
+   * Events are grouped by user so recent-notification dedup costs one indexed
+   * query per user, not one full-table scan per event. Honors a deadline for
+   * serverless cron (stops cleanly instead of being hard-killed mid-batch).
    */
-  private static async checkAndSendStudyReminders(): Promise<void> {
+  private static async checkAndSendStudyReminders(opts?: { deadline?: number }): Promise<void> {
     try {
       console.log('Checking for study event reminders...');
 
       const now = new Date();
-      const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000));
-      const oneDayFromNow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
 
-      // Get all upcoming study events that are not completed
-      const events = await dbAdmin.get('study_events');
-      const upcomingEvents = events.filter((event: any) => {
-        if (event.is_completed) return false;
+      // Only events in the reminder windows — not every future event.
+      const eventsResult = await query(
+        `SELECT * FROM study_events WHERE is_completed IS DISTINCT FROM TRUE
+         AND event_date > NOW() AND event_date <= NOW() + INTERVAL '25 hours'`
+      );
 
-        const eventDate = new Date(event.event_date);
-        return eventDate > now;
-      });
+      // Group by user: one dedup query per user instead of per event.
+      const byUser = new Map<string, any[]>();
+      for (const event of eventsResult.rows) {
+        const list = byUser.get(event.user_id) || [];
+        list.push(event);
+        byUser.set(event.user_id, list);
+      }
 
-      for (const event of upcomingEvents) {
-        const eventDate = new Date(event.event_date);
-        const timeDiff = eventDate.getTime() - now.getTime();
-        const hoursUntil = Math.floor(timeDiff / (1000 * 60 * 60));
+      for (const [userId, userEvents] of byUser) {
+        if (opts?.deadline && Date.now() > opts.deadline) break;
+        // One indexed fetch covers every event for this user.
+        const recent = await NotificationService.getForUser(userId, 50);
 
-        // Check if we need to send a reminder
-        const shouldSendHourReminder = hoursUntil === 1;
-        const shouldSendDayReminder = hoursUntil === 24;
+        for (const event of userEvents) {
+          const eventDate = new Date(event.event_date);
+          const timeDiff = eventDate.getTime() - now.getTime();
+          const hoursUntil = Math.floor(timeDiff / (1000 * 60 * 60));
 
-        if (shouldSendHourReminder || shouldSendDayReminder) {
-          // Check if we've already sent this reminder (by checking recent notifications)
-          const recentNotifications = await NotificationService.getForUser(event.user_id, 50);
-          const reminderType = shouldSendHourReminder ? 'hour' : 'day';
-          const alreadySent = recentNotifications.some((notif: any) =>
-            notif.title === 'Study Reminder' &&
-            notif.message.includes(event.title) &&
-            notif.message.includes(reminderType === 'hour' ? '1 hour' : '1 day') &&
-            // Check if sent within the last 2 hours for hour reminders, or 2 days for day reminders
-            new Date(notif.created_at).getTime() > (now.getTime() - (reminderType === 'hour' ? 2 * 60 * 60 * 1000 : 2 * 24 * 60 * 60 * 1000))
-          );
+          // Check if we need to send a reminder
+          const shouldSendHourReminder = hoursUntil === 1;
+          const shouldSendDayReminder = hoursUntil === 24;
 
-          if (!alreadySent) {
-            await NotificationService.createStudyReminderNotification(
-              event.user_id,
-              event.title,
-              event.event_date,
-              shouldSendHourReminder ? 1 : 24
+          if (shouldSendHourReminder || shouldSendDayReminder) {
+            // Check if we've already sent this reminder (by checking recent notifications)
+            const reminderType = shouldSendHourReminder ? 'hour' : 'day';
+            const alreadySent = recent.some((notif: any) =>
+              notif.title === 'Study Reminder' &&
+              notif.message.includes(event.title) &&
+              notif.message.includes(reminderType === 'hour' ? '1 hour' : '1 day') &&
+              // Check if sent within the last 2 hours for hour reminders, or 2 days for day reminders
+              new Date(notif.created_at).getTime() > (now.getTime() - (reminderType === 'hour' ? 2 * 60 * 60 * 1000 : 2 * 24 * 60 * 60 * 1000))
             );
-            console.log(`Sent ${reminderType} reminder for event: ${event.title}`);
+
+            if (!alreadySent) {
+              await NotificationService.createStudyReminderNotification(
+                event.user_id,
+                event.title,
+                event.event_date,
+                shouldSendHourReminder ? 1 : 24
+              );
+              console.log(`Sent ${reminderType} reminder for event: ${event.title}`);
+            }
           }
         }
       }
@@ -115,12 +126,12 @@ export class SchedulerService {
   /**
    * Run daily maintenance tasks
    */
-  private static async runDailyTasks(): Promise<void> {
+  private static async runDailyTasks(opts?: { deadline?: number }): Promise<void> {
     try {
       console.log('Running daily notification tasks...');
 
       // Update user streaks based on last activity
-      await this.updateUserStreaks();
+      await this.updateUserStreaks(opts);
 
       // Clean up old read notifications (keep only last 100 per user)
       await this.cleanupOldNotifications();
@@ -133,7 +144,7 @@ export class SchedulerService {
   /**
    * Update user streaks based on daily activity
    */
-  private static async updateUserStreaks(): Promise<void> {
+  private static async updateUserStreaks(opts?: { deadline?: number }): Promise<void> {
     try {
       const users = await dbAdmin.get('users');
       const yesterday = new Date();
@@ -141,6 +152,9 @@ export class SchedulerService {
       const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       for (const user of users) {
+        // Serverless time-box: stop cleanly so the cron caller can report
+        // partial progress instead of being hard-killed mid-sweep.
+        if (opts?.deadline && Date.now() > opts.deadline) break;
         const lastActive = user.last_active_date;
         // Skip accounts that have never recorded activity (no last_active_date
         // yet) — otherwise every such row gets rewritten daily for no reason.
@@ -203,30 +217,24 @@ export class SchedulerService {
   }
 
   /**
-   * Clean up old read notifications to prevent database bloat
+   * Clean up old read notifications to prevent database bloat.
+   * Single statement for all users (window function keeps the 100 most recent
+   * read rows per user) — the old per-user fetch-filter-delete loop was
+   * O(users × notifications) full-table scans.
    */
   private static async cleanupOldNotifications(): Promise<void> {
     try {
-      // For each user, keep only the most recent 100 read notifications
-      const users = await dbAdmin.get('users');
-
-      for (const user of users) {
-        const userNotifications = await NotificationService.getForUser(user.id);
-        const readNotifications = userNotifications.filter((n: any) => n.is_read);
-
-        if (readNotifications.length > 100) {
-          // Sort by date and delete older ones
-          readNotifications.sort((a: any, b: any) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
-
-          const toDelete = readNotifications.slice(100);
-          for (const notification of toDelete) {
-            await NotificationService.delete(notification.id, user.id);
-          }
-
-          console.log(`Cleaned up ${toDelete.length} old notifications for user ${user.id}`);
-        }
+      const result = await query(
+        `DELETE FROM notifications WHERE id IN (
+           SELECT id FROM (
+             SELECT id, ROW_NUMBER() OVER (
+               PARTITION BY user_id ORDER BY created_at DESC
+             ) AS rn FROM notifications WHERE is_read = TRUE
+           ) ranked WHERE rn > 100
+         )`
+      );
+      if ((result.rowCount ?? 0) > 0) {
+        console.log(`Cleaned up ${result.rowCount} old read notifications`);
       }
     } catch (error) {
       console.error('Error cleaning up old notifications:', error);
@@ -234,17 +242,17 @@ export class SchedulerService {
   }
 
   /**
-   * Manually trigger study reminder check (for testing)
+   * Manually trigger study reminder check (for testing / cron)
    */
-  static async triggerStudyReminders(): Promise<void> {
-    await this.checkAndSendStudyReminders();
+  static async triggerStudyReminders(opts?: { deadline?: number }): Promise<void> {
+    await this.checkAndSendStudyReminders(opts);
   }
 
   /**
-   * Manually trigger daily tasks (for testing)
+   * Manually trigger daily tasks (for testing / cron)
    */
-  static async triggerDailyTasks(): Promise<void> {
-    await this.runDailyTasks();
+  static async triggerDailyTasks(opts?: { deadline?: number }): Promise<void> {
+    await this.runDailyTasks(opts);
   }
 
   /**

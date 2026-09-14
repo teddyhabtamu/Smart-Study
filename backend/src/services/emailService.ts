@@ -755,13 +755,12 @@ export class EmailService {
       let notifiedCount = 0;
       let skippedCount = 0;
 
-      // Send email to each user (if they have email notifications enabled)
+      // Send email to each user (if they have email notifications enabled).
+      // Preferences were already selected above — checked in memory, not
+      // re-queried per user (the old N+1 doubled fan-out queries).
       for (const user of usersResult.rows) {
         try {
-          // Check if user has email notifications enabled
-          const shouldSend = await this.shouldSendEmailToUser(user.id);
-          
-          if (!shouldSend) {
+          if (!EmailService.emailPreferenceEnabled(user.preferences)) {
             skippedCount++;
             continue;
           }
@@ -886,13 +885,12 @@ export class EmailService {
       let notifiedCount = 0;
       let skippedCount = 0;
 
-      // Send email to each user (if they have email notifications enabled)
+      // Send email to each user (if they have email notifications enabled).
+      // Preferences were already selected above — checked in memory, not
+      // re-queried per user (the old N+1 doubled fan-out queries).
       for (const user of usersResult.rows) {
         try {
-          // Check if user has email notifications enabled
-          const shouldSend = await this.shouldSendEmailToUser(user.id);
-          
-          if (!shouldSend) {
+          if (!EmailService.emailPreferenceEnabled(user.preferences)) {
             skippedCount++;
             continue;
           }
@@ -1017,13 +1015,12 @@ export class EmailService {
       let notifiedCount = 0;
       let skippedCount = 0;
 
-      // Send email to each user (if they have email notifications enabled)
+      // Send email to each user (if they have email notifications enabled).
+      // Preferences were already selected above — checked in memory, not
+      // re-queried per user (the old N+1 doubled fan-out queries).
       for (const user of usersResult.rows) {
         try {
-          // Check if user has email notifications enabled
-          const shouldSend = await this.shouldSendEmailToUser(user.id);
-          
-          if (!shouldSend) {
+          if (!EmailService.emailPreferenceEnabled(user.preferences)) {
             skippedCount++;
             continue;
           }
@@ -1338,19 +1335,25 @@ export class EmailService {
         return false;
       }
 
-      const user = result.rows[0];
-      if (!user.preferences) {
-        return true; // Default to true if no preferences set
-      }
-
-      const preferences = typeof user.preferences === 'string' 
-        ? JSON.parse(user.preferences) 
-        : user.preferences;
-
-      return preferences.emailNotifications !== false; // Default to true if not explicitly disabled
+      return EmailService.emailPreferenceEnabled(result.rows[0].preferences);
     } catch (error) {
       console.error('Error checking user email preferences:', error);
       return true; // Default to true on error
+    }
+  }
+
+  /**
+   * Sync in-memory version of the preference check above. The broadcast loops
+   * already SELECT preferences for every user — re-querying per user (N+1)
+   * doubles the fan-out cost for no reason. Same semantics: opt-out only.
+   */
+  static emailPreferenceEnabled(preferences: unknown): boolean {
+    if (!preferences) return true;
+    try {
+      const parsed = typeof preferences === 'string' ? JSON.parse(preferences) : preferences;
+      return (parsed as any)?.emailNotifications !== false;
+    } catch {
+      return true;
     }
   }
 
