@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Download, MessageSquare, ChevronLeft, Lock, FileText, Send, Bot,
   HelpCircle, Bookmark, LogIn, UserPlus, Sparkles, Eye,
-  Maximize, Minimize, Share2, MoreHorizontal, CheckCircle, Loader2, Image as ImageIcon, X
+  Maximize, Minimize, CheckCircle, Loader2, Image as ImageIcon, X,
+  ExternalLink, Share2, CalendarDays
 } from 'lucide-react';
 import { documentsAPI, aiTutorAPI } from '../services/api';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -45,7 +46,6 @@ const getPreviewUrl = (url: string, fileType: string): string => {
 const DocumentView: React.FC = () => {
   const { user, toggleBookmark } = useAuth();
   const { id } = useParams<{ id: string }>();
-  const location = useLocation();
   const { addToast } = useToast();
 
   const [doc, setDoc] = useState<Document | null>(null);
@@ -60,7 +60,6 @@ const DocumentView: React.FC = () => {
   // Mobile & Tab State
   const [activeTab, setActiveTab] = useState<'chat' | 'quiz' | 'notes'>('chat');
   const [mobileView, setMobileView] = useState<'doc' | 'tools'>('doc');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Feature State
   const [summary, setSummary] = useState<string | null>(null);
@@ -366,6 +365,35 @@ const DocumentView: React.FC = () => {
   };
 
   // --- RENDER HELPERS ---
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: doc?.title ?? 'SmartStudy document', url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        addToast('Link copied to clipboard.', 'success');
+      }
+    } catch {
+      // User dismissed the share sheet — not an error worth surfacing.
+    }
+  };
+
+  const handleToggleBookmark = async () => {
+    if (!user || !doc) {
+      addToast('Sign in to save documents.', 'info');
+      return;
+    }
+    setIsBookmarking(true);
+    try {
+      await toggleBookmark(doc.id, 'document');
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
+    } finally {
+      setIsBookmarking(false);
+    }
+  };
+
   if (loading) {
     return <DocumentViewSkeleton />;
   }
@@ -414,46 +442,53 @@ const DocumentView: React.FC = () => {
   const previewUrl = doc.file_url ? getPreviewUrl(doc.file_url, doc.file_type) : null;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] bg-zinc-50/50">
-
+    <div className="min-h-screen bg-zinc-100">
       {/* 1. HEADER BAR */}
-      <header className="flex-shrink-0 bg-white border-b border-zinc-200 px-3 sm:px-4 md:px-6 py-3 shadow-sm z-20">
-        <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <Link to={doc.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"} className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors">
-              <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
-            </Link>
-            <div className="min-w-0">
-              <h1 className="text-base sm:text-lg md:text-xl font-bold text-zinc-900 truncate">{doc.title}</h1>
-              <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-zinc-500">
-                <span className="px-1.5 sm:px-2 py-0.5 bg-zinc-100 rounded text-zinc-600 font-medium text-xs">{doc.subject}</span>
-                <span>•</span>
-                <span>{doc.grade === 0 ? 'General' : `Grade ${doc.grade}`}</span>
-              </div>
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
+        <div className="max-w-[1440px] mx-auto flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2.5">
+          <Link
+            to={doc.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"}
+            className="p-2 -ml-1 rounded-xl hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors flex-shrink-0"
+            aria-label="Back to library"
+          >
+            <ChevronLeft size={20} />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm sm:text-lg font-bold text-zinc-900 truncate leading-tight">{doc.title}</h1>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] sm:text-xs text-zinc-500">
+              <span className="px-2 py-0.5 bg-zinc-900 text-white rounded-full font-semibold truncate max-w-[140px] sm:max-w-none">{doc.subject}</span>
+              <span className="hidden min-[420px]:inline text-zinc-300">•</span>
+              <span className="hidden min-[420px]:inline whitespace-nowrap">{doc.grade === 0 ? 'General' : `Grade ${doc.grade}`}</span>
+              <span className="hidden md:inline text-zinc-300">•</span>
+              <span className="hidden md:inline px-2 py-0.5 bg-zinc-100 rounded-full font-semibold text-zinc-600">{doc.file_type}</span>
+              {doc.is_premium && (
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">
+                  <Lock size={10} /> Pro
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-2">
-             <button
-              onClick={async () => {
-                if (!user) return;
-                setIsBookmarking(true);
-                try {
-                  await toggleBookmark(doc.id, 'document');
-                } catch (error) {
-                  console.error('Failed to toggle bookmark:', error);
-                } finally {
-                  setIsBookmarking(false);
-                }
-              }}
+          {/* Actions — icon buttons on all sizes, labels on desktop */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={handleShare}
+              className="p-2.5 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+              title="Share this document"
+              aria-label="Share this document"
+            >
+              <Share2 size={18} />
+            </button>
+            <button
+              onClick={handleToggleBookmark}
               disabled={isBookmarking}
-              className={`p-2 rounded-lg transition-colors border disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${
+              className={`p-2.5 rounded-xl transition-colors border disabled:opacity-50 disabled:cursor-not-allowed ${
                 isBookmarked
                   ? 'bg-amber-50 border-amber-200 text-amber-600'
-                  : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
+                  : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
               }`}
               title={isBookmarked ? "Remove from saved" : "Save for later"}
+              aria-label={isBookmarked ? "Remove from saved" : "Save for later"}
             >
               {isBookmarking ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -461,270 +496,282 @@ const DocumentView: React.FC = () => {
                 <Bookmark size={18} className={isBookmarked ? "fill-current" : ""} />
               )}
             </button>
-            
             {canDownload ? (
               <button
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-70 transition-all shadow-sm"
+                className="flex items-center gap-2 pl-3 pr-3 sm:pl-4 sm:pr-5 py-2.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-700 disabled:opacity-70 transition-all shadow-sm text-sm"
               >
-                {isDownloading ? <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/> : <Download size={18} />}
-                <span className="font-medium">Download</span>
+                {isDownloading ? <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> : <Download size={17} />}
+                <span className="font-semibold hidden sm:inline">Download</span>
               </button>
             ) : (
-              <Link to="/subscription" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 transition-all shadow-sm">
-                 <Lock size={16} /> <span className="font-medium">Unlock</span>
+              <Link to="/subscription" className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:opacity-90 transition-all shadow-sm text-sm font-semibold">
+                <Lock size={15} /> <span className="hidden sm:inline">Unlock</span><span className="sm:hidden">Pro</span>
               </Link>
             )}
           </div>
-          
-          {/* Mobile Actions Menu */}
-           <div className="md:hidden">
-              <button
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg"
-                aria-label="Document actions"
-              >
-                <MoreHorizontal size={20} />
-              </button>
-           </div>
         </div>
       </header>
 
-      {/* Mobile actions bottom sheet (mirrors desktop actions) */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-[200] flex items-end justify-center" role="dialog" aria-label="Document actions">
-          <div className="absolute inset-0 bg-zinc-900/50 backdrop-blur-sm animate-fade-in" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="relative w-full bg-white rounded-t-2xl shadow-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] animate-slide-up">
-            <div className="w-10 h-1 rounded-full bg-zinc-200 mx-auto mb-3" />
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 px-1 truncate">{doc.title}</p>
-            <div className="space-y-1">
-              <button
-                onClick={async () => {
-                  setIsMobileMenuOpen(false);
-                  if (!user) return;
-                  setIsBookmarking(true);
-                  try {
-                    await toggleBookmark(doc.id, 'document');
-                  } catch (error) {
-                    console.error('Failed to toggle bookmark:', error);
-                  } finally {
-                    setIsBookmarking(false);
-                  }
-                }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-zinc-50 text-sm font-medium text-zinc-800 transition-colors"
-              >
-                <Bookmark size={18} className={isBookmarked ? "fill-current text-amber-500" : "text-zinc-500"} />
-                {isBookmarked ? 'Remove from saved' : 'Save for later'}
-              </button>
-              {canDownload ? (
-                <button
-                  onClick={() => { setIsMobileMenuOpen(false); handleDownload(); }}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-zinc-50 text-sm font-medium text-zinc-800 transition-colors"
-                >
-                  <Download size={18} className="text-zinc-500" />
-                  Download
-                </button>
-              ) : (
-                <Link
-                  to="/subscription"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-zinc-900 text-white text-sm font-medium transition-colors"
-                >
-                  <Lock size={18} className="text-amber-400" />
-                  Go Pro to Unlock
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 2. MOBILE VIEW TOGGLE */}
-      <div className="md:hidden px-3 sm:px-4 py-2 bg-white border-b border-zinc-200 flex-shrink-0">
-        <div className="flex p-1 bg-zinc-100 rounded-lg">
+      <div className="lg:hidden sticky top-[57px] sm:top-[65px] z-20 px-3 py-2 bg-zinc-100/95 backdrop-blur">
+        <div className="flex p-1 bg-white border border-zinc-200 rounded-xl shadow-sm">
           <button
             onClick={() => setMobileView('doc')}
-            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
-              mobileView === 'doc' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[13px] font-semibold rounded-lg transition-all ${
+              mobileView === 'doc' ? 'bg-zinc-900 text-white shadow' : 'text-zinc-500'
             }`}
           >
-            <Eye size={14} className="sm:w-4 sm:h-4" /> Document
+            <Eye size={15} /> Read
           </button>
           <button
             onClick={() => setMobileView('tools')}
-            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
-              mobileView === 'tools' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[13px] font-semibold rounded-lg transition-all ${
+              mobileView === 'tools' ? 'bg-zinc-900 text-white shadow' : 'text-zinc-500'
             }`}
           >
-            <Sparkles size={14} className="sm:w-4 sm:h-4" /> AI Tools
+            <Sparkles size={15} /> AI Tools
           </button>
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT AREA (Split View) */}
-      <div className="flex-1 overflow-hidden relative flex flex-row">
-        
-        {/* LEFT PANEL: DOCUMENT VIEWER */}
-        <div className={`flex-1 bg-zinc-100/50 relative flex flex-col transition-all duration-300 ${mobileView === 'tools' ? 'hidden md:flex' : 'flex'}`}>
-          
-          {/* Viewer Toolbar */}
-          <div className="h-12 flex items-center justify-between px-4 border-b border-zinc-200 bg-white flex-shrink-0">
-             <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Preview Mode</span>
-             <div className="flex gap-2">
-                <button onClick={toggleFullScreen} className="p-1.5 hover:bg-zinc-100 rounded text-zinc-500 transition-colors" title="Toggle Fullscreen">
-                  {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
-                </button>
-             </div>
-          </div>
+      {/* 3. MAIN CONTENT */}
+      <main className="max-w-[1440px] mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_400px] items-start">
 
-          {/* Iframe Container */}
-          <div 
-            ref={docPreviewRef}
-            className={`flex-1 relative w-full h-full bg-zinc-200 overflow-hidden ${isFullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : ''}`}
-          >
-             {isFullscreen && (
-               <div className="absolute top-0 left-0 right-0 h-14 bg-zinc-900/90 backdrop-blur text-white flex items-center justify-between px-6 z-10 transition-opacity opacity-0 hover:opacity-100">
-                  <span className="font-medium">{doc.title}</span>
-                  <button onClick={toggleFullScreen} className="p-2 hover:bg-white/10 rounded-full"><Minimize size={20}/></button>
-               </div>
-             )}
+        {/* LEFT: VIEWER + ABOUT */}
+        <section className={`min-w-0 space-y-4 sm:space-y-6 ${mobileView === 'tools' ? 'hidden lg:block' : 'block'}`}>
 
-             {previewUrl ? (
+          {/* Viewer card */}
+          <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+            {/* Viewer toolbar */}
+            <div className="flex items-center gap-2 px-3 sm:px-4 h-12 border-b border-zinc-100">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+                <Eye size={13} /> Preview
+              </span>
+              <span className="px-2 py-0.5 bg-zinc-100 rounded-md text-[11px] font-bold text-zinc-600">{doc.file_type}</span>
+              <div className="flex-1" />
+              {previewUrl && (
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                  title="Open in new tab"
+                  aria-label="Open preview in new tab"
+                >
+                  <ExternalLink size={16} />
+                </a>
+              )}
+              <button
+                onClick={toggleFullScreen}
+                className="p-2 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+              </button>
+            </div>
+
+            {/* Preview area */}
+            <div
+              ref={docPreviewRef}
+              className={isFullscreen ? 'fixed inset-0 z-[100] bg-zinc-950 flex flex-col' : 'relative bg-zinc-200/60'}
+            >
+              {isFullscreen && (
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-14 bg-zinc-950 text-white flex-shrink-0">
+                  <span className="font-semibold text-sm truncate">{doc.title}</span>
+                  <button onClick={toggleFullScreen} className="p-2 hover:bg-white/10 rounded-full flex-shrink-0" aria-label="Exit fullscreen">
+                    <Minimize size={20} />
+                  </button>
+                </div>
+              )}
+
+              {previewUrl ? (
                 <iframe
                   src={previewUrl}
-                  className="w-full h-full border-0"
+                  className={`w-full border-0 bg-white ${isFullscreen ? 'flex-1' : 'h-[62vh] sm:h-[68vh] lg:h-[74vh]'}`}
                   allowFullScreen
-                  title="Document Preview"
+                  title={`${doc.title} preview`}
                 />
-             ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-white p-8 text-center">
-                   <div className="w-20 h-20 bg-zinc-50 rounded-2xl flex items-center justify-center mb-4">
-                      <FileText size={40} className="text-zinc-300"/>
-                   </div>
-                   <h3 className="text-lg font-medium text-zinc-900">Preview Unavailable</h3>
-                   <p className="text-zinc-500 max-w-xs mt-2 text-sm">The preview for this file type is not supported. Please download the file to view it.</p>
-                   {canDownload && (
-                     <button onClick={handleDownload} className="mt-6 px-5 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-sm font-medium rounded-lg transition-colors">
-                       Download File
-                     </button>
-                   )}
+              ) : (
+                <div className="w-full h-[50vh] sm:h-[60vh] flex flex-col items-center justify-center bg-white p-8 text-center">
+                  <div className="w-20 h-20 bg-zinc-100 rounded-3xl flex items-center justify-center mb-4">
+                    <FileText size={36} className="text-zinc-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-zinc-900">Preview unavailable</h3>
+                  <p className="text-zinc-500 max-w-xs mt-2 text-sm">This file type can't be previewed in the browser. Download it to read the full document.</p>
+                  {canDownload && (
+                    <button onClick={handleDownload} className="mt-6 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                      Download file
+                    </button>
+                  )}
                 </div>
-             )}
+              )}
 
-             {/* Premium gate: one rule for everyone. Premium documents require
-                 Pro to preview — guests AND free accounts alike. (Previously
-                 only guests were blocked while free users could read the full
-                 text, contradicting the locks everywhere else.) */}
-             {!canDownload && (
-                <div className="absolute inset-0 bg-white/80 backdrop-blur-md flex flex-col items-center justify-center z-20 p-6 text-center">
-                   <Lock size={48} className="text-zinc-300 mb-4" />
-                   <h3 className="text-xl font-bold text-zinc-800">Premium Content</h3>
-                   <p className="text-zinc-500 mb-6 max-w-xs">This document is exclusive to Student Pro members.</p>
-                   <div className="flex flex-col sm:flex-row gap-3">
-                     {!user && (
-                       <Link to="/login" className="px-8 py-3 bg-white border border-zinc-300 text-zinc-900 rounded-xl font-medium hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2">
-                         <LogIn size={18} /> Sign In
-                       </Link>
-                     )}
-                     <Link to="/subscription" className="px-8 py-3 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 transition-transform hover:scale-105 shadow-xl">
-                        Go Pro to Unlock
-                     </Link>
-                   </div>
+              {/* Premium gate: one rule for everyone. Premium documents require
+                  Pro to preview — guests AND free accounts alike. (Previously
+                  only guests were blocked while free users could read the full
+                  text, contradicting the locks everywhere else.) */}
+              {!canDownload && previewUrl && (
+                <div className="absolute inset-0 bg-white/85 backdrop-blur-md flex flex-col items-center justify-center z-20 p-6 text-center">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-200 mb-4">
+                    <Lock size={26} className="text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-zinc-900">Premium document</h3>
+                  <p className="text-zinc-500 mb-6 mt-1 max-w-xs text-sm">This document is exclusive to Student Pro members.</p>
+                  <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+                    {!user && (
+                      <Link to="/login" className="px-8 py-3 bg-white border border-zinc-300 text-zinc-900 rounded-xl font-semibold hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 text-sm">
+                        <LogIn size={16} /> Sign in
+                      </Link>
+                    )}
+                    <Link to="/subscription" className="px-8 py-3 bg-zinc-900 text-white rounded-xl font-semibold hover:bg-zinc-700 transition-colors text-sm">
+                      Go Pro to unlock
+                    </Link>
+                  </div>
                 </div>
-             )}
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* RIGHT PANEL: SMART TOOLS (Sidebar) */}
-        <div className={`w-full md:w-[380px] lg:w-[420px] bg-white border-l border-zinc-200 flex flex-col shadow-xl z-30 transition-all ${mobileView === 'doc' ? 'hidden md:flex' : 'flex'}`}>
-          
-          {/* Tool Tabs */}
-          <div className="flex border-b border-zinc-100">
-            {[
-              { id: 'chat', icon: MessageSquare, label: 'Tutor' },
-              { id: 'quiz', icon: HelpCircle, label: 'Quiz' },
-              { id: 'notes', icon: FileText, label: 'Notes' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 py-4 text-sm font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-zinc-900 text-zinc-900 bg-zinc-50'
-                    : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
-                }`}
-              >
-                <tab.icon size={16} /> {tab.label}
-              </button>
-            ))}
+          {/* About this document */}
+          <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-bold text-zinc-900">{doc.title}</h2>
+            {doc.description && (
+              <p className="text-sm text-zinc-600 leading-relaxed mt-2">{doc.description}</p>
+            )}
+            <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 text-[13px] text-zinc-500">
+              <span className="inline-flex items-center gap-1.5">
+                <Download size={14} className="text-zinc-400" />
+                {doc.downloads ?? 0} downloads
+              </span>
+              {doc.uploadedAt && (
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays size={14} className="text-zinc-400" />
+                  {new Date(doc.uploadedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                </span>
+              )}
+              {doc.author && (
+                <span className="inline-flex items-center gap-1.5">
+                  <FileText size={14} className="text-zinc-400" />
+                  {doc.author}
+                </span>
+              )}
+            </div>
+            {doc.tags && doc.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-4">
+                {doc.tags.map((tag) => (
+                  <span key={tag} className="px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full text-xs font-medium">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* RIGHT: AI TOOLS */}
+        <aside className={`min-w-0 lg:sticky lg:top-[136px] flex-col bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden ${mobileView === 'doc' ? 'hidden lg:flex' : 'flex'}`}>
+
+          {/* Tool tabs */}
+          <div className="p-2.5 pb-0">
+            <div className="flex p-1 bg-zinc-100 rounded-xl" role="tablist" aria-label="Study tools">
+              {[
+                { id: 'chat', icon: MessageSquare, label: 'Tutor' },
+                { id: 'quiz', icon: HelpCircle, label: 'Quiz' },
+                { id: 'notes', icon: FileText, label: 'Notes' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex-1 py-2 text-[13px] font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-800'
+                  }`}
+                >
+                  <tab.icon size={15} /> {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Tool Content Area */}
-          <div className="flex-1 overflow-y-auto bg-zinc-50/30" ref={scrollRef}>
+          <div className="h-[54vh] lg:h-[58vh] overflow-y-auto" ref={scrollRef}>
             
             {/* --- CHAT TAB --- */}
             {activeTab === 'chat' && (
-              <div className="flex flex-col min-h-full">
+              <div className="flex flex-col min-h-full px-4 py-4">
                 {/* Summary Card */}
-                <div className="p-4 bg-gradient-to-br from-zinc-100 to-white border-b border-zinc-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-1">
-                      <Sparkles size={12} className="text-zinc-500"/> AI Summary
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 mb-4">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <h4 className="text-[11px] font-bold text-zinc-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-lg bg-zinc-900 flex items-center justify-center">
+                        <Sparkles size={11} className="text-amber-400" />
+                      </span>
+                      AI Summary
                     </h4>
                     {summary && <TTSButton text={stripForSpeech(summary)} size={14} className="text-zinc-400 hover:text-zinc-900" />}
                   </div>
                   {isSummaryLoading ? (
-                    <div className="space-y-2 animate-pulse">
-                      <div className="h-2 bg-zinc-200/70 rounded w-full"></div>
-                      <div className="h-2 bg-zinc-200/70 rounded w-3/4"></div>
+                    <div className="space-y-2 animate-pulse py-1">
+                      <div className="h-2 bg-zinc-200 rounded w-full"></div>
+                      <div className="h-2 bg-zinc-200 rounded w-3/4"></div>
                     </div>
                   ) : (
-                    <div className="text-xs sm:text-sm text-zinc-700 leading-relaxed">
+                    <div className="text-[13px] text-zinc-700 leading-relaxed">
                       <MarkdownRenderer content={summary || ''} />
                     </div>
                   )}
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 p-4 space-y-5">
+                <div className="flex-1 space-y-4">
                   {chatHistory.length === 0 && (
-                    <div className="text-center py-10 opacity-60">
-                      <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                         <Bot size={24} className="text-zinc-400"/>
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Bot size={22} className="text-amber-400" />
                       </div>
-                      <p className="text-sm text-zinc-500">Ask questions about this document.</p>
-                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <p className="text-sm font-semibold text-zinc-800">Ask about this document</p>
+                      <p className="text-xs text-zinc-500 mt-1 mb-4">Explanations, key points, summaries.</p>
+                      <div className="flex flex-wrap justify-center gap-2">
                         {["Explain the main concept", "List key dates", "Summarize in bullets"].map(q => (
-                          <button key={q} onClick={() => setChatInput(q)} className="text-xs bg-white border border-zinc-200 px-3 py-1.5 rounded-full hover:border-zinc-400 hover:text-zinc-900 transition-colors">
+                          <button key={q} onClick={() => setChatInput(q)} className="text-xs bg-white border border-zinc-200 px-3 py-1.5 rounded-full hover:border-zinc-900 hover:text-zinc-900 text-zinc-600 transition-colors">
                             {q}
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
-                  
+
                   {chatHistory.map((msg, i) => (
-                    <div key={i} className={`flex gap-3 animate-fade-in ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold shadow-sm ${msg.role === 'user' ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-white'}`}>
-                        {msg.role === 'user' ? 'You' : <Bot size={14}/>}
+                    msg.role === 'user' ? (
+                      <div key={i} className="flex justify-end animate-fade-in">
+                        <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-br-md bg-zinc-900 text-white text-sm leading-relaxed shadow-sm">
+                          <MarkdownRenderer content={msg.text} />
+                        </div>
                       </div>
-                      <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
-                        msg.role === 'user' 
-                          ? 'bg-white text-zinc-800 border border-zinc-100 rounded-tr-none' 
-                          : 'bg-white text-zinc-700 border border-zinc-100 rounded-tl-none'
-                      }`}>
-                         <MarkdownRenderer content={msg.text} />
+                    ) : (
+                      <div key={i} className="flex gap-2.5 animate-fade-in">
+                        <div className="w-7 h-7 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Bot size={14} className="text-amber-400" />
+                        </div>
+                        <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-tl-md bg-white text-zinc-800 border border-zinc-200 text-sm leading-relaxed shadow-sm">
+                          <MarkdownRenderer content={msg.text} />
+                        </div>
                       </div>
-                    </div>
+                    )
                   ))}
-                  
+
                   {isChatLoading && (
-                     <div className="flex gap-2 items-center text-zinc-400 text-xs pl-10">
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"/>
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-75"/>
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-150"/>
-                     </div>
+                    <div className="flex gap-2 items-center text-zinc-400 text-xs pl-10">
+                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" />
+                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-75" />
+                      <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce delay-150" />
+                    </div>
                   )}
                 </div>
               </div>
@@ -732,18 +779,18 @@ const DocumentView: React.FC = () => {
 
             {/* --- QUIZ TAB --- */}
             {activeTab === 'quiz' && (
-              <div className="p-5">
+              <div className="px-4 py-4">
                 {!quizContent && !isQuizLoading && (
-                  <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-zinc-300">
-                    <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-500">
-                      <HelpCircle size={28} />
+                  <div className="text-center py-10 px-4 bg-zinc-50 rounded-2xl border border-dashed border-zinc-300">
+                    <div className="p-3.5 bg-amber-100 rounded-2xl inline-flex items-center justify-center mb-3 text-amber-600">
+                      <HelpCircle size={26} />
                     </div>
-                    <h3 className="text-zinc-900 font-medium mb-1">Test Your Knowledge</h3>
-                    <p className="text-sm text-zinc-500 mb-6 px-4">Generate an instant 5-question multiple choice quiz based on this document.</p>
-                    <button 
-                      onClick={handleGenerateQuiz} 
+                    <h3 className="text-zinc-900 font-bold">Test your knowledge</h3>
+                    <p className="text-[13px] text-zinc-500 mb-5 mt-1">Generate an instant 5-question quiz from this document.</p>
+                    <button
+                      onClick={handleGenerateQuiz}
                       disabled={isQuizLoading}
-                      className="mx-auto px-6 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-xl hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="mx-auto px-6 py-2.5 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {isQuizLoading ? (
                         <>
@@ -751,42 +798,42 @@ const DocumentView: React.FC = () => {
                           Generating...
                         </>
                       ) : (
-                        'Generate Quiz'
+                        'Generate quiz'
                       )}
                     </button>
                   </div>
                 )}
-                
+
                 {isQuizLoading && (
-                   <div className="text-center py-20">
-                      <div className="w-8 h-8 border-4 border-zinc-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-3"/>
-                      <p className="text-sm text-zinc-500">Crafting questions...</p>
-                   </div>
+                  <div className="text-center py-16">
+                    <div className="w-8 h-8 border-[3px] border-zinc-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-zinc-500">Crafting questions...</p>
+                  </div>
                 )}
 
                 {quizContent && (
-                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-zinc-100">
+                  <div className="bg-white rounded-2xl border border-zinc-200 p-5 shadow-sm">
                     <div className="prose prose-sm prose-zinc max-w-none prose-headings:text-zinc-800 prose-p:text-zinc-600 prose-li:text-zinc-600">
                       <MarkdownRenderer content={quizContent} />
                     </div>
-                    <div className="mt-8 pt-6 border-t border-zinc-100 flex gap-3">
-                       <button onClick={() => setQuizContent(null)} className="flex-1 py-2.5 text-sm text-zinc-600 font-medium hover:bg-zinc-50 rounded-lg transition-colors">
-                          Clear
-                       </button>
-                       <button 
-                         onClick={handleGenerateQuiz} 
-                         disabled={isQuizLoading}
-                         className="flex-1 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                       >
-                         {isQuizLoading ? (
-                           <>
-                             <Loader2 size={16} className="animate-spin" />
-                             Generating...
-                           </>
-                         ) : (
-                           'New Quiz'
-                         )}
-                       </button>
+                    <div className="mt-6 pt-4 border-t border-zinc-100 flex gap-2">
+                      <button onClick={() => setQuizContent(null)} className="flex-1 py-2.5 text-sm text-zinc-500 font-semibold hover:bg-zinc-100 rounded-xl transition-colors">
+                        Clear
+                      </button>
+                      <button
+                        onClick={handleGenerateQuiz}
+                        disabled={isQuizLoading}
+                        className="flex-1 py-2.5 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isQuizLoading ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          'New quiz'
+                        )}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -795,34 +842,34 @@ const DocumentView: React.FC = () => {
 
             {/* --- NOTES TAB --- */}
             {activeTab === 'notes' && (
-              <div className="h-full flex flex-col p-4">
-                <div className="bg-yellow-50/50 border border-yellow-100 rounded-xl flex-1 flex flex-col p-1 shadow-inner">
-                   <div className="flex justify-between items-center px-3 py-2 border-b border-yellow-100/50">
-                      <span className="text-xs font-bold text-yellow-700 uppercase tracking-wide">Notepad</span>
-                      <div className="flex gap-1">
-                         <span className="text-[10px] text-yellow-600/60 flex items-center gap-1 mr-2"><CheckCircle size={10}/> Saved</span>
-                         <button onClick={handleDownloadNotes} className="p-1 hover:bg-yellow-100 rounded text-yellow-700" title="Download .txt">
-                            <Download size={14} />
-                         </button>
-                      </div>
-                   </div>
-                   <textarea
+              <div className="h-full flex flex-col px-4 py-4">
+                <div className="bg-amber-50/60 border border-amber-200/60 rounded-2xl flex-1 min-h-[280px] flex flex-col overflow-hidden">
+                  <div className="flex justify-between items-center px-3.5 py-2.5 border-b border-amber-200/50">
+                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Notepad</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-amber-700/70 flex items-center gap-1"><CheckCircle size={11} /> Saved</span>
+                      <button onClick={handleDownloadNotes} disabled={!notes.trim()} className="p-1.5 hover:bg-amber-100 rounded-lg text-amber-800 disabled:opacity-40 transition-colors" title="Download notes">
+                        <Download size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
                     value={notes}
                     onChange={handleNoteChange}
-                    placeholder="Take notes here..."
-                    className="flex-1 w-full bg-transparent p-4 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none resize-none leading-relaxed"
+                    placeholder="Take notes while you read..."
+                    className="flex-1 w-full bg-transparent p-4 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none resize-none leading-relaxed min-h-[240px]"
                     spellCheck={false}
-                   ></textarea>
+                  ></textarea>
                 </div>
-                <p className="text-center text-[10px] text-zinc-400 mt-2">Notes are stored locally in your browser.</p>
+                <p className="text-center text-[11px] text-zinc-400 mt-2.5">Notes are stored locally in your browser.</p>
               </div>
             )}
           </div>
 
-          {/* Chat Input Area (Fixed at bottom of sidebar) */}
+          {/* Chat Input Area */}
           {activeTab === 'chat' && (
-            <div className="p-4 bg-white border-t border-zinc-100 flex-shrink-0">
-              <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-2 bg-zinc-50 border border-zinc-200 rounded-xl p-2 transition-shadow focus-within:ring-2 focus-within:ring-zinc-900/5 focus-within:border-zinc-400">
+            <div className="p-3 bg-white border-t border-zinc-100 flex-shrink-0">
+              <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-1.5 bg-zinc-100 border border-transparent rounded-2xl p-1.5 transition-all focus-within:bg-white focus-within:border-zinc-300 focus-within:shadow-sm">
                 {/* Image Preview */}
                 {imagePreview && (
                   <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
@@ -885,7 +932,8 @@ const DocumentView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!chatInput.trim() || isChatLoading || isProcessingImage}
-                  className="p-2 mb-0.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  aria-label="Send question"
+                  className="p-2.5 mb-0.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0"
                 >
                   {isChatLoading ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -896,8 +944,8 @@ const DocumentView: React.FC = () => {
               </form>
             </div>
           )}
-        </div>
-      </div>
+        </aside>
+      </main>
     </div>
   );
 };
