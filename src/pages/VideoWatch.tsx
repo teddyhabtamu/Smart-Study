@@ -467,7 +467,7 @@ const VideoWatch: React.FC = () => {
       // response carries it) — never minted from the client. Sync the header.
       const xp = response?.xpGained ?? 0;
       if (xp > 0) {
-        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
+        refreshUser(true).catch((error) => console.error('Background user refresh failed:', error));
         addToast(`+${xp} XP Lesson Completed!`, "success");
         if (response?.leveledUp && response?.newLevel) {
           const newLevel = response.newLevel;

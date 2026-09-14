@@ -163,7 +163,7 @@ const Practice: React.FC = () => {
       if (quizData && quizData.length > 0) {
         // Generation XP is credited server-side (see generate endpoint) —
         // just sync the header. The old gainXP(+5) call here double-paid it.
-        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
+        refreshUser(true).catch((error) => console.error('Background user refresh failed:', error));
 
         setQuestions(quizData);
         setView('quiz');
@@ -250,7 +250,7 @@ const Practice: React.FC = () => {
     }).then((res: any) => {
       const xp = res?.xpGained ?? 0;
       if (xp > 0) {
-        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
+        refreshUser(true).catch((error) => console.error('Background user refresh failed:', error));
       }
       if (res?.leveledUp && res?.newLevel) {
         setTimeout(() => addToast(`Level Up! You are now Level ${res.newLevel}`, "success"), 1000);

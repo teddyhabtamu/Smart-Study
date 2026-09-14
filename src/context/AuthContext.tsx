@@ -12,7 +12,9 @@ interface AuthContextType {
   toggleBookmark: (itemId: string, itemType?: 'document' | 'video') => Promise<void>;
   markNotificationsAsRead: (notificationIds?: string[]) => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
-  refreshUser: () => Promise<void>;
+  // force=true bypasses the 30s profile cache — required after any mutation
+  // (XP awards, mark-read) or the UI would show pre-mutation state.
+  refreshUser: (force?: boolean) => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -128,6 +130,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.removeItem('auth_token');
             localStorage.removeItem('refresh_token');
             localStorage.removeItem('smartstudy_user');
+            profileRequestRef.current = null;
+            lastProfileFetchRef.current = null;
             setUser(null);
           } else if (savedUser) {
             // For network/timeout/500 errors, restore cached user data
@@ -386,8 +390,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(transformedUser);
       // Save to localStorage for immediate access
       localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
-      // Load full profile including bookmarks
-      await refreshUser();
+      // Load full profile including bookmarks (forced: credentials just
+      // changed, so no cache entry can be trusted here)
+      await refreshUser(true);
       // Return the user for immediate access to role
       return transformedUser;
     } catch (error) {
@@ -418,8 +423,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         is_premium: undefined
       };
       setUser(transformedUser);
-      // Load full profile including bookmarks
-      await refreshUser();
+      // Load full profile including bookmarks (forced: credentials just
+      // changed, so no cache entry can be trusted here)
+      await refreshUser(true);
     } catch (error) {
       throw error;
     }
@@ -435,10 +441,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear all authentication data
+      // Clear all authentication data — including the profile cache refs,
+      // or the next account to sign in on this browser would inherit the
+      // previous account's fetch timestamp and skip its own profile load.
       localStorage.removeItem('auth_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('smartstudy_user');
+      profileRequestRef.current = null;
+      lastProfileFetchRef.current = null;
       setUser(null);
     }
   };
@@ -503,7 +513,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await usersAPI.markNotificationsRead(notificationIds);
-      await refreshUser(); // Refresh user data
+      // Forced: the profile cache would otherwise serve the pre-mark state
+      // and the bell count would stay stale for up to 30s.
+      await refreshUser(true);
     } catch (error) {
       console.error('Mark notifications read error:', error);
       throw error;
@@ -515,7 +527,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await usersAPI.deleteNotification(notificationId);
-      await refreshUser(); // Refresh user data
+      // Forced, same reason as above.
+      await refreshUser(true);
     } catch (error) {
       console.error('Delete notification error:', error);
       throw error;

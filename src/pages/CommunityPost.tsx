@@ -236,7 +236,7 @@ const CommunityPost: React.FC = () => {
       }
       // +10 XP is credited server-side — sync the header from the response.
       if (result?.xpGained > 0) {
-        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
+        refreshUser(true).catch((error) => console.error('Background user refresh failed:', error));
         if (result?.leveledUp && result?.newLevel) {
           addToast(`Level Up! You are now Level ${result.newLevel}`, "success");
         }

@@ -114,7 +114,7 @@ export const useSEO = () => {
 // elsewhere), and superlatives must be verifiable — no "leading", "largest",
 // "thousands", or "experienced instructors" for a 14-document, 2-post
 // library of curated YouTube lessons.
-const SITE = 'https://smart-study-ncwi.vercel.app';
+const SITE = 'https://smartstudy.tewodroshabtamu.dev';
 
 // Predefined SEO configurations for different pages
 export const pageSEO = {

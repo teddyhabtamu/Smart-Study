@@ -269,7 +269,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   e.stopPropagation();
                   setIsNotificationsOpen(!isNotificationsOpen);
                   if (!isNotificationsOpen && user) {
-                    refreshUser().catch(error => {
+                    refreshUser(true).catch(error => {
                       console.error('Failed to fetch notifications:', error);
                     });
                   }
@@ -457,7 +457,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                        
                        // Fetch fresh notifications in background (non-blocking)
                        if (!isNotificationsOpen && user) {
-                         refreshUser().catch(error => {
+                         refreshUser(true).catch(error => {
                            console.error('Failed to fetch notifications:', error);
                          });
                        }
