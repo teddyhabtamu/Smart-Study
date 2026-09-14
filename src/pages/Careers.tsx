@@ -6,6 +6,7 @@ import Footer from '../components/Footer';
 import { careersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const iconMap: { [key: string]: any } = {
   'Content': PenTool,
@@ -15,6 +16,10 @@ const iconMap: { [key: string]: any } = {
 };
 
 const Careers: React.FC = () => {
+  const { updateSEO } = useSEO();
+  useEffect(() => {
+    updateSEO(pageSEO.careers);
+  }, [updateSEO]);
   const { user } = useAuth();
   const { addToast } = useToast();
   const [positions, setPositions] = useState<any[]>([]);

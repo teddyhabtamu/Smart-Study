@@ -8,11 +8,16 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { DocumentCardSkeleton } from '../components/Skeletons';
 import GoogleDriveImage from '../components/GoogleDriveImage';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const INITIAL_LIMIT = 16; // Load 16 exam papers initially
 const LOAD_MORE_LIMIT = 12; // Load 12 more exam papers each time
 
 const PastExams: React.FC = () => {
+  const { updateSEO } = useSEO();
+  useEffect(() => {
+    updateSEO(pageSEO.pastExams);
+  }, [updateSEO]);
   const { documents, fetchDocuments, fetchMoreDocuments, loading, errors } = useData();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');

@@ -1,10 +1,15 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { GraduationCap, Users, Lightbulb, Target, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const About: React.FC = () => {
+  const { updateSEO } = useSEO();
+  useEffect(() => {
+    updateSEO(pageSEO.about);
+  }, [updateSEO]);
   return (
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 animate-fade-in pb-12">

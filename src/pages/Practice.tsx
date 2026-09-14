@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { aiTutorAPI, plannerAPI } from '../services/api';
 import { generatePracticeQuiz } from '../services/geminiService';
 import CustomSelect from '../components/CustomSelect';
+import { useSEO, pageSEO } from '../utils/seoUtils';
 import { SUBJECTS, GRADES } from '../constants';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
@@ -29,6 +30,10 @@ interface Question {
 const STORAGE_KEY = 'smartstudy_practice_state';
 
 const Practice: React.FC = () => {
+  const { updateSEO } = useSEO();
+  useEffect(() => {
+    updateSEO(pageSEO.practice);
+  }, [updateSEO]);
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -125,7 +130,9 @@ const Practice: React.FC = () => {
 
   // Options
   const subjectOptions = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
-  const gradeOptions = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
+  // Quizzes need a concrete grade (the backend requires 0-12): 'General'
+  // would 400, so it stays a library-only option.
+  const gradeOptions = GRADES.filter(g => g !== 'All' && g !== 'General').map(g => ({ label: `Grade ${g}`, value: g }));
   const difficultyOptions = [
     { label: 'Easy', value: 'Easy' },
     { label: 'Medium', value: 'Medium' },

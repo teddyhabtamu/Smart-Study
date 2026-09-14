@@ -1,7 +1,8 @@
 import express from 'express';
 import multer from 'multer';
+import { body } from 'express-validator';
 import { dbAdmin, query } from '../database/config';
-import { authenticateToken, optionalAuth } from '../middleware/auth';
+import { authenticateToken, optionalAuth, validateRequest } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
@@ -86,7 +87,10 @@ router.get('/sessions', authenticateToken, async (req: express.Request, res: exp
 });
 
 // Create new chat session
-router.post('/sessions', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/sessions', [
+  authenticateToken,
+  body('title').optional().trim().isLength({ min: 1, max: 200 }).withMessage('Title must be between 1 and 200 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { title = 'New Chat Session' } = req.body;
@@ -151,8 +155,13 @@ router.get('/sessions/:id', authenticateToken, async (req: express.Request, res:
   }
 });
 
-// Add message to chat session
-router.post('/sessions/:id/messages', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+// Add message to chat session. Validated: previously any role string and
+// unbounded text went straight into the jsonb column.
+router.post('/sessions/:id/messages', [
+  authenticateToken,
+  body('role').isIn(['user', 'model', 'assistant', 'system']).withMessage('Valid message role required'),
+  body('text').isString().trim().isLength({ min: 1, max: 20000 }).withMessage('Message must be between 1 and 20000 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { role, text } = req.body;
@@ -205,7 +214,10 @@ router.post('/sessions/:id/messages', authenticateToken, async (req: express.Req
 });
 
 // Update chat session title
-router.put('/sessions/:id', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.put('/sessions/:id', [
+  authenticateToken,
+  body('title').trim().isLength({ min: 1, max: 200 }).withMessage('Title must be between 1 and 200 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { title } = req.body;
@@ -286,7 +298,10 @@ router.delete('/sessions/:id', authenticateToken, async (req: express.Request, r
 });
 
 // Generate Study Plan using AI
-router.post('/generate-study-plan', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/generate-study-plan', [
+  authenticateToken,
+  body('prompt').isString().trim().isLength({ min: 1, max: 2000 }).withMessage('Prompt must be between 1 and 2000 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { prompt } = req.body;
     const userId = req.user!.id;
@@ -390,8 +405,16 @@ router.post('/ocr', optionalAuth, upload.single('image'), async (req: express.Re
 
 // AI Chat endpoint using Groq with Llama 3.1
 // Use optionalAuth so authenticated users get sessions saved; guests still allowed
-// Now accepts both text messages and OCR text
-router.post('/chat', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
+// Now accepts both text messages and OCR text.
+// Message is validated: an empty/missing message previously crashed title
+// generation (message.length of undefined) and burned shared AI quota.
+router.post('/chat', [
+  optionalAuth,
+  body('message').isString().trim().isLength({ min: 1, max: 10000 }).withMessage('Message must be between 1 and 10000 characters'),
+  body('subject').optional().isString().trim().isLength({ max: 100 }),
+  body('grade').optional().isInt({ min: 0, max: 12 }).toInt(),
+  body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { message, subject, grade, sessionId } = req.body;
     const userId = req.user?.id;
@@ -489,16 +512,17 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
 
 // Streaming AI chat via Server-Sent Events
 // Sends incremental text deltas so the frontend can render as the model writes.
-router.post('/chat/stream', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/chat/stream', [
+  optionalAuth,
+  body('message').isString().trim().isLength({ min: 1, max: 10000 }).withMessage('Message must be between 1 and 10000 characters'),
+  body('subject').optional().isString().trim().isLength({ max: 100 }),
+  body('grade').optional().isInt({ min: 0, max: 12 }).toInt(),
+  body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   const { message, subject, grade, sessionId, deepThinking } = req.body;
   const userId = req.user?.id;
   const t0 = Date.now();
   const elapsed = () => `${Date.now() - t0}ms`;
-
-  if (!message || typeof message !== 'string') {
-    res.status(400).json({ success: false, message: 'Message is required' } as ApiResponse);
-    return;
-  }
 
   // SSE headers
   res.writeHead(200, {
@@ -630,7 +654,13 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
 });
 
 // Generate practice quiz questions
-router.post('/generate-practice-quiz', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post('/generate-practice-quiz', [
+  authenticateToken,
+  body('subject').isString().trim().isLength({ min: 1, max: 100 }).withMessage('Subject is required'),
+  body('grade').isInt({ min: 0, max: 12 }).toInt().withMessage('Grade must be between 0 and 12'),
+  body('difficulty').optional().isIn(['Easy', 'Medium', 'Hard']).withMessage('Difficulty must be Easy, Medium, or Hard'),
+  body('count').optional().isInt({ min: 1, max: 10 }).toInt().withMessage('Count must be between 1 and 10')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { subject, grade, difficulty = 'Medium', count = 5 } = req.body;
     const userId = req.user!.id;

@@ -1,3 +1,5 @@
+import { useCallback } from 'react';
+
 interface SEOProps {
   title?: string;
   description?: string;
@@ -9,7 +11,9 @@ interface SEOProps {
 }
 
 export const useSEO = () => {
-  const updateSEO = ({
+  // Memoized: every wired page deps on this in useEffect — a fresh identity
+  // per render re-ran all of them pointlessly.
+  const updateSEO = useCallback(({
     title,
     description,
     keywords,
@@ -100,65 +104,72 @@ export const useSEO = () => {
         twitterImage.setAttribute('content', image);
       }
     }
-  };
+  }, []);
 
   return { updateSEO };
 };
+
+// Page copy. Rules, learned the hard way: canonicals must be the LIVE host
+// (they once pointed at a dead Vercel slug, telling Google every page lived
+// elsewhere), and superlatives must be verifiable — no "leading", "largest",
+// "thousands", or "experienced instructors" for a 14-document, 2-post
+// library of curated YouTube lessons.
+const SITE = 'https://smart-study-ncwi.vercel.app';
 
 // Predefined SEO configurations for different pages
 export const pageSEO = {
   home: {
     title: 'SmartStudy - AI-Powered Learning Platform for Ethiopian High School Students',
-    description: 'SmartStudy is the leading AI-powered educational platform for Ethiopian high school students. Access digital library, AI tutor, video lessons, and community support. Free to start, designed for Ethiopian curriculum.',
+    description: 'SmartStudy helps Ethiopian high school students study with a digital library, AI tutor, video lessons, and community support. Free to start, organized around the Ethiopian curriculum.',
     keywords: 'Ethiopian education, smart study, education platform, Ethiopian high school, AI tutor, digital library, Ethiopian curriculum, high school learning, Ethiopian students',
-    canonical: 'https://ethio-smart-study.vercel.app/'
+    canonical: `${SITE}/`
   },
   library: {
-    title: 'Digital Library - Access Textbooks & Study Materials | SmartStudy Ethiopia',
-    description: 'Browse and download thousands of textbooks, exam papers, and study materials for Ethiopian high school curriculum. Free access to educational resources.',
+    title: 'Digital Library - Textbooks & Study Materials | SmartStudy Ethiopia',
+    description: 'Browse textbooks, exam papers, and study materials for the Ethiopian high school curriculum. Free access to educational resources.',
     keywords: 'digital library Ethiopia, textbooks Ethiopia, study materials, Ethiopian curriculum books, exam papers, educational resources',
-    canonical: 'https://ethio-smart-study.vercel.app/library'
+    canonical: `${SITE}/library`
   },
   aiTutor: {
-    title: 'AI Tutor - Get Instant Help with Math, Physics & Chemistry | SmartStudy',
-    description: 'Get personalized AI tutoring for Ethiopian high school subjects. Instant explanations, step-by-step solutions, and 24/7 homework help powered by advanced AI.',
+    title: 'AI Tutor - Help with Math, Physics & Chemistry | SmartStudy',
+    description: 'Get AI tutoring for Ethiopian high school subjects: explanations, step-by-step solutions, and homework help. Always cross-check critical facts with your textbooks.',
     keywords: 'AI tutor Ethiopia, math help, physics tutor, chemistry help, homework assistance, Ethiopian education AI',
-    canonical: 'https://ethio-smart-study.vercel.app/ai-tutor'
+    canonical: `${SITE}/ai-tutor`
   },
   videos: {
     title: 'Video Lessons - Ethiopian High School Video Classroom | SmartStudy',
-    description: 'Watch high-quality video lessons taught by experienced Ethiopian instructors. Visual learning for grades 9-12 following the national curriculum.',
+    description: 'Watch curated video lessons for grades 9-12, organized around the national curriculum. Free to browse; Pro unlocks the full collection.',
     keywords: 'video lessons Ethiopia, online classroom, Ethiopian teachers, high school videos, educational videos',
-    canonical: 'https://ethio-smart-study.vercel.app/videos'
+    canonical: `${SITE}/videos`
   },
   pastExams: {
     title: 'Past Exam Papers - Practice with Previous Years\' Exams | SmartStudy',
-    description: 'Access past exam papers and practice tests for Ethiopian high school national exams. Prepare effectively with real exam questions.',
+    description: 'Practice with past exam papers and tests for Ethiopian high school national exams. Prepare with real exam questions.',
     keywords: 'past exams Ethiopia, exam papers, national exam preparation, Ethiopian high school exams, practice tests',
-    canonical: 'https://ethio-smart-study.vercel.app/past-exams'
+    canonical: `${SITE}/past-exams`
   },
   community: {
     title: 'Study Community - Connect with Ethiopian Students | SmartStudy',
-    description: 'Join the largest study community for Ethiopian high school students. Share notes, ask questions, and study together with peers across Ethiopia.',
+    description: 'Join the study community for Ethiopian high school students. Share notes, ask questions, and study together with peers.',
     keywords: 'study community Ethiopia, student forum, Ethiopian students, study groups, educational community',
-    canonical: 'https://ethio-smart-study.vercel.app/community'
+    canonical: `${SITE}/community`
   },
   practice: {
     title: 'Practice Center - Test Your Knowledge | SmartStudy Ethiopia',
-    description: 'Practice with interactive quizzes and tests designed for Ethiopian high school curriculum. Track your progress and improve your grades.',
+    description: 'Practice with interactive quizzes and tests designed for the Ethiopian high school curriculum. Track your progress and improve your grades.',
     keywords: 'practice tests Ethiopia, quiz platform, Ethiopian curriculum practice, study assessment',
-    canonical: 'https://ethio-smart-study.vercel.app/practice'
+    canonical: `${SITE}/practice`
   },
   about: {
-    title: 'About SmartStudy - Ethiopia\'s Leading Educational Platform',
-    description: 'Learn about SmartStudy, the innovative educational platform transforming learning for Ethiopian high school students with AI technology and community support.',
+    title: 'About SmartStudy - Educational Platform for Ethiopia',
+    description: 'Learn about SmartStudy, an educational platform for Ethiopian high school students with AI tutoring, a digital library, and community support.',
     keywords: 'about SmartStudy, Ethiopian education platform, educational technology Ethiopia',
-    canonical: 'https://ethio-smart-study.vercel.app/about'
+    canonical: `${SITE}/about`
   },
   careers: {
     title: 'Careers - Join the SmartStudy Team | Education Technology Ethiopia',
-    description: 'Explore career opportunities at SmartStudy. Help us revolutionize education in Ethiopia by joining our team of educators and technologists.',
+    description: 'Explore career opportunities at SmartStudy. Help us improve education in Ethiopia by joining our team of educators and technologists.',
     keywords: 'careers Ethiopia, education jobs, tech jobs Ethiopia, SmartStudy careers',
-    canonical: 'https://ethio-smart-study.vercel.app/careers'
+    canonical: `${SITE}/careers`
   }
 };

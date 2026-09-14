@@ -73,10 +73,13 @@ export async function extractTextFromImage(imageBuffer: Buffer): Promise<string>
       )
     ]) as any;
     
-    // Clean up the extracted text
+    // Clean up the extracted text. Empty string when nothing is found — NOT
+    // a placeholder sentence: all three callers (tutor/watch/document) treat
+    // empty as "leave the input blank + toast", while a truthy sentence
+    // would be pasted into the input as fake extracted text.
     const cleanedText = result.data.text.trim().replace(/\s+/g, ' ');
-    
-    return cleanedText || 'No text could be extracted from the image.';
+
+    return cleanedText;
   } catch (error) {
     console.error('OCR Error:', error);
     
