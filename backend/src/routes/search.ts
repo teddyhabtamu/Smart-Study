@@ -1,5 +1,6 @@
 import express from 'express';
 import { query } from '../database/config';
+import { optionalAuth } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
 
 const router = express.Router();
@@ -44,8 +45,10 @@ const textMatch = (
   };
 };
 
-// Unified search endpoint
-router.get('/', async (req: express.Request, res: express.Response): Promise<void> => {
+// Unified search endpoint. optionalAuth (not open): without it req.user is
+// always undefined and EVERY searcher — Pro included — was treated as free,
+// so paying users never saw premium results.
+router.get('/', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { q: searchTerm, type, limit = 10, offset = 0 } = req.query;
 
@@ -232,8 +235,8 @@ router.get('/', async (req: express.Request, res: express.Response): Promise<voi
   }
 });
 
-// Advanced search with filters
-router.post('/advanced', async (req: express.Request, res: express.Response): Promise<void> => {
+// Advanced search with filters (same auth note as above)
+router.post('/advanced', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const {
       query: searchQuery,
@@ -466,8 +469,9 @@ router.post('/advanced', async (req: express.Request, res: express.Response): Pr
   }
 });
 
-// Autocomplete suggestions
-router.get('/suggest', async (req: express.Request, res: express.Response): Promise<void> => {
+// Autocomplete suggestions (same auth note as above — Pro users were
+// getting the free-tier suggestion pool)
+router.get('/suggest', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { q: prefix, limit = 5 } = req.query;
 

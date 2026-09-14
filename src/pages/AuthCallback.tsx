@@ -20,7 +20,13 @@ const AuthCallback: React.FC = () => {
       navigate(`/login?error=${reason}`, { replace: true });
     };
 
-    if (success === 'true' && token) {
+    if (success === 'true') {
+      if (!token) {
+        // Backend claimed success but sent no token — a backend glitch, not
+        // a user cancellation (previously mislabeled as 'cancelled').
+        fail('verify_failed');
+        return;
+      }
       // Save tokens
       localStorage.setItem('auth_token', token);
       if (refreshToken) {

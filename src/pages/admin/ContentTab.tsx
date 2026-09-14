@@ -149,9 +149,29 @@ const ContentTab: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const isHttpUrl = (v: string): boolean => {
+      try {
+        const u = new URL(v.trim());
+        return u.protocol === 'http:' || u.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    };
+
     // Validate required fields
     if ((contentCategory === 'documents' || contentCategory === 'past-exams') && !editingId && (!docFileUrl || !docFileUrl.trim())) {
       addToast(contentCategory === 'past-exams' ? 'Document URL is required to create an exam paper.' : 'Document URL is required to create a document.', 'error');
+      return;
+    }
+
+    // Validate URL shapes client-side (the backend also enforces isURL, but
+    // a 400 toast after upload-spin is a worse experience than this check).
+    if ((contentCategory === 'documents' || contentCategory === 'past-exams') && !editingId && !isHttpUrl(docFileUrl)) {
+      addToast('Document URL must be a valid http(s) link.', 'error');
+      return;
+    }
+    if (contentCategory === 'videos' && !editingId && !isHttpUrl(videoUrl)) {
+      addToast('A valid YouTube/video URL is required to create a lesson.', 'error');
       return;
     }
 
