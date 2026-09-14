@@ -4,7 +4,7 @@ import {
   Download, MessageSquare, ChevronLeft, Lock, FileText, Send, Bot,
   HelpCircle, Bookmark, LogIn, UserPlus, Sparkles, Eye,
   Maximize, Minimize, CheckCircle, Loader2, Image as ImageIcon, X,
-  ExternalLink, Share2, CalendarDays
+  ExternalLink, Share2, CalendarDays, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { documentsAPI, aiTutorAPI } from '../services/api';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -60,6 +60,9 @@ const DocumentView: React.FC = () => {
   // Mobile & Tab State
   const [activeTab, setActiveTab] = useState<'chat' | 'quiz' | 'notes'>('chat');
   const [mobileView, setMobileView] = useState<'doc' | 'tools'>('doc');
+  // Desktop: AI panel collapses so the document gets full width for reading.
+  // (Mobile uses the Read / AI Tools toggle instead.)
+  const [isToolsOpen, setIsToolsOpen] = useState(true);
 
   // Feature State
   const [summary, setSummary] = useState<string | null>(null);
@@ -537,7 +540,11 @@ const DocumentView: React.FC = () => {
       </div>
 
       {/* 3. MAIN CONTENT */}
-      <main className="max-w-[1440px] mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_400px] items-start">
+      <main className={`mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 grid gap-4 sm:gap-6 items-start ${
+        isToolsOpen
+          ? 'max-w-[1600px] lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]'
+          : 'max-w-[1100px] lg:grid-cols-1'
+      }`}>
 
         {/* LEFT: VIEWER + ABOUT */}
         <section className={`min-w-0 space-y-4 sm:space-y-6 ${mobileView === 'tools' ? 'hidden lg:block' : 'block'}`}>
@@ -571,6 +578,15 @@ const DocumentView: React.FC = () => {
               >
                 {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
               </button>
+              {/* Desktop: collapse the AI panel for a full-width reading view */}
+              <button
+                onClick={() => setIsToolsOpen(false)}
+                className="hidden lg:block p-2 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                title="Hide AI tools (wider reading view)"
+                aria-label="Hide AI tools panel"
+              >
+                <PanelRightClose size={16} />
+              </button>
             </div>
 
             {/* Preview area */}
@@ -590,7 +606,7 @@ const DocumentView: React.FC = () => {
               {previewUrl ? (
                 <iframe
                   src={previewUrl}
-                  className={`w-full border-0 bg-white ${isFullscreen ? 'flex-1' : 'h-[62vh] sm:h-[68vh] lg:h-[74vh]'}`}
+                  className={`w-full border-0 bg-white ${isFullscreen ? 'flex-1' : 'h-[68vh] sm:h-[74vh] lg:h-[80vh]'}`}
                   allowFullScreen
                   title={`${doc.title} preview`}
                 />
@@ -672,11 +688,13 @@ const DocumentView: React.FC = () => {
         </section>
 
         {/* RIGHT: AI TOOLS */}
-        <aside className={`min-w-0 lg:sticky lg:top-[136px] flex-col bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden ${mobileView === 'doc' ? 'hidden lg:flex' : 'flex'}`}>
+        <aside className={`min-w-0 lg:sticky lg:top-[136px] flex-col bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden ${
+          !isToolsOpen ? 'hidden' : mobileView === 'doc' ? 'hidden lg:flex' : 'flex'
+        }`}>
 
           {/* Tool tabs */}
           <div className="p-2.5 pb-0">
-            <div className="flex p-1 bg-zinc-100 rounded-xl" role="tablist" aria-label="Study tools">
+              <div className="flex flex-1 p-1 bg-zinc-100 rounded-xl" role="tablist" aria-label="Study tools">
               {[
                 { id: 'chat', icon: MessageSquare, label: 'Tutor' },
                 { id: 'quiz', icon: HelpCircle, label: 'Quiz' },
@@ -696,7 +714,7 @@ const DocumentView: React.FC = () => {
                   <tab.icon size={15} /> {tab.label}
                 </button>
               ))}
-            </div>
+              </div>
           </div>
 
           {/* Tool Content Area */}
@@ -945,6 +963,16 @@ const DocumentView: React.FC = () => {
             </div>
           )}
         </aside>
+
+        {/* Desktop: reopen the AI panel once collapsed */}
+        {!isToolsOpen && (
+          <button
+            onClick={() => setIsToolsOpen(true)}
+            className="hidden lg:flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4 py-3 bg-zinc-900 text-white text-sm font-semibold rounded-2xl shadow-xl hover:bg-zinc-700 transition-all"
+          >
+            <PanelRightOpen size={17} /> AI Tools
+          </button>
+        )}
       </main>
     </div>
   );
