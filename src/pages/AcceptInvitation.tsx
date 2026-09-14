@@ -60,9 +60,13 @@ const AcceptInvitation: React.FC = () => {
     try {
       const result = await authAPI.acceptInvitation(token, password);
       setIsSuccess(true);
-      
-      // Store token
+
+      // Store both tokens (refresh enables silent renewal; without it the
+      // new admin session dies at the first access-token expiry).
       localStorage.setItem('auth_token', result.token);
+      if (result.refreshToken) {
+        localStorage.setItem('refresh_token', result.refreshToken);
+      }
       
       // The API returns snake_case, but login method handles transformation
       // Pass the raw user object (as any) to login, which will transform it

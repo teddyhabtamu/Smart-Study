@@ -409,7 +409,7 @@ export const authAPI = {
       body: JSON.stringify({ token, password }),
     }, false),
 
-  verifyEmail: (token: string): Promise<{ success: boolean; user?: User; token?: string; message?: string }> =>
+  verifyEmail: (token: string): Promise<{ success: boolean; user?: User; token?: string; refreshToken?: string; message?: string }> =>
     apiRequest(`/auth/verify-email?token=${encodeURIComponent(token)}`, {
       method: 'GET',
     }, false),
@@ -420,7 +420,7 @@ export const authAPI = {
       body: JSON.stringify({ email }),
     }, false),
 
-  acceptInvitation: (token: string, password: string): Promise<{ user: User; token: string }> =>
+  acceptInvitation: (token: string, password: string): Promise<{ user: User; token: string; refreshToken?: string }> =>
     apiRequest('/auth/accept-invitation', {
       method: 'POST',
       body: JSON.stringify({ token, password }),

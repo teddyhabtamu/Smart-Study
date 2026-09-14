@@ -70,9 +70,14 @@ const VerifyEmail: React.FC = () => {
       
       if (response.success && response.user && response.token) {
         setIsSuccess(true);
-        
-        // Store token
+
+        // Store both tokens — dropping the refresh token (as this page once
+        // did) meant the session died at the first access-token expiry with
+        // no silent refresh.
         localStorage.setItem('auth_token', response.token);
+        if (response.refreshToken) {
+          localStorage.setItem('refresh_token', response.refreshToken);
+        }
         
         // Login the user
         await login(response.user);

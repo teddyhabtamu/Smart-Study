@@ -369,11 +369,13 @@ router.get('/stats', authenticateToken, async (req: express.Request, res: expres
     const stats = {
       total_events: events.length,
       completed_events: events.filter((e: any) => e.is_completed).length,
+      // Actionable buckets ignore archived tasks (same rule as the dashboard:
+      // put-away work must not resurface as overdue).
       upcoming_events: events.filter((e: any) =>
-        !e.is_completed && new Date(e.event_date) >= new Date()
+        !e.is_completed && !e.is_archived && new Date(e.event_date) >= new Date()
       ).length,
       overdue_events: events.filter((e: any) =>
-        !e.is_completed && new Date(e.event_date) < new Date()
+        !e.is_completed && !e.is_archived && new Date(e.event_date) < new Date()
       ).length,
       by_type: {
         Exam: events.filter((e: any) => e.event_type === 'Exam').length,

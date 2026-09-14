@@ -305,10 +305,13 @@ export class NotificationService {
     try {
       console.log('🔔 Notifying all users about new resources (in-app only)');
       
-      // Get all users using Supabase directly
+      // Get all users using Supabase directly. Only accounts that can actually
+      // sign in (Active) — writing rows for banned/deactivated users just
+      // accumulates unread notifications nobody will ever open.
       const { data: users, error: usersError } = await supabaseAdmin
         .from('users')
-        .select('id, is_premium');
+        .select('id, is_premium, status')
+        .eq('status', 'Active');
 
       if (usersError) {
         console.error('❌ Failed to fetch users for new resource notification:', usersError);
