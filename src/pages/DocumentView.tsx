@@ -169,11 +169,20 @@ const DocumentView: React.FC = () => {
   // --- AI SUMMARY (separate effect: cancellable, correct grade) ---
   // Uses the DOCUMENT's grade (a hardcoded 10 was sent before) and ignores
   // late responses from a previous doc (stale summary under a new title).
+  // documentId grounds the summary in the actual file text (backend extracts
+  // the PDF); without it the model only saw the title and honestly replied
+  // "I cannot access external documents."
   useEffect(() => {
     if (!doc || isRestricted || summary) return;
     let cancelled = false;
     setIsSummaryLoading(true);
-    aiTutorAPI.chat(`Provide a concise 3-sentence summary of the document titled: "${doc.title}". Description: ${doc.description}`, doc.subject, doc.grade)
+    aiTutorAPI.chat(
+      `Summarize this document in 3 concise sentences for a Grade ${doc.grade} ${doc.subject} student.`,
+      doc.subject,
+      doc.grade,
+      undefined,
+      doc.id
+    )
       .then(res => {
         if (cancelled) return;
         setSummary(res.response);
@@ -286,9 +295,10 @@ const DocumentView: React.FC = () => {
     setIsChatLoading(true);
 
     try {
-      const context = `Context: Document "${doc.title}" (Grade ${doc.grade}, Subject: ${doc.subject}). Desc: ${doc.description}`;
-      const fullPrompt = `${context}\n\nQuestion: ${userMsg}`;
-      const response = await aiTutorAPI.chat(fullPrompt, doc.subject, doc.grade);
+      // documentId grounds the answer in the file's extracted text (backend).
+      // Only the raw question is sent — title/context injection server-side
+      // avoids stuffing 10k chars into the persisted session history.
+      const response = await aiTutorAPI.chat(userMsg, doc.subject, doc.grade, undefined, doc.id);
       setChatHistory(prev => [...prev, { role: 'model', text: response.response }]);
     } catch (error: any) {
       // Toast only: persisting an "Error: ..." string as a model message
@@ -304,8 +314,9 @@ const DocumentView: React.FC = () => {
     if (!doc) return;
     setIsQuizLoading(true);
     try {
-      const prompt = `Create a 5-question multiple choice quiz based on: "${doc.title}" - ${doc.description}. Format with Markdown.`;
-      const response = await aiTutorAPI.chat(prompt, doc.subject, doc.grade);
+      // documentId grounds quiz questions in the file's extracted text.
+      const prompt = `Create a 5-question multiple choice quiz on this document for a Grade ${doc.grade} ${doc.subject} student. Format with Markdown.`;
+      const response = await aiTutorAPI.chat(prompt, doc.subject, doc.grade, undefined, doc.id);
       setQuizContent(response.response);
     } catch (error: any) {
       console.error('Quiz generation error in DocumentView:', error);

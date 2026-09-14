@@ -6,6 +6,7 @@ import { authenticateToken, optionalAuth, validateRequest } from '../middleware/
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
+import { getDocumentExcerpt } from '../services/documentContentService';
 import { awardXP } from '../services/xpService';
 
 // Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
@@ -21,6 +22,38 @@ const aiErrorResponse = (error: any): { status: number; message: string } => {
 // resource is generation). The old gate was client-side only on a lifetime
 // counter, so direct API calls bypassed it entirely.
 const FREE_DAILY_QUIZ_LIMIT = 1;
+
+// Excerpt budget for document-grounded prompts. ~10k chars ≈ 2.5k tokens:
+// enough for real summaries/answers without torching shared Gemini quota.
+const DOC_EXCERPT_CHARS = 10_000;
+
+// Build the document-grounding block for a chat prompt. Best-effort: any
+// failure (or a premium doc requested by a non-premium user/guest) returns
+// null and the caller falls back to metadata-only prompts — never leaks
+// premium content, never 500s the chat over a slow Drive download.
+const buildDocumentContext = async (
+  documentId: string | undefined,
+  requesterIsPremium: boolean
+): Promise<string | null> => {
+  if (!documentId) return null;
+  try {
+    const doc = await getDocumentExcerpt(documentId, DOC_EXCERPT_CHARS);
+    if (!doc) return null;
+    // Premium gate: excerpt text stays server-side unless the requester is
+    // entitled. Metadata-only fallback below reveals nothing.
+    if (doc.isPremium && !requesterIsPremium) return null;
+    return [
+      `Document context: "${doc.title}". The excerpt below is the actual document text — use it to answer.`,
+      `--- document excerpt (${doc.totalChars} chars${doc.truncated ? ', truncated' : ''}) ---`,
+      doc.excerpt,
+      `--- end of excerpt ---`,
+      `Ground your answer in the excerpt above. If the question covers content not in the excerpt, say so honestly and answer from general knowledge, clearly labeling which part is from the document vs general knowledge. Never invent quotes or page numbers not present in the excerpt.`,
+    ].join('\n');
+  } catch (err) {
+    console.error('[ai-tutor] document context failed:', (err as Error)?.message);
+    return null;
+  }
+};
 
 const router = express.Router();
 
@@ -413,10 +446,11 @@ router.post('/chat', [
   body('message').isString().trim().isLength({ min: 1, max: 10000 }).withMessage('Message must be between 1 and 10000 characters'),
   body('subject').optional().isString().trim().isLength({ max: 100 }),
   body('grade').optional().isInt({ min: 0, max: 12 }).toInt(),
-  body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID')
+  body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID'),
+  body('documentId').optional().isUUID().withMessage('Document ID must be a valid UUID')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const { message, subject, grade, sessionId } = req.body;
+    const { message, subject, grade, sessionId, documentId } = req.body;
     const userId = req.user?.id;
 
     let currentSessionId = sessionId;
@@ -451,8 +485,19 @@ router.post('/chat', [
     // Import the AI tutor service
     const { getTutorResponse } = await import('../services/aiTutor');
 
+    // Document grounding: when the reader passes documentId, inject the
+    // actual excerpt so answers/summaries use the file — not the title.
+    // Null (extraction failed / premium-gated) falls back to metadata-only
+    // with an honesty guard instead of hallucinating specifics.
+    const docContext = await buildDocumentContext(documentId, !!req.user?.is_premium);
+    const groundedMessage = docContext
+      ? `${docContext}\n\nStudent question: ${message}`
+      : documentId
+        ? `Note: The full document text is unavailable (scan, unsupported format, or access-limited). Answer from the context below; if you cannot answer accurately, say you cannot access the full document rather than inventing specifics.\n\nStudent question: ${message}`
+        : message;
+
     // Generate AI response
-    const reply = await getTutorResponse(history, message, subject || 'General', grade || 10);
+    const reply = await getTutorResponse(history, groundedMessage, subject || 'General', grade || 10);
 
     // Store conversation in session (only for authenticated users)
     if (currentSessionId && userId) {
@@ -517,9 +562,10 @@ router.post('/chat/stream', [
   body('message').isString().trim().isLength({ min: 1, max: 10000 }).withMessage('Message must be between 1 and 10000 characters'),
   body('subject').optional().isString().trim().isLength({ max: 100 }),
   body('grade').optional().isInt({ min: 0, max: 12 }).toInt(),
-  body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID')
+  body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID'),
+  body('documentId').optional().isUUID().withMessage('Document ID must be a valid UUID')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
-  const { message, subject, grade, sessionId, deepThinking } = req.body;
+  const { message, subject, grade, sessionId, deepThinking, documentId } = req.body;
   const userId = req.user?.id;
   const t0 = Date.now();
   const elapsed = () => `${Date.now() - t0}ms`;
@@ -578,12 +624,22 @@ router.post('/chat/stream', [
 
     const { streamTutorResponse, getTutorResponse, AIQuotaExceededError: QuotaError } = await import('../services/aiTutor');
 
-    console.log(`[tutor] prep done in ${elapsed()} (history: ${history.length} msgs, deep: ${!!deepThinking})`);
+    // Same document grounding as the non-streaming route (see above).
+    // Session history keeps the ORIGINAL short message — the excerpt is
+    // re-injected fresh each turn so stored sessions don't balloon.
+    const docContext = await buildDocumentContext(documentId, !!req.user?.is_premium);
+    const groundedMessage = docContext
+      ? `${docContext}\n\nStudent question: ${message}`
+      : documentId
+        ? `Note: The full document text is unavailable (scan, unsupported format, or access-limited). Answer from the context below; if you cannot answer accurately, say you cannot access the full document rather than inventing specifics.\n\nStudent question: ${message}`
+        : message;
+
+    console.log(`[tutor] prep done in ${elapsed()} (history: ${history.length} msgs, deep: ${!!deepThinking}, doc: ${docContext ? 'grounded' : documentId ? 'unavailable' : 'none'})`);
     const tGen = Date.now();
     let full = '';
     let quotaExceeded = false;
     try {
-      full = await streamTutorResponse(history, message, subject || 'General', grade || 10, (delta) => {
+      full = await streamTutorResponse(history, groundedMessage, subject || 'General', grade || 10, (delta) => {
         send('delta', { text: delta });
       }, { deepThinking: !!deepThinking });
     } catch (streamError: any) {
@@ -596,7 +652,7 @@ router.post('/chat/stream', [
       } else {
         // Streaming failed — fall back to non-streaming so the user still gets an answer
         console.error('Streaming error, falling back to non-streaming:', streamError?.message);
-        full = await getTutorResponse(history, message, subject || 'General', grade || 10, { deepThinking: !!deepThinking });
+        full = await getTutorResponse(history, groundedMessage, subject || 'General', grade || 10, { deepThinking: !!deepThinking });
         send('delta', { text: full });
       }
     }

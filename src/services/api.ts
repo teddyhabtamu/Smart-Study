@@ -379,11 +379,12 @@ const authFallbackChat = async (
   message: string,
   subject: string,
   grade: number,
-  sessionId: string | null
+  sessionId: string | null,
+  documentId?: string
 ): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> => {
   return apiRequest('/ai-tutor/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined }),
+    body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined, documentId }),
   });
 };
 
@@ -725,21 +726,24 @@ export const aiTutorAPI = {
       method: 'DELETE',
     }),
 
-  chat: (message: string, subject?: string, grade?: number, sessionId?: string): Promise<{ response: string; sessionId?: string; xpGained?: number }> =>
+  chat: (message: string, subject?: string, grade?: number, sessionId?: string, documentId?: string): Promise<{ response: string; sessionId?: string; xpGained?: number }> =>
     apiRequest('/ai-tutor/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, subject, grade, sessionId }),
+      body: JSON.stringify({ message, subject, grade, sessionId, documentId }),
     }),
 
   // Streaming chat via SSE — onDelta receives incremental text chunks.
   // Returns the full response plus session/xp metadata when done.
+  // documentId (optional): grounds the answer in the document's extracted
+  // text (reader pages). Omitted elsewhere — the main tutor has no document.
   chatStream: (
     message: string,
     subject: string,
     grade: number,
     sessionId: string | null,
     onDelta: (delta: string) => void,
-    deepThinking?: boolean
+    deepThinking?: boolean,
+    documentId?: string
   ): Promise<{ response: string; sessionId?: string | null; xpGained?: number }> =>
     new Promise((resolve, reject) => {
       // Safety net: a hung stream must never lock the UI forever. After 75s
@@ -755,7 +759,7 @@ export const aiTutorAPI = {
             'Content-Type': 'application/json',
             ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
           },
-          body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined, deepThinking: !!deepThinking }),
+          body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined, deepThinking: !!deepThinking, documentId }),
           signal: controller.signal,
         }).then(async (response: Response): Promise<Response> => {
           // Expired access token: refresh once, then retry with the new token
@@ -772,7 +776,7 @@ export const aiTutorAPI = {
           clearTimeout(watchdog);
           // Fall back to non-streaming chat on any transport failure
           try {
-            const fallback = await authFallbackChat(message, subject, grade, sessionId);
+            const fallback = await authFallbackChat(message, subject, grade, sessionId, documentId);
             onDelta(fallback.response);
             resolve(fallback);
           } catch (e) {
