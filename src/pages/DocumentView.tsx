@@ -4,7 +4,8 @@ import {
   Download, MessageSquare, ChevronLeft, Lock, FileText, Send, Bot,
   HelpCircle, Bookmark, LogIn, UserPlus, Sparkles, Eye,
   Maximize, Minimize, CheckCircle, Loader2, Image as ImageIcon, X,
-  ExternalLink, Share2, CalendarDays, PanelRightClose, PanelRightOpen
+  ExternalLink, Share2, CalendarDays, PanelRightClose, PanelRightOpen,
+  ChevronDown
 } from 'lucide-react';
 import { documentsAPI, aiTutorAPI } from '../services/api';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -63,6 +64,8 @@ const DocumentView: React.FC = () => {
   // Desktop: AI panel collapses so the document gets full width for reading.
   // (Mobile uses the Read / AI Tools toggle instead.)
   const [isToolsOpen, setIsToolsOpen] = useState(true);
+  // Details strip under the viewer toolbar (collapsed by default).
+  const [showAbout, setShowAbout] = useState(false);
 
   // Feature State
   const [summary, setSummary] = useState<string | null>(null);
@@ -546,7 +549,7 @@ const DocumentView: React.FC = () => {
           : 'max-w-[1100px] lg:grid-cols-1'
       }`}>
 
-        {/* LEFT: VIEWER + ABOUT */}
+        {/* LEFT: VIEWER */}
         <section className={`min-w-0 space-y-4 sm:space-y-6 ${mobileView === 'tools' ? 'hidden lg:block' : 'block'}`}>
 
           {/* Viewer card */}
@@ -578,15 +581,81 @@ const DocumentView: React.FC = () => {
               >
                 {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
               </button>
-              {/* Desktop: collapse the AI panel for a full-width reading view */}
+              {/* Desktop: show / hide the AI panel (one button, both ways) */}
               <button
-                onClick={() => setIsToolsOpen(false)}
-                className="hidden lg:block p-2 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-                title="Hide AI tools (wider reading view)"
-                aria-label="Hide AI tools panel"
+                onClick={() => setIsToolsOpen((v) => !v)}
+                aria-expanded={isToolsOpen}
+                aria-pressed={isToolsOpen}
+                className={`hidden lg:flex items-center gap-1.5 pl-2.5 pr-2 py-2 rounded-lg text-xs font-semibold transition-colors border ${
+                  isToolsOpen
+                    ? 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-700'
+                    : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900'
+                }`}
+                title={isToolsOpen ? 'Hide AI tools for a wider reading view' : 'Show AI tutor, quiz and notes'}
               >
-                <PanelRightClose size={16} />
+                <Sparkles size={14} className={isToolsOpen ? 'text-amber-400' : ''} />
+                AI Tools
+                {isToolsOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
               </button>
+            </div>
+
+            {/* Document details — above the preview so it is always visible
+                and can never end up half-cut below the fold. */}
+            <div className="border-b border-zinc-100 px-3 sm:px-4">
+              <div className="flex items-center gap-x-4 gap-y-1 flex-wrap py-2 text-xs text-zinc-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <Download size={13} className="text-zinc-400" />
+                  {doc.downloads ?? 0} downloads
+                </span>
+                {doc.uploadedAt && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays size={13} className="text-zinc-400" />
+                    {new Date(doc.uploadedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+                {doc.author && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileText size={13} className="text-zinc-400" />
+                    {doc.author}
+                  </span>
+                )}
+                {doc.tags && doc.tags.length > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1.5">
+                    {doc.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded-full text-[11px] font-medium">
+                        {tag}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {doc.description && (
+                  <>
+                    <div className="flex-1" />
+                    <button
+                      onClick={() => setShowAbout((v) => !v)}
+                      aria-expanded={showAbout}
+                      className="inline-flex items-center gap-1 font-semibold text-zinc-700 hover:text-zinc-900 transition-colors"
+                    >
+                      About
+                      <ChevronDown size={14} className={`transition-transform ${showAbout ? 'rotate-180' : ''}`} />
+                    </button>
+                  </>
+                )}
+              </div>
+              {showAbout && doc.description && (
+                <div className="pb-3 animate-fade-in">
+                  <p className="text-[13px] text-zinc-600 leading-relaxed">{doc.description}</p>
+                  {doc.tags && doc.tags.length > 3 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {doc.tags.slice(3).map((tag) => (
+                        <span key={tag} className="px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded-full text-[11px] font-medium">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Preview area */}
@@ -649,41 +718,6 @@ const DocumentView: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* About this document */}
-          <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-bold text-zinc-900">{doc.title}</h2>
-            {doc.description && (
-              <p className="text-sm text-zinc-600 leading-relaxed mt-2">{doc.description}</p>
-            )}
-            <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 text-[13px] text-zinc-500">
-              <span className="inline-flex items-center gap-1.5">
-                <Download size={14} className="text-zinc-400" />
-                {doc.downloads ?? 0} downloads
-              </span>
-              {doc.uploadedAt && (
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarDays size={14} className="text-zinc-400" />
-                  {new Date(doc.uploadedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                </span>
-              )}
-              {doc.author && (
-                <span className="inline-flex items-center gap-1.5">
-                  <FileText size={14} className="text-zinc-400" />
-                  {doc.author}
-                </span>
-              )}
-            </div>
-            {doc.tags && doc.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-4">
-                {doc.tags.map((tag) => (
-                  <span key={tag} className="px-2.5 py-1 bg-zinc-100 text-zinc-600 rounded-full text-xs font-medium">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         </section>
 
@@ -963,16 +997,6 @@ const DocumentView: React.FC = () => {
             </div>
           )}
         </aside>
-
-        {/* Desktop: reopen the AI panel once collapsed */}
-        {!isToolsOpen && (
-          <button
-            onClick={() => setIsToolsOpen(true)}
-            className="hidden lg:flex fixed bottom-6 right-6 z-40 items-center gap-2 px-4 py-3 bg-zinc-900 text-white text-sm font-semibold rounded-2xl shadow-xl hover:bg-zinc-700 transition-all"
-          >
-            <PanelRightOpen size={17} /> AI Tools
-          </button>
-        )}
       </main>
     </div>
   );
