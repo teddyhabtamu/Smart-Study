@@ -1907,17 +1907,10 @@ export class EmailService {
         .eq('user_id', userId)
         .gte('unlocked_at', weekAgoStr);
       
-      const badgeNames: Record<string, string> = {
-        'b1': 'First Steps',
-        'b2': 'Dedicated Student',
-        'b3': 'Scholar',
-        'b4': 'Streak Master',
-        'b5': 'Community Pillar',
-        'b6': 'Top of the Class'
-      };
-      
-      const achievementsUnlocked = badgeUnlocksData.data?.map((entry: any) => 
-        badgeNames[entry.badge_id] || entry.badge_id
+      // Badge display names come from the canonical definitions so digest
+      // copy can't drift from the award paths.
+      const achievementsUnlocked = badgeUnlocksData.data?.map((entry: any) =>
+        BADGE_DEFINITIONS.find(b => b.id === entry.badge_id)?.name || entry.badge_id
       ) || [];
 
       // Send the weekly digest email

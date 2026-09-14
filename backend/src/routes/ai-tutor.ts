@@ -377,7 +377,7 @@ router.post('/ocr', optionalAuth, upload.single('image'), async (req: express.Re
     
     res.status(500).json({
       success: false,
-      message: errorMessage
+      message: 'Failed to extract text from image. Please try with a smaller or clearer image.'
     } as ApiResponse);
     return;
   }

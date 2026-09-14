@@ -56,8 +56,12 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     // Get today's study events. Archived tasks are excluded: they were
     // deliberately put away and must not resurface in Today's Plan or
     // inflate the daily goal.
+    // event_date is emitted as a calendar string (to_char), NOT a pg Date:
+    // node-pg parses DATE into a midnight-local Date object, which JSON
+    // serializes to the PREVIOUS day in UTC (e.g. 09-09 00:00 +03:00 ->
+    // "09-08T21:00Z") and mis-grouped every merged event in the planner.
     const todaysEventsResult = await query(`
-      SELECT id, title, subject, event_type as type, is_completed, notes, event_date
+      SELECT id, title, subject, event_type as type, is_completed, notes, to_char(event_date, 'YYYY-MM-DD') as event_date
       FROM study_events
       WHERE user_id = $1 AND event_date = $2 AND is_archived IS NOT TRUE
       ORDER BY created_at ASC
@@ -137,14 +141,15 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     }
 
     // Calculate today's progress
-    // Transform events to match frontend format (is_completed -> isCompleted)
+    // Transform events to match frontend format (is_completed -> isCompleted).
+    // (No isArchived field: the query above already excludes archived rows,
+    // so a constant false here would only imply data that isn't sent.)
     const todaysEvents = todaysEventsResult.rows.map((e: any) => ({
       id: e.id,
       title: e.title,
       subject: e.subject,
       type: e.type || e.event_type,
       isCompleted: e.is_completed === true || e.is_completed === 'true',
-      isArchived: e.is_archived || false,
       notes: e.notes,
       date: e.event_date
     }));
@@ -153,17 +158,20 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     const totalToday = todaysEvents.length;
     const progressPercentage = totalToday === 0 ? 0 : Math.round((completedToday / totalToday) * 100);
 
-    // Calculate level progress
-    const currentLevelXP = (user.level - 1) * 1000;
-    const nextLevelXP = user.level * 1000;
-    const progressToNextLevel = Math.min(100, Math.round(((user.xp - currentLevelXP) / 1000) * 100));
+    // Calculate level progress (null-guarded: legacy rows can lack xp/level,
+    // which previously produced NaN xpToNextLevel and absurd percentages).
+    const safeLevel = user.level || 1;
+    const safeXp = user.xp || 0;
+    const currentLevelXP = (safeLevel - 1) * 1000;
+    const nextLevelXP = safeLevel * 1000;
+    const progressToNextLevel = Math.min(100, Math.round(((safeXp - currentLevelXP) / 1000) * 100));
 
     const dashboardData = {
       user: {
         id: user.id,
         name: user.name,
-        xp: user.xp,
-        level: user.level,
+        xp: safeXp,
+        level: safeLevel,
         streak: user.streak,
         isPremium: user.is_premium,
         bookmarks: user.bookmarks || []
@@ -175,7 +183,7 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
         todayTotal: totalToday,
         todayPercentage: progressPercentage,
         levelProgress: progressToNextLevel,
-        xpToNextLevel: nextLevelXP - user.xp
+        xpToNextLevel: nextLevelXP - safeXp
       }
     };
 

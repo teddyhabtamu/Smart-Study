@@ -112,7 +112,6 @@ router.post('/events', [
     // Normalize subject
     const normalizedSubject = normalizeSubject(subject);
     if (!normalizedSubject) {
-      console.error('Invalid subject received:', subject);
       res.status(400).json({
         success: false,
         message: `Invalid subject: "${subject}". Must be one of: ${[...CONTENT_SUBJECTS, 'SAT', 'ACT', 'GMAT', 'GRE', 'TOEFL', 'IELTS'].join(', ')}`,
@@ -127,7 +126,6 @@ router.post('/events', [
       // Check if it's a valid date format
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(event_date)) {
-        console.error('Invalid date format received:', event_date);
         res.status(400).json({
           success: false,
           message: `Invalid date format: "${event_date}". Must be in YYYY-MM-DD format`,
@@ -135,11 +133,10 @@ router.post('/events', [
         } as ApiResponse);
         return;
       }
-      
+
       // Validate it's a valid date
       const dateObj = new Date(event_date);
       if (isNaN(dateObj.getTime())) {
-        console.error('Invalid date value received:', event_date);
         res.status(400).json({
           success: false,
           message: `Invalid date value: "${event_date}"`,
@@ -148,7 +145,6 @@ router.post('/events', [
         return;
       }
     } else {
-      console.error('Date is not a string:', event_date);
       res.status(400).json({
         success: false,
         message: 'Date must be a string in YYYY-MM-DD format',
@@ -156,16 +152,6 @@ router.post('/events', [
       } as ApiResponse);
       return;
     }
-
-    // Log the incoming data for debugging
-    console.log('Creating study event:', {
-      userId,
-      title,
-      subject: normalizedSubject,
-      event_date,
-      event_type,
-      notes: notes || ''
-    });
 
     const eventData = {
       user_id: userId,
@@ -186,10 +172,10 @@ router.post('/events', [
     } as ApiResponse<StudyEvent>);
   } catch (error) {
     console.error('Create study event error:', error);
+    // No raw error in the body — pg messages can leak schema detail.
     res.status(500).json({
       success: false,
-      message: 'Failed to create study event',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Failed to create study event'
     } as ApiResponse);
   }
 });
@@ -249,10 +235,10 @@ router.post('/events/batch', [
     } as ApiResponse);
   } catch (error) {
     console.error('Batch create study events error:', error);
+    // No raw error in the body — pg messages can leak schema detail.
     res.status(500).json({
       success: false,
-      message: 'Failed to create study events',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Failed to create study events'
     } as ApiResponse);
   }
 });
@@ -329,11 +315,10 @@ router.put('/events/:id', [
     } as ApiResponse<StudyEvent>);
   } catch (error) {
     console.error('Update study event error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // No raw error in the body — pg messages can leak schema detail.
     res.status(500).json({
       success: false,
-      message: 'Failed to update study event',
-      error: errorMessage
+      message: 'Failed to update study event'
     } as ApiResponse);
   }
 });
