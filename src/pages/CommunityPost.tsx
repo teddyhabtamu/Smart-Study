@@ -17,7 +17,7 @@ const CommunityPost: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { forumPosts, updateForumPost, deleteForumPost } = useData();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
   const { addToast } = useToast();
   
   const [fullPost, setFullPost] = useState<(ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[]; userVote?: number; userCommentVotes?: { [commentId: string]: number } }) | null>(null);
@@ -233,6 +233,13 @@ const CommunityPost: React.FC = () => {
         // Fallback: refetch the post
         const refreshedPost = await forumAPI.getPost(post.id);
         setFullPost(refreshedPost);
+      }
+      // +10 XP is credited server-side — sync the header from the response.
+      if (result?.xpGained > 0) {
+        refreshUser().catch((error) => console.error('Background user refresh failed:', error));
+        if (result?.leveledUp && result?.newLevel) {
+          addToast(`Level Up! You are now Level ${result.newLevel}`, "success");
+        }
       }
       addToast("AI Answer generated!", "success");
     } catch (e) {
@@ -659,7 +666,7 @@ const CommunityPost: React.FC = () => {
                          <Bot size={18} />
                       </div>
                       <h3 className="font-bold text-zinc-900">AI Smart Analysis</h3>
-                      {post.aiAnswer && <span className="text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-bold border border-zinc-300">VERIFIED</span>}
+                      {post.aiAnswer && <span className="text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-bold border border-zinc-300">AI-GENERATED</span>}
                    </div>
 
                    {post.aiAnswer ? (
@@ -674,7 +681,7 @@ const CommunityPost: React.FC = () => {
                    ) : (
                       <div className="relative z-10">
                          <p className="text-sm text-zinc-700 mb-4 max-w-xl">
-                            Get an instant, AI-verified explanation for this question.
+                            Get an instant, AI-generated explanation for this question.
                             Our Smart Tutor can break down the problem and show you the steps.
                          </p>
                          <button
@@ -683,7 +690,7 @@ const CommunityPost: React.FC = () => {
                             className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
                          >
                             {isGeneratingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                            {user?.isPremium ? "Generate Verified Answer" : "Unlock Verified Answer"}
+                            {user?.isPremium ? "Generate AI Answer" : "Unlock AI Answer"}
                          </button>
                       </div>
                    )}

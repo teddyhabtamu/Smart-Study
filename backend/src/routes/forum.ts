@@ -4,6 +4,7 @@ import { db, dbAdmin, query } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, ForumPost, ForumComment, User } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { awardXP } from '../services/xpService';
 import { EmailService } from '../services/emailService';
 import { logAdminActivity } from '../services/adminAuditLog';
 
@@ -512,19 +513,9 @@ router.post('/posts/:id/generate-ai-answer', authenticateToken, async (req: expr
     const { id } = req.params;
     const userId = req.user!.id;
 
-    // Check if user is premium
-    const users = await dbAdmin.get('users');
-    const user = users.find(u => u.id === userId);
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      } as ApiResponse);
-      return;
-    }
-
-    if (!user.is_premium) {
+    // Premium gating from the authenticated session (previously this loaded
+    // the entire users table to re-check the flag).
+    if (!req.user!.is_premium) {
       res.status(403).json({
         success: false,
         message: 'Premium subscription required to generate AI answers'
@@ -533,8 +524,7 @@ router.post('/posts/:id/generate-ai-answer', authenticateToken, async (req: expr
     }
 
     // Check if post exists
-    const posts = await dbAdmin.get('forum_posts');
-    const post = posts.find(p => p.id === id);
+    const post = await dbAdmin.findOne('forum_posts', (p: any) => p.id === id);
 
     if (!post) {
       res.status(404).json({
@@ -554,16 +544,22 @@ router.post('/posts/:id/generate-ai-answer', authenticateToken, async (req: expr
     // Update post with AI answer
     await dbAdmin.update('forum_posts', id, { ai_answer: aiAnswer });
 
-    // Award XP for generating AI answer
-    const newXp = (user.xp || 0) + 10;
-    const newLevel = Math.floor(newXp / 1000) + 1;
-    await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
+    // Award XP through the shared helper (level math, badges, history,
+    // level-up notification). Previously an inline +10 with no history entry,
+    // no badge checks, and no notification — the last mint outside awardXP.
+    const award = await awardXP(userId, 10, {
+      source: 'ai_answer',
+      source_id: id,
+      description: `AI answer for: ${post.title}`
+    });
 
     res.json({
       success: true,
       data: {
         aiAnswer,
-        xpGained: 10
+        xpGained: award.xpGained,
+        newLevel: award.newLevel,
+        leveledUp: award.leveledUp
       },
       message: 'AI Answer generated successfully'
     } as ApiResponse);

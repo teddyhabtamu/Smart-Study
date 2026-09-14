@@ -298,13 +298,18 @@ router.post('/generate-study-plan', authenticateToken, async (req: express.Reque
     // Generate structured study plan
     const studyPlan = await generateSmartPlan(prompt, userGrade);
 
-    // Award XP for using AI planner
-    const userRows = await query('SELECT xp FROM users WHERE id = $1', [userId]);
-    const user = userRows.rows[0];
-    if (user) {
-      const newXp = (user.xp || 0) + 5;
-      const newLevel = Math.floor(newXp / 1000) + 1;
-      await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
+    // Award XP for using AI planner — through the shared helper (level
+    // math, badges, history, level-up notification). Previously inline with
+    // no history entry and no badge checks. Non-fatal: a missing user row
+    // must not eat a fully generated plan.
+    try {
+      await awardXP(userId, 5, {
+        source: 'ai_plan',
+        source_id: null,
+        description: 'Generated AI study plan'
+      });
+    } catch (xpError) {
+      console.error('Failed to award AI planner XP:', xpError);
     }
 
     res.json({
@@ -443,27 +448,21 @@ router.post('/chat', optionalAuth, async (req: express.Request, res: express.Res
       }
     }
 
-    // Award XP for using AI tutor (only for authenticated users)
+    // Award XP for using AI tutor (only for authenticated users) — through
+    // the shared helper (previously inline: history yes, badges and
+    // level-up notification no). Non-fatal: never fail a generated reply
+    // over the XP credit.
     let xpGained = 0;
     if (userId) {
-      const userRows = await query('SELECT xp FROM users WHERE id = $1', [userId]);
-      const user = userRows.rows[0];
-      if (user) {
-        const xpGain = 5;
-        const newXp = (user.xp || 0) + xpGain;
-        const newLevel = Math.floor(newXp / 1000) + 1;
-        await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
-        
-        // Record XP history
-        await dbAdmin.insert('xp_history', {
-          user_id: userId,
-          amount: xpGain,
+      try {
+        const award = await awardXP(userId, 5, {
           source: 'ai_tutor',
           source_id: currentSessionId || null,
           description: 'Used AI Tutor'
         });
-        
-        xpGained = xpGain;
+        xpGained = award.xpGained;
+      } catch (xpError) {
+        console.error('Failed to award AI tutor XP:', xpError);
       }
     }
 
@@ -596,24 +595,20 @@ router.post('/chat/stream', optionalAuth, async (req: express.Request, res: expr
       }
     }
 
-    // Award XP for authenticated users
+    // Award XP for authenticated users — through the shared helper (see the
+    // non-streaming chat route above for why inline crediting ended).
+    // Non-fatal: never fail a streamed reply over the XP credit.
     let xpGained = 0;
     if (userId) {
-      const userRows = await query('SELECT xp FROM users WHERE id = $1', [userId]);
-      const user = userRows.rows[0];
-      if (user) {
-        const xpGain = 5;
-        const newXp = (user.xp || 0) + xpGain;
-        const newLevel = Math.floor(newXp / 1000) + 1;
-        await dbAdmin.update('users', userId, { xp: newXp, level: newLevel });
-        await dbAdmin.insert('xp_history', {
-          user_id: userId,
-          amount: xpGain,
+      try {
+        const award = await awardXP(userId, 5, {
           source: 'ai_tutor',
           source_id: currentSessionId || null,
-          description: 'Used AI Tutor',
+          description: 'Used AI Tutor'
         });
-        xpGained = xpGain;
+        xpGained = award.xpGained;
+      } catch (xpError) {
+        console.error('Failed to award AI tutor XP:', xpError);
       }
     }
 

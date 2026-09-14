@@ -676,7 +676,7 @@ export const forumAPI = {
       method: 'PUT',
     }),
 
-  generateAIAnswer: (postId: string): Promise<{ aiAnswer: string; xpGained: number }> =>
+  generateAIAnswer: (postId: string): Promise<{ aiAnswer: string; xpGained: number; newLevel?: number; leveledUp?: boolean }> =>
     apiRequest(`/forum/posts/${postId}/generate-ai-answer`, {
       method: 'POST',
     }),

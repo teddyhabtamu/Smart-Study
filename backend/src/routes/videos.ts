@@ -437,16 +437,15 @@ router.post('/:id/view', optionalAuth, async (req: express.Request, res: express
       .select('*', { count: 'exact', head: true })
       .eq('video_id', id);
 
+    let updatedViews: number;
     if (countErr) {
-      console.error('Record view: failed to count unique views:', countErr);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to record view'
-      } as ApiResponse);
-      return;
+      // Genuine graceful degradation (the tracking fallback above promises
+      // it): bump the denormalized counter instead of failing the view.
+      console.error('Record view: failed to count unique views, using fallback increment:', countErr);
+      updatedViews = (video.views ?? 0) + (shouldIncrement ? 1 : 0);
+    } else {
+      updatedViews = uniqueCount ?? (video.views ?? 0);
     }
-
-    const updatedViews = uniqueCount ?? (video.views ?? 0);
 
     // Sync the denormalized counter for fast listing
     const { error: syncErr } = await supabaseAdmin
@@ -568,10 +567,13 @@ router.post('/:id/complete', authenticateToken, async (req: express.Request, res
         xpGained = 100;
       }
 
-      // Mark as complete (idempotent)
+      // Mark as complete (idempotent). Stamp the ACTUAL payout — a latched
+      // re-complete pays 0, and the row must say so for future readers.
+      // ignoreDuplicates: a double-complete without an uncomplete in between
+      // must NOT overwrite the original stamp (xpGained is 0 on those).
       const { error: upsertErr } = await supabaseAdmin
         .from('video_completions')
-        .upsert({ user_id: userId, video_id: id, xp_awarded: 100 }, { onConflict: 'user_id,video_id' });
+        .upsert({ user_id: userId, video_id: id, xp_awarded: xpGained }, { onConflict: 'user_id,video_id', ignoreDuplicates: true });
 
       if (upsertErr) {
         console.error('Complete lesson: failed to upsert completion:', upsertErr);
@@ -687,7 +689,7 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
     // Check if video exists and user has access (RLS-safe)
     const { data: videoRow, error: videoErr } = await supabaseAdmin
       .from('videos')
-      .select('id, is_premium')
+      .select('id, is_premium, likes')
       .eq('id', id)
       .maybeSingle();
 
@@ -747,17 +749,20 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
       }
     }
 
-    // Get updated like count
+    // Get updated like count. The toggle above already succeeded — counter
+    // failures must NOT 500 (that would tell the user the like failed when
+    // it didn't, inviting toggle-thrash). Degrade to best-effort counts.
     const { count: likeCount, error: countErr } = await supabaseAdmin
       .from('video_likes')
       .select('*', { count: 'exact', head: true })
       .eq('video_id', id);
 
     if (countErr) {
-      console.error('Like video: failed to count likes:', countErr);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to like video'
+      console.error('Like video: failed to count likes, returning stored count:', countErr);
+      res.json({
+        success: true,
+        data: { likes: videoRow.likes ?? 0, user_has_liked: !!liked },
+        message: liked ? 'Video liked' : 'Video unliked'
       } as ApiResponse);
       return;
     }
@@ -771,10 +776,11 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
       .eq('id', id);
 
     if (updErr) {
-      console.error('Like video: failed to update likes counter:', updErr);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to like video'
+      console.error('Like video: failed to update likes counter, returning fresh count:', updErr);
+      res.json({
+        success: true,
+        data: { likes: safeLikeCount, user_has_liked: !!liked },
+        message: liked ? 'Video liked' : 'Video unliked'
       } as ApiResponse);
       return;
     }
@@ -787,10 +793,11 @@ router.post('/:id/like', authenticateToken, async (req: express.Request, res: ex
       .single();
 
     if (loadErr) {
-      console.error('Like video: failed to load updated video:', loadErr);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to like video'
+      console.error('Like video: failed to load updated video, returning fresh count:', loadErr);
+      res.json({
+        success: true,
+        data: { likes: safeLikeCount, user_has_liked: !!liked },
+        message: liked ? 'Video liked' : 'Video unliked'
       } as ApiResponse);
       return;
     }
