@@ -616,9 +616,9 @@ const Profile: React.FC = () => {
                       <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">Your Pro perks</h3>
                       <div className="space-y-2">
                         {[
-                          { icon: BookOpen, title: 'Premium document library', sub: 'Full textbook & study-guide collection' },
-                          { icon: MonitorPlay, title: 'Premium video lessons', sub: 'Complete tutorial library, all grades' },
-                          { icon: BrainCircuit, title: 'Unlimited AI practice quizzes', sub: 'No daily limits — drill as much as you want' },
+                          { icon: BookOpen, title: 'Premium document library', sub: 'Textbooks & study guides' },
+                          { icon: MonitorPlay, title: 'Premium video lessons', sub: 'Tutorial library across all grades' },
+                          { icon: BrainCircuit, title: 'AI practice quizzes', sub: 'No daily limits — drill as much as you want' },
                           { icon: Sparkles, title: 'AI Smart Schedule planner', sub: 'Personal study plans built around your deadlines' },
                         ].map(({ icon: Icon, title, sub }) => (
                           <div key={title} className="flex items-start gap-3 p-3 bg-white border border-zinc-200 rounded-xl">

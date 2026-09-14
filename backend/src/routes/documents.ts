@@ -479,21 +479,23 @@ router.post('/', [
     throw new Error('Grade must be 0 (General), 9, 10, 11, or 12');
   }),
   body('file_type').isIn(['PDF', 'DOCX', 'PPT']).withMessage('Valid file type required'),
+  body('file_url').optional().isURL().withMessage('File URL must be a valid URL'),
+  body('preview_image').optional().isURL().withMessage('Thumbnail URL must be a valid URL'),
   body('is_premium').optional().isBoolean(),
   body('author').optional().trim().isLength({ max: 255 }),
   body('tags').optional().isArray()
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const { title, description, subject, grade, file_type, is_premium = false, author, tags = [] } = req.body;
+    const { title, description, subject, grade, file_type, file_url, preview_image, is_premium = false, author, tags = [] } = req.body;
     const uploaded_by = req.user!.id;
 
-    // In a real implementation, you would handle file upload here
-    // For now, we'll create a placeholder entry
+    // file_url/preview_image included for parity with the admin create route
+    // (previously this path could only make metadata-only entries).
     const result = await dbQuery(`
-      INSERT INTO documents (title, description, subject, grade, file_type, is_premium, author, tags, uploaded_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO documents (title, description, subject, grade, file_type, file_url, preview_image, is_premium, author, tags, uploaded_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id, title, description, subject, grade, file_type, is_premium, downloads, preview_image, tags, author, created_at, updated_at
-    `, [title, description, subject, grade, file_type, is_premium, author, tags, uploaded_by]);
+    `, [title, description, subject, grade, file_type, file_url || null, preview_image || null, is_premium, author, tags, uploaded_by]);
 
     const newDocument = result.rows[0];
 

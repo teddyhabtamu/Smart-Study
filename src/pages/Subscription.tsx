@@ -21,15 +21,17 @@ const PRO_PLAN = {
   telegramHandle: '@ethio_smartstudy',
 };
 
-// The honest Pro feature set — identical list as Profile Member Hub.
+// The honest Pro feature set — identical list as Profile Member Hub. Sized
+// to what's actually there (14 documents, ~800 videos, app-side quiz caps:
+// free users get a daily window, Pro has none).
 const PRO_FEATURES = [
-  { title: 'Premium document library', sub: 'Full textbook & study-guide collection' },
-  { title: 'Premium video lessons', sub: 'Complete tutorial library, all grades' },
-  { title: 'Unlimited AI practice quizzes', sub: 'No daily limits' },
+  { title: 'Premium document library', sub: 'Textbooks & study guides' },
+  { title: 'Premium video lessons', sub: 'Tutorial library across all grades' },
+  { title: 'AI practice quizzes', sub: 'No daily limits' },
   { title: 'AI Smart Schedule planner', sub: 'Personal plans built around your deadlines' },
 ];
 
-const FREE_FEATURES = ['Browse entire catalog', 'Limited previews', 'Community access'];
+const FREE_FEATURES = ['Browse the catalog', 'Limited previews', 'Community access'];
 
 const Subscription: React.FC = () => {
   const { user } = useAuth();
