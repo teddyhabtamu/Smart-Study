@@ -62,16 +62,32 @@ export class YouTubeService {
     }
 
     /**
-     * Run a full sync of all grades and subjects
+     * Run a full sync of all grades and subjects.
+     * - Skips fast (no per-subject errors) when no API key is configured.
+     * - Honors an optional deadline: serverless functions die hard at their
+     *   time limit, so cron callers pass one and get honest partial counts
+     *   instead of a killed run that looks like a failure.
      */
-    static async syncAllGradesAndSubjects(adminUserId: string): Promise<{ added: number; errors: number }> {
+    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; stoppedEarly: boolean }> {
+        if (!process.env.YOUTUBE_API_KEY) {
+            console.log('YouTube sync skipped: YOUTUBE_API_KEY not configured');
+            return { added: 0, errors: 0, stoppedEarly: false };
+        }
+
         let totalAdded = 0;
         let totalErrors = 0;
+        let stoppedEarly = false;
 
         for (const grade of GRADES) {
             for (const subject of SUBJECTS) {
+                if (opts?.deadline && Date.now() > opts.deadline) {
+                    stoppedEarly = true;
+                    break;
+                }
                 try {
                     console.log(`Syncing YouTube for Grade ${grade} ${subject}...`);
+                    // uploaded_by stays NULL when no admin exists: inventing an
+                    // id ('system', a random user) would violate the UUID FK.
                     const result = await this.syncVideosForGradeAndSubject(grade, subject, adminUserId);
                     totalAdded += result.added;
                 } catch (error) {
@@ -79,15 +95,16 @@ export class YouTubeService {
                     totalErrors++;
                 }
             }
+            if (stoppedEarly) break;
         }
 
-        return { added: totalAdded, errors: totalErrors };
+        return { added: totalAdded, errors: totalErrors, stoppedEarly };
     }
 
     /**
      * Search and sync videos for a specific grade and subject, using Topics if available.
      */
-    static async syncVideosForGradeAndSubject(grade: number, subject: string, adminUserId: string): Promise<{ added: number }> {
+    static async syncVideosForGradeAndSubject(grade: number, subject: string, adminUserId: string | null): Promise<{ added: number }> {
         const apiKey = this.getApiKey();
         const topics = this.getTopicsForGradeAndSubject(grade, subject);
 

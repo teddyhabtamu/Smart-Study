@@ -185,14 +185,14 @@ const Careers: React.FC = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleViewDetails(position)}
-                          className="px-3 sm:px-4 py-2 bg-zinc-100 text-zinc-700 rounded-lg font-medium opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 sm:gap-2 text-xs sm:text-sm hover:bg-zinc-200"
+                          className="px-3 sm:px-4 py-2 bg-zinc-100 text-zinc-700 rounded-lg font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all flex items-center gap-1 sm:gap-2 text-xs sm:text-sm hover:bg-zinc-200"
                         >
                           <FileText size={14} className="sm:w-4 sm:h-4" />
                           <span className="hidden sm:inline">Details</span>
                         </button>
                         <button
                           onClick={() => handleApplyClick(position)}
-                          className="px-4 sm:px-6 py-2 bg-zinc-900 text-white rounded-lg font-medium opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 sm:gap-2 text-sm sm:text-base w-fit"
+                          className="px-4 sm:px-6 py-2 bg-zinc-900 text-white rounded-lg font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all flex items-center gap-1 sm:gap-2 text-sm sm:text-base w-fit"
                         >
                           Apply Now <ArrowRight size={14} className="sm:w-4 sm:h-4" />
                         </button>

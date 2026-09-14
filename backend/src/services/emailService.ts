@@ -1981,7 +1981,7 @@ export class EmailService {
   /**
    * Send weekly digest emails to all eligible users
    */
-  static async sendWeeklyDigestsToAllUsers(): Promise<void> {
+  static async sendWeeklyDigestsToAllUsers(opts?: { deadline?: number }): Promise<{ sent: number; skipped: number; stoppedEarly: boolean }> {
     try {
       console.log('📧 Starting weekly digest email batch...');
       
@@ -2000,8 +2000,15 @@ export class EmailService {
 
       let sentCount = 0;
       let skippedCount = 0;
+      let stoppedEarly = false;
 
       for (const user of eligibleUsers) {
+        // Serverless time-box: stop cleanly and report partial counts rather
+        // than being killed mid-batch (which looks like a total failure).
+        if (opts?.deadline && Date.now() > opts.deadline) {
+          stoppedEarly = true;
+          break;
+        }
         try {
           await this.sendWeeklyDigestToUser(user.id);
           sentCount++;
@@ -2011,12 +2018,14 @@ export class EmailService {
         }
       }
 
-      console.log(`📧 Weekly digest batch complete: ${sentCount} sent, ${skippedCount} skipped`);
+      console.log(`📧 Weekly digest batch complete: ${sentCount} sent, ${skippedCount} skipped${stoppedEarly ? ' (stopped early on time budget)' : ''}`);
+      return { sent: sentCount, skipped: skippedCount, stoppedEarly };
     } catch (error: any) {
       console.error('❌ Failed to send weekly digests:', {
         error: error.message || error,
         stack: error.stack
       });
+      return { sent: 0, skipped: 0, stoppedEarly: false };
     }
   }
 }

@@ -195,6 +195,7 @@ import adminYoutubeRoutes from './routes/admin-youtube';
 import dashboardRoutes from './routes/dashboard';
 import searchRoutes from './routes/search';
 import careersRoutes from './routes/careers';
+import cronRoutes from './routes/cron';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -209,6 +210,7 @@ app.use('/api/admin/youtube', adminYoutubeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/careers', careersRoutes);
+app.use('/api/cron', cronRoutes); // Vercel Cron (CRON_SECRET bearer) — the serverless scheduler
 
 // Health check endpoint (includes DB reachability so deploy misconfig
 // like a missing PG_POOLER_URL shows up here instead of as 500s)

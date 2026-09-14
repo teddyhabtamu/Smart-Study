@@ -267,10 +267,9 @@ export class SchedulerService {
         const users = await dbAdminModule.dbAdmin.get('users');
         const admin = users.find((u: any) => u.role === 'ADMIN');
 
-        let adminIdToUse = admin ? admin.id : null;
-        if (!adminIdToUse && users.length > 0) adminIdToUse = users[0].id;
-
-        await YouTubeService.syncAllGradesAndSubjects(adminIdToUse);
+        // No random-user fallback: with no admin, attribution stays NULL
+        // (see YouTubeService) rather than stamping a student's id.
+        await YouTubeService.syncAllGradesAndSubjects(admin ? admin.id : null);
         console.log('✅ Weekly YouTube sync completed successfully');
       } catch (err) {
         console.error('❌ Error during weekly YouTube sync:', err);
