@@ -142,6 +142,9 @@ export class SchedulerService {
 
       for (const user of users) {
         const lastActive = user.last_active_date;
+        // Skip accounts that have never recorded activity (no last_active_date
+        // yet) — otherwise every such row gets rewritten daily for no reason.
+        if (!lastActive) continue;
         if (lastActive === yesterdayStr) {
           // User was active yesterday, increment streak
           const currentStreak = user.streak || 0;
@@ -257,7 +260,7 @@ export class SchedulerService {
       console.log('✅ Weekly tasks completed');
 
       // Weekly YouTube Video Sync
-      console.log('📺 Running weakly YouTube videos sync...');
+      console.log('📺 Running weekly YouTube videos sync...');
       try {
         const { YouTubeService } = await import('./youtubeService');
         const dbAdminModule = await import('../database/config');

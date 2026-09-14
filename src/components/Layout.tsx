@@ -645,7 +645,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                                    }
                                                  }}
                                                  disabled={isMarkingRead === notif.id}
-                                                 className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                                  className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                                  title="Mark as read"
                                                >
                                                  {isMarkingRead === notif.id ? (

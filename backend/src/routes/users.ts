@@ -3,12 +3,11 @@ import { body } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import { query, dbAdmin, supabaseAdmin } from '../database/config';
-import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
+import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
 import { v4 as uuidv4 } from 'uuid';
-import { logAdminActivity } from '../services/adminAuditLog';
 
 const router = express.Router();
 
@@ -28,15 +27,16 @@ const upload = multer({
   },
 });
 
-// Get top learners leaderboard (public endpoint) - only students, exclude admins
+// Get top learners leaderboard (public endpoint) - students only, staff excluded
 router.get('/leaderboard', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const limit = Number(req.query.limit) || 10;
+    // Clamp: an unbounded ?limit= would dump the whole user table
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 100);
 
     const result = await query(`
       SELECT id, name, xp, level, avatar
       FROM users
-      WHERE role != 'ADMIN'
+      WHERE role NOT IN ('ADMIN', 'MODERATOR')
       ORDER BY xp DESC, level DESC
       LIMIT $1
     `, [limit]);
@@ -219,8 +219,16 @@ router.post('/avatar', authenticateToken, upload.single('avatar'), async (req: e
       return;
     }
 
-    // Generate unique filename
-    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    // Generate unique filename. Extension comes from the verified mimetype,
+    // never the client-supplied originalname (which can lack an extension or
+    // smuggle path separators into the storage key).
+    const extByMime: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp'
+    };
+    const fileExt = extByMime[file.mimetype] || 'jpg';
     const fileName = `${userId}/${uuidv4()}.${fileExt}`;
 
     // Ensure the avatars bucket exists and check if it's public
@@ -432,6 +440,21 @@ router.post('/bookmarks', [
     const userId = req.user!.id;
     const { itemId, itemType } = req.body;
 
+    // Idempotent: the table has UNIQUE(user_id, item_id, item_type), so a
+    // blind INSERT 500s on double-clicks/retries. Return the existing row.
+    const existing = await query(
+      'SELECT id, item_id, item_type, created_at FROM bookmarks WHERE user_id = $1 AND item_id = $2 AND item_type = $3',
+      [userId, itemId, itemType]
+    );
+    if (existing.rows.length > 0) {
+      res.json({
+        success: true,
+        data: existing.rows[0],
+        message: 'Bookmark already exists'
+      } as ApiResponse);
+      return;
+    }
+
     const result = await query(`
       INSERT INTO bookmarks (user_id, item_id, item_type)
       VALUES ($1, $2, $3)
@@ -562,115 +585,12 @@ router.delete('/notifications/:id', authenticateToken, async (req: express.Reque
   }
 });
 
-// Admin: Upgrade user to premium
-router.put('/:userId/premium', [
-  authenticateToken,
-  requireRole(['ADMIN']),
-  body('isPremium').isBoolean().withMessage('isPremium must be boolean')
-], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
-  try {
-    const { userId } = req.params;
-    const { isPremium } = req.body;
-
-    // Import supabase for direct API calls
-    const { supabase } = await import('../database/config');
-
-    // Get current user state before update to check if it's a downgrade
-    const { data: currentUser } = await supabase
-      .from('users')
-      .select('is_premium')
-      .eq('id', userId)
-      .single();
-    
-    const wasPremium = currentUser?.is_premium === true;
-
-    const { data: userData, error } = await supabase
-      .from('users')
-      .update({
-        is_premium: isPremium,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select('id, name, email, is_premium')
-      .single();
-
-    if (error) {
-      console.error('Admin premium update error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update premium status'
-      } as ApiResponse);
-      return;
-    }
-
-    if (!userData) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      } as ApiResponse);
-      return;
-    }
-
-    // Audit log (non-blocking)
-    logAdminActivity(req, {
-      action: 'user.premium.update',
-      target_type: 'user',
-      target_id: String(userId),
-      summary: `Set premium=${isPremium} for user ${userData.email}`,
-      before: { id: userData.id, email: userData.email, name: userData.name, is_premium: wasPremium },
-      after: { id: userData.id, email: userData.email, name: userData.name, is_premium: isPremium }
-    }).catch(() => {});
-
-    // Create notification for the user
-    if (userId) {
-      try {
-        await NotificationService.create({
-          user_id: userId,
-          title: isPremium ? 'Premium Activated!' : 'Premium Deactivated',
-          message: isPremium
-            ? 'Your premium subscription has been activated. Enjoy unlimited access!'
-            : 'Your premium subscription has been deactivated.',
-          type: isPremium ? 'SUCCESS' : 'INFO',
-          is_read: false
-        });
-        console.log(`✅ Created notification for user ${userId}: Premium ${isPremium ? 'activated' : 'deactivated'}`);
-      } catch (notificationError) {
-        console.error('Failed to create notification:', notificationError);
-        // Don't fail the whole request for notification error
-      }
-    }
-
-    // Send premium email notifications (non-blocking)
-    if (userData.email && userData.name) {
-      if (isPremium) {
-        console.log('📧 Triggering premium upgrade email for user:', { email: userData.email, name: userData.name });
-        EmailService.sendPremiumUpgradeEmail(userData.email, userData.name).catch(error => {
-          console.error('❌ Failed to send premium upgrade email:', error);
-          // Don't fail the request if email fails
-        });
-      } else if (wasPremium) {
-        // Only send downgrade email if user was previously premium
-        console.log('📧 Triggering premium downgrade email for user:', { email: userData.email, name: userData.name });
-        EmailService.sendPremiumDowngradeEmail(userData.email, userData.name).catch(error => {
-          console.error('❌ Failed to send premium downgrade email:', error);
-          // Don't fail the request if email fails
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      data: userData,
-      message: `User ${isPremium ? 'upgraded to' : 'downgraded from'} premium`
-    } as ApiResponse);
-  } catch (error) {
-    console.error('Update premium status error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update premium status'
-    } as ApiResponse);
-  }
-});
+// NOTE: there is intentionally NO premium-toggle route on this router. The
+// canonical endpoint is PUT /api/admin/users/:userId/premium (routes/admin.ts,
+// ADMIN-only, stamps premium_since) and it is the only caller the frontend
+// uses. A duplicate lived here that skipped premium_since, so "Member since"
+// dates never populated for anyone upgraded through it — removed to end the
+// drift.
 
 // Upgrade to premium (subscription)
 // NOTE: there is intentionally NO self-service premium upgrade endpoint.
@@ -782,7 +702,8 @@ router.delete('/account', authenticateToken, async (req: express.Request, res: e
     // Note: In production, you might want to soft delete instead
     await dbAdmin.delete('users', userId);
 
-    console.log(`✅ Account deleted successfully for user: ${user.email}`);
+    // Log the ID only — never the email (PII doesn't belong in server logs).
+    console.log(`✅ Account deleted successfully for user id: ${userId}`);
 
     res.json({
       success: true,

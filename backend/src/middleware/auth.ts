@@ -46,11 +46,14 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     const user = result.rows[0] as User;
 
-    // Check if user is banned or suspended
-    if (user.status === 'Banned' || user.status === 'Suspended') {
+    // Block banned, suspended, AND deactivated accounts. 'Inactive' is set by
+    // admin deactivation — it was previously unchecked here, so deactivated
+    // users could keep calling the API with a valid token.
+    const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
+    if (user.status && blockedStatuses[user.status]) {
       res.status(403).json({
         success: false,
-        message: `Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`
+        message: `Your account has been ${blockedStatuses[user.status]}. Please contact support for assistance.`
       });
       return;
     }

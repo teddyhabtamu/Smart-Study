@@ -285,16 +285,13 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
           console.error('❌ Failed to send premium upgrade email:', error);
           // Don't fail the request if email fails
         });
-      } else {
-        // Check if user was previously premium (downgrade scenario)
-        const wasPremium = user.is_premium === true || user.is_premium === 'true';
-        if (wasPremium) {
-          console.log('📧 Triggering premium downgrade email for user:', { email: user.email, name: user.name });
-          EmailService.sendPremiumDowngradeEmail(user.email, user.name).catch(error => {
-            console.error('❌ Failed to send premium downgrade email:', error);
-            // Don't fail the request if email fails
-          });
-        }
+      } else if (wasPremium) {
+        // Only notify on a real downgrade (was premium, now isn't)
+        console.log('📧 Triggering premium downgrade email for user:', { email: user.email, name: user.name });
+        EmailService.sendPremiumDowngradeEmail(user.email, user.name).catch(error => {
+          console.error('❌ Failed to send premium downgrade email:', error);
+          // Don't fail the request if email fails
+        });
       }
     }
 
@@ -703,23 +700,11 @@ router.delete('/forum/posts/:postId', requireRole(['ADMIN', 'MODERATOR']), async
   }
 });
 
-// System maintenance endpoints
-router.post('/maintenance/cleanup', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
-  try {
-    // In a real implementation, you might clean up old logs, temporary files, etc.
-    // For now, just return success
-    res.json({
-      success: true,
-      message: 'System maintenance completed successfully'
-    } as ApiResponse);
-  } catch (error) {
-    console.error('Maintenance error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Maintenance failed'
-    } as ApiResponse);
-  }
-});
+// NOTE: there is intentionally NO GET /logs or POST /maintenance/cleanup on
+// this router. A previous /logs served hardcoded mock entries ("Server started
+// successfully", "High memory usage detected") as if they were real system
+// data, and /maintenance/cleanup returned success while doing nothing. Both
+// were uncalled by the frontend and have been removed rather than faked.
 
 // Get admin team members (admins and moderators)
 router.get('/admins', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
@@ -727,10 +712,18 @@ router.get('/admins', requireRole(['ADMIN']), async (req: express.Request, res: 
     const users = await dbAdmin.get('users');
     // Get both admins and moderators
     const teamMembers = users.filter((u: any) => u.role === 'ADMIN' || u.role === 'MODERATOR');
-    
-    // Map users to include status (Active if status is 'Active', Inactive otherwise)
+
+    // Return safe fields only. A previous version spread the whole row,
+    // shipping password_hash and recovery tokens to the admin panel.
     const membersWithStatus = teamMembers.map((member: any) => ({
-      ...member,
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      avatar: member.avatar,
+      is_premium: member.is_premium,
+      created_at: member.created_at,
+      updated_at: member.updated_at,
       status: member.status === 'Active' ? 'Active' : 'Inactive'
     }));
 
@@ -789,15 +782,6 @@ router.post('/admins/invite', requireRole(['ADMIN']), [
     };
 
     const inserted = await dbAdmin.insert('users', userData);
-    
-    // Verify the role was saved correctly
-    console.log('🔐 Admin invitation - User created:', {
-      userId: inserted.id,
-      email: inserted.email,
-      role: inserted.role,
-      expectedRole: role,
-      roleMatch: inserted.role === role
-    });
 
     // Generate short opaque token (32 bytes = 64 hex characters)
     const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -858,11 +842,8 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
     const { userId } = req.params;
     const targetUserId = userId;
 
-    console.log('Attempting to remove admin with ID:', targetUserId);
-
     const user = await dbAdmin.findOne('users', (u: any) => u.id === targetUserId);
     if (!user) {
-      console.log('User not found:', targetUserId);
       res.status(404).json({
         success: false,
         message: 'User not found'
@@ -870,11 +851,8 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
       return;
     }
 
-    console.log('Found user:', { id: user.id, name: user.name, role: user.role });
-
     // Check if user is actually an admin or moderator
     if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
-      console.log('User is not an admin or moderator:', user.role);
       res.status(400).json({
         success: false,
         message: 'User is not an admin or moderator'
@@ -885,10 +863,8 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
     // Don't allow removing the last admin (but allow removing moderators)
     const allUsers = await dbAdmin.get('users');
     const admins = allUsers.filter((u: any) => u.role === 'ADMIN');
-    console.log('Total admins found:', admins.length);
-    
+
     if (user.role === 'ADMIN' && admins.length <= 1) {
-      console.log('Cannot remove the last admin');
       res.status(400).json({
         success: false,
         message: 'Cannot remove the last admin'
@@ -903,15 +879,12 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
     });
 
     if (!updateResult) {
-      console.log('Update failed - user may not exist');
       res.status(404).json({
         success: false,
         message: 'User not found or update failed'
       } as ApiResponse);
       return;
     }
-
-    console.log('Admin privileges removed successfully for user:', targetUserId);
 
     // Audit log (non-blocking)
     logAdminActivity(req, {
@@ -932,29 +905,6 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
     res.status(500).json({
       success: false,
       message: 'Failed to remove admin privileges'
-    } as ApiResponse);
-  }
-});
-
-// Get system logs (mock implementation)
-router.get('/logs', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
-  try {
-    // In a real implementation, you would read from log files
-    const mockLogs = [
-      { timestamp: new Date().toISOString(), level: 'info', message: 'Server started successfully' },
-      { timestamp: new Date(Date.now() - 3600000).toISOString(), level: 'info', message: 'User authentication successful' },
-      { timestamp: new Date(Date.now() - 7200000).toISOString(), level: 'warn', message: 'High memory usage detected' }
-    ];
-
-    res.json({
-      success: true,
-      data: mockLogs
-    } as ApiResponse);
-  } catch (error) {
-    console.error('Get logs error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get system logs'
     } as ApiResponse);
   }
 });

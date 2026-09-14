@@ -134,11 +134,14 @@ router.post('/login', [
 
     const user = result.rows[0];
 
-    // Check if user is banned or suspended
-    if (user.status === 'Banned' || user.status === 'Suspended') {
+    // Block banned, suspended, AND deactivated accounts ('Inactive' is set by
+    // admin deactivation — previously unchecked, so deactivated users could
+    // still log in).
+    const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
+    if (user.status && blockedStatuses[user.status]) {
       res.status(403).json({
         success: false,
-        message: `Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`
+        message: `Your account has been ${blockedStatuses[user.status]}. Please contact support for assistance.`
       } as AuthResponse);
       return;
     }
@@ -349,7 +352,7 @@ router.post('/refresh', [
       [tokenRecord.user_id]
     );
 
-    if (userResult.rows.length === 0 || userResult.rows[0].status === 'Banned' || userResult.rows[0].status === 'Suspended') {
+    if (userResult.rows.length === 0 || ['Banned', 'Suspended', 'Inactive'].includes(userResult.rows[0].status)) {
       res.status(401).json({
         success: false,
         message: 'Account not accessible'
@@ -410,10 +413,11 @@ router.get('/google/callback',
       // req.user is guaranteed to exist here due to successful authentication
       const user = req.user as User;
 
-      // Check if user is banned or suspended
-      if (user.status === 'Banned' || user.status === 'Suspended') {
+      // Block banned, suspended, AND deactivated accounts (see login gate above).
+      const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
+      if (user.status && blockedStatuses[user.status]) {
         const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
-        const redirectUrl = `${frontendUrl}/login?error=${encodeURIComponent(`Your account has been ${user.status.toLowerCase()}. Please contact support for assistance.`)}`;
+        const redirectUrl = `${frontendUrl}/login?error=${encodeURIComponent(`Your account has been ${blockedStatuses[user.status]}. Please contact support for assistance.`)}`;
         res.redirect(redirectUrl);
         return;
       }

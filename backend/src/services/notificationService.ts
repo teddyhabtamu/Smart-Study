@@ -30,7 +30,6 @@ export class NotificationService {
       };
 
       const result = await dbAdmin.insert('notifications', notification);
-      console.log(`Created notification for user ${notificationData.user_id}: ${notificationData.title}`);
       return result;
     } catch (error) {
       console.error('Failed to create notification:', error);
@@ -65,9 +64,15 @@ export class NotificationService {
   static async markAsRead(userId: string, notificationIds?: string[]): Promise<void> {
     try {
       if (notificationIds && notificationIds.length > 0) {
-        // Mark specific notifications as read
+        // Mark specific notifications as read — verifying ownership first, so
+        // one user can't flip another user's notifications by ID enumeration.
         for (const id of notificationIds) {
-          await dbAdmin.update('notifications', id, { is_read: true });
+          const existing = await dbAdmin.findOne('notifications', (n: any) =>
+            n.id === id && n.user_id === userId
+          );
+          if (existing) {
+            await dbAdmin.update('notifications', id, { is_read: true });
+          }
         }
       } else {
         // Mark all notifications as read for the user

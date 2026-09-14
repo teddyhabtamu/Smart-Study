@@ -1149,9 +1149,6 @@ export const adminAPI = {
       method: 'DELETE',
     }),
 
-  getSystemLogs: (): Promise<{ timestamp: string; level: string; message: string }[]> =>
-    apiRequest('/admin/logs'),
-
   getAuditLogs: (params: { limit?: number; offset?: number; actor?: string; action?: string; targetType?: string; targetId?: string; search?: string } = {}): Promise<{
     logs: any[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };

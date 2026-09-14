@@ -376,6 +376,23 @@ router.post('/:id/apply', [
       }
     }
     
+    // Duplicate guard for guests too: without this, one email address could
+    // file unlimited applications for the same position (authed users are
+    // checked by applicant_id above).
+    const emailClash = await dbAdmin.findOne('job_applications', (app: any) =>
+      app.position_id === id &&
+      typeof app.applicant_email === 'string' &&
+      app.applicant_email.toLowerCase() === String(applicant_email).toLowerCase()
+    );
+
+    if (emailClash) {
+      res.status(400).json({
+        success: false,
+        message: 'An application with this email already exists for this position'
+      } as ApiResponse);
+      return;
+    }
+
     // Create application
     const application = await dbAdmin.insert('job_applications', {
       position_id: id,
@@ -652,9 +669,6 @@ router.get('/admin/applications', [
 
     let applications = await dbAdmin.get('job_applications');
 
-    console.log('Backend: Total applications before filtering:', applications.length);
-    console.log('Backend: Archived parameter received:', archived);
-
     // Apply filters
     if (position_id) {
       applications = applications.filter((app: any) => app.position_id === position_id);
@@ -664,26 +678,13 @@ router.get('/admin/applications', [
       applications = applications.filter((app: any) => app.status === status);
     }
 
-    console.log('Backend: After position/status filters:', applications.length);
-
-    // Filter archived based on parameter
-    if (archived === 'false') {
-      console.log('Backend: Filtering for active applications');
+    // Filter archived based on parameter (default: active only)
+    if (archived === 'false' || archived === undefined) {
       applications = applications.filter((app: any) => app.is_archived !== true);
     } else if (archived === 'true') {
-      console.log('Backend: Filtering for archived applications');
       applications = applications.filter((app: any) => app.is_archived === true);
-    } else if (archived === 'all') {
-      console.log('Backend: Showing all applications');
-      // Do nothing - show both archived and non-archived
-    } else {
-      console.log('Backend: Default filtering for active applications');
-      // Default: show only active applications
-      applications = applications.filter((app: any) => app.is_archived !== true);
     }
-
-    console.log('Backend: Final applications count:', applications.length);
-    console.log('Backend: Sample is_archived values:', applications.slice(0, 3).map((app: any) => ({ id: app.id, is_archived: app.is_archived })));
+    // 'all' shows both archived and non-archived
     
     // Sort by created_at descending
     applications.sort((a: any, b: any) => 
@@ -833,7 +834,6 @@ router.put('/admin/applications/:id/status', [
   }
 });
 
-// Admin: Delete application
 // Admin: Archive/Unarchive application
 router.patch('/admin/applications/:id/archive', [
   authenticateToken,

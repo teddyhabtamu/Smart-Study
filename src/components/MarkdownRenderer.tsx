@@ -9,6 +9,26 @@ interface MarkdownRendererProps {
   content: string;
 }
 
+// AI-generated markdown is untrusted input: only http(s) and site-relative
+// links become real anchors (new tab, no opener). Anything else
+// (javascript:, data:, ...) degrades to underlined text so it can't execute
+// or navigate anywhere unexpected.
+const renderSafeLink = (
+  props: React.AnchorHTMLAttributes<HTMLAnchorElement> & { node?: unknown },
+  className: string
+) => {
+  const { node, href, children, ...rest } = props;
+  void node;
+  if (href && /^(https?:\/\/|\/)/i.test(href)) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className} {...rest}>
+        {children}
+      </a>
+    );
+  }
+  return <span className="underline underline-offset-2">{children}</span>;
+};
+
 // Inline variant: tight, inherits surrounding typography — for quiz options,
 // short questions, answer lines. Same GFM + KaTeX math support, but without
 // block margins so it sits naturally inside buttons and small text.
@@ -26,7 +46,7 @@ export const MarkdownInline: React.FC<MarkdownRendererProps> = ({ content }) => 
           code: ({node, ...props}) => (
             <code className="bg-zinc-100 px-1 py-0.5 rounded text-[0.9em] font-mono border border-zinc-200" {...props} />
           ),
-          a: ({node, ...props}) => <span className="underline underline-offset-2" {...props} />,
+          a: (props) => renderSafeLink(props, 'underline underline-offset-2'),
         }}
       >
         {content}
@@ -62,7 +82,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
                <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-zinc-700 border border-zinc-200" {...props} />
             );
           },
-          a: ({node, ...props}) => <a className="text-zinc-900 hover:text-black underline decoration-zinc-400 underline-offset-2" {...props} />,
+          a: (props) => renderSafeLink(props, 'text-zinc-900 hover:text-black underline decoration-zinc-400 underline-offset-2'),
           hr: ({node, ...props}) => <hr className="my-6 border-zinc-200" {...props} />,
           table: ({node, ...props}) => <div className="overflow-x-auto my-4 border border-zinc-200 rounded-lg"><table className="w-full text-sm text-left" {...props} /></div>,
           thead: ({node, ...props}) => <thead className="bg-zinc-50 border-b border-zinc-200 font-semibold text-zinc-900" {...props} />,
