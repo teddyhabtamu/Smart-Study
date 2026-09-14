@@ -13,6 +13,7 @@ import TTSButton from '../components/TTSButton';
 import { stripForSpeech } from '../utils/textUtils';
 import { aiTutorAPI, usersAPI } from '../services/api';
 import { useSEO, pageSEO } from '../utils/seoUtils';
+import { SUBJECTS as CONTENT_SUBJECTS } from '../constants';
 
 const DEFAULT_WELCOME_MSG = {
   role: 'model',
@@ -26,7 +27,9 @@ What would you like to learn today?`
 };
 
 const MAX_FREE_PROMPTS = 5;
-const SUBJECTS = ['General', 'Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Civics'];
+// Tutor context subjects = the canonical taxonomy (plus General). Previously
+// a hand-copied short list, so newer library subjects had no tutor context.
+const SUBJECTS = ['General', ...CONTENT_SUBJECTS];
 
 const AITutor: React.FC = () => {
   const { user } = useAuth();

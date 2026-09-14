@@ -259,6 +259,16 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
     // Check if user was previously premium (for downgrade detection)
     const wasPremium = user.is_premium === true || user.is_premium === 'true';
 
+    // Idempotent: re-applying the same state must not re-stamp tenure or
+    // re-fire upgrade/downgrade emails (admin double-clicks did exactly that).
+    if (wasPremium === isPremium) {
+      res.json({
+        success: true,
+        message: `User is already ${isPremium ? 'premium' : 'non-premium'} — no changes made`
+      } as ApiResponse);
+      return;
+    }
+
     await dbAdmin.update('users', targetUserId, {
       is_premium: isPremium,
       // Membership tenure: stamp activation time, clear on deactivation.
@@ -272,7 +282,7 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
       user_id: targetUserId,
       title: isPremium ? 'Premium Activated!' : 'Premium Deactivated',
       message: isPremium
-        ? 'Your premium subscription has been activated. Enjoy unlimited access!'
+        ? 'Your premium subscription has been activated. Enjoy full access to Pro features!'
         : 'Your premium subscription has been deactivated.',
       type: isPremium ? 'SUCCESS' : 'INFO',
       is_read: false
@@ -322,7 +332,7 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
 // Update user status (active/banned)
 router.put('/users/:userId/status', requireRole(['ADMIN']), [
   body('status').isIn(['Active', 'Banned']).withMessage('Status must be Active or Banned'),
-  body('reason').optional().isString().withMessage('Reason must be a string')
+  body('reason').optional().isString().isLength({ max: 500 }).withMessage('Reason must be at most 500 characters')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { userId } = req.params;
@@ -334,6 +344,16 @@ router.put('/users/:userId/status', requireRole(['ADMIN']), [
       res.status(404).json({
         success: false,
         message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    // Idempotent: re-applying the same status must not re-fire suspension/
+    // reactivation emails and notifications.
+    if (user.status === status) {
+      res.json({
+        success: true,
+        message: `User status is already ${status} — no changes made`
       } as ApiResponse);
       return;
     }
@@ -417,6 +437,16 @@ router.delete('/users/:userId', requireRole(['ADMIN']), async (req: express.Requ
     }
 
     const before = { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, is_premium: user.is_premium };
+
+    // Idempotent: deactivating an already-inactive account is a no-op, not
+    // a second audit event.
+    if (user.status === 'Inactive') {
+      res.json({
+        success: true,
+        message: 'User is already deactivated — no changes made'
+      } as ApiResponse);
+      return;
+    }
 
     // Mark user as inactive using the `status` column (role is an enum; do not set role to INACTIVE)
     await dbAdmin.update('users', targetUserId, {
