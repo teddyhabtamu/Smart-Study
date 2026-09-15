@@ -19,6 +19,10 @@ const VerifyEmail: React.FC = () => {
   // Timer handles so unmounting mid-countdown/redirect doesn't act on a dead page
   const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Single-use token: without this, a re-render (e.g. login() setting user)
+  // re-fires the effect while ?token= is still in the URL and burns the
+  // token a second time — success followed by a phantom "already used".
+  const handledRef = useRef(false);
   useEffect(() => {
     return () => {
       if (resendTimer.current) clearInterval(resendTimer.current);
@@ -27,6 +31,8 @@ const VerifyEmail: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
     const tokenParam = searchParams.get('token');
     if (!tokenParam) {
       setError('Invalid or missing verification token. Please check your email link.');
@@ -36,7 +42,8 @@ const VerifyEmail: React.FC = () => {
     }
   }, [searchParams]);
 
-  const handleResend = async () => {
+  const handleResend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!resendEmail.trim() || resendCooldown > 0) return;
     setIsResending(true);
     try {
@@ -144,7 +151,7 @@ const VerifyEmail: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <div role="alert" className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-red-800 font-medium mb-1">Verification Failed</p>
@@ -156,7 +163,7 @@ const VerifyEmail: React.FC = () => {
           {isLoading && !error && (
             <div className="mt-6 flex flex-col items-center justify-center py-8">
               <Loader2 className="w-8 h-8 text-ink animate-spin mb-4" />
-              <p className="text-sm text-inksoft">Verifying your email...</p>
+              <p className="text-sm text-inksoft" role="status">Verifying your email...</p>
             </div>
           )}
 
@@ -170,22 +177,27 @@ const VerifyEmail: React.FC = () => {
                     <p className="text-xs text-inksoft mb-3">
                       Links expire after 24 hours. Enter your account email below and we'll send a fresh one.
                     </p>
-                    <div className="flex gap-2">
+                    <form onSubmit={handleResend} className="flex gap-2">
+                      <label htmlFor="verify-resend-email" className="sr-only">
+                        Account email
+                      </label>
                       <input
+                        id="verify-resend-email"
                         type="email"
+                        autoComplete="email"
                         placeholder="you@example.com"
                         value={resendEmail}
                         onChange={(e) => setResendEmail(e.target.value)}
                         className="flex-1 min-w-0 px-3 py-2 bg-surface border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-900 placeholder-zinc-400"
                       />
                       <button
-                        onClick={handleResend}
+                        type="submit"
                         disabled={isResending || resendCooldown > 0 || !resendEmail.trim()}
                         className="px-3 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
                       >
                         {isResending ? 'Sending…' : resendCooldown > 0 ? `${resendCooldown}s` : 'Resend'}
                       </button>
-                    </div>
+                    </form>
                   </div>
                 </div>
               </div>

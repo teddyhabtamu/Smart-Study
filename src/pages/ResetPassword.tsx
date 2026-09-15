@@ -151,7 +151,7 @@ const ResetPassword: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div role="alert" className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-800">{error}</p>
@@ -186,6 +186,7 @@ const ResetPassword: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className="block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                   placeholder="Enter your new password"
                   disabled={isLoading || !token}
@@ -219,6 +220,7 @@ const ResetPassword: React.FC = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className={`block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
                     confirmPassword && password !== confirmPassword
                       ? 'border-red-300 focus:border-red-500'

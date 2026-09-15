@@ -4,6 +4,7 @@ import { GraduationCap, Lock, CheckCircle2, Loader2, AlertCircle, Crown, Eye, Ey
 import { authAPI } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { getPasswordStrength, PasswordStrengthMeter } from '../components/PasswordStrength';
 
 const AcceptInvitation: React.FC = () => {
   const navigate = useNavigate();
@@ -50,6 +51,14 @@ const AcceptInvitation: React.FC = () => {
       return;
     }
 
+    // Same bar as registration and reset: weak passwords are rejected with
+    // guidance instead of silently accepted (this form previously took any
+    // 6 characters while the other two demanded 8+ mixed).
+    if (getPasswordStrength(password).strength === 'weak') {
+      setError('Password is too weak — use at least 8 characters with a mix of letters and numbers.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -77,9 +86,12 @@ const AcceptInvitation: React.FC = () => {
       
       addToast('Invitation accepted! Your account has been activated.', 'success');
       
-      // Redirect to dashboard after 2 seconds
+      // Land role-aware like every other sign-in: admins to /admin, not the
+      // student dashboard (previously hard-coded).
+      const invitedRole = String(rawUser.role || '').toUpperCase();
+      const landing = invitedRole === 'ADMIN' || invitedRole === 'MODERATOR' ? '/admin' : '/dashboard';
       redirectTimer.current = setTimeout(() => {
-        navigate('/dashboard');
+        navigate(landing);
       }, 2000);
     } catch (error: any) {
       console.error('Accept invitation error:', error);
@@ -98,7 +110,7 @@ const AcceptInvitation: React.FC = () => {
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
           <h2 className="text-2xl font-bold text-ink mb-2">Invitation Accepted!</h2>
-          <p className="text-inksoft mb-6">Your admin account has been activated. Redirecting to dashboard...</p>
+          <p className="text-inksoft mb-6">Your admin account has been activated. Redirecting...</p>
         </div>
       </div>
     );
@@ -129,7 +141,7 @@ const AcceptInvitation: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <div role="alert" className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-800">{error}</p>
             </div>
@@ -149,6 +161,7 @@ const AcceptInvitation: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className="w-full pl-10 pr-10 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent outline-none transition-all text-ink placeholder-zinc-400"
                   placeholder="Enter your password"
                   disabled={isLoading || !token}
@@ -163,7 +176,8 @@ const AcceptInvitation: React.FC = () => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-zinc-500">Must be at least 6 characters</p>
+              <p className="mt-1 text-xs text-zinc-500">Use at least 8 characters with a mix of letters and numbers</p>
+              <PasswordStrengthMeter password={password} />
             </div>
 
             <div>
@@ -179,6 +193,7 @@ const AcceptInvitation: React.FC = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className="w-full pl-10 pr-10 py-3 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:border-transparent outline-none transition-all text-ink placeholder-zinc-400"
                   placeholder="Confirm your password"
                   disabled={isLoading || !token}

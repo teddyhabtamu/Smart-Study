@@ -18,7 +18,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToast();
-  const { login, register, user } = useAuth();
+  const { login, register, user, isLoading: authLoading } = useAuth();
 
   // Local state to handle 'forgot' view without changing URL necessarily
   const [view, setView] = useState<AuthView>(() => {
@@ -92,18 +92,22 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   // one (previously it sent verification, stranding locked-out users).
   const handleResendVerification = async (targetEmail: string, view: 'pending' | 'forgot-sent') => {
     if (!targetEmail || resendCooldown > 0) return;
-    setResendCooldown(60);
-    if (resendTimer.current) clearInterval(resendTimer.current);
-    resendTimer.current = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          if (resendTimer.current) clearInterval(resendTimer.current);
-          resendTimer.current = null;
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Cooldown starts only on SUCCESS: a failed resend used to lock the
+    // button for 60s, punishing the user for a server/network error.
+    const startCooldown = () => {
+      setResendCooldown(60);
+      if (resendTimer.current) clearInterval(resendTimer.current);
+      resendTimer.current = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            if (resendTimer.current) clearInterval(resendTimer.current);
+            resendTimer.current = null;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    };
     try {
       if (view === 'forgot-sent') {
         const res = await authAPI.forgotPassword(targetEmail);
@@ -112,6 +116,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
         const res = await authAPI.resendVerification(targetEmail);
         addToast(res.message || 'Verification email sent. Please check your inbox (and spam folder).', 'success');
       }
+      startCooldown();
     } catch (error: any) {
       addToast(error.message || 'Could not resend. Please try again later.', 'error');
     }
@@ -122,10 +127,11 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
   // Already signed in (e.g. back-button to /login)? Don't show the form —
   // bounce role-aware like the submit handler (admins to /admin) and honor
-  // ?next= when present. Guarded by !isLoading so the post-login submit
-  // can't be overridden.
+  // ?next= when present. Guarded by both loadings: local isLoading so the
+  // post-login submit can't be overridden, authLoading so a stored session
+  // doesn't flash the login form before the bounce fires.
   useEffect(() => {
-    if (user && !isLoading) {
+    if (user && !isLoading && !authLoading) {
       const next = searchParams.get('next');
       const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null;
       if (safeNext) {
@@ -135,7 +141,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       const role = String((user as any)?.role || '').toUpperCase();
       navigate(role === 'ADMIN' || role === 'MODERATOR' ? '/admin' : '/dashboard', { replace: true });
     }
-  }, [user, isLoading, navigate, searchParams]);
+  }, [user, isLoading, authLoading, navigate, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +234,18 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
     }
   };
   const googleLabel = view === 'register' ? 'Sign up with Google' : 'Sign in with Google';
+
+  // Boot check running (stored session being verified)? Hold a neutral
+  // spinner instead of flashing the full login form at a signed-in user —
+  // the bounce effect above navigates them away once boot completes.
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-surface px-4">
+        <Loader2 className="w-8 h-8 text-ink animate-spin mb-4" />
+        <p className="text-sm text-zinc-500" role="status">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-surface">
@@ -512,7 +530,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
               {/* Inline error box (persists; toasts disappear) */}
               {formError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 leading-relaxed">
+                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 leading-relaxed">
                   {formError}
                   {showResend && (
                     <button

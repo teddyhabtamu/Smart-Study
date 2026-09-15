@@ -366,10 +366,13 @@ const Planner: React.FC = () => {
 
   const handleSmartScheduleClick = () => {
     if (!user) {
-      navigate('/login');
+      navigate('/login?next=/planner');
       return;
     }
     if (!user.isPremium) {
+      // Silent redirects strand users on a pricing page with no context —
+      // explain why they landed there, with their place preserved.
+      addToast('Smart Schedule is a Pro feature — upgrade to continue.', 'info');
       navigate('/subscription', { state: { from: location.pathname } });
       return;
     }
