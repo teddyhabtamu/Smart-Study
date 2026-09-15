@@ -419,6 +419,14 @@ const Planner: React.FC = () => {
       }
     } catch (error) {
       console.error('AI generation error:', error);
+      if ((error as any)?.code === 'PREMIUM_REQUIRED') {
+        // Backend is the real gate (direct API calls bypass the page guard):
+        // send them to upgrade with their place preserved.
+        addToast('Smart Schedule is a Pro feature — upgrade to continue.', 'info');
+        setIsAIModalOpen(false);
+        navigate('/subscription', { state: { from: location.pathname } });
+        return;
+      }
       addToast("Failed to generate study plan. Your prompt is preserved — please try again.", "error");
     } finally {
       clearInterval(timer);

@@ -150,6 +150,7 @@ export const requirePremium = (req: Request, res: Response, next: NextFunction) 
   if (!req.user.is_premium) {
     res.status(403).json({
       success: false,
+      code: 'PREMIUM_REQUIRED',
       message: 'Premium subscription required'
     });
     return;

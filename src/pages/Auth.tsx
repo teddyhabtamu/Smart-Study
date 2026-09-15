@@ -87,7 +87,10 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   // Resend verification email with a 60s client cooldown (backend also
   // throttles at 3 per 15 min and returns 429 with a clear message).
   // (Redirect-for-signed-in-users effect lives below the loading state.)
-  const handleResendVerification = async (targetEmail: string) => {
+  // Shared by the verify-pending and forgot-sent panels — branched by view,
+  // because the forgot panel must re-send a RESET link, not a verification
+  // one (previously it sent verification, stranding locked-out users).
+  const handleResendVerification = async (targetEmail: string, view: 'pending' | 'forgot-sent') => {
     if (!targetEmail || resendCooldown > 0) return;
     setResendCooldown(60);
     if (resendTimer.current) clearInterval(resendTimer.current);
@@ -102,8 +105,13 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       });
     }, 1000);
     try {
-      const res = await authAPI.resendVerification(targetEmail);
-      addToast(res.message || 'Verification email sent. Please check your inbox (and spam folder).', 'success');
+      if (view === 'forgot-sent') {
+        const res = await authAPI.forgotPassword(targetEmail);
+        addToast(res.message || 'Reset link sent. Please check your inbox (and spam folder).', 'success');
+      } else {
+        const res = await authAPI.resendVerification(targetEmail);
+        addToast(res.message || 'Verification email sent. Please check your inbox (and spam folder).', 'success');
+      }
     } catch (error: any) {
       addToast(error.message || 'Could not resend. Please try again later.', 'error');
     }
@@ -267,7 +275,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => handleResendVerification(email)}
+                    onClick={() => handleResendVerification(email, 'forgot-sent')}
                     disabled={resendCooldown > 0}
                     className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm sm:text-base"
                   >
@@ -492,7 +500,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                   {showResend && (
                     <button
                       type="button"
-                      onClick={() => handleResendVerification(email)}
+                      onClick={() => handleResendVerification(email, 'pending')}
                       disabled={resendCooldown > 0}
                       className="mt-2 w-full py-2 bg-surface border border-red-200 text-red-800 font-medium rounded-lg hover:bg-red-100/50 disabled:opacity-50 transition-all text-sm"
                     >

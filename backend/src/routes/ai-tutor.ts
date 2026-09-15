@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { body } from 'express-validator';
 import { dbAdmin, query } from '../database/config';
-import { authenticateToken, optionalAuth, validateRequest } from '../middleware/auth';
+import { authenticateToken, optionalAuth, validateRequest, requirePremium } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
@@ -348,11 +348,12 @@ router.delete('/sessions/:id', authenticateToken, async (req: express.Request, r
   }
 });
 
-// Generate Study Plan using AI
+// Generate Study Plan using AI (Pro only — enforced server-side; the Planner
+// page also gates, but frontend gates don't stop direct API calls).
 router.post('/generate-study-plan', [
   authenticateToken,
   body('prompt').isString().trim().isLength({ min: 1, max: 2000 }).withMessage('Prompt must be between 1 and 2000 characters')
-], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+], validateRequest, requirePremium, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { prompt } = req.body;
     const userId = req.user!.id;

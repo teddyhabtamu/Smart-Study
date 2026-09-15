@@ -18,6 +18,12 @@ passport.use(new GoogleStrategy({
 }, async (accessToken: string, refreshToken: string, profile: any, done: any) => {
   try {
     const { id, displayName, emails, photos } = profile;
+    // Google verifies inbox control before issuing a profile, so a Google
+    // sign-in proves ownership. Respect an explicit unverified flag if Google
+    // ever sends one; otherwise treat the address as verified. This closes
+    // the gap where password-registered (unverified) accounts walked in via
+    // OAuth while the password gate still 403s them.
+    const googleVerifiedEmail = emails?.[0]?.verified !== false;
     const email = emails?.[0]?.value;
     const avatar = photos?.[0]?.value;
     const name = displayName;
@@ -40,6 +46,7 @@ passport.use(new GoogleStrategy({
         name,
         email,
         password_hash: OAUTH_PASSWORD_PLACEHOLDER,
+        email_verified: googleVerifiedEmail,
         avatar: avatar || null,
         role: 'STUDENT',
         status: 'Active', // Default status for new users
@@ -112,6 +119,19 @@ passport.use(new GoogleStrategy({
       const blockedStatuses: Record<string, string> = { Banned: 'banned', Suspended: 'suspended', Inactive: 'deactivated' };
       if (user.status && blockedStatuses[user.status]) {
         return done(null, false, { message: blockedStatuses[user.status] });
+      }
+
+      // Pre-existing password account linking Google for the first time:
+      // Google just proved inbox control, so heal the unverified flag
+      // instead of leaving a verified-owner account permanently gated.
+      if (googleVerifiedEmail && !user.email_verified) {
+        const { error: verifyError } = await supabase
+          .from('users')
+          .update({ email_verified: true })
+          .eq('id', user.id);
+        if (!verifyError) user.email_verified = true;
+        // Non-fatal on failure: login still proceeds; the password gate
+        // keeps working off the stored flag as before.
       }
       
       // Send login success email for existing users logging in via OAuth (non-blocking)

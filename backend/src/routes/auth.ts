@@ -711,11 +711,25 @@ router.post('/accept-invitation', [
 
     // Update user password, activate account, and mark token as used
     // NOTE: We do NOT update the role here - it should already be set correctly from invitation
+    // Atomic consume FIRST (mirrors password-reset): the UPDATE only matches
+    // a live token, so a double-submitted invitation applies exactly once.
+    // The specific invalid/used/expired messages above already had their
+    // chance — zero rows here means it was consumed/raced in between.
+    const consumeInvite = await query(
+      "UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1 AND type = 'admin-invitation' AND used_at IS NULL AND expires_at > NOW() RETURNING user_id",
+      [token]
+    );
+    if ((consumeInvite.rowCount ?? 0) === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'This invitation token is no longer valid. Please contact an administrator for a new invitation.'
+      } as ApiResponse);
+      return;
+    }
     await query(
       'UPDATE users SET password_hash = $1, status = $2, updated_at = NOW() WHERE id = $3',
       [password_hash, 'Active', user.id]
     );
-    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1', [token]);
 
     // Get updated user data
     const updatedResult = await query(
