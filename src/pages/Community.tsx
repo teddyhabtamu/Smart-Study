@@ -512,7 +512,7 @@ const Community: React.FC = () => {
                  leaderboard.map((learner) => (
                    <div key={learner.id} className={`flex items-start gap-2 p-2 rounded-lg transition-colors ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'hover:bg-zinc-50'}`}>
                       <div className="flex-shrink-0 pt-0.5">
-                         <div className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[9px] font-bold text-zinc-600">
+                         <div className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-zinc-600">
                             {learner.rank}
                          </div>
                       </div>
@@ -590,7 +590,8 @@ const Community: React.FC = () => {
                   <button
                     onClick={(e) => handleVote(post.id, e)}
                     disabled={votingPosts.has(post.id)}
-                    className="text-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center p-1"
+                    aria-label="Upvote post"
+                    className="relative text-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center p-1 after:absolute after:-inset-2 after:content-['']"
                   >
                     {votingPosts.has(post.id) ? (
                       <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
@@ -611,7 +612,7 @@ const Community: React.FC = () => {
                       {post.grade === 0 ? 'General' : `Grade ${post.grade}`}
                     </span>
                     {isSolved && (
-                      <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1">
                         <CheckCircle size={8} className="sm:w-2.5 sm:h-2.5" /> SOLVED
                       </span>
                     )}
@@ -629,7 +630,7 @@ const Community: React.FC = () => {
                   <div className="flex items-center justify-between border-t border-zinc-50 pt-3 sm:pt-4">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white ${
+                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-white ${
                           authorRole === UserRole.TUTOR
                             ? 'bg-zinc-800'
                             : authorRole === UserRole.ADMIN

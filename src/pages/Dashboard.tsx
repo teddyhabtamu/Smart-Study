@@ -241,7 +241,8 @@ const Dashboard: React.FC = () => {
                   <button
                     type="submit"
                     disabled={!quickQuestion.trim()}
-                    className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 p-1.5 sm:p-2 bg-white text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Ask question"
+                    className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 p-1.5 sm:p-2 bg-white text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-['']"
                   >
                     <ArrowRight size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </button>
@@ -385,7 +386,7 @@ const Dashboard: React.FC = () => {
                            </h4>
                            <div className="flex items-center gap-2 mt-1">
                               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{task.subject}</span>
-                              <span className={`text-[9px] px-1.5 rounded font-bold uppercase ${
+                              <span className={`text-[10px] px-1.5 rounded font-bold uppercase ${
                                  task.type === 'Exam' ? 'bg-red-100 text-red-600' : 'bg-zinc-200 text-zinc-600'
                               }`}>
                                  {task.type}

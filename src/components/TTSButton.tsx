@@ -237,7 +237,7 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
     <button
       onClick={handleToggle}
       disabled={isLoading}
-      className={`flex items-center justify-center p-2 rounded-lg transition-colors relative group ${
+      className={`flex items-center justify-center p-2 rounded-lg transition-colors relative group after:absolute after:-inset-2 after:content-[''] ${
         isPlaying 
           ? 'bg-zinc-900 text-white' 
           : 'bg-zinc-100 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200'

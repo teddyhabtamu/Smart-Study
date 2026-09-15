@@ -404,7 +404,10 @@ const Practice: React.FC = () => {
 
   if (view === 'quiz') {
     const question = questions[currentQIndex];
-    const progress = ((currentQIndex) / questions.length) * 100;
+    // (current+1): Q1 of 5 shows 20%, not 0% — a 0% bar on the first question
+    // reads as broken. role=progressbar + live label so SR users hear
+    // "Question 2 of 5" instead of guessing from a silent bar.
+    const progress = ((currentQIndex + 1) / questions.length) * 100;
 
     return (
       <div className="max-w-3xl mx-auto py-6 sm:py-8 px-4 sm:px-6 animate-fade-in">
@@ -414,7 +417,14 @@ const Practice: React.FC = () => {
              <span className="text-sm font-semibold text-zinc-500">Question {currentQIndex + 1} of {questions.length}</span>
              <span className="text-xs font-bold bg-zinc-100 px-2 py-1 rounded text-zinc-600">{subject} • {difficulty}</span>
            </div>
-           <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
+           <div
+             className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden"
+             role="progressbar"
+             aria-valuemin={0}
+             aria-valuemax={questions.length}
+             aria-valuenow={currentQIndex + 1}
+             aria-label={`Question ${currentQIndex + 1} of ${questions.length}`}
+           >
              <div className="h-full bg-zinc-900 transition-all duration-300" style={{ width: `${progress}%` }}></div>
            </div>
         </div>
@@ -460,7 +470,7 @@ const Practice: React.FC = () => {
         <div className="flex justify-between items-center">
            <button
              onClick={() => setShowQuitConfirm(true)}
-             className="text-zinc-400 hover:text-zinc-600 text-sm font-medium px-3 sm:px-4"
+             className="text-zinc-400 hover:text-zinc-600 text-sm font-medium px-3 sm:px-4 min-h-[44px] inline-flex items-center"
            >
              Quit
            </button>
@@ -521,7 +531,15 @@ const Practice: React.FC = () => {
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 backdrop-blur-sm">
                  <Trophy size={32} className="sm:w-10 sm:h-10" />
               </div>
-               <h1 className="text-3xl sm:text-4xl font-bold mb-2">{percentage}%</h1>
+               {/* The h1 carries an SR summary — a bare "87%" as the page title
+                   tells screen-reader users nothing about what it means. The
+                   visual stays identical (percentage aria-hidden). */}
+               <h1
+                 className="text-3xl sm:text-4xl font-bold mb-2"
+                 aria-label={`Quiz result: ${percentage} percent, ${score} out of ${questions.length} correct`}
+               >
+                 <span aria-hidden="true">{percentage}%</span>
+               </h1>
                {isNewBest && (
                  <div className="inline-flex items-center gap-1.5 bg-amber-400 text-zinc-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
                    <Trophy size={12} /> New best!

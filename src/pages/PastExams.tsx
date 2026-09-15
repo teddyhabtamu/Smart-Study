@@ -306,7 +306,8 @@ const ExamCard: React.FC<{ exam: Document }> = ({ exam }) => {
         <button
           onClick={handleBookmarkClick}
           disabled={isBookmarking}
-          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Save bookmark'}
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${
             isBookmarked
               ? 'bg-amber-500 text-white shadow-lg hover:bg-amber-600'
               : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow-md'
@@ -339,20 +340,20 @@ const ExamCard: React.FC<{ exam: Document }> = ({ exam }) => {
               the Library and Video cards */}
           {exam.is_premium && (
             user?.isPremium ? (
-              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-amber-400 text-zinc-900 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-amber-400 text-zinc-900 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
                 <Crown size={8} className="sm:w-2.5 sm:h-2.5" /> Pro
               </div>
             ) : (
-              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                 <Lock size={8} className="sm:w-2.5 sm:h-2.5" /> Premium
               </div>
             )
           )}
           <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 flex gap-1.5 sm:gap-2">
-             <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
+             <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
                {exam.subject}
              </span>
-             <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
+             <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
                {exam.grade === 0 ? 'General' : `Grade ${exam.grade}`}
              </span>
           </div>
@@ -368,7 +369,7 @@ const ExamCard: React.FC<{ exam: Document }> = ({ exam }) => {
             <span className="text-[10px] sm:text-[11px] text-zinc-400 font-medium uppercase tracking-wider flex items-center gap-1">
               {exam.file_type} • {exam.downloads} Downloads
             </span>
-            <span className="text-xs font-medium text-zinc-900 flex items-center gap-1 sm:gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity lg:transform lg:translate-x-2 lg:group-hover:translate-x-0">
+            <span className="text-xs font-medium text-zinc-900 flex items-center gap-1 sm:gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity lg:transform lg:translate-x-2 lg:group-hover:translate-x-0 lg:group-focus-within:translate-x-0">
               View <BookOpen size={12} className="sm:w-3.5 sm:h-3.5" />
             </span>
           </div>

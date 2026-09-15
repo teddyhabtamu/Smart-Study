@@ -778,9 +778,9 @@ const ContentTab: React.FC = () => {
                          </div>
                          <div className="flex items-center gap-1.5">
                            {((item as any).isPremium || (item as any).is_premium) && (
-                             <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
+                             <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
                            )}
-                           <span className="bg-zinc-100 text-zinc-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
+                           <span className="bg-zinc-100 text-zinc-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
                              {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (item as Document).file_type : 'Video'}
                            </span>
                          </div>

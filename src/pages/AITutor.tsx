@@ -621,19 +621,19 @@ const AITutor: React.FC = () => {
               <h1 className="font-bold text-xs sm:text-sm text-zinc-900 flex items-center gap-1 sm:gap-2">
                 Smart Tutor
                 {deepThinking && (
-                  <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-zinc-100 text-zinc-800 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-zinc-800 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
                     <Brain size={8} className="sm:w-2.5 sm:h-2.5" /> Deep Think
                   </span>
                 )}
                 {subjectFocus !== 'General' && (
-                  <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-zinc-100 text-zinc-700 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-zinc-700 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
                     <GraduationCap size={8} className="sm:w-2.5 sm:h-2.5" /> {subjectFocus}
                   </span>
                 )}
               </h1>
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-[9px] sm:text-[10px] text-zinc-500 font-medium">Online</p>
+                <p className="text-[10px] sm:text-[11px] text-zinc-500 font-medium">Online</p>
               </div>
             </div>
           </div>
@@ -863,7 +863,7 @@ const AITutor: React.FC = () => {
                     />
                     <label
                       htmlFor="image-upload-input"
-                      className={`p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer ${
+                      className={`relative p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer after:absolute after:-inset-2 after:content-[''] ${
                         isProcessingImage
                           ? 'bg-blue-50 text-blue-600 animate-pulse'
                           : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
@@ -880,7 +880,8 @@ const AITutor: React.FC = () => {
                       type="button"
                       onClick={toggleListening}
                       disabled={isBusy}
-                      className={`p-1 sm:p-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                      className={`relative p-1 sm:p-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${
                         isListening
                           ? 'bg-red-50 text-red-600 animate-pulse'
                           : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
@@ -908,7 +909,7 @@ const AITutor: React.FC = () => {
 
             <div className="text-center flex flex-col items-center gap-1">
               {!user && !limitReached && (
-                 <p className="text-[9px] sm:text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-medium">
+                 <p className="text-[10px] sm:text-[11px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-medium">
                     {MAX_FREE_PROMPTS - guestPromptCount} free messages remaining
                  </p>
               )}

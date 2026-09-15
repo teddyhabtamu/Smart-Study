@@ -665,7 +665,7 @@ const Planner: React.FC = () => {
                             if (!u) return null;
                             return (
                               <span className="flex items-center gap-1.5">
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${urgencyPill(u.tone)}`}>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${urgencyPill(u.tone)}`}>
                                   {u.label}
                                 </span>
                                 <span className="text-xs font-medium text-zinc-500">
@@ -886,7 +886,7 @@ const Planner: React.FC = () => {
                            <span key={e.id} title={`${e.title} (${e.type})`} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : typeDot(e.type)}`} />
                          ))}
                          {extra > 0 && (
-                           <span className={`text-[9px] font-bold leading-none ${isSelected ? 'text-white' : 'text-zinc-500'}`}>+{extra}</span>
+                           <span className={`text-[10px] font-bold leading-none ${isSelected ? 'text-white' : 'text-zinc-500'}`}>+{extra}</span>
                          )}
                        </span>
                      </button>
@@ -936,7 +936,7 @@ const Planner: React.FC = () => {
                              handleTaskToggle(event.id, event.isCompleted);
                            }}
                            disabled={isCompletingEvent === event.id}
-                           className={`flex-shrink-0 transition-colors p-1 ${
+                           className={`relative flex-shrink-0 transition-colors p-1 after:absolute after:-inset-2 after:content-[''] ${
                              event.isCompleted
                                ? 'text-emerald-500'
                                : 'text-zinc-300 hover:text-emerald-500'
@@ -958,16 +958,16 @@ const Planner: React.FC = () => {
                                  {event.title}
                                </h4>
                                {event.type === 'Exam' && (
-                                 <span className="text-[9px] sm:text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold flex-shrink-0">EXAM</span>
+                                 <span className="text-[10px] sm:text-[11px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold flex-shrink-0">EXAM</span>
                                )}
                                {event.type === 'Assignment' && (
-                                 <span className="text-[9px] sm:text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ASSIGNMENT</span>
+                                 <span className="text-[10px] sm:text-[11px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ASSIGNMENT</span>
                                )}
                                {!event.isCompleted && (() => {
                                  const u = getUrgency(event.date);
                                  if (!u) return null;
                                  return (
-                                   <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
+                                   <span className={`text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
                                      {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-white animate-pulse mr-1 align-middle" />}
                                      {u.label}
                                    </span>

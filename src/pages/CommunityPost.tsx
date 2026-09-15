@@ -734,7 +734,7 @@ const CommunityPost: React.FC = () => {
                             <div className="flex items-center gap-2 flex-shrink-0">
                               <TTSButton text={comment.content} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-zinc-900" />
                               {commentIsAccepted && (
-                                <span className="flex items-center gap-1 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-200">
+                                <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-emerald-50 text-emerald-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-200">
                                   <Check size={10} className="sm:w-3 sm:h-3" /> Solution
                                 </span>
                               )}

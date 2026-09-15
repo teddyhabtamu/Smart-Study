@@ -369,7 +369,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <span className="font-bold text-lg text-zinc-900 tracking-tight leading-none">
                     SmartStudy
                   </span>
-                  <span className="text-[9px] font-semibold text-zinc-400 uppercase tracking-widest mt-0.5">
+                  <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mt-0.5">
                     AI Learning
                   </span>
                 </div>
@@ -742,12 +742,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                            {user.role === 'ADMIN' ? 'Administrator' : user.role === 'MODERATOR' ? 'Content Manager' : 'Student'}
                          </span>
                          {user.role !== 'ADMIN' && user.role !== 'MODERATOR' && (
-                           <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
+                           <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
                              Lvl {user.level}
                            </span>
                          )}
                          {user.isPremium && (
-                           <span className="text-[9px] font-black bg-zinc-900 text-amber-400 px-1.5 py-0.5 rounded-full tracking-wider">
+                           <span className="text-[10px] font-black bg-zinc-900 text-amber-400 px-1.5 py-0.5 rounded-full tracking-wider">
                              PRO
                            </span>
                          )}

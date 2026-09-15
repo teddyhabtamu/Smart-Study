@@ -282,7 +282,7 @@ const VideoLibrary: React.FC = () => {
                       <p className="text-[11px] text-zinc-400 leading-relaxed hidden sm:block">{info.subjects}</p>
 
                       {/* Arrow link indicator — always visible on touch (no hover there) */}
-                      <div className="mt-3 sm:mt-4 flex items-center gap-1 text-xs font-semibold text-zinc-900 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-x-0 lg:group-hover:translate-x-0.5 transition-all duration-200">
+                      <div className="mt-3 sm:mt-4 flex items-center gap-1 text-xs font-semibold text-zinc-900 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus:opacity-100 lg:translate-x-0 lg:group-hover:translate-x-0.5 transition-all duration-200">
                         Explore <ChevronRight size={13} />
                       </div>
                     </div>
@@ -488,7 +488,8 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
         <button
           onClick={handleBookmarkClick}
           disabled={isBookmarking}
-          className={`absolute top-2.5 right-2.5 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isBookmarked
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Save bookmark'}
+          className={`absolute top-2.5 right-2.5 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${isBookmarked
             ? 'bg-zinc-900 text-white shadow-md'
             : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow'
             }`}
@@ -514,7 +515,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
           {/* Play overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-xl opacity-100 scale-100 lg:opacity-0 lg:scale-75 lg:group-hover:opacity-100 lg:group-hover:scale-100 transition-all duration-300">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-xl opacity-100 scale-100 lg:opacity-0 lg:scale-75 lg:group-hover:opacity-100 lg:group-hover:scale-100 lg:group-focus-within:opacity-100 lg:group-focus-within:scale-100 transition-all duration-300">
               <div className="w-0 h-0 border-l-[11px] border-l-zinc-900 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent ml-1"></div>
             </div>
           </div>
@@ -522,11 +523,11 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
           {/* Premium badge */}
           {video.isPremium && (
             user?.isPremium ? (
-              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-amber-400 text-zinc-900 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase tracking-wide flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-amber-400 text-zinc-900 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-black uppercase tracking-wide flex items-center gap-1 shadow-sm" title="Included in your Pro membership">
                 <Crown size={8} /> Pro
               </div>
             ) : (
-              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 backdrop-blur-sm shadow-sm">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wide flex items-center gap-1 backdrop-blur-sm shadow-sm">
                 <Lock size={8} /> Premium
               </div>
             )
@@ -534,10 +535,10 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
           {/* Meta badges (bottom) */}
           <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 flex gap-1.5">
-            <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
+            <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
               {video.subject}
             </span>
-            <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
+            <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
               {video.grade === 0 ? 'General' : `G${video.grade}`}
             </span>
           </div>
@@ -564,7 +565,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
               <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
               <span>{video.likes} likes</span>
             </div>
-            <span className="text-[10px] sm:text-xs font-semibold text-zinc-900 flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] sm:text-xs font-semibold text-zinc-900 flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
               Watch <PlayCircle size={11} className="sm:w-3 sm:h-3" />
             </span>
           </div>

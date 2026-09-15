@@ -76,11 +76,20 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ addToast, removeToast }}>
       {children}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      {/* Mobile: stretch full-width with page margins (the old right-4 +
+          min-w-[300px] overflowed 320px viewports). role=status + aria-live so
+          screen readers announce mutations (likes, bookmarks, quiz XP) that
+          otherwise happen silently. Errors use role=alert for assertive
+          announcement. */}
+      <div
+        className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-[100] flex flex-col gap-2 pointer-events-none"
+        aria-live="polite"
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg bg-white border border-zinc-200 animate-slide-up min-w-[300px] max-w-sm"
+            role={toast.type === 'error' ? 'alert' : 'status'}
+            className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg bg-white border border-zinc-200 animate-slide-up sm:min-w-[300px] sm:max-w-sm"
           >
             {toast.type === 'success' && <CheckCircle size={18} className="text-emerald-500 flex-shrink-0" />}
             {toast.type === 'error' && <AlertCircle size={18} className="text-red-500 flex-shrink-0" />}
@@ -91,7 +100,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             <button
               onClick={() => removeToast(toast.id)}
-              className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"
+              aria-label="Dismiss notification"
+              className="relative text-zinc-400 hover:text-zinc-600 transition-colors p-1 after:absolute after:-inset-2 after:content-['']"
             >
               <X size={16} />
             </button>

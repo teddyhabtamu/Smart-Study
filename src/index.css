@@ -2,11 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Skeleton shimmer is purely decorative: freeze it for users who asked the
-   OS for reduced motion (covers every animate-pulse skeleton at once). */
+/* Motion safety: ALL non-essential motion collapses for users who asked the
+   OS for reduced motion — not just skeleton shimmer. Previously only
+   .animate-pulse was frozen while animate-ping/bounce, slide-up/fade-in,
+   the Pro-card shine (5.5s infinite) and the streaming-cursor blink kept
+   running. Fades/slides become instant; infinite loops render one frame. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

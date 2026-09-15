@@ -564,7 +564,7 @@ const VideoWatch: React.FC = () => {
                     <div className="flex items-start gap-2 flex-wrap mb-2">
                       <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 leading-tight">{video.title}</h1>
                       {isPremiumVideo && (
-                        <div className="mt-0.5 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+                        <div className="mt-0.5 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                           <Lock size={8} className="sm:w-2.5 sm:h-2.5" /> Premium
                         </div>
                       )}
@@ -703,7 +703,7 @@ const VideoWatch: React.FC = () => {
                               <div className="relative w-28 aspect-video bg-zinc-200 rounded-lg overflow-hidden flex-shrink-0">
                                  <img src={convertGoogleDriveImageUrl(rv.thumbnail)} alt={rv.title} className="w-full h-full object-cover" />
                                  {((rv as any).isPremium ?? (rv as any).is_premium) && (
-                                   <div className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-white px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+                                   <div className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-white px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                                      <Lock size={8} /> Premium
                                    </div>
                                  )}
@@ -714,7 +714,7 @@ const VideoWatch: React.FC = () => {
                                  </h4>
                                  <p className="text-[10px] text-zinc-500 mt-1 truncate">{rv.instructor}</p>
                                  <div className="flex items-center gap-1 mt-auto">
-                                   {((rv as any).isPremium ?? (rv as any).is_premium) && <span className="text-[9px] bg-amber-100 text-amber-700 px-1 rounded font-bold">PRO</span>}
+                                   {((rv as any).isPremium ?? (rv as any).is_premium) && <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded font-bold">PRO</span>}
                                  </div>
                               </div>
                            </Link>
