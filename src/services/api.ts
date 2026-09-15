@@ -446,7 +446,16 @@ export const authAPI = {
 // Users API
 export const usersAPI = {
   getProfile: (): Promise<User & { notifications: any[] }> =>
-    apiRequest('/users/profile'),
+    apiRequest('/users/profile').then((user: any) => ({
+      ...user,
+      // The API stores UPPERCASE types (SUCCESS/INFO/ERROR); normalize once
+      // at the boundary so every consumer (bell icons, filters) can rely on
+      // the lowercase NotificationItem union instead of each normalizing.
+      notifications: (user.notifications || []).map((n: any) => ({
+        ...n,
+        type: String(n.type || 'info').toLowerCase(),
+      })),
+    })),
 
   updateProfile: (data: Partial<User>): Promise<User> =>
     apiRequest('/users/profile', {

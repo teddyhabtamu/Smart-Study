@@ -60,6 +60,10 @@ export interface User {
 
   // Notifications
   notifications: NotificationItem[];
+  // Exact server-side unread total (profile caps the list at the latest 50,
+  // so counting the array would undercount on old accounts with buried
+  // unread items). Absent on stale cached payloads — fall back to counting.
+  unreadCount?: number;
 }
 
 export enum FileType {

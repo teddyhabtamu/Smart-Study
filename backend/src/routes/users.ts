@@ -70,27 +70,36 @@ router.get('/profile', authenticateToken, async (req: express.Request, res: expr
   try {
     const userId = req.user!.id;
 
-    // Get user with notifications and bookmarks
+    // Get user with notifications and bookmarks.
+    // Notifications are capped at the latest 50: the bell dropdown only
+    // shows recent items, and an uncapped json_agg grew the profile payload
+    // (fetched on every bell open) without bound on old accounts.
+    // unread_count is computed over ALL rows so the badge stays exact even
+    // when unread items fall outside the 50-item window.
     const userResult = await query(`
       SELECT u.id, u.name, u.email, u.role, u.is_premium, u.avatar, u.preferences,
              u.xp, u.level, u.streak, u.last_active_date, u.unlocked_badges,
              u.practice_attempts, u.grade, u.premium_since, u.created_at, u.updated_at,
              COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks,
-             json_agg(
-               json_build_object(
+             COALESCE(nagg.notifications, '[]') as notifications,
+             COALESCE((SELECT COUNT(*) FROM notifications WHERE user_id = u.id AND is_read IS NOT TRUE), 0)::int as unread_count
+      FROM users u
+      LEFT JOIN bookmarks b ON u.id = b.user_id
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object(
                  'id', n.id,
                  'title', n.title,
                  'message', n.message,
                  'type', n.type,
                  'isRead', n.is_read,
                  'date', n.created_at
-               ) ORDER BY n.created_at DESC
-             ) as notifications
-      FROM users u
-      LEFT JOIN notifications n ON u.id = n.user_id
-      LEFT JOIN bookmarks b ON u.id = b.user_id
+               ) ORDER BY n.created_at DESC) as notifications
+        FROM (SELECT id, title, message, type, is_read, created_at
+              FROM notifications WHERE user_id = u.id
+              ORDER BY created_at DESC LIMIT 50) n
+      ) nagg ON true
       WHERE u.id = $1
-      GROUP BY u.id
+      GROUP BY u.id, nagg.notifications
     `, [userId]);
 
     if (userResult.rows.length === 0) {

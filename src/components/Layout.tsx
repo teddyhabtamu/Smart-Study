@@ -16,6 +16,18 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+// Notification type visuals (hoisted: previously two switch helpers were
+// re-created per notification on every render). Keys are lowercase — the
+// backend stores UPPERCASE types (SUCCESS/INFO/ERROR), normalized at use.
+// The old lowercase-only switch never matched, so EVERY notification
+// rendered the same gray Info icon and the list looked flat and demo-like.
+const NOTIF_TYPE_STYLES: Record<string, { icon: any; iconBg: string; iconColor: string; dot: string }> = {
+  success: { icon: CheckCircle, iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', dot: 'bg-emerald-500' },
+  error: { icon: AlertCircle, iconBg: 'bg-red-100', iconColor: 'text-red-600', dot: 'bg-red-500' },
+  warning: { icon: AlertTriangle, iconBg: 'bg-amber-100', iconColor: 'text-amber-600', dot: 'bg-amber-500' },
+  info: { icon: Info, iconBg: 'bg-sky-100', iconColor: 'text-sky-600', dot: 'bg-sky-500' },
+};
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout, markNotificationsAsRead, deleteNotification, refreshUser, isLoading } = useAuth();
   const location = useLocation();
@@ -178,7 +190,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   };
 
-  const unreadCount = user?.notifications?.filter(n => !n.isRead).length || 0;
+  const unreadCount = user?.unreadCount ?? user?.notifications?.filter(n => !n.isRead).length ?? 0;
   
   // Filter notifications based on current filter
   const filteredNotifications = user?.notifications?.filter(notif => {
@@ -572,56 +584,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                        {groupKey}
                                      </span>
                                    </div>
-                                   {groupNotifs.map((notif) => {
-                                     const getTypeIcon = (type: string) => {
-                                       switch (type) {
-                                         case 'success': return <CheckCircle size={16} className="text-zinc-700" />;
-                                         case 'warning': return <AlertTriangle size={16} className="text-zinc-600" />;
-                                         case 'error': return <AlertCircle size={16} className="text-zinc-800" />;
-                                         default: return <Info size={16} className="text-zinc-600" />;
-                                       }
-                                     };
+                                    {groupNotifs.map((notif) => {
+                                      const style = NOTIF_TYPE_STYLES[String(notif.type || 'info').toLowerCase()] || NOTIF_TYPE_STYLES.info;
+                                      const Icon = style.icon;
+                                      const actionUrl = getNotificationActionUrl(notif);
+                                      const isClickable = !!actionUrl;
 
-                                     const getTypeColor = (type: string) => {
-                                       switch (type) {
-                                         case 'success': return 'border-l-zinc-700 bg-zinc-50';
-                                         case 'warning': return 'border-l-zinc-500 bg-zinc-50';
-                                         case 'error': return 'border-l-zinc-900 bg-zinc-100';
-                                         default: return 'border-l-zinc-600 bg-zinc-50';
-                                       }
-                                     };
-
-                                     const actionUrl = getNotificationActionUrl(notif);
-                                     const isClickable = !!actionUrl;
-
-                                     return (
-                                       <div
-                                         key={notif.id}
-                                         onClick={() => {
-                                           if (isClickable) {
-                                             handleNotificationClick(notif);
-                                           }
-                                         }}
-                                         className={`group relative p-3 rounded-lg border-l-4 transition-all duration-200 ${
-                                           notif.isRead
-                                             ? 'opacity-60 hover:opacity-100 bg-white hover:bg-zinc-50 border-l-zinc-300'
-                                             : `${getTypeColor(notif.type)} hover:shadow-md`
-                                         } ${isClickable ? 'cursor-pointer hover:border-l-zinc-900 active:scale-[0.98]' : ''}`}
-                                       >
-                                         {!notif.isRead && (
-                                           <div className="absolute top-3 right-3 w-2 h-2 bg-zinc-900 rounded-full animate-pulse"></div>
-                                         )}
-                                         <div className="flex gap-3">
-                                           <div className="flex-shrink-0 mt-0.5">
-                                             {getTypeIcon(notif.type)}
-                                           </div>
-                                           <div className="flex-1 min-w-0">
-                                             <div className="flex items-start justify-between gap-2">
-                                                <p className="text-sm font-semibold text-zinc-900 leading-tight">{notif.title}</p>
-                                                {isClickable && (
-                                                  <ExternalLink size={12} className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                                                )}
-                                             </div>
+                                      return (
+                                        <div
+                                          key={notif.id}
+                                          onClick={() => {
+                                            if (isClickable) {
+                                              handleNotificationClick(notif);
+                                            }
+                                          }}
+                                          className={`group relative p-3 rounded-xl border transition-all duration-200 ${
+                                            notif.isRead
+                                              ? 'bg-white border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/60'
+                                              : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300 hover:shadow-sm'
+                                          } ${isClickable ? 'cursor-pointer active:scale-[0.99]' : ''}`}
+                                        >
+                                          {!notif.isRead && (
+                                            <span className={`absolute top-3 right-3 w-2 h-2 rounded-full ${style.dot}`} />
+                                          )}
+                                          <div className="flex gap-3">
+                                            <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${style.iconBg}`}>
+                                              <Icon size={16} className={style.iconColor} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-start justify-between gap-2">
+                                                 <p className={`text-sm leading-tight ${notif.isRead ? 'font-medium text-zinc-700' : 'font-semibold text-zinc-900'}`}>{notif.title}</p>
+                                                 {isClickable && (
+                                                   <ExternalLink size={12} className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                                                 )}
+                                              </div>
                                              <p className="text-xs text-zinc-600 mt-1 leading-relaxed line-clamp-2">{notif.message}</p>
                                              <div className="flex items-center gap-2 mt-2">
                                                 <Clock size={10} className="text-zinc-400" />
@@ -686,10 +682,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                ))}
                              </div>
                            ) : (
-                             <div className="text-center py-16 px-4">
-                                <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                                   <Bell size={24} className="text-white" />
-                                </div>
+                              <div className="text-center py-16 px-4">
+                                 <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Bell size={24} className="text-zinc-400" />
+                                 </div>
                                 <p className="text-sm font-medium text-zinc-900 mb-1">
                                    {notificationFilter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
                                 </p>

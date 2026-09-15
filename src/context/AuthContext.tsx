@@ -79,7 +79,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
         premiumSince: userData.premium_since || userData.premiumSince || null,
-            notifications: userData.notifications || []
+            notifications: userData.notifications || [],
+            // Server-side exact unread total (see users profile) — Layout falls back to counting.
+            unreadCount: userData.unread_count ?? userData.unreadCount
           };
           setUser(transformedUser);
           // Save to localStorage for persistence
@@ -348,7 +350,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
         premiumSince: userData.premium_since || userData.premiumSince || null,
-        notifications: userData.notifications || []
+        notifications: userData.notifications || [],
+        // Server-side exact unread total (see users profile) — Layout falls back to counting.
+        unreadCount: userData.unread_count ?? userData.unreadCount
       };
       setUser(transformedUser);
       // Save to localStorage for persistence
@@ -385,7 +389,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
         premiumSince: userData.premium_since || userData.premiumSince || null,
-        notifications: userData.notifications || []
+        notifications: userData.notifications || [],
+        // Server-side exact unread total (see users profile) — Layout falls back to counting.
+        unreadCount: userData.unread_count ?? userData.unreadCount
       };
       setUser(transformedUser);
       // Save to localStorage for immediate access
@@ -586,7 +592,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         practiceAttempts: userData.practice_attempts || userData.practiceAttempts || 0,
         grade: userData.grade ?? null,
         premiumSince: userData.premium_since || userData.premiumSince || null,
-        notifications: userData.notifications || []
+        notifications: userData.notifications || [],
+        // Server-side exact unread total (see users profile) — Layout falls back to counting.
+        unreadCount: userData.unread_count ?? userData.unreadCount
       };
       setUser(transformedUser);
       localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
