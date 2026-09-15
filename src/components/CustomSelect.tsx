@@ -19,6 +19,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const selectedOption = options.find(opt => opt.value === value);
   const id = React.useId();
@@ -35,13 +36,22 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
 
   useEffect(() => {
     if (isOpen && listRef.current) {
-      // Scroll highlighted item into view
+      // Sync highlight with the current value on open
       const selectedIdx = options.findIndex(opt => opt.value === value);
       if (selectedIdx >= 0) {
         setHighlightedIndex(selectedIdx);
       }
     }
   }, [isOpen, value, options]);
+
+  // Keyboard navigation in long lists (15 subjects) must keep the
+  // highlighted option visible — the list scrolls (max-h-60) but nothing
+  // scrolled it before, so arrowing past the fold lost the highlight.
+  useEffect(() => {
+    if (isOpen) {
+      optionRefs.current.get(highlightedIndex)?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedIndex, isOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -67,6 +77,21 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
         setIsOpen(true);
       } else {
         setHighlightedIndex(prev => (prev - 1 + options.length) % options.length);
+      }
+    } else if (e.key === 'Home') {
+      // Standard listbox behavior: jump to first/last option
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+      } else if (options.length > 0) {
+        setHighlightedIndex(0);
+      }
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+      } else if (options.length > 0) {
+        setHighlightedIndex(options.length - 1);
       }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
@@ -110,6 +135,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
               id={`${id}-option-${index}`}
               role="option"
               aria-selected={value === option.value}
+              ref={(el) => {
+                if (el) optionRefs.current.set(index, el);
+                else optionRefs.current.delete(index);
+              }}
               onClick={() => {
                 onChange(option.value);
                 setIsOpen(false);

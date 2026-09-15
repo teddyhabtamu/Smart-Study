@@ -217,55 +217,62 @@ export const VideoWatchSkeleton: React.FC = () => (
 
 // Document View Page Skeleton
 export const DocumentViewSkeleton: React.FC = () => (
-  <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
+  // Mirrors the reader layout: slim header, viewer card with tall preview,
+  // details strip, and the sticky AI-tools aside (not the old 3-col grid).
+  <div className="min-h-screen bg-zinc-100 animate-pulse" aria-hidden="true">
     {/* Header */}
-    <div className="flex items-center justify-between">
-      <div className="space-y-2">
-        <div className="h-8 bg-zinc-200 rounded w-64"></div>
-        <div className="h-4 bg-zinc-200 rounded w-48"></div>
-      </div>
-      <div className="flex gap-2">
-        <div className="h-10 bg-zinc-200 rounded w-24"></div>
-        <div className="h-10 bg-zinc-200 rounded w-24"></div>
+    <div className="bg-white border-b border-zinc-200">
+      <div className="max-w-[1440px] mx-auto flex items-center gap-3 px-3 sm:px-5 py-2.5">
+        <div className="w-9 h-9 bg-zinc-200 rounded-xl flex-shrink-0"></div>
+        <div className="flex-1 space-y-2 min-w-0">
+          <div className="h-4 bg-zinc-200 rounded w-2/3 max-w-md"></div>
+          <div className="h-3 bg-zinc-200 rounded w-40"></div>
+        </div>
+        <div className="flex gap-1.5 flex-shrink-0">
+          <div className="w-10 h-10 bg-zinc-200 rounded-xl"></div>
+          <div className="w-10 h-10 bg-zinc-200 rounded-xl"></div>
+          <div className="h-10 bg-zinc-200 rounded-xl w-24"></div>
+        </div>
       </div>
     </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Main Document Section */}
-      <div className="lg:col-span-2 space-y-6">
-        {/* Document Preview */}
-        <div className="bg-white border border-zinc-200 rounded-xl p-6">
-          <div className="aspect-[4/3] bg-zinc-200 rounded-lg"></div>
+    <div className="max-w-[1600px] mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+      {/* Viewer card */}
+      <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden min-w-0">
+        <div className="h-12 border-b border-zinc-100 flex items-center px-4 gap-2">
+          <div className="h-3 bg-zinc-200 rounded w-20"></div>
+          <div className="h-5 bg-zinc-200 rounded-md w-12"></div>
+          <div className="flex-1"></div>
+          <div className="w-8 h-8 bg-zinc-200 rounded-lg"></div>
+          <div className="w-8 h-8 bg-zinc-200 rounded-lg"></div>
         </div>
-
-        {/* Document Info */}
-        <div className="space-y-3">
-          <div className="h-6 bg-zinc-200 rounded w-3/4"></div>
-          <div className="h-4 bg-zinc-200 rounded w-full"></div>
-          <div className="h-4 bg-zinc-200 rounded w-5/6"></div>
+        {/* Details strip */}
+        <div className="border-b border-zinc-100 px-4 py-2 flex gap-4">
+          <div className="h-3 bg-zinc-200 rounded w-24"></div>
+          <div className="h-3 bg-zinc-200 rounded w-20 hidden sm:block"></div>
+          <div className="h-3 bg-zinc-200 rounded w-16 hidden md:block"></div>
         </div>
+        {/* Tall preview */}
+        <div className="bg-zinc-200/60 h-[68vh] lg:h-[80vh]"></div>
       </div>
 
-      {/* Sidebar */}
-      <div className="space-y-6">
-        {/* Tools */}
-        <div className="bg-white border border-zinc-200 rounded-xl p-6 space-y-4">
-          <div className="h-6 bg-zinc-200 rounded w-24"></div>
-          <div className="space-y-3">
-            <div className="h-10 bg-zinc-200 rounded w-full"></div>
-            <div className="h-10 bg-zinc-200 rounded w-full"></div>
-            <div className="h-10 bg-zinc-200 rounded w-full"></div>
-          </div>
+      {/* AI tools aside */}
+      <div className="hidden lg:block bg-white border border-zinc-200 rounded-2xl overflow-hidden">
+        <div className="p-2.5 pb-0">
+          <div className="h-10 bg-zinc-100 rounded-xl"></div>
         </div>
-
-        {/* Chat/Notes */}
-        <div className="bg-white border border-zinc-200 rounded-xl p-6 space-y-4">
-          <div className="h-6 bg-zinc-200 rounded w-32"></div>
-          <div className="space-y-2">
-            <div className="h-4 bg-zinc-200 rounded w-full"></div>
-            <div className="h-4 bg-zinc-200 rounded w-3/4"></div>
+        <div className="p-4 space-y-4">
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-2">
+            <div className="h-2 bg-zinc-200 rounded w-full"></div>
+            <div className="h-2 bg-zinc-200 rounded w-3/4"></div>
           </div>
-          <div className="h-24 bg-zinc-200 rounded"></div>
+          <div className="flex justify-end">
+            <div className="h-10 bg-zinc-200 rounded-2xl w-3/4"></div>
+          </div>
+          <div className="flex gap-2.5">
+            <div className="w-7 h-7 bg-zinc-200 rounded-full flex-shrink-0"></div>
+            <div className="h-14 bg-zinc-200 rounded-2xl flex-1"></div>
+          </div>
         </div>
       </div>
     </div>

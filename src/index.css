@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Skeleton shimmer is purely decorative: freeze it for users who asked the
+   OS for reduced motion (covers every animate-pulse skeleton at once). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}
+
 @layer base {
   html {
     font-size: 75%; /* Reduce font size by 25% (from 100% to 75%) */

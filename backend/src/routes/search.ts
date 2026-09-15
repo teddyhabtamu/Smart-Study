@@ -15,8 +15,8 @@ const router = express.Router();
 //
 // All call sites pass the search term as $1; extra filters append $2+.
 // Returns { where, order, select, param } to splice into each query.
-// ---------------------------------------------------------------------------
-const textMatch = (
+// Exported for unit tests (ranking contract: OR semantics, lexeme cap).
+export const textMatch = (
   vectorCol: string,
   ilikeCols: string[],
   term: string,
@@ -25,8 +25,9 @@ const textMatch = (
   // Lexemes for an OR query: any single word can match, ts_rank puts the
   // best (multi-word, title-weighted) hits first. Stricter AND semantics
   // returned zero too often ("biology textbook" matched nothing even though
-  // biology books exist).
-  const lexemes = term.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  // biology books exist). Capped at 20: pasted paragraphs would otherwise
+  // build giant OR queries that are slow and add no relevance signal.
+  const lexemes = term.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).slice(0, 20);
   if (lexemes.length === 0) {
     const ors = ilikeCols.map((c) => `${c} ILIKE $1`).join(' OR ');
     return {
@@ -293,13 +294,17 @@ router.post('/advanced', optionalAuth, async (req: express.Request, res: express
           baseConditions.push(`is_premium = false`);
         }
 
-        const whereClause = buildWhereClause(baseConditions, params, subjects, grades);
+        // NOTE: buildWhereClause appends into baseConditions (and params) in
+        // place — its return value is the same conditions as a string, so it
+        // must NOT be spliced into the query again (that applied every filter
+        // twice). The WHERE below reads baseConditions only.
+        buildWhereClause(baseConditions, params, subjects, grades);
 
         const docQuery = `
           SELECT id, title, description, subject, grade, file_type, is_premium,
-                 preview_image, author, created_at, ${match.select}
+                  preview_image, author, created_at, ${match.select}
           FROM documents
-          WHERE ${baseConditions.join(' AND ')}${whereClause}
+          WHERE ${baseConditions.join(' AND ')}
           ORDER BY ${match.order}
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
@@ -337,12 +342,16 @@ router.post('/advanced', optionalAuth, async (req: express.Request, res: express
           baseConditions.push(`is_premium = false`);
         }
 
-        const whereClause = buildWhereClause(baseConditions, params, subjects, grades);
+        // NOTE: buildWhereClause appends into baseConditions (and params) in
+        // place — its return value is the same conditions as a string, so it
+        // must NOT be spliced into the query again (that applied every filter
+        // twice). The WHERE below reads baseConditions only.
+        buildWhereClause(baseConditions, params, subjects, grades);
 
         const vidQuery = `
           SELECT id, title, description, subject, grade, thumbnail, instructor, is_premium, created_at, ${match.select}
           FROM videos
-          WHERE ${baseConditions.join(' AND ')}${whereClause}
+          WHERE ${baseConditions.join(' AND ')}
           ORDER BY ${match.order}
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
@@ -490,8 +499,12 @@ router.get('/suggest', optionalAuth, async (req: express.Request, res: express.R
     // Get suggestions from different content types. Premium titles are
     // hidden from guests/free users, same as the search endpoints — titles
     // alone would otherwise leak the premium catalog.
+    // LIKE wildcards in the prefix are escaped: a literal "%" or "_"
+    // otherwise acts as a wildcard (a "%" prefix query would dump the
+    // whole catalog). Backslash is Postgres' default LIKE escape char.
     const suggestions: string[] = [];
     const premiumClause = isPremiumSuggester ? '' : ' AND is_premium = false';
+    const likePrefix = term.replace(/[\\%_]/g, (m) => `\\${m}`) + '%';
 
     try {
       // Document titles
@@ -502,7 +515,7 @@ router.get('/suggest', optionalAuth, async (req: express.Request, res: express.R
         ORDER BY title
         LIMIT $2
       `;
-      const docResults = await query(docQuery, [`${term}%`, limitNum]);
+      const docResults = await query(docQuery, [likePrefix, limitNum]);
       suggestions.push(...docResults.rows.map(r => r.title));
 
       // Video titles
@@ -513,7 +526,7 @@ router.get('/suggest', optionalAuth, async (req: express.Request, res: express.R
         ORDER BY title
         LIMIT $2
       `;
-      const vidResults = await query(vidQuery, [`${term}%`, limitNum]);
+      const vidResults = await query(vidQuery, [likePrefix, limitNum]);
       suggestions.push(...vidResults.rows.map(r => r.title));
 
       // Forum post titles
@@ -524,7 +537,7 @@ router.get('/suggest', optionalAuth, async (req: express.Request, res: express.R
         ORDER BY title
         LIMIT $2
       `;
-      const postResults = await query(postQuery, [`${term}%`, limitNum]);
+      const postResults = await query(postQuery, [likePrefix, limitNum]);
       suggestions.push(...postResults.rows.map(r => r.title));
 
     } catch (error) {
