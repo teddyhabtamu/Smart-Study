@@ -161,13 +161,14 @@ export const prepareColumnValue = (table: string, column: string, v: any): any =
 // parameterized, but keys are not. A crafted JSON key like `a = 1 --` sent as
 // a body field would otherwise inject SQL through any dynamic SET/WHERE
 // builder. Every helper below validates keys and quotes them.
-const assertSafeIdent = (ident: string): void => {
+// Exported for unit tests (injection contract below).
+export const assertSafeIdent = (ident: string): void => {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(ident)) {
     throw new Error(`Unsafe SQL identifier: ${ident}`);
   }
 };
 
-const quoteIdent = (ident: string): string => {
+export const quoteIdent = (ident: string): string => {
   assertSafeIdent(ident);
   return `"${ident}"`;
 };

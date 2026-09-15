@@ -721,7 +721,8 @@ export const aiTutorAPI = {
   getSession: (id: string): Promise<ChatSession> =>
     apiRequest(`/ai-tutor/sessions/${id}`),
 
-  addMessage: (sessionId: string, role: 'user' | 'model', text: string): Promise<{ role: string; text: string; timestamp: string }> =>
+  // Append endpoint accepts user messages only (server stamps assistant turns itself).
+  addMessage: (sessionId: string, role: 'user', text: string): Promise<{ role: string; text: string; timestamp: string }> =>
     apiRequest(`/ai-tutor/sessions/${sessionId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ role, text }),
@@ -921,7 +922,7 @@ export const aiTutorAPI = {
       }))
     })),
 
-  addChatMessage: (sessionId: string, role: 'user' | 'model', text: string): Promise<{ role: string; text: string }> =>
+  addChatMessage: (sessionId: string, role: 'user', text: string): Promise<{ role: string; text: string }> =>
     apiRequest(`/ai-tutor/sessions/${sessionId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ role, text }),

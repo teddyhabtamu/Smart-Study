@@ -94,3 +94,19 @@ describe('buildPoolConfig password encoding', () => {
     expect(cfg.connectionString).toContain('localhost:5432');
   });
 });
+
+describe('SQL identifier guard (column-name injection)', () => {
+  it('quotes plain column names', async () => {
+    const { quoteIdent } = await load();
+    expect(quoteIdent('title')).toBe('"title"');
+    expect(quoteIdent('_private')).toBe('"_private"');
+  });
+
+  it('rejects crafted keys that would break out of SET/WHERE', async () => {
+    const { assertSafeIdent } = await load();
+    expect(() => assertSafeIdent('a = 1 --')).toThrow();
+    expect(() => assertSafeIdent('x"; DROP TABLE users; --')).toThrow();
+    expect(() => assertSafeIdent('')).toThrow();
+    expect(() => assertSafeIdent('1abc')).toThrow();
+  });
+});

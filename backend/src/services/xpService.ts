@@ -1,4 +1,4 @@
-import { query, dbAdmin } from '../database/config';
+import { query, getClient } from '../database/config';
 import { NotificationService } from './notificationService';
 import { EmailService } from './emailService';
 import { BADGE_DEFINITIONS } from '../constants';
@@ -37,52 +37,90 @@ export const awardXP = async (
     return { xpGained: 0, newXp: rows.rows[0]?.xp || 0, newLevel: level, leveledUp: false, newBadges: [] };
   }
 
-  const currentUserRows = await query('SELECT * FROM users WHERE id = $1', [userId]);
-  const currentUser = currentUserRows.rows[0];
-  if (!currentUser) {
-    throw new Error('User not found');
-  }
-
-  const currentXp = currentUser.xp || 0;
-  const newXp = currentXp + safeAmount;
-  const newLevel = Math.floor(newXp / 1000) + 1;
-  const previousLevel = Math.floor(currentXp / 1000) + 1;
-  const leveledUp = newLevel > previousLevel;
-
-  // Level-based badge unlocks
-  const currentUnlockedBadges: string[] = currentUser.unlocked_badges || ['b1'];
+  // Atomic credit: the old code ran SELECT then three separate writes on
+  // different pool connections — two concurrent awards (video + quiz
+  // finishing together, double-click) both read xp=1000 and both wrote 1100,
+  // silently losing one award and risking badge-insert races. Now the user
+  // row is locked (FOR UPDATE) and credit + history + badges commit as one
+  // transaction; a concurrent awarder simply waits its turn.
+  const client = await getClient();
+  let newXp = 0;
+  let newLevel = 1;
+  let leveledUp = false;
   const newUnlockedBadges: string[] = [];
-  for (const badge of LEVEL_BADGES) {
-    if (!currentUnlockedBadges.includes(badge.id) && newLevel >= badge.requiredLevel) {
-      newUnlockedBadges.push(badge.id);
+  let currentEmail: string | undefined;
+  let currentName: string | undefined;
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      'SELECT xp, unlocked_badges, email, name FROM users WHERE id = $1 FOR UPDATE',
+      [userId]
+    );
+    const currentUser = cur.rows[0];
+    if (!currentUser) {
+      throw new Error('User not found');
     }
-  }
-  const allUnlockedBadges = [...new Set([...currentUnlockedBadges, ...newUnlockedBadges])];
 
-  await dbAdmin.insert('xp_history', {
-    user_id: userId,
-    amount: safeAmount,
-    source: opts.source,
-    source_id: opts.source_id ?? null,
-    description: opts.description
-  });
+    const currentXp = currentUser.xp || 0;
+    newXp = currentXp + safeAmount;
+    newLevel = Math.floor(newXp / 1000) + 1;
+    const previousLevel = Math.floor(currentXp / 1000) + 1;
+    leveledUp = newLevel > previousLevel;
 
-  for (const badgeId of newUnlockedBadges) {
-    const existingRows = await query('SELECT id FROM badge_unlocks WHERE user_id = $1 AND badge_id = $2', [userId, badgeId]);
-    if (!existingRows.rows[0]) {
-      await dbAdmin.insert('badge_unlocks', {
-        user_id: userId,
-        badge_id: badgeId,
-        unlocked_at: new Date().toISOString()
-      });
+    // Level-based badge unlocks
+    const currentUnlockedBadges: string[] = currentUser.unlocked_badges || ['b1'];
+    for (const badge of LEVEL_BADGES) {
+      if (!currentUnlockedBadges.includes(badge.id) && newLevel >= badge.requiredLevel) {
+        newUnlockedBadges.push(badge.id);
+      }
     }
-  }
+    const allUnlockedBadges = [...new Set([...currentUnlockedBadges, ...newUnlockedBadges])];
 
-  await dbAdmin.update('users', userId, {
-    xp: newXp,
-    level: newLevel,
-    unlocked_badges: allUnlockedBadges
-  });
+    await client.query(
+      'INSERT INTO xp_history (user_id, amount, source, source_id, description) VALUES ($1, $2, $3, $4, $5)',
+      [userId, safeAmount, opts.source, opts.source_id ?? null, opts.description]
+    );
+
+    for (const badgeId of newUnlockedBadges) {
+      const existing = await client.query(
+        'SELECT id FROM badge_unlocks WHERE user_id = $1 AND badge_id = $2',
+        [userId, badgeId]
+      );
+      if (!existing.rows[0]) {
+        try {
+          await client.query(
+            'INSERT INTO badge_unlocks (user_id, badge_id, unlocked_at) VALUES ($1, $2, $3)',
+            [userId, badgeId, new Date().toISOString()]
+          );
+        } catch (badgeErr: any) {
+          // A racing awarder inserted the same badge after our check —
+          // unique violation means the row exists, which is the outcome we
+          // wanted anyway. Anything else rethrows and rolls back.
+          if (String(badgeErr?.code) !== '23505') throw badgeErr;
+        }
+      }
+    }
+
+    // unlocked_badges is text[]: pg serializes JS arrays natively (same as
+    // the old Table.update path, which passed arrays through untouched).
+    await client.query(
+      'UPDATE users SET xp = $1, level = $2, unlocked_badges = $3 WHERE id = $4',
+      [newXp, newLevel, allUnlockedBadges, userId]
+    );
+
+    await client.query('COMMIT');
+    currentEmail = currentUser.email;
+    currentName = currentUser.name;
+  } catch (txErr) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // Rollback best-effort: the original error is what matters.
+    }
+    throw txErr;
+  } finally {
+    client.release();
+  }
 
   if (leveledUp) {
     await NotificationService.createLevelUpNotification(userId, newLevel);
@@ -98,7 +136,7 @@ export const awardXP = async (
     }
   }
 
-  if (newUnlockedBadges.length > 0 && currentUser.email && currentUser.name) {
+  if (newUnlockedBadges.length > 0 && currentEmail && currentName) {
     const badgeNames: Record<string, { name: string; description: string }> = Object.fromEntries(
       LEVEL_BADGES.map((b) => [b.id, { name: b.name, description: b.description }])
     );
@@ -107,8 +145,8 @@ export const awardXP = async (
       if (badge) {
         console.log('📧 Triggering achievement unlocked email for badge:', { badgeId, badgeName: badge.name });
         EmailService.sendAchievementUnlockedEmail(
-          currentUser.email,
-          currentUser.name,
+          currentEmail,
+          currentName,
           badge.name,
           badge.description,
           leveledUp,

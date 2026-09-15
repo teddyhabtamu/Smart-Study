@@ -444,6 +444,26 @@ router.post('/forgot-password', [
     if (result.rows.length > 0) {
       const user = result.rows[0];
 
+      // Throttle: max 3 reset emails per 15 minutes per account (same pattern
+      // as resend-verification). Without this, an unauthenticated loop over a
+      // victim's email spams them with reset mail, burns the Brevo quota, and
+      // grows the tokens table unboundedly. Checked BEFORE inserting.
+      const recentResets = await query(
+        `SELECT COUNT(*) as count FROM tokens
+         WHERE user_id = $1 AND type = 'password-reset'
+         AND created_at > NOW() - INTERVAL '15 minutes'`,
+        [user.id]
+      );
+      if (parseInt(recentResets.rows[0]?.count || '0', 10) >= 3) {
+        // Same generic message: throttling must not reveal account existence
+        // or timing (an attacker probing the 429 learns the email is real).
+        res.json({
+          success: true,
+          message: 'If an account with that email exists, a password reset link has been sent.'
+        } as ApiResponse);
+        return;
+      }
+
       // Generate short opaque token (32 bytes = 64 hex characters)
       const resetToken = crypto.randomBytes(32).toString('hex');
 

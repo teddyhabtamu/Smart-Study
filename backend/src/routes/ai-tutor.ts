@@ -161,9 +161,13 @@ router.get('/sessions/:id', authenticateToken, async (req: express.Request, res:
     const userId = req.user!.id;
     const sessionId = id;
 
-    const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
-      s.id === sessionId && s.user_id === userId
+    // Indexed lookup with explicit columns (was a full-table fetch including
+    // every session's messages jsonb).
+    const found = await query(
+      'SELECT id, user_id, title, messages, created_at, updated_at FROM chat_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
     );
+    const session = found.rows[0];
 
     if (!session) {
       res.status(404).json({
@@ -192,7 +196,7 @@ router.get('/sessions/:id', authenticateToken, async (req: express.Request, res:
 // unbounded text went straight into the jsonb column.
 router.post('/sessions/:id/messages', [
   authenticateToken,
-  body('role').isIn(['user', 'model', 'assistant', 'system']).withMessage('Valid message role required'),
+  body('role').isIn(['user']).withMessage('Only user messages can be appended'),
   body('text').isString().trim().isLength({ min: 1, max: 20000 }).withMessage('Message must be between 1 and 20000 characters')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
@@ -201,10 +205,13 @@ router.post('/sessions/:id/messages', [
     const userId = req.user!.id;
     const sessionId = id;
 
-    // Verify session ownership
-    const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
-      s.id === sessionId && s.user_id === userId
+    // Indexed ownership check fetching only the history column (was a
+    // full-table fetch of every session's messages jsonb).
+    const found = await query(
+      'SELECT id, messages FROM chat_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
     );
+    const session = found.rows[0];
 
     if (!session) {
       res.status(404).json({
@@ -214,7 +221,9 @@ router.post('/sessions/:id/messages', [
       return;
     }
 
-    // Add message to session
+    // Add message to session. History is capped at the last 100 messages:
+    // sessions grew unbounded (20k chars/message, no limit) into MB jsonb
+    // rows, and every fetch/update dragged the whole payload along.
     const messages = extractMessages(session);
     const newMessage = {
       role,
@@ -223,10 +232,11 @@ router.post('/sessions/:id/messages', [
     };
 
     messages.push(newMessage);
+    const capped = messages.length > 100 ? messages.slice(-100) : messages;
 
     // Update session
     await dbAdmin.update('chat_sessions', sessionId, {
-      messages,
+      messages: capped,
       updated_at: new Date().toISOString()
     });
 
@@ -257,12 +267,13 @@ router.put('/sessions/:id', [
     const userId = req.user!.id;
     const sessionId = id;
 
-    // Verify session ownership
-    const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
-      s.id === sessionId && s.user_id === userId
+    // Indexed existence check (was a full-table fetch).
+    const found = await query(
+      'SELECT id FROM chat_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
     );
 
-    if (!session) {
+    if (!found.rows[0]) {
       res.status(404).json({
         success: false,
         message: 'Chat session not found'
@@ -299,21 +310,21 @@ router.delete('/sessions/:id', authenticateToken, async (req: express.Request, r
     const userId = req.user!.id;
     const sessionId = id;
 
-    // Verify session ownership
-    const session = await dbAdmin.findOne('chat_sessions', (s: any) =>
-      s.id === sessionId && s.user_id === userId
+    // Ownership-scoped atomic delete (was: full-table fetch for the check,
+    // then an unscoped delete-by-id — a stale read in between could remove
+    // another user's session).
+    const delResult = await query(
+      'DELETE FROM chat_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
     );
 
-    if (!session) {
+    if ((delResult.rowCount ?? 0) === 0) {
       res.status(404).json({
         success: false,
         message: 'Chat session not found'
       } as ApiResponse);
       return;
     }
-
-    // Delete session
-    await dbAdmin.delete('chat_sessions', sessionId);
 
     res.json({
       success: true,
@@ -510,7 +521,7 @@ router.post('/chat', [
         messages.push({ role: 'assistant', text: reply, timestamp: new Date().toISOString() });
 
         await dbAdmin.update('chat_sessions', currentSessionId, {
-          messages,
+          messages: messages.length > 100 ? messages.slice(-100) : messages,
           updated_at: new Date().toISOString()
         });
       }
@@ -671,7 +682,7 @@ router.post('/chat/stream', [
         const msgs = extractMessages(session);
         msgs.push({ role: 'user', text: message, timestamp: new Date().toISOString() });
         msgs.push({ role: 'assistant', text: full, timestamp: new Date().toISOString() });
-        await dbAdmin.update('chat_sessions', currentSessionId, { messages: msgs, updated_at: new Date().toISOString() });
+        await dbAdmin.update('chat_sessions', currentSessionId, { messages: msgs.length > 100 ? msgs.slice(-100) : msgs, updated_at: new Date().toISOString() });
       }
     }
 
@@ -721,8 +732,10 @@ router.post('/generate-practice-quiz', [
     const { subject, grade, difficulty = 'Medium', count = 5 } = req.body;
     const userId = req.user!.id;
 
-    // Look up the requesting user directly (no full-table scan)
-    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    // Indexed lookup of only the column the daily gate reads (was a
+    // full-table fetch of every user row).
+    const userRows = await query('SELECT id, is_premium FROM users WHERE id = $1', [userId]);
+    const user = userRows.rows[0];
 
     if (!user) {
       res.status(404).json({

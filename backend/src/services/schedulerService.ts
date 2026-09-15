@@ -147,9 +147,6 @@ export class SchedulerService {
   private static async updateUserStreaks(opts?: { deadline?: number }): Promise<void> {
     try {
       const users = await dbAdmin.get('users');
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       for (const user of users) {
         // Serverless time-box: stop cleanly so the cron caller can report
@@ -159,54 +156,24 @@ export class SchedulerService {
         // Skip accounts that have never recorded activity (no last_active_date
         // yet) — otherwise every such row gets rewritten daily for no reason.
         if (!lastActive) continue;
-        if (lastActive === yesterdayStr) {
-          // User was active yesterday, increment streak
-          const currentStreak = user.streak || 0;
-          const newStreak = currentStreak + 1;
-          const currentUnlockedBadges = user.unlocked_badges || ['b1'];
-
-          await dbAdmin.update('users', user.id, {
-            streak: newStreak,
-            last_active_date: new Date().toISOString().split('T')[0]
-          });
-
-          // Check for streak milestones (7, 14, 30, 50, 100 days)
-          const streakMilestones = [7, 14, 30, 50, 100];
-          if (streakMilestones.includes(newStreak)) {
-            await NotificationService.createStreakMilestoneNotification(user.id, newStreak);
-
-            // Send streak milestone email (non-blocking)
-            if (user.email && user.name) {
-              const { EmailService } = await import('./emailService');
-              EmailService.sendStreakMilestoneEmail(
-                user.email,
-                user.name,
-                newStreak
-              ).catch(error => {
-                console.error(`❌ Failed to send streak milestone email for user ${user.id}:`, error);
-              });
-            }
-          }
-
-          // Check for newly unlocked badges (non-blocking)
-          const { EmailService } = await import('./emailService');
-          EmailService.checkAndUnlockBadges(
-            user.id,
-            user.level || 1,
-            newStreak,
-            currentUnlockedBadges
-          ).catch(error => {
-            console.error(`❌ Failed to check badges for user ${user.id}:`, error);
-          });
-        } else if (lastActive !== new Date().toISOString().split('T')[0]) {
+        // NOTE: the sweep never increments streaks and never touches
+        // last_active_date — increments belong to the login paths (email +
+        // OAuth), which credit exactly one consecutive day each. A previous
+        // revision incremented here AND stamped last_active_date=today, so
+        // abandoned accounts accrued ghost streaks daily forever (with
+        // milestone emails to inactive users), and the reset branch below
+        // restarted the ghost cycle by fabricating today's activity.
+        if (lastActive !== new Date().toISOString().split('T')[0]) {
           // User wasn't active yesterday, reset streak if it's been more than 1 day
           const lastActiveDate = new Date(lastActive);
           const daysSinceActive = Math.floor((new Date().getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
 
           if (daysSinceActive > 1) {
+            // Reset the counter only — last_active_date keeps pointing at the
+            // user's real last visit so the next login correctly starts a new
+            // streak at 1 instead of inheriting a fabricated date.
             await dbAdmin.update('users', user.id, {
-              streak: 0,
-              last_active_date: new Date().toISOString().split('T')[0]
+              streak: 0
             });
           }
         }

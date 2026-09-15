@@ -56,37 +56,36 @@ router.get('/events', authenticateToken, async (req: express.Request, res: expre
     const userId = req.user!.id;
     const { date, type, completed, archived } = req.query;
 
-    let events = await dbAdmin.get('study_events');
-    events = events.filter((e: any) => e.user_id === userId);
-
-    // Filter archived events: by default exclude archived, unless explicitly requested
-    if (archived === undefined || archived === 'false') {
-      events = events.filter((e: any) => !e.is_archived);
-    } else if (archived === 'true') {
-      events = events.filter((e: any) => e.is_archived);
+    // Filtered/sorted in SQL over idx_study_events_user (was: fetch every
+    // study_events row in the table, filter/sort in JS). 'all' omits the
+    // archive predicate; default is active only.
+    const conditions = ['user_id = $1'];
+    const params: any[] = [userId];
+    if (archived === 'true') {
+      conditions.push('is_archived IS TRUE');
+    } else if (archived !== 'all') {
+      conditions.push('is_archived IS NOT TRUE');
     }
-    // If archived is 'all', show both archived and non-archived
-
-    // Apply filters
     if (date) {
-      events = events.filter((e: any) => e.event_date === date);
+      conditions.push(`event_date = $${params.length + 1}`);
+      params.push(date);
     }
-
     if (type) {
-      events = events.filter((e: any) => e.event_type === type);
+      conditions.push(`event_type = $${params.length + 1}`);
+      params.push(type);
     }
-
     if (completed !== undefined) {
-      const isCompleted = completed === 'true';
-      events = events.filter((e: any) => e.is_completed === isCompleted);
+      conditions.push(`is_completed = $${params.length + 1}`);
+      params.push(completed === 'true');
     }
-
-    // Sort by date
-    events.sort((a: any, b: any) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+    const eventRows = await query(
+      `SELECT * FROM study_events WHERE ${conditions.join(' AND ')} ORDER BY event_date ASC`,
+      params
+    );
 
     res.json({
       success: true,
-      data: events
+      data: eventRows.rows
     } as ApiResponse<StudyEvent[]>);
   } catch (error) {
     console.error('Get study events error:', error);
@@ -345,20 +344,19 @@ router.delete('/events/:id', authenticateToken, async (req: express.Request, res
     const userId = req.user!.id;
     const eventId = id;
 
-    // Verify ownership
-    const event = await dbAdmin.findOne('study_events', (e: any) =>
-      e.id === eventId && e.user_id === userId
+    // Ownership-scoped atomic delete (was: full-table fetch for the check,
+    // then an unscoped delete-by-id).
+    const delResult = await query(
+      'DELETE FROM study_events WHERE id = $1 AND user_id = $2',
+      [eventId, userId]
     );
-
-    if (!event) {
+    if ((delResult.rowCount ?? 0) === 0) {
       res.status(404).json({
         success: false,
         message: 'Study event not found'
       } as ApiResponse);
       return;
     }
-
-    await dbAdmin.delete('study_events', eventId);
 
     res.json({
       success: true,
@@ -378,32 +376,45 @@ router.get('/stats', authenticateToken, async (req: express.Request, res: expres
   try {
     const userId = req.user!.id;
 
-    let events = await dbAdmin.get('study_events');
-    events = events.filter((e: any) => e.user_id === userId);
+    // Aggregated in SQL over idx_study_events_user (was: fetch every
+    // study_events row, count in JS). Date buckets use CURRENT_DATE, which
+    // matches the old JS rule (today counts as upcoming, not overdue).
+    // Actionable buckets ignore archived tasks, same as the dashboard.
+    const [aggRows, subjRows] = await Promise.all([
+      query(
+        `SELECT COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE is_completed IS TRUE) AS completed,
+                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date >= CURRENT_DATE) AS upcoming,
+                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date < CURRENT_DATE) AS overdue,
+                COUNT(*) FILTER (WHERE event_type = 'Exam') AS exam,
+                COUNT(*) FILTER (WHERE event_type = 'Revision') AS revision,
+                COUNT(*) FILTER (WHERE event_type = 'Assignment') AS assignment
+         FROM study_events WHERE user_id = $1`,
+        [userId]
+      ),
+      query(
+        'SELECT subject, COUNT(*) AS n FROM study_events WHERE user_id = $1 GROUP BY subject',
+        [userId]
+      )
+    ]);
+    const agg = aggRows.rows[0] || {};
+    const bySubject: Record<string, number> = {};
+    for (const r of subjRows.rows) {
+      bySubject[r.subject] = parseInt(r.n, 10) || 0;
+    }
 
     const stats = {
-      total_events: events.length,
-      completed_events: events.filter((e: any) => e.is_completed).length,
-      // Actionable buckets ignore archived tasks (same rule as the dashboard:
-      // put-away work must not resurface as overdue).
-      upcoming_events: events.filter((e: any) =>
-        !e.is_completed && !e.is_archived && new Date(e.event_date) >= new Date()
-      ).length,
-      overdue_events: events.filter((e: any) =>
-        !e.is_completed && !e.is_archived && new Date(e.event_date) < new Date()
-      ).length,
+      total_events: parseInt(agg.total, 10) || 0,
+      completed_events: parseInt(agg.completed, 10) || 0,
+      upcoming_events: parseInt(agg.upcoming, 10) || 0,
+      overdue_events: parseInt(agg.overdue, 10) || 0,
       by_type: {
-        Exam: events.filter((e: any) => e.event_type === 'Exam').length,
-        Revision: events.filter((e: any) => e.event_type === 'Revision').length,
-        Assignment: events.filter((e: any) => e.event_type === 'Assignment').length
+        Exam: parseInt(agg.exam, 10) || 0,
+        Revision: parseInt(agg.revision, 10) || 0,
+        Assignment: parseInt(agg.assignment, 10) || 0
       },
-      by_subject: {} as Record<string, number>
+      by_subject: bySubject
     };
-
-    // Count by subject
-    events.forEach((event: any) => {
-      stats.by_subject[event.subject] = (stats.by_subject[event.subject] || 0) + 1;
-    });
 
     res.json({
       success: true,
@@ -430,8 +441,10 @@ router.post('/practice', [
     const { subject, duration, topics = [] } = req.body;
 
     // Update user's practice attempts + credit through the shared helper
-    // (previously inline with no badge checks)
-    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    // (previously inline with no badge checks). Indexed lookup of only the
+    // column read (was a full-table fetch of every user row).
+    const attemptRows = await query('SELECT practice_attempts FROM users WHERE id = $1', [userId]);
+    const user = attemptRows.rows[0];
     if (user) {
       const newAttempts = (user.practice_attempts || 0) + 1;
       const xpGain = Math.min(duration, 60); // Max 60 XP per session
@@ -565,7 +578,11 @@ router.post('/practice/quiz-complete', [
 router.get('/practice/stats', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    const statRows = await query(
+      'SELECT practice_attempts, level, xp, streak FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = statRows.rows[0];
 
     if (!user) {
       res.status(404).json({
@@ -581,7 +598,7 @@ router.get('/practice/stats', authenticateToken, async (req: express.Request, re
         total_sessions: user.practice_attempts || 0,
         current_level: user.level || 1,
         total_xp: user.xp || 0,
-        xp_to_next_level: ((user.level || 1) * 1000) - (user.xp || 0),
+        xp_to_next_level: Math.max(0, ((user.level || 1) * 1000) - (user.xp || 0)),
         current_streak: user.streak || 0
       }
     } as ApiResponse);
