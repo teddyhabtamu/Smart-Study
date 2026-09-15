@@ -46,6 +46,7 @@ const Profile: React.FC = () => {
   const [deleteNeedsEmail, setDeleteNeedsEmail] = useState(false);
   const [deleteCodeEmail, setDeleteCodeEmail] = useState('');
   const [deleteCodeSending, setDeleteCodeSending] = useState(false);
+  const [deleteCodeSent, setDeleteCodeSent] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -260,6 +261,7 @@ const Profile: React.FC = () => {
       setDeleteCodeSending(true);
       const res = await usersAPI.requestDeletionCode();
       setDeleteCodeEmail(res?.email || '');
+      setDeleteCodeSent(true);
       addToast('Verification code sent to your email', 'success');
     } catch (error: any) {
       console.error('Deletion code error:', error);
@@ -273,14 +275,14 @@ const Profile: React.FC = () => {
     setDeletePassword('');
     setDeleteCode('');
     setDeleteCodeEmail('');
-    // Google-only accounts have no password: open on the code step and send
-    // the code immediately so it arrives while the warning is being read.
+    setDeleteCodeSent(false);
+    // Google-only accounts have no password: open on the code step, but the
+    // code is only sent when explicitly requested — opening the modal must
+    // never fire emails by itself.
     // hasPassword absent (stale cache) falls back to password first — the
     // backend still corrects us via PASSWORD_FLOW if we're wrong.
-    const oauth = user?.hasPassword === false;
-    setDeleteNeedsEmail(oauth);
+    setDeleteNeedsEmail(user?.hasPassword === false);
     setShowDeleteConfirm(true);
-    if (oauth) void requestDeleteCode();
   };
   
   const confirmDeleteAccount = async () => {
@@ -1112,7 +1114,21 @@ const Profile: React.FC = () => {
                              <Loader2 size={16} className="animate-spin" />
                              Saving...
                            </>
-                         ) : (
+              ) : !deleteCodeSent ? (
+                <div className="mb-4">
+                  <p className="text-xs text-zinc-500 mb-3">
+                    This account uses Google sign-in, so we'll email you a 6-digit confirmation code. Nothing is sent until you ask.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={requestDeleteCode}
+                    disabled={deleteCodeSending}
+                    className="w-full px-4 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {deleteCodeSending ? 'Sending…' : 'Send verification code'}
+                  </button>
+                </div>
+              ) : (
                            <>
                              <Save size={16} />
                              Save Preferences
@@ -1382,7 +1398,7 @@ const Profile: React.FC = () => {
                 </button>
                 <button 
                   onClick={confirmDeleteAccount}
-                  disabled={isLoading || (!deleteNeedsEmail && !deletePassword) || (deleteNeedsEmail && deleteCode.length !== 6)}
+                  disabled={isLoading || (!deleteNeedsEmail && !deletePassword) || (deleteNeedsEmail && (deleteCode.length !== 6 || !deleteCodeSent))}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
