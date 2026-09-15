@@ -1114,20 +1114,6 @@ const Profile: React.FC = () => {
                              <Loader2 size={16} className="animate-spin" />
                              Saving...
                            </>
-              ) : !deleteCodeSent ? (
-                <div className="mb-4">
-                  <p className="text-xs text-zinc-500 mb-3">
-                    This account uses Google sign-in, so we'll email you a 6-digit confirmation code. Nothing is sent until you ask.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={requestDeleteCode}
-                    disabled={deleteCodeSending}
-                    className="w-full px-4 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {deleteCodeSending ? 'Sending…' : 'Send verification code'}
-                  </button>
-                </div>
               ) : (
                            <>
                              <Save size={16} />
@@ -1360,6 +1346,20 @@ const Profile: React.FC = () => {
                   autoComplete="current-password"
                   className="w-full px-3 py-2.5 mb-4 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
                 />
+              ) : !deleteCodeSent ? (
+                <div className="mb-4">
+                  <p className="text-xs text-zinc-500 mb-3">
+                    This account uses Google sign-in, so we'll email you a 6-digit confirmation code. Nothing is sent until you ask.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={requestDeleteCode}
+                    disabled={deleteCodeSending}
+                    className="w-full px-4 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {deleteCodeSending ? 'Sending…' : 'Send verification code'}
+                  </button>
+                </div>
               ) : (
                 <div className="mb-4">
                   <p className="text-xs text-zinc-500 mb-2">
