@@ -7,7 +7,7 @@ import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
 import { getDocumentExcerpt } from '../services/documentContentService';
-import { awardXP } from '../services/xpService';
+import { awardXP, AI_GENERATION_XP_SOURCES, DAILY_AI_GENERATION_XP_CAP } from '../services/xpService';
 
 // Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
 // user-friendly message; everything else → 500.
@@ -368,13 +368,19 @@ router.post('/generate-study-plan', [
     // Award XP for using AI planner — through the shared helper (level
     // math, badges, history, level-up notification). Previously inline with
     // no history entry and no badge checks. Non-fatal: a missing user row
-    // must not eat a fully generated plan.
+    // must not eat a fully generated plan. The award result (not a
+    // hardcoded 5) drives the response: past the daily pool this is 0.
+    let planXpGained = 0;
     try {
-      await awardXP(userId, 5, {
+      const planAward = await awardXP(userId, 5, {
         source: 'ai_plan',
         source_id: null,
-        description: 'Generated AI study plan'
+        description: 'Generated AI study plan',
+        // Farmable (unlimited for Pro): capped via the shared AI pool.
+        dailyCap: DAILY_AI_GENERATION_XP_CAP,
+        dailyCapSources: AI_GENERATION_XP_SOURCES,
       });
+      planXpGained = planAward.xpGained;
     } catch (xpError) {
       console.error('Failed to award AI planner XP:', xpError);
     }
@@ -383,7 +389,7 @@ router.post('/generate-study-plan', [
       success: true,
       data: {
         plan: studyPlan,
-        xpGained: 5
+        xpGained: planXpGained
       },
       message: 'Study plan generated successfully'
     } as ApiResponse);
@@ -545,7 +551,12 @@ router.post('/chat', [
         const award = await awardXP(userId, 5, {
           source: 'ai_tutor',
           source_id: currentSessionId || null,
-          description: 'Used AI Tutor'
+          description: 'Used AI Tutor',
+          // Every chat message awards XP and chat is unlimited: without the
+          // shared daily pool, "hi" x200 mints a level. Past the pool the
+          // award trims to zero; the reply itself is unaffected.
+          dailyCap: DAILY_AI_GENERATION_XP_CAP,
+          dailyCapSources: AI_GENERATION_XP_SOURCES,
         });
         xpGained = award.xpGained;
       } catch (xpError) {
@@ -707,7 +718,12 @@ router.post('/chat/stream', [
         const award = await awardXP(userId, 5, {
           source: 'ai_tutor',
           source_id: currentSessionId || null,
-          description: 'Used AI Tutor'
+          description: 'Used AI Tutor',
+          // Every chat message awards XP and chat is unlimited: without the
+          // shared daily pool, "hi" x200 mints a level. Past the pool the
+          // award trims to zero; the reply itself is unaffected.
+          dailyCap: DAILY_AI_GENERATION_XP_CAP,
+          dailyCapSources: AI_GENERATION_XP_SOURCES,
         });
         xpGained = award.xpGained;
       } catch (xpError) {
@@ -787,7 +803,10 @@ router.post('/generate-practice-quiz', [
     const award = await awardXP(userId, 5, {
       source: 'practice_generation',
       source_id: null,
-      description: `Generated practice quiz: ${subject}`
+      description: `Generated practice quiz: ${subject}`,
+      // Unlimited generations for Pro: capped via the shared AI pool.
+      dailyCap: DAILY_AI_GENERATION_XP_CAP,
+      dailyCapSources: AI_GENERATION_XP_SOURCES,
     });
     await query(
       `UPDATE users

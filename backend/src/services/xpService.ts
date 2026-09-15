@@ -21,20 +21,48 @@ export interface AwardXPResult {
   newLevel: number;
   leveledUp: boolean;
   newBadges: string[];
+  /** True when a dailyCap trimmed (or zeroed) this award. */
+  capped: boolean;
 }
 
 const LEVEL_BADGES = BADGE_DEFINITIONS.filter((b) => b.requiredLevel !== undefined) as { id: string; requiredLevel: number; name: string; description: string }[];
 
+// --- Farmable-source daily caps -------------------------------------------
+// AI actions (chat messages, plan/quiz generations) each award XP and are
+// unlimited for Pro users — without a cap, "hi" x200 to the tutor mints a
+// level and rigs the public leaderboard. xp_history carries every award
+// with source + created_at, so the cap is enforced here, inside the same
+// transaction (the user-row lock serializes concurrent awarders, keeping
+// the day-sum exact). Legit earning (videos, tasks, completions, forum) is
+// uncapped — only these farmable AI sources are pooled.
+/** All sources drawing from the shared AI-generation daily pool. */
+export const AI_GENERATION_XP_SOURCES = ['ai_tutor', 'ai_plan', 'practice_generation'];
+/** Max XP per user per day from AI-generation sources (10 rewarded actions). */
+export const DAILY_AI_GENERATION_XP_CAP = 50;
+
+/** Pure clamp math for the daily cap (exported for unit tests). */
+export const clampToDailyCap = (usedToday: number, cap: number, amount: number): number => {
+  if (cap < 0) return Math.max(0, Math.floor(Number(amount) || 0));
+  return Math.max(0, Math.min(Math.max(0, Math.floor(Number(amount) || 0)), cap - usedToday));
+};
+
 export const awardXP = async (
   userId: string,
   amount: number,
-  opts: { source: string; source_id?: string | null; description: string }
+  opts: {
+    source: string;
+    source_id?: string | null;
+    description: string;
+    /** Max XP/day across dailyCapSources (default: just this source). Unset = uncapped. */
+    dailyCap?: number;
+    dailyCapSources?: string[];
+  }
 ): Promise<AwardXPResult> => {
   const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
   if (safeAmount === 0) {
     const rows = await query('SELECT xp, level FROM users WHERE id = $1', [userId]);
     const level = rows.rows[0]?.level || 1;
-    return { xpGained: 0, newXp: rows.rows[0]?.xp || 0, newLevel: level, leveledUp: false, newBadges: [] };
+    return { xpGained: 0, newXp: rows.rows[0]?.xp || 0, newLevel: level, leveledUp: false, newBadges: [], capped: false };
   }
 
   // Atomic credit: the old code ran SELECT then three separate writes on
@@ -47,6 +75,9 @@ export const awardXP = async (
   let newXp = 0;
   let newLevel = 1;
   let leveledUp = false;
+  // Function-scope: assigned inside the tx, read by the tail return.
+  let effectiveAmount = safeAmount;
+  let capped = false;
   const newUnlockedBadges: string[] = [];
   let currentEmail: string | undefined;
   let currentName: string | undefined;
@@ -61,8 +92,35 @@ export const awardXP = async (
       throw new Error('User not found');
     }
 
+    // Daily cap for farmable sources (see header): sum today's awards across
+    // the pooled sources and clamp. Runs inside the tx after the row lock,
+    // so concurrent awarders serialize and the sum stays exact.
+    if (opts.dailyCap !== undefined) {
+      const capSources = opts.dailyCapSources ?? [opts.source];
+      const usedRes = await client.query(
+        `SELECT COALESCE(SUM(amount), 0) AS used FROM xp_history
+         WHERE user_id = $1 AND source = ANY($2) AND created_at >= CURRENT_DATE`,
+        [userId, capSources]
+      );
+      const usedToday = Number(usedRes.rows[0]?.used || 0);
+      effectiveAmount = clampToDailyCap(usedToday, opts.dailyCap, safeAmount);
+      capped = effectiveAmount < safeAmount;
+      if (effectiveAmount === 0) {
+        await client.query('ROLLBACK');
+        const steadyXp = currentUser.xp || 0;
+        return {
+          xpGained: 0,
+          newXp: steadyXp,
+          newLevel: Math.floor(steadyXp / 1000) + 1,
+          leveledUp: false,
+          newBadges: [],
+          capped: true,
+        };
+      }
+    }
+
     const currentXp = currentUser.xp || 0;
-    newXp = currentXp + safeAmount;
+    newXp = currentXp + effectiveAmount;
     newLevel = Math.floor(newXp / 1000) + 1;
     const previousLevel = Math.floor(currentXp / 1000) + 1;
     leveledUp = newLevel > previousLevel;
@@ -78,7 +136,7 @@ export const awardXP = async (
 
     await client.query(
       'INSERT INTO xp_history (user_id, amount, source, source_id, description) VALUES ($1, $2, $3, $4, $5)',
-      [userId, safeAmount, opts.source, opts.source_id ?? null, opts.description]
+      [userId, effectiveAmount, opts.source, opts.source_id ?? null, opts.description]
     );
 
     for (const badgeId of newUnlockedBadges) {
@@ -158,5 +216,5 @@ export const awardXP = async (
     }
   }
 
-  return { xpGained: safeAmount, newXp, newLevel, leveledUp, newBadges: newUnlockedBadges };
+  return { xpGained: effectiveAmount, newXp, newLevel, leveledUp, newBadges: newUnlockedBadges, capped };
 };

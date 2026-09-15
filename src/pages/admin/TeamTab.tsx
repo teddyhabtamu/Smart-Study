@@ -4,6 +4,7 @@ import { Loader2, Trash2, UserPlus, X, Mail, Search, Shield, CheckCircle } from 
 import CustomSelect, { Option } from '../../components/CustomSelect';
 import { User } from '../../types';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { adminAPI } from '../../services/api';
 import { AdminTeamSkeleton } from './skeletons';
 
@@ -11,6 +12,7 @@ import { AdminTeamSkeleton } from './skeletons';
 // member removal. Fully self-contained.
 const TeamTab: React.FC = () => {
   const { addToast } = useToast();
+  const { user: currentUser } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -82,6 +84,11 @@ const TeamTab: React.FC = () => {
       setIsInviteOpen(false);
       setInviteName('');
       setInviteEmail('');
+      // Refresh so the Pending list shows the new invite immediately —
+      // otherwise the admin re-invites thinking it didn't register.
+      await fetchAdmins().catch(() => {
+        addToast('Invite sent, but the list failed to refresh — reopen this tab to confirm.', 'warning');
+      });
       addToast(`Invitation sent to ${inviteEmail}`, 'success');
     } catch (error: any) {
       addToast(error.message || 'Failed to send invitation', 'error');
@@ -173,13 +180,21 @@ const TeamTab: React.FC = () => {
                                      {member.name.charAt(0)}
                                    </div>
                                    <div className="flex-1 min-w-0">
-                                     <h4 className="font-medium text-ink truncate">{member.name}</h4>
+                                     <h4 className="font-medium text-ink truncate">
+                                       {member.name}
+                                       {currentUser?.id === member.id && (
+                                         <span className="ml-2 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
+                                           You
+                                         </span>
+                                       )}
+                                     </h4>
                                      <p className="text-xs text-zinc-500 truncate">{member.email}</p>
                                    </div>
                                  </div>
                                  <button
                                    onClick={() => handleRemoveAdmin(member.id, member.name)}
-                                   disabled={isRemovingAdmin === member.id}
+                                   disabled={isRemovingAdmin === member.id || currentUser?.id === member.id}
+                                   title={currentUser?.id === member.id ? 'You cannot remove yourself — ask another admin' : 'Remove team member'}
                                    className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                  >
                                    {isRemovingAdmin === member.id ? (
@@ -236,7 +251,14 @@ const TeamTab: React.FC = () => {
                                              {member.name.charAt(0)}
                                           </div>
                                           <div>
-                                            <p className="font-medium text-ink">{member.name}</p>
+                                            <p className="font-medium text-ink">
+                                              {member.name}
+                                              {currentUser?.id === member.id && (
+                                                <span className="ml-2 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 align-middle">
+                                                  You
+                                                </span>
+                                              )}
+                                            </p>
                                             <p className="text-xs text-zinc-500">{member.email}</p>
                                           </div>
                                        </div>
@@ -261,7 +283,8 @@ const TeamTab: React.FC = () => {
                                     <td className="px-6 py-4 text-right">
                                        <button
                                          onClick={() => handleRemoveAdmin(member.id, member.name)}
-                                         disabled={isRemovingAdmin === member.id}
+                                         disabled={isRemovingAdmin === member.id || currentUser?.id === member.id}
+                                         title={currentUser?.id === member.id ? 'You cannot remove yourself — ask another admin' : 'Remove team member'}
                                          className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                        >
                                          {isRemovingAdmin === member.id ? (

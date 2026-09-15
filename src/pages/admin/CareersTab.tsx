@@ -55,6 +55,53 @@ const CareersTab: React.FC = () => {
     applicantName: null
   });
 
+  // Position Delete Confirmation Modal State (replaces the native
+  // window.confirm — the only admin destructive action not using Dialog)
+  const [deletePositionConfirmation, setDeletePositionConfirmation] = useState<{
+    isOpen: boolean;
+    positionId: string | null;
+    positionTitle: string | null;
+  }>({
+    isOpen: false,
+    positionId: null,
+    positionTitle: null
+  });
+
+  // Application Status Change Confirmation + optional notes. Every status
+  // change notifies + emails the applicant server-side, so a dropdown
+  // misclick must not fire it directly. Notes flow to the API/audit/email.
+  const [statusChangeConfirmation, setStatusChangeConfirmation] = useState<{
+    isOpen: boolean;
+    applicationId: string | null;
+    applicantName: string | null;
+    positionTitle: string | null;
+    fromStatus: string | null;
+    toStatus: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected' | null;
+    notes: string;
+  }>({
+    isOpen: false,
+    applicationId: null,
+    applicantName: null,
+    positionTitle: null,
+    fromStatus: null,
+    toStatus: null,
+    notes: ''
+  });
+
+  // Archive/Unarchive Confirmation — archiving hides the application from
+  // the active queue, so it gets an explicit confirm like status changes.
+  const [archiveConfirmation, setArchiveConfirmation] = useState<{
+    isOpen: boolean;
+    applicationId: string | null;
+    applicantName: string | null;
+    toArchived: boolean;
+  }>({
+    isOpen: false,
+    applicationId: null,
+    applicantName: null,
+    toArchived: true
+  });
+
 
   const applicationStatusOptions: Option[] = [
     { label: 'All Statuses', value: 'all' },
@@ -157,18 +204,26 @@ const CareersTab: React.FC = () => {
     setIsPositionFormOpen(true);
   };
 
-  const handleDeletePosition = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this position?")) {
-      setIsDeletingPosition(id);
-      try {
-        await careersAPI.admin.deletePosition(id);
-        addToast('Position deleted successfully', 'success');
-        fetchPositions();
-      } catch (error: any) {
-        addToast(error.message || 'Failed to delete position', 'error');
-      } finally {
-        setIsDeletingPosition(null);
-      }
+  const handleDeletePosition = (id: string, title: string) => {
+    setDeletePositionConfirmation({ isOpen: true, positionId: id, positionTitle: title });
+  };
+
+  const confirmDeletePosition = async () => {
+    const id = deletePositionConfirmation.positionId;
+    if (!id) return;
+    setIsDeletingPosition(id);
+    try {
+      // Toast the server's message verbatim: with applications attached the
+      // backend deactivates instead of deleting — a hardcoded "deleted"
+      // toast would lie about data being gone.
+      const res = await careersAPI.admin.deletePosition(id);
+      addToast(res?.message || 'Position removed', 'success');
+      fetchPositions();
+    } catch (error: any) {
+      addToast(error.message || 'Failed to delete position', 'error');
+    } finally {
+      setIsDeletingPosition(null);
+      setDeletePositionConfirmation({ isOpen: false, positionId: null, positionTitle: null });
     }
   };
 
@@ -185,6 +240,43 @@ const CareersTab: React.FC = () => {
     }
   };
 
+  const openStatusConfirmation = (
+    application: any,
+    toStatus: 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected',
+    positionTitle?: string
+  ) => {
+    if (!toStatus || toStatus === application.status) return;
+    setStatusChangeConfirmation({
+      isOpen: true,
+      applicationId: application.id,
+      applicantName: application.applicant_name,
+      positionTitle: positionTitle || null,
+      fromStatus: application.status,
+      toStatus,
+      notes: ''
+    });
+  };
+
+  const confirmStatusChange = async () => {
+    const { applicationId, toStatus, notes } = statusChangeConfirmation;
+    if (!applicationId || !toStatus) return;
+    const trimmed = notes.trim() || undefined;
+    // Close first so the dropdown (controlled by server state) doesn't sit
+    // open behind the spinner; the per-row CustomSelect keeps old value.
+    const targetId = applicationId;
+    setStatusChangeConfirmation((prev) => ({ ...prev, isOpen: false }));
+    await handleUpdateApplicationStatus(targetId, toStatus, trimmed);
+    setStatusChangeConfirmation({
+      isOpen: false,
+      applicationId: null,
+      applicantName: null,
+      positionTitle: null,
+      fromStatus: null,
+      toStatus: null,
+      notes: ''
+    });
+  };
+
   const handleArchiveApplication = async (applicationId: string, isArchived: boolean) => {
     setIsArchivingApplication(applicationId);
     try {
@@ -196,6 +288,23 @@ const CareersTab: React.FC = () => {
     } finally {
       setIsArchivingApplication(null);
     }
+  };
+
+  const openArchiveConfirmation = (application: any) => {
+    setArchiveConfirmation({
+      isOpen: true,
+      applicationId: application.id,
+      applicantName: application.applicant_name,
+      toArchived: !application.is_archived
+    });
+  };
+
+  const confirmArchiveApplication = async () => {
+    const { applicationId, toArchived } = archiveConfirmation;
+    if (!applicationId) return;
+    setArchiveConfirmation((prev) => ({ ...prev, isOpen: false }));
+    await handleArchiveApplication(applicationId, toArchived);
+    setArchiveConfirmation({ isOpen: false, applicationId: null, applicantName: null, toArchived: true });
   };
 
   const handleDeleteApplication = (applicationId: string, applicantName: string) => {
@@ -358,7 +467,7 @@ const CareersTab: React.FC = () => {
                             <Edit2 size={18} />
                           </button>
                           <button
-                            onClick={() => handleDeletePosition(position.id)}
+                            onClick={() => handleDeletePosition(position.id, position.title)}
                             disabled={isDeletingPosition === position.id}
                             className="p-2.5 text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete position"
@@ -469,7 +578,7 @@ const CareersTab: React.FC = () => {
                                 <CustomSelect
                                   options={statusUpdateOptions}
                                   value={application.status}
-                                  onChange={(value) => handleUpdateApplicationStatus(application.id, value as 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected')}
+                                  onChange={(value) => openStatusConfirmation(application, value as 'Pending' | 'Under Review' | 'Interview' | 'Accepted' | 'Rejected', position?.title)}
                                 />
                               </div>
                               {application.resume_url && (
@@ -484,7 +593,7 @@ const CareersTab: React.FC = () => {
                                 </a>
                               )}
                               <button
-                                onClick={() => handleArchiveApplication(application.id, !application.is_archived)}
+                                onClick={() => openArchiveConfirmation(application)}
                                 disabled={isArchivingApplication === application.id}
                                 className="px-3 py-2 bg-amber-100 text-amber-700 rounded-lg text-xs sm:text-sm hover:bg-amber-200 transition-colors flex items-center justify-center gap-1.5 font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                               >
@@ -719,6 +828,160 @@ const CareersTab: React.FC = () => {
                     </>
                   ) : (
                     'Delete Forever'
+                  )}
+                </button>
+              </div>
+            </div>
+      </Dialog>
+      <Dialog
+        open={deletePositionConfirmation.isOpen && mounted}
+        onClose={() => setDeletePositionConfirmation({ isOpen: false, positionId: null, positionTitle: null })}
+        label="Delete job position?"
+      >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-ink text-lg mb-2">
+                    Delete Position?
+                  </h3>
+                  <p className="text-sm text-inksoft">
+                    Are you sure you want to remove <strong>{deletePositionConfirmation.positionTitle}</strong>?{' '}
+                    Positions with applications are kept as inactive (not erased) so applicant history is preserved.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setDeletePositionConfirmation({ isOpen: false, positionId: null, positionTitle: null })}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeletePosition}
+                  disabled={isDeletingPosition === deletePositionConfirmation.positionId}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeletingPosition === deletePositionConfirmation.positionId ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    'Remove Position'
+                  )}
+                </button>
+              </div>
+            </div>
+      </Dialog>
+      <Dialog
+        open={statusChangeConfirmation.isOpen && mounted}
+        onClose={() => setStatusChangeConfirmation({ isOpen: false, applicationId: null, applicantName: null, positionTitle: null, fromStatus: null, toStatus: null, notes: '' })}
+        label="Update application status?"
+      >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-blue-100 text-blue-700">
+                  <Mail size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-ink text-lg mb-2">
+                    Update Status?
+                  </h3>
+                  <p className="text-sm text-inksoft">
+                    Change <strong>{statusChangeConfirmation.applicantName}</strong>
+                    {statusChangeConfirmation.positionTitle ? (
+                      <> ({statusChangeConfirmation.positionTitle})</>
+                    ) : null}{' '}
+                    from <strong>{statusChangeConfirmation.fromStatus}</strong> to{' '}
+                    <strong>{statusChangeConfirmation.toStatus}</strong>? The applicant is notified by
+                    in-app notification and email immediately.
+                  </p>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label htmlFor="status-change-notes" className="block text-xs font-semibold text-inksoft mb-1.5">
+                  Optional note to applicant (included in the email)
+                </label>
+                <textarea
+                  id="status-change-notes"
+                  value={statusChangeConfirmation.notes}
+                  onChange={(e) => setStatusChangeConfirmation((prev) => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  maxLength={1000}
+                  placeholder="e.g., Interview is on Monday at 10am via Zoom…"
+                  className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm resize-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setStatusChangeConfirmation({ isOpen: false, applicationId: null, applicantName: null, positionTitle: null, fromStatus: null, toStatus: null, notes: '' })}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmStatusChange}
+                  disabled={isUpdatingApplication === statusChangeConfirmation.applicationId}
+                  className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdatingApplication === statusChangeConfirmation.applicationId ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    `Confirm ${statusChangeConfirmation.toStatus || ''}`
+                  )}
+                </button>
+              </div>
+            </div>
+      </Dialog>
+      <Dialog
+        open={archiveConfirmation.isOpen && mounted}
+        onClose={() => setArchiveConfirmation({ isOpen: false, applicationId: null, applicantName: null, toArchived: true })}
+        label={archiveConfirmation.toArchived ? 'Archive application?' : 'Restore application?'}
+      >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-amber-100 text-amber-700">
+                  <Archive size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-ink text-lg mb-2">
+                    {archiveConfirmation.toArchived ? 'Archive Application?' : 'Restore Application?'}
+                  </h3>
+                  <p className="text-sm text-inksoft">
+                    {archiveConfirmation.toArchived ? (
+                      <>Archive <strong>{archiveConfirmation.applicantName}</strong>'s application? It leaves the active queue but is kept and can be restored later.</>
+                    ) : (
+                      <>Restore <strong>{archiveConfirmation.applicantName}</strong>'s application back to the active queue?</>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setArchiveConfirmation({ isOpen: false, applicationId: null, applicantName: null, toArchived: true })}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmArchiveApplication}
+                  disabled={isArchivingApplication === archiveConfirmation.applicationId}
+                  className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isArchivingApplication === archiveConfirmation.applicationId ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Working...
+                    </>
+                  ) : (
+                    archiveConfirmation.toArchived ? 'Archive' : 'Restore'
                   )}
                 </button>
               </div>

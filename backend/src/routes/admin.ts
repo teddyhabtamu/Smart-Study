@@ -361,6 +361,17 @@ router.put('/users/:userId/status', requireRole(['ADMIN']), [
       return;
     }
 
+    // Never ban yourself (mirrors the self-demotion guard on team removal):
+    // a self-ban locks the actor out with no one left to undo it.
+    if (targetUserId === req.user!.id && status !== 'Active') {
+      res.status(403).json({
+        success: false,
+        code: 'SELF_ACTION',
+        message: 'You cannot suspend your own account — ask another admin'
+      } as ApiResponse);
+      return;
+    }
+
     const beforeStatus = user.status;
     await dbAdmin.update('users', targetUserId, {
       status,
@@ -902,6 +913,19 @@ router.delete('/admins/:userId', requireRole(['ADMIN']), async (req: express.Req
       res.status(400).json({
         success: false,
         message: 'Cannot remove the last admin'
+      } as ApiResponse);
+      return;
+    }
+
+    // Never demote yourself: the JWT still decodes as ADMIN until refetch,
+    // so the panel looks fine briefly — then access is gone with no recourse
+    // except another admin. Direct-API calls are blocked here too, not just
+    // the UI button.
+    if (targetUserId === req.user!.id) {
+      res.status(403).json({
+        success: false,
+        code: 'SELF_ACTION',
+        message: 'You cannot remove your own admin privileges — ask another admin'
       } as ApiResponse);
       return;
     }

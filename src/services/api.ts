@@ -1533,7 +1533,7 @@ export const careersAPI = {
         body: JSON.stringify(data),
       }),
 
-    deletePosition: (id: string): Promise<void> =>
+    deletePosition: (id: string): Promise<{ success: boolean; message: string }> =>
       apiRequest(`/careers/admin/positions/${id}`, {
         method: 'DELETE',
       }),
