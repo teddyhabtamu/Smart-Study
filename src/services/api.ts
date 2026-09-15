@@ -10,9 +10,9 @@ const getAuthToken = (): string | null => {
 
 // Refresh an expired access token using the stored refresh token.
 // Returns true on success. On failure, clears credentials (forces re-login).
-const refreshAccessToken = async (): Promise<boolean> => {
+const refreshAccessToken = async (): Promise<'ok' | 'rejected' | 'unreachable'> => {
   const refreshToken = localStorage.getItem('refresh_token');
-  if (!refreshToken) return false;
+  if (!refreshToken) return 'rejected';
 
   try {
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -20,7 +20,7 @@ const refreshAccessToken = async (): Promise<boolean> => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
-    if (!response.ok) return false;
+    if (!response.ok) return 'rejected';
 
     const data = await response.json();
     if (data?.success && data?.token) {
@@ -31,11 +31,13 @@ const refreshAccessToken = async (): Promise<boolean> => {
       if (data.user) {
         localStorage.setItem('smartstudy_user', JSON.stringify(data.user));
       }
-      return true;
+      return 'ok';
     }
-    return false;
+    return 'rejected';
   } catch {
-    return false;
+    // Transport failure (offline, timeout): NOT a dead session — callers
+    // must neither clear credentials nor cry "expired" for this.
+    return 'unreachable';
   }
 };
 
@@ -324,11 +326,16 @@ const apiRequest = async <T>(
       // Skipped for endpoints with application-level 401s (see param).
       if (response.status === 401 && includeAuth && getAuthToken() && !refreshed401 && !skipAuthRefresh) {
         refreshed401 = true;
-        const ok = await refreshAccessToken();
-        if (ok) {
+        const refreshStatus = await refreshAccessToken();
+        if (refreshStatus === 'ok') {
           continue; // retry with the fresh token
         }
-        clearCredentials();
+        if (refreshStatus === 'rejected') {
+          // Definitive: the session is dead (not a network blip). Clear and
+          // broadcast so the app can explain + preserve the return URL.
+          clearCredentials();
+          window.dispatchEvent(new CustomEvent('session-expired'));
+        }
       }
 
       return await handleResponse<T>(response);
@@ -801,11 +808,13 @@ export const aiTutorAPI = {
           body: JSON.stringify({ message, subject, grade, sessionId: sessionId || undefined, deepThinking: !!deepThinking, documentId }),
           signal: controller.signal,
         }).then(async (response: Response): Promise<Response> => {
-          // Expired access token: refresh once, then retry with the new token
+          // Expired access token: refresh once, then retry with the new token.
+          // Only a definitive rejection clears the session; transport
+          // failures fall through to the non-streaming fallback below.
           if (response.status === 401 && authRetry && getAuthToken()) {
-            const ok = await refreshAccessToken();
-            if (ok) return doFetch(false);
-            clearCredentials();
+            const refreshStatus = await refreshAccessToken();
+            if (refreshStatus === 'ok') return doFetch(false);
+            if (refreshStatus === 'rejected') clearCredentials();
           }
           return response;
         });

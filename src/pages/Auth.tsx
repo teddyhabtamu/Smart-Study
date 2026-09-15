@@ -121,13 +121,21 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const passwordStrength = password ? getPasswordStrength(password) : null;
 
   // Already signed in (e.g. back-button to /login)? Don't show the form —
-  // bounce to the dashboard. Guarded by !isLoading so the post-login submit
-  // (which navigates admins to /admin itself) can't be overridden.
+  // bounce role-aware like the submit handler (admins to /admin) and honor
+  // ?next= when present. Guarded by !isLoading so the post-login submit
+  // can't be overridden.
   useEffect(() => {
     if (user && !isLoading) {
-      navigate('/dashboard', { replace: true });
+      const next = searchParams.get('next');
+      const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+      if (safeNext) {
+        navigate(safeNext, { replace: true });
+        return;
+      }
+      const role = String((user as any)?.role || '').toUpperCase();
+      navigate(role === 'ADMIN' || role === 'MODERATOR' ? '/admin' : '/dashboard', { replace: true });
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,6 +155,15 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
       if (view === 'login') {
         const loggedInUser = await login(email, password);
         addToast("Login successful!", "success");
+
+        // Return to where the user was headed (expired session / deep link).
+        // Open-redirect guard: same-app absolute paths only.
+        const next = searchParams.get('next');
+        const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+        if (safeNext) {
+          navigate(safeNext);
+          return;
+        }
 
         // Redirect admin to management panel, others to dashboard
         // Check if user is admin (compare as string to avoid type narrowing issues)

@@ -14,7 +14,10 @@ const ResetPassword: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  // Read the token during first render, not in an effect: starting null
+  // flashed the "Link invalid" screen on every valid link before the effect
+  // parsed ?token=.
+  const [token, setToken] = useState<string | null>(() => searchParams.get('token'));
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Redirect timer handle so unmounting within the 2s window can't navigate
@@ -27,11 +30,12 @@ const ResetPassword: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Keep in sync if the query string changes (e.g. back-button between two
+    // links). Missing token => invalid state, same as a direct visit.
     const tokenParam = searchParams.get('token');
+    setToken(tokenParam);
     if (!tokenParam) {
       setError('Invalid or missing reset token. Please check your email link.');
-    } else {
-      setToken(tokenParam);
     }
   }, [searchParams]);
 
@@ -147,9 +151,22 @@ const ResetPassword: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+              {/* Dead link (expired/used/invalid discovered at submit): the
+                  form can't proceed, so recovery is inline — not a bare box. */}
+              {/expir|invalid|already been used|no longer valid/i.test(error) && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/login?view=forgot')}
+                  className="mt-3 w-full py-2.5 px-4 rounded-lg text-sm font-medium text-onink bg-zinc-900 hover:bg-zinc-800 transition-all"
+                >
+                  Request a new reset link
+                </button>
+              )}
             </div>
           )}
 

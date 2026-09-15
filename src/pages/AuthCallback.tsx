@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -9,13 +9,30 @@ const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const { addToast } = useToast();
+  // Single-use tokens: the effect re-fires when `login` identity changes
+  // (AuthProvider re-renders), which would re-verify / re-burn the token.
+  const handledRef = useRef(false);
 
   useEffect(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
+
     const token = searchParams.get('token');
     const refreshToken = searchParams.get('refreshToken');
     const success = searchParams.get('success');
+    const incomingError = searchParams.get('error');
+    const incomingStatus = searchParams.get('status');
+
+    // Scrub secrets from the URL immediately: JWTs in the query string
+    // persist in history, logs and Referer headers. All navigations below
+    // use replace:true so the token URL never survives in history.
+    window.history.replaceState(null, '', window.location.pathname);
 
     const fail = (reason: 'cancelled' | 'invalid' | 'verify_failed') => {
+      // Dead tokens must not linger: the next boot would retry them first,
+      // delaying the login screen with a doomed verify.
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
       // Pass the reason to login so it renders inline (toasts disappear)
       navigate(`/login?error=${reason}`, { replace: true });
     };
@@ -54,9 +71,15 @@ const AuthCallback: React.FC = () => {
         console.error('Verify error:', error);
         fail('verify_failed');
       });
-    } else if (searchParams.get('error')) {
-      // Backend rejected (e.g. banned account) — surface its message
-      fail('invalid');
+    } else if (incomingError) {
+      // Backend rejected (e.g. banned account) — forward its code + status
+      // instead of collapsing everything to generic 'invalid', so the login
+      // page can render the specific message it already supports.
+      const qp = new URLSearchParams({ error: incomingError });
+      if (incomingStatus) qp.set('status', incomingStatus);
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
+      navigate(`/login?${qp.toString()}`, { replace: true });
     } else {
       // User cancelled at Google, or no token returned
       fail('cancelled');
@@ -95,7 +118,7 @@ const AuthCallback: React.FC = () => {
       </div>
       
       {/* SmartStudy Text */}
-      <p className="text-sm sm:text-base text-ink font-semibold tracking-wide">
+      <p className="text-sm sm:text-base text-ink font-semibold tracking-wide" role="status">
         Signing you in with Google…
       </p>
       <p className="text-xs sm:text-sm text-zinc-400 font-medium tracking-wide mt-1">

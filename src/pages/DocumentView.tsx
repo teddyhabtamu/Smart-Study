@@ -5,7 +5,7 @@ import {
   HelpCircle, Bookmark, LogIn, UserPlus, Sparkles, Eye,
   Maximize, Minimize, CheckCircle, Loader2, Image as ImageIcon, X,
   ExternalLink, Share2, CalendarDays, PanelRightClose, PanelRightOpen,
-  ChevronDown
+  ChevronDown, Crown
 } from 'lucide-react';
 import { documentsAPI, aiTutorAPI } from '../services/api';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -52,6 +52,10 @@ const DocumentView: React.FC = () => {
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Premium gate (detail 403s with PREMIUM_REQUIRED): locked docs are now
+  // discoverable in the list, so this renders the upgrade upsell instead of
+  // the generic "unavailable" dead end.
+  const [isPremiumLocked, setIsPremiumLocked] = useState(false);
 
   // Layout State
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -119,6 +123,7 @@ const DocumentView: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        setIsPremiumLocked(false);
         // Fresh doc: drop the previous doc's AI summary immediately so it
         // never renders under the new title (regenerated below on success)
         setSummary(null);
@@ -127,7 +132,12 @@ const DocumentView: React.FC = () => {
         setDoc(document);
       } catch (err: any) {
         console.error('Failed to fetch document:', err);
-        setError(err.message || 'Failed to load document');
+        if (err?.code === 'PREMIUM_REQUIRED') {
+          setIsPremiumLocked(true);
+          setError(null);
+        } else {
+          setError(err.message || 'Failed to load document');
+        }
       } finally {
         setLoading(false);
       }
@@ -424,6 +434,32 @@ const DocumentView: React.FC = () => {
 
   if (loading) {
     return <DocumentViewSkeleton />;
+  }
+
+  if (isPremiumLocked) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 px-6 animate-fade-in text-center">
+        <div className="bg-surface border border-zinc-200 rounded-3xl p-12 shadow-xl max-w-lg mx-auto relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-amber-400"></div>
+          <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 text-amber-600 shadow-inner">
+            <Crown size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-ink mb-3">Pro Document</h2>
+          <p className="text-zinc-500 mb-8 leading-relaxed">
+            This textbook is part of the Student Pro library.<br />
+            Upgrade to read the full document and unlock AI summaries, notes & chat.
+          </p>
+          <div className="space-y-3">
+            <Link to="/subscription" className="block w-full py-3.5 bg-zinc-900 text-onink font-medium rounded-xl hover:bg-zinc-800 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-200">
+              <Crown size={18} /> Upgrade to Student Pro
+            </Link>
+            <Link to="/library" className="block w-full py-3.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-xl hover:bg-zinc-50 transition-colors">
+              Back to Library
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !doc) {

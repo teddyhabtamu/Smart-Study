@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle } from 'lucide-react';
+import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -27,20 +27,21 @@ const PRO_PLAN = {
 const PRO_FEATURES = [
   { title: 'Premium document library', sub: 'Textbooks & study guides' },
   { title: 'Premium video lessons', sub: 'Tutorial library across all grades' },
-  { title: 'AI practice quizzes', sub: 'No daily limits' },
+  { title: 'AI practice quizzes', sub: 'No daily limits on AI quizzes' },
   { title: 'AI Smart Schedule planner', sub: 'Personal plans built around your deadlines' },
 ];
 
-const FREE_FEATURES = ['Browse the catalog', 'Limited previews', 'Community access'];
+const FREE_FEATURES = ['Browse the catalog', 'Limited previews', '1 AI quiz & 1 community question per day'];
 
 const Subscription: React.FC = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'scan' | 'confirm_sent' | 'waiting' | 'success'>('scan');
   const [copiedNumber, setCopiedNumber] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -57,6 +58,29 @@ const Subscription: React.FC = () => {
       setPaymentStep('success');
     }
   }, [isModalOpen, user?.isPremium, paymentStep]);
+
+  // Poll for activation while waiting: without this the flip effect above
+  // never fires — nothing re-fetches the profile (refreshUser is cache-gated
+  // and the bell poll runs elsewhere). Forced refresh every 20s, modal-only.
+  useEffect(() => {
+    if (!isModalOpen || user?.isPremium || (paymentStep !== 'waiting' && paymentStep !== 'confirm_sent')) return;
+    const id = window.setInterval(() => {
+      refreshUser(true).catch(() => {});
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, [isModalOpen, user?.isPremium, paymentStep, refreshUser]);
+
+  // Manual "I've been activated" check — same forced refresh, user-driven.
+  const handleCheckStatus = async () => {
+    try {
+      setIsCheckingStatus(true);
+      await refreshUser(true);
+    } catch {
+      addToast('Could not reach the server — please try again.', 'error');
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
 
   // Retrieve the previous path or default to dashboard
   const from = (location.state as any)?.from || '/dashboard';
@@ -379,6 +403,20 @@ const Subscription: React.FC = () => {
                       className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                     >
                       Done
+                    </button>
+                    <button
+                      onClick={handleCheckStatus}
+                      disabled={isCheckingStatus}
+                      className="w-full py-2.5 bg-surface border border-zinc-200 text-inksoft text-sm font-medium rounded-lg hover:bg-zinc-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isCheckingStatus ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          Checking…
+                        </>
+                      ) : (
+                        'I’ve been activated — check status'
+                      )}
                     </button>
                     <button onClick={() => setPaymentStep('confirm_sent')} className="w-full text-sm text-zinc-500 hover:text-ink">
                       Back

@@ -1,9 +1,10 @@
 
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
+import { useToast } from './context/ToastContext';
 import { UserRole } from './types';
 import { PublicRoute } from './components/PublicRoute';
 import PolicyUpdateNotification from './components/PolicyUpdateNotification';
@@ -36,6 +37,45 @@ const Careers = lazy(() => import('./pages/Careers'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+
+// Auth gate that preserves the return URL: expired sessions (and direct
+// hits to protected pages) land on /login?next=<path> instead of losing
+// the user's place with no explanation.
+const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) return <Loader />;
+  if (!user) {
+    const next = location.pathname + location.search;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+  }
+  return <>{children}</>;
+};
+
+// Listens for the api layer's session-expired broadcast (refresh definitively
+// rejected): one toast + redirect with return URL. Throttled + loop-guarded
+// (a burst of 401s must not stack toasts or bounce off the login page).
+let lastExpiredToast = 0;
+const SessionExpiredHandler: React.FC = () => {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  React.useEffect(() => {
+    const onExpired = () => {
+      const now = Date.now();
+      if (now - lastExpiredToast < 60_000) return;
+      lastExpiredToast = now;
+      const path = window.location.pathname;
+      if (!path.startsWith('/login') && !path.startsWith('/register')) {
+        addToast('Your session expired — please sign in again.', 'warning');
+        const next = path + window.location.search;
+        navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
+      }
+    };
+    window.addEventListener('session-expired', onExpired);
+    return () => window.removeEventListener('session-expired', onExpired);
+  }, [navigate, addToast]);
+  return null;
+};
 
 // Admin route guard component
 const AdminRouteGuard: React.FC = () => {
@@ -75,6 +115,7 @@ const App: React.FC = () => {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <PolicyUpdateNotification />
+      <SessionExpiredHandler />
       <Suspense fallback={<Loader />}>
       <Routes>
         {/* RESET PASSWORD - MUST be first, no authentication required, no Layout wrapper */}
@@ -104,7 +145,7 @@ const App: React.FC = () => {
         {/* Protected Planner Route */}
         <Route
           path="/planner"
-          element={<Layout>{user ? <Planner /> : <Navigate to="/login" />}</Layout>}
+          element={<Layout><RequireAuth><Planner /></RequireAuth></Layout>}
         />
 
         <Route path="/practice" element={<Layout><Practice /></Layout>} />
@@ -116,11 +157,9 @@ const App: React.FC = () => {
           path="/subscription"
           element={
             <Layout>
-              {user ? (
+              <RequireAuth>
                 <Subscription />
-              ) : (
-                <Navigate to="/login" />
-              )}
+              </RequireAuth>
             </Layout>
           }
         />
@@ -134,7 +173,7 @@ const App: React.FC = () => {
         {/* Protected Routes */}
         <Route
           path="/dashboard"
-          element={<Layout>{user ? <Dashboard /> : <Navigate to="/login" />}</Layout>}
+          element={<Layout><RequireAuth><Dashboard /></RequireAuth></Layout>}
         />
         <Route
           path="/admin"
@@ -146,7 +185,7 @@ const App: React.FC = () => {
         />
         <Route
           path="/profile"
-          element={<Layout>{user ? <Profile /> : <Navigate to="/login" />}</Layout>}
+          element={<Layout><RequireAuth><Profile /></RequireAuth></Layout>}
         />
 
         {/* ROOT ROUTE - MUST BE LAST (index route for exact / only) */}

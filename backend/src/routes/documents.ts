@@ -125,9 +125,11 @@ router.get('/', optionalAuth, [
       .select('id, title, description, subject, grade, file_type, file_size, file_url, is_premium, downloads, preview_image, tags, author, created_at, updated_at', { count: 'exact' });
 
     // Apply AND filters individually (Supabase combines these with AND)
-    if (!isPremium) {
-      query = query.eq('is_premium', false);
-    }
+    // IMPORTANT: Always return premium + free documents. Premium access is
+    // enforced on READ/DOWNLOAD (detail + download routes 403), not in the
+    // list — same policy as videos. Filtering premium rows out here hid the
+    // entire Pro catalog from free users (no discovery upsell) and left the
+    // Library's Premium badges as dead code.
     if (subject) {
       query = query.eq('subject', subject);
     }
@@ -183,7 +185,11 @@ router.get('/', optionalAuth, [
       grade: doc.grade,
       file_type: doc.file_type,
       file_size: doc.file_size,
-      file_url: doc.file_url,
+      // Paywall: redact the content URL for non-entitled callers (same rule
+      // as the detail route and the videos list). Cards only need metadata;
+      // the reader fetches the URL when entitled.
+      file_url: doc.is_premium && !isPremium ? null : doc.file_url,
+      locked: !!(doc.is_premium && !isPremium),
       is_premium: doc.is_premium,
       downloads: doc.downloads || 0,
       preview_image: doc.preview_image,
@@ -337,6 +343,7 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
     if (document.is_premium && !isPremium) {
       res.status(403).json({
         success: false,
+        code: 'PREMIUM_REQUIRED',
         message: 'Premium subscription required'
       } as ApiResponse);
       return;
@@ -424,6 +431,7 @@ router.get('/:id/download', authenticateToken, async (req: express.Request, res:
     if (document.is_premium && !isPremium) {
       res.status(403).json({
         success: false,
+        code: 'PREMIUM_REQUIRED',
         message: 'Premium subscription required'
       } as ApiResponse);
       return;
