@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -73,16 +74,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [addToast]);
 
-  return (
-    <ToastContext.Provider value={{ addToast, removeToast }}>
-      {children}
-      {/* Mobile: stretch full-width with page margins (the old right-4 +
-          min-w-[300px] overflowed 320px viewports). role=status + aria-live so
-          screen readers announce mutations (likes, bookmarks, quiz XP) that
-          otherwise happen silently. Errors use role=alert for assertive
-          announcement. */}
+  // Portaled to body-end at z-[9999]: dialogs live at 100–999 with backdrop
+  // blur, so an inline container (z-[100]) buried toasts under every modal.
+  // Last-in-DOM at the top z wins ties (e.g. the 9999 notification dropdown).
+  const toastStack = (
       <div
-        className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-[100] flex flex-col gap-2 pointer-events-none"
+        className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-[9999] flex flex-col gap-2 pointer-events-none"
         aria-live="polite"
       >
         {toasts.map((toast) => (
@@ -108,6 +105,17 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           </div>
         ))}
       </div>
+  );
+
+  return (
+    <ToastContext.Provider value={{ addToast, removeToast }}>
+      {children}
+      {/* Mobile: stretch full-width with page margins (the old right-4 +
+          min-w-[300px] overflowed 320px viewports). role=status + aria-live so
+          screen readers announce mutations (likes, bookmarks, quiz XP) that
+          otherwise happen silently. Errors use role=alert for assertive
+          announcement. */}
+      {typeof document !== 'undefined' && createPortal(toastStack, document.body)}
     </ToastContext.Provider>
   );
 };
