@@ -534,14 +534,17 @@ const VideoWatch: React.FC = () => {
                       <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full flex items-center justify-center mb-3 sm:mb-4">
                          <Lock size={24} className="sm:w-8 sm:h-8" />
                       </div>
-                      <h3 className="text-lg sm:text-xl font-bold mb-2">
-                        {!videoId ? 'Video Error' : 'Premium Lesson'}
-                      </h3>
-                      <p className="text-zinc-400 max-w-sm mb-4 sm:mb-6 text-sm sm:text-base">
-                        {!videoId
-                          ? 'This video source is invalid.'
-                          : 'Upgrade your account to Student Pro to watch this lesson and access hundreds more.'}
-                      </p>
+                       {/* Locked premium shows the upsell even though the content URL
+                           is redacted server-side (videoId null) — the lock
+                           check comes first so it never reads as an error. */}
+                       <h3 className="text-lg sm:text-xl font-bold mb-2">
+                         {isPremiumVideo && !canWatch ? 'Premium Lesson' : !videoId ? 'Video Error' : 'Premium Lesson'}
+                       </h3>
+                       <p className="text-zinc-400 max-w-sm mb-4 sm:mb-6 text-sm sm:text-base">
+                         {isPremiumVideo && !canWatch
+                           ? 'Upgrade your account to Student Pro to watch this lesson and access hundreds more.'
+                           : 'This video source is invalid.'}
+                       </p>
                       {canWatch ? null : (
                         <Link
                           to="/subscription"

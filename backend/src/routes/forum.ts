@@ -353,24 +353,16 @@ router.put('/posts/:id', [
       return;
     }
 
-    // Build update object
+    // Build update object — title/content/tags ONLY. Votes change only via
+    // the vote endpoints (atomic counters), solved only via PUT /:id/solved,
+    // and ai_answer only via the premium generation route. A previous
+    // revision accepted votes/isSolved/aiAnswer here, letting any author rig
+    // ranking (votes: 99999), self-award solved, or forge a fake AI answer
+    // with one request. Those keys are now ignored, not stored.
     const updates: any = { is_edited: true };
     if (title !== undefined) updates.title = title;
     if (content !== undefined) updates.content = content;
     if (tags !== undefined) updates.tags = tags;
-    // Handle aiAnswer field (camelCase from frontend -> snake_case in DB)
-    if (req.body.aiAnswer !== undefined) updates.ai_answer = req.body.aiAnswer;
-    if (req.body.ai_answer !== undefined) updates.ai_answer = req.body.ai_answer;
-    // Handle isSolved field
-    if (req.body.isSolved !== undefined) updates.is_solved = req.body.isSolved;
-    if (req.body.is_solved !== undefined) updates.is_solved = req.body.is_solved;
-    // Handle votes field
-    if (req.body.votes !== undefined) updates.votes = req.body.votes;
-    // Handle comments field
-    if (req.body.comments !== undefined) {
-      // Comments are stored separately, so we don't update them here
-      // This is handled by the comments endpoints
-    }
 
     const result = await dbAdmin.update('forum_posts', id, updates);
 

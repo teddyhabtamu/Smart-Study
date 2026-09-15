@@ -560,11 +560,13 @@ router.put('/:id', [
   body('tags').optional().isArray()
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    // Check if user is admin, moderator, or premium
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR' && !req.user!.is_premium) {
+    // Staff only. Premium students could previously rewrite ANY catalog
+    // entry (title, file_url, is_premium) with curl — there is no student
+    // upload UI, so this was a pure privilege escalation. Matches POST/DELETE.
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
       res.status(403).json({
         success: false,
-        message: 'Admin, moderator, or premium subscription required to update documents'
+        message: 'Admin or moderator access required to update documents'
       } as ApiResponse);
       return;
     }

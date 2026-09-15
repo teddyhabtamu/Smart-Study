@@ -157,6 +157,21 @@ export const prepareColumnValue = (table: string, column: string, v: any): any =
   return v;
 };
 
+// Identifiers (column names) are interpolated into SQL — values are always
+// parameterized, but keys are not. A crafted JSON key like `a = 1 --` sent as
+// a body field would otherwise inject SQL through any dynamic SET/WHERE
+// builder. Every helper below validates keys and quotes them.
+const assertSafeIdent = (ident: string): void => {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(ident)) {
+    throw new Error(`Unsafe SQL identifier: ${ident}`);
+  }
+};
+
+const quoteIdent = (ident: string): string => {
+  assertSafeIdent(ident);
+  return `"${ident}"`;
+};
+
 // ---------------------------------------------------------------------------
 // Lightweight table helpers (replace the legacy SupabaseDB wrapper).
 // Thin, predictable wrappers over real SQL — used by routes that previously
@@ -184,7 +199,12 @@ export class Table {
 
   async all(orderBy?: string, limit?: number): Promise<any[]> {
     let sql = `SELECT * FROM ${this.name}`;
-    if (orderBy) sql += ` ORDER BY ${orderBy}`;
+    if (orderBy) {
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\s+(ASC|DESC))?$/i.test(orderBy)) {
+        throw new Error(`Unsafe ORDER BY: ${orderBy}`);
+      }
+      sql += ` ORDER BY ${orderBy}`;
+    }
     if (limit) sql += ` LIMIT ${limit}`;
     const res = await query(sql);
     return res.rows;
@@ -193,9 +213,14 @@ export class Table {
   async findBy(conditions: Record<string, any>, orderBy?: string, limit?: number): Promise<any[]> {
     const keys = Object.keys(conditions);
     if (keys.length === 0) return this.all(orderBy, limit);
-    const where = keys.map((k, i) => `${k} = $${i + 1}`).join(' AND ');
+    const where = keys.map((k, i) => `${quoteIdent(k)} = $${i + 1}`).join(' AND ');
     let sql = `SELECT * FROM ${this.name} WHERE ${where}`;
-    if (orderBy) sql += ` ORDER BY ${orderBy}`;
+    if (orderBy) {
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\s+(ASC|DESC))?$/i.test(orderBy)) {
+        throw new Error(`Unsafe ORDER BY: ${orderBy}`);
+      }
+      sql += ` ORDER BY ${orderBy}`;
+    }
     if (limit) sql += ` LIMIT ${limit}`;
     const res = await query(sql, keys.map((k) => conditions[k]));
     return res.rows;
@@ -209,7 +234,7 @@ export class Table {
   async insert(row: Record<string, any>): Promise<any> {
     const { set, vals } = this.cols(row);
     const placeholders = set.map((_, i) => `$${i + 1}`).join(', ');
-    const columns = set.join(', ');
+    const columns = set.map((c) => quoteIdent(c)).join(', ');
     const res = await query(
       `INSERT INTO ${this.name} (${columns}) VALUES (${placeholders}) RETURNING *`,
       vals
@@ -220,7 +245,7 @@ export class Table {
   async update(id: any, updates: Record<string, any>): Promise<any | null> {
     const { set, vals } = this.cols(updates);
     if (set.length === 0) return this.findOneBy({ id });
-    const assignments = set.map((c, i) => `${c} = $${i + 1}`).join(', ');
+    const assignments = set.map((c, i) => `${quoteIdent(c)} = $${i + 1}`).join(', ');
     const res = await query(
       `UPDATE ${this.name} SET ${assignments} WHERE id = $${set.length + 1} RETURNING *`,
       [...vals, id]
@@ -231,7 +256,8 @@ export class Table {
   async deleteWhere(conditions: Record<string, any>): Promise<number> {
     const keys = Object.keys(conditions);
     if (keys.length === 0) throw new Error('deleteWhere requires at least one condition');
-    const where = keys.map((k, i) => `${k} = $${i + 1}`).join(' AND ');
+    keys.forEach(assertSafeIdent);
+    const where = keys.map((k, i) => `${quoteIdent(k)} = $${i + 1}`).join(' AND ');
     const res = await query(`DELETE FROM ${this.name} WHERE ${where}`, keys.map((k) => conditions[k]));
     return res.rowCount ?? 0;
   }

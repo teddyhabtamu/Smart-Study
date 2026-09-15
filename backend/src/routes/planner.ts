@@ -259,10 +259,12 @@ router.put('/events/:id', [
     const userId = req.user!.id;
     const eventId = id;
 
-    // Verify ownership
-    const event = await dbAdmin.findOne('study_events', (e: any) =>
-      e.id === eventId && e.user_id === userId
+    // Verify ownership with an indexed lookup (was a full-table fetch).
+    const eventRows = await query(
+      'SELECT id, user_id, title, event_type, is_completed, xp_awarded FROM study_events WHERE id = $1 AND user_id = $2',
+      [eventId, userId]
     );
+    const event = eventRows.rows[0];
 
     if (!event) {
       res.status(404).json({
@@ -272,7 +274,20 @@ router.put('/events/:id', [
       return;
     }
 
-    const updates = req.body;
+    // Explicit allowlist: never spread req.body into the UPDATE. The old
+    // `const updates = req.body` let callers set user_id (reassign events),
+    // xp_awarded (re-arm payouts), or crafted keys for SQL injection via the
+    // interpolated SET clause. Only validated client fields are picked here;
+    // xp_awarded is set server-side on first completion only.
+    const { title, subject, event_date, event_type, is_completed, is_archived, notes } = req.body;
+    const updates: any = {};
+    if (title !== undefined) updates.title = title;
+    if (subject !== undefined) updates.subject = subject;
+    if (event_date !== undefined) updates.event_date = event_date;
+    if (event_type !== undefined) updates.event_type = event_type;
+    if (is_completed !== undefined) updates.is_completed = is_completed;
+    if (is_archived !== undefined) updates.is_archived = is_archived;
+    if (notes !== undefined) updates.notes = notes;
 
     // Award XP for completing events. This is the ONLY award path — the old
     // frontend also called gainXP(50) after this update, double-paying every

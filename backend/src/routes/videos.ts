@@ -158,7 +158,11 @@ router.get('/', optionalAuth, [
       grade: v.grade,
       chapter: v.chapter,
       thumbnail: v.thumbnail,
-      video_url: v.video_url,
+      // Paywall: redact the content URL for non-entitled callers (same rule
+      // as the detail route). Cards only need metadata; the watch page
+      // fetches the URL when entitled.
+      video_url: v.is_premium && !isPremium ? null : v.video_url,
+      locked: !!(v.is_premium && !isPremium),
       instructor: v.instructor,
       views: v.views || 0,
       likes: v.likes || 0,
@@ -238,8 +242,17 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
     }
 
     // Normalize the response shape for the watch page (expects snake_case `is_premium`)
+    const isLockedForCaller = !!videoRow.is_premium && !isPremium;
     let video: any = {
       ...videoRow,
+      // Paywall: the content URL is redacted for non-entitled callers.
+      // Previously the full video_url was served to guests/free users and only
+      // hidden by frontend gating — anyone could read the JSON and watch
+      // directly. Metadata stays visible so the page can render the locked
+      // UI (same pattern as premium documents, which 403; here we return
+      // metadata + locked flag so the upsell page renders instead of a 403).
+      video_url: isLockedForCaller ? null : videoRow.video_url,
+      locked: isLockedForCaller,
       views: videoRow.views || 0,
       likes: videoRow.likes || 0,
       uploadedAt: videoRow.created_at,
@@ -247,11 +260,8 @@ router.get('/:id', optionalAuth, async (req: express.Request, res: express.Respo
       isPremium: videoRow.is_premium
     };
 
-    // IMPORTANT:
-    // Do NOT block premium videos here. We allow everyone to load the video page and see the locked UI.
-    // Actual watching/engagement is enforced by:
-    // - frontend gating (won't embed if not premium)
-    // - POST /:id/view, /:id/like, /:id/complete (server-side premium checks)
+    // Engagement (view/like/complete) stays server-gated per endpoint, and
+    // the frontend won't embed when locked (canWatch check).
 
     // Check if user has liked this video and completed it
     if (userId) {
@@ -907,11 +917,13 @@ router.put('/:id', [
   body('is_premium').optional().isBoolean()
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    // Check if user is admin, moderator, or premium
-    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR' && !req.user!.is_premium) {
+    // Staff only. Premium students could previously rewrite ANY catalog
+    // entry (title, video_url, is_premium) with curl — there is no student
+    // upload UI, so this was a pure privilege escalation. Matches POST/DELETE.
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
       res.status(403).json({
         success: false,
-        message: 'Admin, moderator, or premium subscription required to update videos'
+        message: 'Admin or moderator access required to update videos'
       } as ApiResponse);
       return;
     }

@@ -563,7 +563,18 @@ router.put('/admin/positions/:id', [
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    // Explicit allowlist: never pass req.body straight into the UPDATE. The
+    // old `const updates = req.body` let callers forge posted_by attribution
+    // or crafted keys for SQL injection via the interpolated SET clause.
+    const { title, description, requirements, department, employment_type, location, is_active } = req.body;
+    const updates: any = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (requirements !== undefined) updates.requirements = requirements;
+    if (department !== undefined) updates.department = department;
+    if (employment_type !== undefined) updates.employment_type = employment_type;
+    if (location !== undefined) updates.location = location;
+    if (is_active !== undefined) updates.is_active = is_active;
     
     // Indexed lookup (was a full-table fetch + in-memory find).
     const posRow = await dbQuery('SELECT * FROM job_positions WHERE id = $1', [id]);

@@ -647,7 +647,10 @@ export const forumAPI = {
       body: JSON.stringify(post),
     }),
 
-  updatePost: (id: string, updates: { title?: string; content?: string; tags?: string[]; aiAnswer?: string; isSolved?: boolean; votes?: number; comments?: any[] }): Promise<ForumPost> =>
+  // Author edit: title/content/tags only. Votes change via votePost, solved
+  // via markSolved, AI answers via generateAIAnswer — the server ignores any
+  // other keys on this endpoint.
+  updatePost: (id: string, updates: { title?: string; content?: string; tags?: string[] }): Promise<ForumPost> =>
     apiRequest(`/forum/posts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),

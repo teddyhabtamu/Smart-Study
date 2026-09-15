@@ -197,35 +197,38 @@ router.get('/users', requireRole(['ADMIN']), [
     const offset = Number(req.query.offset) || 0;
     const search = req.query.search;
 
-    let users = await dbAdmin.get('users');
-
-    // Filter out admin users (students management endpoint)
-    users = users.filter((u: any) => u.role !== 'ADMIN');
-
-    // Apply search filter
+    // Explicit safe projection IN SQL: the old code fetched every user row
+    // (SELECT *) and returned it, leaking bcrypt password_hash (plus avatar
+    // blobs and preferences) to any admin token holder. New columns are
+    // excluded by default — allowlist, not blocklist.
+    const userConditions = [`role <> 'ADMIN'`];
+    const userParams: any[] = [];
     if (search) {
-      const searchTerm = search.toString().toLowerCase();
-      users = users.filter((u: any) =>
-        u.name.toLowerCase().includes(searchTerm) ||
-        u.email.toLowerCase().includes(searchTerm)
-      );
+      userConditions.push(`(name ILIKE $${userParams.length + 1} OR email ILIKE $${userParams.length + 1})`);
+      userParams.push(`%${String(search).replace(/[\\%_]/g, (m) => `\\${m}`)}%`);
     }
+    const userWhere = `WHERE ${userConditions.join(' AND ')}`;
+    const SAFE_USER_COLS = 'id, name, email, role, status, is_premium, xp, level, streak, grade, premium_since, created_at, updated_at';
 
-    // Sort by creation date (newest first)
-    users.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    // Apply pagination
-    const paginatedUsers = users.slice(offset, offset + limit);
+    const [countResult, usersResult] = await Promise.all([
+      dbQuery(`SELECT COUNT(*) as total FROM users ${userWhere}`, userParams),
+      dbQuery(
+        `SELECT ${SAFE_USER_COLS} FROM users ${userWhere} ORDER BY created_at DESC LIMIT $${userParams.length + 1} OFFSET $${userParams.length + 2}`,
+        [...userParams, limit, offset]
+      )
+    ]);
+    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+    const paginatedUsers = usersResult.rows;
 
     res.json({
       success: true,
       data: {
         users: paginatedUsers,
         pagination: {
-          total: users.length,
+          total,
           limit,
           offset,
-          hasMore: offset + limit < users.length
+          hasMore: offset + limit < total
         }
       }
     } as ApiResponse);
