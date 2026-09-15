@@ -430,7 +430,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <>
                 <div className="space-y-1">
                   {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">Platform</p>}
-                  <NavItem to="/" icon={Home} label="Overview" />
+                  {/* Overview is guests-only: "/" redirect-resolves to the
+                      dashboard for logged-in users, who already have a real
+                      Dashboard item under Account. Showing both meant a
+                      redundant entry that bounced through a redirect and never
+                      highlighted (exact-match active state). */}
+                  {!user && <NavItem to="/" icon={Home} label="Overview" />}
                   {/* Conditionally render Study Planner only if logged in */}
                   {user && <NavItem to="/planner" icon={CalendarDays} label="Study Planner" />}
                   <NavItem to="/library" icon={Search} label="Library" />

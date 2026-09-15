@@ -10,6 +10,7 @@ import { usersAPI } from '../services/api';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
 import { useTheme, THEMES, type ThemePreference, type AutoSlot } from '../context/ThemeContext';
 import { AUTO_SLOT_META, themeName } from '../context/themeSchedule';
+import CustomSelect from '../components/CustomSelect';
 
 type Tab = 'general' | 'security' | 'notifications' | 'achievements' | 'pro' | 'appearance';
 type NotificationView = 'preferences' | 'history';
@@ -450,22 +451,22 @@ const Profile: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="profile-grade" className="block text-sm font-medium text-inksoft mb-1">School Grade</label>
-                    <div className="relative">
-                      <GraduationCap size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                      <select
-                        id="profile-grade"
-                        value={grade}
-                        onChange={(e) => setGrade(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 transition-all text-inksoft"
-                      >
-                        <option value="">Not set</option>
-                        <option value="9">Grade 9</option>
-                        <option value="10">Grade 10</option>
-                        <option value="11">Grade 11</option>
-                        <option value="12">Grade 12</option>
-                      </select>
-                    </div>
+                    <label className="block text-sm font-medium text-inksoft mb-1">School Grade</label>
+                    {/* CustomSelect, not a native <select>: the native control
+                        renders an unstyled OS dropdown ("raw HTML" look) that
+                        clashes with every other picker in the app. */}
+                    <CustomSelect
+                      value={grade}
+                      onChange={setGrade}
+                      placeholder="Not set"
+                      options={[
+                        { label: 'Not set', value: '' },
+                        { label: 'Grade 9', value: '9' },
+                        { label: 'Grade 10', value: '10' },
+                        { label: 'Grade 11', value: '11' },
+                        { label: 'Grade 12', value: '12' },
+                      ]}
+                    />
                     <p className="text-xs text-zinc-400 mt-1">Used to tailor AI Tutor answers to your level.</p>
                   </div>
                 </div>
