@@ -274,7 +274,13 @@ const apiRequest = async <T>(
   options: RequestInit = {},
   includeAuth: boolean = true,
   retries: number = 3,
-  retryDelay: number = 1000
+  retryDelay: number = 1000,
+  // Skip the 401 -> refresh-token dance. Endpoints whose 401s are
+  // APPLICATION errors (wrong deletion password/code) must opt out: the
+  // interceptor would otherwise "refresh" a valid session and, worse, retry
+  // the request (double-spending code attempts) or log the user out when the
+  // refresh fails — all because of a typo.
+  skipAuthRefresh: boolean = false,
 ): Promise<T> => {
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -314,8 +320,9 @@ const apiRequest = async <T>(
         headers: getHeaders(includeAuth), // re-read token (may have been refreshed)
       });
 
-      // On 401 with an auth token: try refreshing once, then retry
-      if (response.status === 401 && includeAuth && getAuthToken() && !refreshed401) {
+      // On 401 with an auth token: try refreshing once, then retry.
+      // Skipped for endpoints with application-level 401s (see param).
+      if (response.status === 401 && includeAuth && getAuthToken() && !refreshed401 && !skipAuthRefresh) {
         refreshed401 = true;
         const ok = await refreshAccessToken();
         if (ok) {
@@ -528,7 +535,8 @@ export const usersAPI = {
     apiRequest('/users/account', {
       method: 'DELETE',
       body: JSON.stringify(reauth ?? {}),
-    }),
+      // 401s here mean wrong password/code, never an expired session.
+    }, true, 3, 1000, true),
 
   getLeaderboard: (limit?: number): Promise<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number; isUser?: boolean }[]> =>
     apiRequest(`/users/leaderboard${limit ? `?limit=${limit}` : ''}`, {}, false),
