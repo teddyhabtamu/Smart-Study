@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Dialog from '../components/Dialog';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -1085,9 +1086,11 @@ const Planner: React.FC = () => {
       </div>
 
       {/* Manual Add Modal */}
-      {isManualModalOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+      <Dialog
+        open={isManualModalOpen && mounted}
+        onClose={() => setIsManualModalOpen(false)}
+        label="Add Study Task"
+      >
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
                <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Add Study Task</h3>
                <button onClick={() => setIsManualModalOpen(false)} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
@@ -1148,15 +1151,14 @@ const Planner: React.FC = () => {
                  )}
                </button>
             </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
 
       {/* AI Generate Modal */}
-      {isAIModalOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative animate-slide-up">
+      <Dialog
+        open={isAIModalOpen && mounted}
+        onClose={() => setIsAIModalOpen(false)}
+        label="Generate smart schedule"
+      >
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
                <h3 className="font-bold text-zinc-900 flex items-center gap-2 text-sm sm:text-base">
                  <Sparkles size={16} className="sm:w-[18px] sm:h-[18px] text-zinc-600" /> Smart Schedule
@@ -1204,10 +1206,7 @@ const Planner: React.FC = () => {
                  )}
                </button>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
 
       {/* Study Guide Tooltip - Shows on click */}
       {selectedEventId && tooltipPosition && (() => {

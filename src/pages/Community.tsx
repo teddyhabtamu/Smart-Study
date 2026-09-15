@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Trophy, Loader2, ChevronDown, SlidersHorizontal, Crown } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { SUBJECTS, GRADES } from '../constants';
@@ -384,16 +384,13 @@ const Community: React.FC = () => {
             </button>
 
             {/* Mobile Filters Modal */}
-            {showMobileFilters && createPortal(
-              <div className="fixed inset-0 z-[300] flex items-end animate-fade-in">
-                {/* Backdrop */}
-                <div
-                  className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-                  onClick={() => setShowMobileFilters(false)}
-                />
-
-                {/* Modal */}
-                <div className="relative w-full bg-white rounded-t-2xl shadow-2xl animate-fade-in max-h-[80vh] overflow-hidden">
+            <Dialog
+              open={showMobileFilters}
+              onClose={() => setShowMobileFilters(false)}
+              label="Filter Discussions"
+              align="bottom"
+              zIndex={300}
+            >
                   <div className="p-4 border-b border-zinc-100">
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-zinc-900 text-base">Filter Discussions</h3>
@@ -483,10 +480,7 @@ const Community: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>,
-              document.body
-            )}
+            </Dialog>
           </div>
 
           {/* Leaderboard - Desktop Only */}
@@ -681,10 +675,11 @@ const Community: React.FC = () => {
       </div>
 
       {/* Create Post Modal */}
-      {isModalOpen && mounted &&
-        createPortal(
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative animate-slide-up flex flex-col max-h-[90vh]">
+      <Dialog
+        open={isModalOpen && mounted}
+        onClose={() => { setIsModalOpen(false); setFreeLimitHit(false); }}
+        label="Ask the Community"
+      >
               <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
                 <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Ask the Community</h3>
                 <button onClick={() => { setIsModalOpen(false); setFreeLimitHit(false); }} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
@@ -768,10 +763,7 @@ const Community: React.FC = () => {
                 </div>
               </form>
               )}
-            </div>
-          </div>,
-          document.body
-        )}
+            </Dialog>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle, MoreVertical } from 'lucide-react';
 import { UserRole, ForumComment } from '../types';
@@ -928,14 +928,18 @@ const CommunityPost: React.FC = () => {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && createPortal(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative animate-slide-up overflow-hidden">
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        label={deleteTarget && deleteTarget.type === 'post' ? 'Delete discussion?' : 'Delete comment?'}
+        size="sm"
+        zIndex={999}
+      >
             <div className="p-6 text-center">
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trash2 size={24} />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 mb-2">Delete {deleteTarget.type === 'post' ? 'Discussion' : 'Comment'}?</h3>
+              <h3 className="text-lg font-bold text-zinc-900 mb-2">Delete {deleteTarget?.type === 'post' ? 'Discussion' : 'Comment'}?</h3>
               <p className="text-sm text-zinc-500 mb-6">Are you sure you want to delete this? This action cannot be undone.</p>
               
               <div className="flex gap-3">
@@ -953,10 +957,7 @@ const CommunityPost: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </div>
   );
 };

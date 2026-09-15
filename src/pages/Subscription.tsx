@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -236,9 +236,16 @@ const Subscription: React.FC = () => {
       </div>
 
       {/* Payment Modal using Portal */}
-      {isModalOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-slide-up max-h-[90vh]">
+      {/* Payment dialog: focus-trapped, Esc-dismissible, focus-returning
+          (shared Dialog). Backdrop click closes via the default dismissible
+          path — same as the old overlay, which closed on backdrop click. */}
+      <Dialog
+        open={isModalOpen && mounted}
+        onClose={closeModal}
+        label="Subscribe to Pro"
+        size="sm"
+        panelClassName="rounded-2xl overflow-hidden"
+      >
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 flex-shrink-0">
               <span className="font-bold text-zinc-900">Subscribe to Pro</span>
               <button onClick={closeModal} className="p-1 text-zinc-400 hover:text-zinc-900 rounded-full hover:bg-zinc-200 transition-colors">
@@ -398,10 +405,7 @@ const Subscription: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </div>
   );
 };

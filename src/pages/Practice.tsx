@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { BrainCircuit, Check, X, Trophy, ArrowRight, Loader2, RotateCcw, AlertCircle, Crown, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { aiTutorAPI, plannerAPI } from '../services/api';
@@ -484,9 +484,12 @@ const Practice: React.FC = () => {
         </div>
 
         {/* Quit Confirmation Modal */}
-        {showQuitConfirm && createPortal(
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative animate-slide-up overflow-hidden">
+        <Dialog
+          open={showQuitConfirm}
+          onClose={() => setShowQuitConfirm(false)}
+          label="Quit practice session?"
+          size="sm"
+        >
               <div className="p-6 text-center">
                 <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <AlertCircle size={24} />
@@ -512,10 +515,7 @@ const Practice: React.FC = () => {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>,
-          document.body
-        )}
+        </Dialog>
       </div>
     );
   }

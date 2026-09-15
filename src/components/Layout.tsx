@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Dialog from './Dialog';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -799,9 +800,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </main>
 
       {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && createPortal(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative animate-slide-up overflow-hidden">
+      <Dialog
+        open={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        label="Sign out?"
+        size="sm"
+        zIndex={999}
+      >
             <div className="p-6 text-center">
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogOut size={24} />
@@ -827,10 +832,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
 
       {/* PWA install prompt (bottom sheet / floating card, auto-timed) */}
       <InstallPrompt />

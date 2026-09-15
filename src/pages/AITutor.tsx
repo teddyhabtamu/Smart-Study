@@ -2,7 +2,7 @@
 // src/pages/AITutor.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -920,9 +920,11 @@ const AITutor: React.FC = () => {
       </div>
 
       {/* Delete Chat Session Confirmation Modal */}
-      {deleteConfirmation.isOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+      <Dialog
+        open={deleteConfirmation.isOpen && mounted}
+        onClose={() => setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' })}
+        label="Delete chat session?"
+      >
             <div className="p-4 sm:p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="p-3 rounded-full bg-red-100 text-red-600">
@@ -960,10 +962,7 @@ const AITutor: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
@@ -1084,9 +1084,12 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative animate-slide-up overflow-hidden">
+      <Dialog
+        open={showLogoutConfirm && mounted}
+        onClose={() => setShowLogoutConfirm(false)}
+        label="Sign out?"
+        size="sm"
+      >
             <div className="p-6 text-center">
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogOut size={24} />
@@ -1109,15 +1112,15 @@ const Profile: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
 
       {/* Delete Account Confirmation Modal */}
-      {showDeleteConfirm && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative animate-slide-up overflow-hidden">
+      <Dialog
+        open={showDeleteConfirm && mounted}
+        onClose={() => setShowDeleteConfirm(false)}
+        label="Delete account?"
+        size="sm"
+      >
             <div className="p-6 text-center">
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle size={24} />
@@ -1148,10 +1151,7 @@ const Profile: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </div>
   );
 };

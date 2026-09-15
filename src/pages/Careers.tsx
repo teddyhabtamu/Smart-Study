@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../components/Dialog';
 import { Briefcase, MapPin, Clock, ArrowRight, Code, PenTool, MessageCircle, X, Loader2, CheckCircle, FileText } from 'lucide-react';
 import Footer from '../components/Footer';
 import { careersAPI } from '../services/api';
@@ -214,10 +214,14 @@ const Careers: React.FC = () => {
       </div>
 
       {/* Job Details Modal */}
-      {isDetailOpen && detailPosition && createPortal(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative animate-slide-up">
-            <div className="p-4 sm:p-6">
+      <Dialog
+        open={isDetailOpen && !!detailPosition}
+        onClose={() => { setIsDetailOpen(false); setDetailPosition(null); }}
+        label={detailPosition ? `Job details: ${detailPosition.title}` : 'Job details'}
+        size="3xl"
+        zIndex={999}
+      >
+            <div className="p-4 sm:p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   {(() => {
@@ -297,16 +301,17 @@ const Careers: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
 
       {/* Application Modal */}
-      {isApplicationOpen && selectedPosition && createPortal(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative animate-slide-up">
-            <div className="p-4 sm:p-6">
+      <Dialog
+        open={isApplicationOpen && !!selectedPosition}
+        onClose={() => { setIsApplicationOpen(false); setSelectedPosition(null); }}
+        label={selectedPosition ? `Apply for ${selectedPosition.title}` : 'Apply for position'}
+        size="lg"
+        zIndex={999}
+      >
+            <div className="p-4 sm:p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-lg text-zinc-900">Apply for {selectedPosition.title}</h3>
                 <button
@@ -411,10 +416,7 @@ const Careers: React.FC = () => {
                 </div>
               </form>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
 
       <Footer />
     </div>

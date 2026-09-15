@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from './Dialog';
 import { Search, FileText, PlayCircle, MessageSquare, ArrowRight, LayoutDashboard, CalendarDays, Sparkles, BrainCircuit, Users, User, Command, Crown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -26,7 +26,6 @@ const STATIC_PAGES = [
 const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [mounted, setMounted] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -35,25 +34,13 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
 
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  // Reset state when opened
+  // Reset state when opened. Focus + scroll-lock are owned by Dialog
+  // (initialFocusRef below lands on the input after paint).
   useEffect(() => {
     if (isOpen) {
       setSearchTerm('');
       setSelectedIndex(0);
-      // Small timeout to ensure DOM is rendered before focus
-      setTimeout(() => inputRef.current?.focus(), 10);
-      
-      // Prevent body scroll
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
   // Search effect
@@ -121,8 +108,6 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
           navigate(results[selectedIndex].url);
           onClose();
         }
-      } else if (e.key === 'Escape') {
-        onClose();
       }
     };
 
@@ -130,20 +115,27 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, results, selectedIndex, navigate, onClose, isSearching]);
 
-  if (!isOpen || !mounted) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl overflow-hidden animate-slide-up flex flex-col max-h-[70vh]">
+  return (
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      label="Search pages, documents, videos and discussions"
+      align="top"
+      size="wide"
+      zIndex={100}
+      initialFocusRef={inputRef}
+    >
+      <div className="flex flex-col max-h-[70vh] min-h-0">
         <div className="flex items-center px-4 py-4 border-b border-zinc-100 gap-3">
           <Search className="text-zinc-400" size={20} />
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-label="Search"
+            aria-expanded={results.length > 0}
+            aria-controls="search-palette-listbox"
+            aria-activedescendant={results.length > 0 ? `search-option-${selectedIndex}` : undefined}
             className="flex-1 bg-transparent text-lg focus:outline-none placeholder-zinc-400 text-zinc-900"
             placeholder="Search pages, documents, videos..."
             value={searchTerm}
@@ -166,13 +158,16 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
               <Loader2 size={24} className="animate-spin text-zinc-400" />
             </div>
           ) : results.length > 0 ? (
-            <div className="space-y-1">
+            <div className="space-y-1" role="listbox" id="search-palette-listbox" aria-label="Search results">
               <p className="px-3 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
                 Results {results.length > 0 && <span className="text-zinc-500">({results.length})</span>}
               </p>
               {results.map((result, index) => (
                 <div
                   key={`${result.type}-${(result as any).id || result.title}`}
+                  id={`search-option-${index}`}
+                  role="option"
+                  aria-selected={index === selectedIndex}
                   onClick={() => {
                     navigate(result.url);
                     onClose();
@@ -255,8 +250,7 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
           </div>
         )}
       </div>
-    </div>,
-    document.body
+    </Dialog>
   );
 };
 
