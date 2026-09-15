@@ -1,6 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import multer from 'multer';
 import { query, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
@@ -16,7 +17,9 @@ const router = express.Router();
 // Account-deletion re-auth: a bare session token must not be enough to
 // irreversibly delete an account (stolen-token / unattended-device risk).
 // - Password accounts: must supply the current password (bcrypt-verified).
-// - OAuth-only accounts (no password_hash): must type their account email.
+// - OAuth-only accounts (no usable password): must enter a 6-digit code
+//   emailed to their inbox — typed-email was dropped because the address is
+//   visible in-app, so it proved intent but not ownership.
 // Pure + injected compare so it unit-tests without bcrypt or a database.
 // ---------------------------------------------------------------------------
 export interface DeletionPrincipal {
@@ -32,31 +35,49 @@ export type DeletionVerdict =
   | { allowed: true }
   | { allowed: false; status: number; code: string; message: string };
 
-export async function authorizeAccountDeletion(
+export async function authorizePasswordDeletion(
   user: DeletionPrincipal | null,
-  body: { password?: unknown; confirmEmail?: unknown },
+  body: { password?: unknown },
   compare: (password: string, hash: string) => Promise<boolean>,
 ): Promise<DeletionVerdict> {
   if (!user) {
     return { allowed: false, status: 404, code: 'USER_NOT_FOUND', message: 'User not found' };
   }
-  if (hasUsablePassword(user.password_hash)) {
-    if (typeof body.password !== 'string' || body.password.length === 0) {
-      return { allowed: false, status: 400, code: 'PASSWORD_REQUIRED', message: 'Please enter your password to delete your account' };
-    }
-    const ok = await compare(body.password, user.password_hash as string);
-    if (!ok) {
-      return { allowed: false, status: 401, code: 'INCORRECT_PASSWORD', message: 'Incorrect password' };
-    }
-    return { allowed: true };
+  if (typeof body.password !== 'string' || body.password.length === 0) {
+    return { allowed: false, status: 400, code: 'PASSWORD_REQUIRED', message: 'Please enter your password to delete your account' };
   }
-  // OAuth-only account: no password exists, so the typed-email check proves
-  // intent + session together instead.
-  if (typeof body.confirmEmail !== 'string' || body.confirmEmail.toLowerCase() !== user.email.toLowerCase()) {
-    return { allowed: false, status: 400, code: 'OAUTH_CONFIRM_EMAIL', message: 'This account uses Google sign-in — type your account email to confirm deletion' };
+  const ok = await compare(body.password, user.password_hash as string);
+  if (!ok) {
+    return { allowed: false, status: 401, code: 'INCORRECT_PASSWORD', message: 'Incorrect password' };
   }
   return { allowed: true };
 }
+
+// --- Deletion-code helpers (OAuth path). Hashes only on disk: 6 digits is
+// a 1M space, so raw codes must never be stored and guesses are capped. ---
+export const DELETION_CODE_TTL_MINUTES = 10;
+export const DELETION_CODE_MAX_ATTEMPTS = 5;
+export const DELETION_CODE_ISSUE_LIMIT = 3; // codes per user per 15 min (email-bomb guard)
+
+export const generateDeletionCode = (): string =>
+  String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+
+export const hashDeletionCode = (code: string): string =>
+  crypto.createHash('sha256').update(code, 'utf8').digest('hex');
+
+/** Constant-time comparison of two hex digests (equal length by construction). */
+export const deletionCodeMatches = (code: string, storedHash: string): boolean => {
+  const a = Buffer.from(hashDeletionCode(code), 'hex');
+  const b = Buffer.from(storedHash, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+/** Mask an address for UI display (g***@example.com). Pure display helper. */
+export const maskEmail = (email: string): string => {
+  const [local, domain] = email.split('@');
+  if (!domain) return 'your email';
+  return `${(local || '').slice(0, 1)}***@${domain}`;
+};
 
 // Configure multer for memory storage (we'll upload directly to Supabase)
 const upload = multer({
@@ -741,6 +762,53 @@ router.put('/password', [
 });
 
 // Delete account endpoint - allows users to delete their own account
+// Issue an emailed deletion code (OAuth-only accounts). Password accounts
+// must use their password instead — a code would downgrade their proof.
+router.post('/account/deletion-code', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const userResult = await query('SELECT id, name, email, password_hash FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+    if (!user) {
+      res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'User not found' } as ApiResponse);
+      return;
+    }
+    if (hasUsablePassword(user.password_hash)) {
+      res.status(400).json({ success: false, code: 'PASSWORD_FLOW', message: 'This account has a password — enter it to delete your account' } as ApiResponse);
+      return;
+    }
+    // Email-bomb guard: few codes per user per window (single active code
+    // invariant is enforced below by retiring older ones).
+    const recent = await query(
+      `SELECT COUNT(*) AS n FROM account_deletion_codes
+       WHERE user_id = $1 AND created_at > NOW() - INTERVAL '15 minutes'`,
+      [userId],
+    );
+    if (parseInt(recent.rows[0]?.n || '0', 10) >= DELETION_CODE_ISSUE_LIMIT) {
+      res.status(429).json({ success: false, code: 'TOO_MANY_CODES', message: 'Too many codes requested. Please try again in 15 minutes.' } as ApiResponse);
+      return;
+    }
+    await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL', [userId]);
+    const code = generateDeletionCode();
+    await query(
+      `INSERT INTO account_deletion_codes (user_id, code_hash, expires_at)
+       VALUES ($1, $2, NOW() + INTERVAL '10 minutes')`,
+      [userId, hashDeletionCode(code)],
+    );
+    // Awaited on purpose (fail closed): a code the inbox never got is worse
+    // than a slow response on this rare action.
+    const sent = await EmailService.sendAccountDeletionCodeEmail(user.email, user.name, code);
+    if (!sent) {
+      res.status(503).json({ success: false, code: 'EMAIL_SEND_FAILED', message: 'Could not send the code. Please try again later.' } as ApiResponse);
+      return;
+    }
+    res.json({ success: true, data: { email: maskEmail(user.email) } } as ApiResponse);
+  } catch (error) {
+    console.error('Deletion code issue error:', error);
+    res.status(500).json({ success: false, message: 'Failed to send verification code' } as ApiResponse);
+  }
+});
+
 router.delete('/account', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
@@ -757,15 +825,47 @@ router.delete('/account', authenticateToken, async (req: express.Request, res: e
       return;
     }
 
-    // Fresh re-auth before anything irreversible (see authorizeAccountDeletion).
-    const verdict = await authorizeAccountDeletion(user, req.body || {}, bcrypt.compare);
-    if (!verdict.allowed) {
-      res.status(verdict.status).json({
-        success: false,
-        code: verdict.code,
-        message: verdict.message
-      } as ApiResponse);
-      return;
+    if (hasUsablePassword(user.password_hash)) {
+      // Fresh password re-auth before anything irreversible.
+      const verdict = await authorizePasswordDeletion(user, req.body || {}, bcrypt.compare);
+      if (!verdict.allowed) {
+        res.status(verdict.status).json({
+          success: false,
+          code: verdict.code,
+          message: verdict.message
+        } as ApiResponse);
+        return;
+      }
+    } else {
+      // OAuth-only: emailed-code proof of inbox control (see POST above).
+      const code = (req.body || {}).code;
+      if (typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+        res.status(400).json({ success: false, code: 'CODE_REQUIRED', message: 'Enter the 6-digit code sent to your email' } as ApiResponse);
+        return;
+      }
+      const codeRow = await query(
+        `SELECT id, code_hash, attempts FROM account_deletion_codes
+         WHERE user_id = $1 AND used_at IS NULL AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId],
+      );
+      const row = codeRow.rows[0];
+      if (!row) {
+        res.status(400).json({ success: false, code: 'NO_ACTIVE_CODE', message: 'Code expired or missing — request a new one' } as ApiResponse);
+        return;
+      }
+      if (row.attempts >= DELETION_CODE_MAX_ATTEMPTS) {
+        await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE id = $1', [row.id]);
+        res.status(429).json({ success: false, code: 'CODE_LOCKED', message: 'Too many wrong attempts — request a new code' } as ApiResponse);
+        return;
+      }
+      if (!deletionCodeMatches(code, row.code_hash)) {
+        const attemptsLeft = DELETION_CODE_MAX_ATTEMPTS - row.attempts - 1;
+        await query('UPDATE account_deletion_codes SET attempts = attempts + 1 WHERE id = $1', [row.id]);
+        res.status(401).json({ success: false, code: 'INVALID_CODE', message: `Incorrect code${attemptsLeft > 0 ? ` — ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left` : ''}`, data: { attemptsLeft } } as ApiResponse);
+        return;
+      }
+      await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE id = $1', [row.id]);
     }
 
     // Delete user account (this will cascade delete related data due to ON DELETE CASCADE)

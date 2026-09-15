@@ -519,7 +519,12 @@ export const usersAPI = {
       body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
     }),
 
-  deleteAccount: (reauth?: { password?: string; confirmEmail?: string }): Promise<void> =>
+  requestDeletionCode: (): Promise<{ email?: string }> =>
+    apiRequest('/users/account/deletion-code', {
+      method: 'POST',
+    }),
+
+  deleteAccount: (reauth?: { password?: string; code?: string }): Promise<void> =>
     apiRequest('/users/account', {
       method: 'DELETE',
       body: JSON.stringify(reauth ?? {}),

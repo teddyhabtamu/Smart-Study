@@ -40,10 +40,12 @@ const Profile: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Delete re-auth: password accounts confirm with their password;
-  // OAuth-only accounts (backend answers OAUTH_CONFIRM_EMAIL) type email.
+  // OAuth-only accounts (no password) enter an emailed 6-digit code.
   const [deletePassword, setDeletePassword] = useState('');
-  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [deleteCode, setDeleteCode] = useState('');
   const [deleteNeedsEmail, setDeleteNeedsEmail] = useState(false);
+  const [deleteCodeEmail, setDeleteCodeEmail] = useState('');
+  const [deleteCodeSending, setDeleteCodeSending] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -253,25 +255,43 @@ const Profile: React.FC = () => {
     }
   };
 
+  const requestDeleteCode = async () => {
+    try {
+      setDeleteCodeSending(true);
+      const res = await usersAPI.requestDeletionCode();
+      setDeleteCodeEmail(res?.email || '');
+      addToast('Verification code sent to your email', 'success');
+    } catch (error: any) {
+      console.error('Deletion code error:', error);
+      addToast(error.message || 'Failed to send verification code', 'error');
+    } finally {
+      setDeleteCodeSending(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
     setDeletePassword('');
-    setDeleteConfirmEmail('');
-    // Google-only accounts have no password: open directly on the email step.
+    setDeleteCode('');
+    setDeleteCodeEmail('');
+    // Google-only accounts have no password: open on the code step and send
+    // the code immediately so it arrives while the warning is being read.
     // hasPassword absent (stale cache) falls back to password first — the
-    // backend still corrects us via OAUTH_CONFIRM_EMAIL if we're wrong.
-    setDeleteNeedsEmail(user?.hasPassword === false);
+    // backend still corrects us via PASSWORD_FLOW if we're wrong.
+    const oauth = user?.hasPassword === false;
+    setDeleteNeedsEmail(oauth);
     setShowDeleteConfirm(true);
+    if (oauth) void requestDeleteCode();
   };
   
   const confirmDeleteAccount = async () => {
     // Local flag, not state: the finally below closes over the render-time
-    // deleteNeedsEmail, so it would shut the modal just as the email step
+    // deleteNeedsEmail, so it would shut the modal just as a step swap
     // activates. This tracks intent within this single attempt instead.
     let keepOpen = false;
     try {
       setIsLoading(true);
       await usersAPI.deleteAccount(
-        deleteNeedsEmail ? { confirmEmail: deleteConfirmEmail } : { password: deletePassword },
+        deleteNeedsEmail ? { code: deleteCode } : { password: deletePassword },
       );
       addToast("Account deleted successfully.", "success");
       // Logout after successful deletion
@@ -280,11 +300,16 @@ const Profile: React.FC = () => {
       }, 1000);
     } catch (error: any) {
       console.error('Delete account error:', error);
-      if (error?.code === 'OAUTH_CONFIRM_EMAIL') {
-        // Google-sign-in account: swap the password field for email confirm.
-        setDeleteNeedsEmail(true);
+      if (error?.code === 'PASSWORD_FLOW') {
+        // Backend says this account has a password after all: swap back.
+        setDeleteNeedsEmail(false);
         keepOpen = true;
-        addToast('This account uses Google sign-in — type your email to confirm', 'error');
+        addToast('Please enter your password to confirm', 'error');
+        return;
+      }
+      if (error?.code === 'NO_ACTIVE_CODE' || error?.code === 'CODE_LOCKED') {
+        keepOpen = true;
+        addToast(error.message || 'Request a new code', 'error');
         return;
       }
       addToast(error.message || 'Failed to delete account', 'error');
@@ -1308,7 +1333,7 @@ const Profile: React.FC = () => {
               <p className="text-sm text-zinc-500 mb-4">This action is permanent and cannot be undone. All your data and progress will be lost.</p>
 
               {/* Fresh re-auth (backend enforces it): password for password
-                  accounts, account-email confirm for Google-sign-in ones. */}
+                  accounts, emailed 6-digit code for Google-sign-in ones. */}
               {!deleteNeedsEmail ? (
                 <input
                   type="password"
@@ -1320,15 +1345,32 @@ const Profile: React.FC = () => {
                   className="w-full px-3 py-2.5 mb-4 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
                 />
               ) : (
-                <input
-                  type="email"
-                  value={deleteConfirmEmail}
-                  onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteAccount(); }}
-                  placeholder="Type your account email to confirm"
-                  autoComplete="email"
-                  className="w-full px-3 py-2.5 mb-4 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
-                />
+                <div className="mb-4">
+                  <p className="text-xs text-zinc-500 mb-2">
+                    {deleteCodeEmail
+                      ? `We sent a 6-digit code to ${deleteCodeEmail} — it expires in 10 minutes.`
+                      : 'We sent a 6-digit code to your email — it expires in 10 minutes.'}
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={deleteCode}
+                    onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteAccount(); }}
+                    placeholder="6-digit code"
+                    className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 tracking-[0.3em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={requestDeleteCode}
+                    disabled={deleteCodeSending}
+                    className="mt-2 text-xs font-medium text-zinc-500 hover:text-ink disabled:opacity-50 transition-colors"
+                  >
+                    {deleteCodeSending ? 'Sending…' : "Didn't get it? Resend code"}
+                  </button>
+                </div>
               )}
               
               <div className="flex gap-3">
@@ -1340,7 +1382,7 @@ const Profile: React.FC = () => {
                 </button>
                 <button 
                   onClick={confirmDeleteAccount}
-                  disabled={isLoading || (!deleteNeedsEmail && !deletePassword) || (deleteNeedsEmail && !deleteConfirmEmail)}
+                  disabled={isLoading || (!deleteNeedsEmail && !deletePassword) || (deleteNeedsEmail && deleteCode.length !== 6)}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
