@@ -461,7 +461,9 @@ router.post('/practice/quiz-complete', [
   body('score').isInt({ min: 0 }).withMessage('Score must be a non-negative integer'),
   body('totalQuestions').isInt({ min: 1, max: 10 }).withMessage('Total questions must be between 1 and 10'),
   body('timeSpent').isString().trim().isLength({ min: 1 }).withMessage('Time spent is required'),
-  body('xpEarned').optional().isInt({ min: 0 }).withMessage('XP earned must be a non-negative integer'),
+  // NOTE: no xpEarned field is accepted — XP is priced server-side from the
+  // clamped score below. A previous revision validated an optional client
+  // xpEarned that nothing read, advertising a knob that did nothing.
   body('isHighScore').optional().isBoolean().withMessage('isHighScore must be a boolean')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {

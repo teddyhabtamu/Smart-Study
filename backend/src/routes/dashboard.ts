@@ -159,12 +159,14 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     const progressPercentage = totalToday === 0 ? 0 : Math.round((completedToday / totalToday) * 100);
 
     // Calculate level progress (null-guarded: legacy rows can lack xp/level,
-    // which previously produced NaN xpToNextLevel and absurd percentages).
+    // which previously produced NaN xpToNextLevel and absurd percentages;
+    // clamped at zero: a row with level ahead of xp (level 3, 500 XP) would
+    // otherwise report negative progress and a negative XP-to-next-Level).
     const safeLevel = user.level || 1;
     const safeXp = user.xp || 0;
     const currentLevelXP = (safeLevel - 1) * 1000;
     const nextLevelXP = safeLevel * 1000;
-    const progressToNextLevel = Math.min(100, Math.round(((safeXp - currentLevelXP) / 1000) * 100));
+    const progressToNextLevel = Math.min(100, Math.max(0, Math.round(((safeXp - currentLevelXP) / 1000) * 100)));
 
     const dashboardData = {
       user: {
@@ -183,7 +185,7 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
         todayTotal: totalToday,
         todayPercentage: progressPercentage,
         levelProgress: progressToNextLevel,
-        xpToNextLevel: nextLevelXP - safeXp
+        xpToNextLevel: Math.max(0, nextLevelXP - safeXp)
       }
     };
 

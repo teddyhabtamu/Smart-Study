@@ -1076,7 +1076,6 @@ export const plannerAPI = {
     score: number;
     totalQuestions: number;
     timeSpent: string;
-    xpEarned?: number;
     isHighScore?: boolean;
   }): Promise<{ subject: string; score: number; totalQuestions: number; timeSpent: string; xpEarned: number; xpGained: number; newLevel?: number; leveledUp: boolean; isHighScore: boolean }> =>
     apiRequest('/planner/practice/quiz-complete', {

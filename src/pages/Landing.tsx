@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Brain, Users, PlayCircle, CheckCircle2, Star, HelpCircle, FileText } from 'lucide-react';
+import { ArrowRight, BookOpen, Brain, Users, PlayCircle, CheckCircle2, Star, HelpCircle, FileText, Briefcase } from 'lucide-react';
 import Footer from '../components/Footer';
 import { useSEO, pageSEO } from '../utils/seoUtils';
+import { careersAPI } from '../services/api';
 
 const Landing: React.FC = () => {
   const { updateSEO } = useSEO();
@@ -10,6 +11,18 @@ const Landing: React.FC = () => {
   useEffect(() => {
     updateSEO(pageSEO.home);
   }, [updateSEO]);
+
+  // Open roles for the hiring promo. Null = not loaded or fetch failed, and
+  // the promo simply doesn't render — a careers fetch must never break or
+  // delay the landing page.
+  const [openRoles, setOpenRoles] = useState<any[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    careersAPI.getPositions()
+      .then((roles) => { if (!cancelled) setOpenRoles(Array.isArray(roles) ? roles : []); })
+      .catch(() => { if (!cancelled) setOpenRoles(null); });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div className="flex flex-col min-h-screen bg-white selection:bg-zinc-900 selection:text-white">
       
@@ -44,6 +57,25 @@ const Landing: React.FC = () => {
               Browse Library
             </Link>
           </div>
+
+          {/* Hiring pill — the careers page is footer-only, so open roles
+              would otherwise be invisible. Shown only when roles exist;
+              nothing renders while loading or on fetch failure. */}
+          {openRoles && openRoles.length > 0 && (
+            <div className="mt-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+              <Link
+                to="/careers"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 text-white text-xs sm:text-sm font-medium shadow-lg shadow-zinc-900/20 hover:bg-zinc-700 transition-all hover:-translate-y-0.5"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                </span>
+                We&apos;re hiring — {openRoles.length} open role{openRoles.length === 1 ? '' : 's'}
+                <ArrowRight size={14} />
+              </Link>
+            </div>
+          )}
 
           {/* Abstract Floating UI Elements for decoration - Hidden on mobile */}
           <div className="absolute top-1/2 left-4 sm:left-10 -translate-y-1/2 hidden lg:block opacity-50 animate-pulse delay-700">
@@ -231,6 +263,48 @@ const Landing: React.FC = () => {
             </div>
          </div>
       </section>
+
+      {/* Open roles — mirrors the careers page so hiring is discoverable
+          from the main page, not just the footer link. Renders only when
+          roles are actually open. */}
+      {openRoles && openRoles.length > 0 && (
+        <section className="py-16 sm:py-20 px-4 sm:px-6 bg-zinc-50 border-y border-zinc-200">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8 sm:mb-10">
+              <div className="inline-flex items-center gap-2 mb-3 sm:mb-4 text-emerald-700 font-medium text-xs sm:text-sm bg-emerald-50 border border-emerald-200 w-fit px-3 py-1 rounded-full mx-auto">
+                <Briefcase size={14} className="sm:w-4 sm:h-4" /> Join our mission
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-3 sm:mb-4">Help build the future of learning in Ethiopia</h2>
+              <p className="text-zinc-500 text-sm sm:text-base">We&apos;re looking for passionate people — here&apos;s what&apos;s open right now.</p>
+            </div>
+            <div className="space-y-3">
+              {openRoles.slice(0, 3).map((role: any) => (
+                <Link
+                  key={role.id}
+                  to="/careers"
+                  className="group flex items-center gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-zinc-200 hover:border-zinc-400 hover:shadow-md transition-all"
+                >
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-900 text-white rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Briefcase size={18} className="sm:w-5 sm:h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-zinc-900 text-sm sm:text-base truncate">{role.title}</h3>
+                    <p className="text-xs sm:text-sm text-zinc-500 truncate">
+                      {[role.department, role.employment_type, role.location].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                  <ArrowRight size={16} className="text-zinc-400 group-hover:text-zinc-900 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <div className="text-center mt-6 sm:mt-8">
+              <Link to="/careers" className="inline-flex items-center justify-center h-11 sm:h-12 px-6 sm:px-8 bg-zinc-900 text-white rounded-full text-sm sm:text-base font-medium hover:bg-zinc-800 transition-all gap-2">
+                View all {openRoles.length} open role{openRoles.length === 1 ? '' : 's'} <ArrowRight size={16} />
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Minimalist CTA */}
       <section className="py-20 sm:py-24 md:py-32 bg-zinc-900 text-white relative overflow-hidden">
