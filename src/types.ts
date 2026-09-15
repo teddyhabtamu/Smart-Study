@@ -64,6 +64,10 @@ export interface User {
   // so counting the array would undercount on old accounts with buried
   // unread items). Absent on stale cached payloads — fall back to counting.
   unreadCount?: number;
+
+  // Whether the account has a real password (false = Google-only sign-in).
+  // Drives delete-account re-auth UI; absent on stale caches = password flow.
+  hasPassword?: boolean;
 }
 
 export enum FileType {

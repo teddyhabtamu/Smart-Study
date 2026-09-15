@@ -4,6 +4,12 @@ import { config } from '../config';
 import { supabase } from '../database/config';
 import { EmailService } from '../services/emailService';
 
+// OAuth accounts have no password: password_hash is NOT NULL in the schema,
+// so Google sign-ups store this placeholder. Anything that branches on
+// "has a password" (delete-account re-auth, change-password) must treat this
+// value as absent — import this constant instead of re-stating the string.
+export const OAUTH_PASSWORD_PLACEHOLDER = 'oauth_user_no_password';
+
 // Configure Google OAuth Strategy
 passport.use(new GoogleStrategy({
   clientID: config.google.clientId!,
@@ -33,7 +39,7 @@ passport.use(new GoogleStrategy({
       const userData: any = {
         name,
         email,
-        password_hash: 'oauth_user_no_password',
+        password_hash: OAUTH_PASSWORD_PLACEHOLDER,
         avatar: avatar || null,
         role: 'STUDENT',
         status: 'Active', // Default status for new users

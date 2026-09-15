@@ -98,7 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         premiumSince: userData.premium_since || userData.premiumSince || null,
             notifications: userData.notifications || [],
             // Server-side exact unread total (see users profile) — Layout falls back to counting.
-            unreadCount: userData.unread_count ?? userData.unreadCount
+            unreadCount: userData.unread_count ?? userData.unreadCount,
+            hasPassword: userData.has_password ?? userData.hasPassword
           };
           setUser(transformedUser);
           // Save to localStorage for persistence
@@ -369,7 +370,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         premiumSince: userData.premium_since || userData.premiumSince || null,
         notifications: userData.notifications || [],
         // Server-side exact unread total (see users profile) — Layout falls back to counting.
-        unreadCount: userData.unread_count ?? userData.unreadCount
+        unreadCount: userData.unread_count ?? userData.unreadCount,
+        hasPassword: userData.has_password ?? userData.hasPassword
       };
       setUser(transformedUser);
       // Save to localStorage for persistence
@@ -408,7 +410,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         premiumSince: userData.premium_since || userData.premiumSince || null,
         notifications: userData.notifications || [],
         // Server-side exact unread total (see users profile) — Layout falls back to counting.
-        unreadCount: userData.unread_count ?? userData.unreadCount
+        unreadCount: userData.unread_count ?? userData.unreadCount,
+        hasPassword: userData.has_password ?? userData.hasPassword
       };
       setUser(transformedUser);
       // Save to localStorage for immediate access
@@ -611,7 +614,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         premiumSince: userData.premium_since || userData.premiumSince || null,
         notifications: userData.notifications || [],
         // Server-side exact unread total (see users profile) — Layout falls back to counting.
-        unreadCount: userData.unread_count ?? userData.unreadCount
+        unreadCount: userData.unread_count ?? userData.unreadCount,
+        hasPassword: userData.has_password ?? userData.hasPassword
       };
       setUser(transformedUser);
       localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));

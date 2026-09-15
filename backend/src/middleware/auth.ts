@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { validationResult } from 'express-validator';
 import { query } from '../database/config';
 import { config } from '../config';
+import { OAUTH_PASSWORD_PLACEHOLDER } from './googleAuth';
 import { JWTPayload, User } from '../types';
 
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -28,12 +29,13 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
               u.preferences, u.xp, u.level, u.streak, u.last_active_date,
               u.unlocked_badges, u.practice_attempts, u.grade, u.premium_since,
               u.created_at, u.updated_at,
+              (u.password_hash IS NOT NULL AND u.password_hash != $2) AS has_password,
               COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks
        FROM users u
        LEFT JOIN bookmarks b ON b.user_id = u.id
        WHERE u.id = $1
        GROUP BY u.id`,
-      [decoded.userId]
+      [decoded.userId, OAUTH_PASSWORD_PLACEHOLDER]
     );
 
     if (result.rows.length === 0) {
@@ -117,8 +119,8 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
       // Fetch user from database to ensure they still exist and get latest data
       const result = await query(
-        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at FROM users WHERE id = $1',
-        [decoded.userId]
+        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at, (password_hash IS NOT NULL AND password_hash != $2) AS has_password FROM users WHERE id = $1',
+        [decoded.userId, OAUTH_PASSWORD_PLACEHOLDER]
       );
 
       if (result.rows.length > 0) {

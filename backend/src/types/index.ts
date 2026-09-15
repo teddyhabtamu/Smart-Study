@@ -15,6 +15,9 @@ export interface User {
   };
   // Added for convenience in middleware/verify responses
   bookmarks?: string[];
+  // Whether the account has a real password (false for Google-only sign-ins).
+  // Drives delete-account re-auth UI; never the hash itself.
+  has_password?: boolean;
   xp: number;
   level: number;
   streak: number;

@@ -11,6 +11,9 @@ const compare = async (password: string, hash: string): Promise<boolean> =>
 
 const pwUser = { email: 'student@example.com', password_hash: 'hash123' };
 const oauthUser = { email: 'Google@Example.com', password_hash: null };
+// Google sign-ups store a placeholder, NOT NULL — the gate must treat it as
+// "no password", otherwise OAuth users can never delete their accounts.
+const oauthPlaceholderUser = { email: 'google@example.com', password_hash: 'oauth_user_no_password' };
 
 describe('authorizeAccountDeletion', () => {
   it('rejects a missing user', async () => {
@@ -60,6 +63,15 @@ describe('authorizeAccountDeletion', () => {
 
   it('a password on an OAuth account does not bypass the email check', async () => {
     const r = await authorizeAccountDeletion(oauthUser, { password: 'correct' }, compare);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.code).toBe('OAUTH_CONFIRM_EMAIL');
+  });
+
+  it('treats the OAuth placeholder hash as no password (email flow)', async () => {
+    expect(
+      await authorizeAccountDeletion(oauthPlaceholderUser, { confirmEmail: 'google@example.com' }, compare),
+    ).toEqual({ allowed: true });
+    const r = await authorizeAccountDeletion(oauthPlaceholderUser, { password: 'anything' }, compare);
     expect(r.allowed).toBe(false);
     if (!r.allowed) expect(r.code).toBe('OAUTH_CONFIRM_EMAIL');
   });

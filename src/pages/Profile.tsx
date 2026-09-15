@@ -256,7 +256,10 @@ const Profile: React.FC = () => {
   const handleDeleteAccount = () => {
     setDeletePassword('');
     setDeleteConfirmEmail('');
-    setDeleteNeedsEmail(false);
+    // Google-only accounts have no password: open directly on the email step.
+    // hasPassword absent (stale cache) falls back to password first — the
+    // backend still corrects us via OAUTH_CONFIRM_EMAIL if we're wrong.
+    setDeleteNeedsEmail(user?.hasPassword === false);
     setShowDeleteConfirm(true);
   };
   

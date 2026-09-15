@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import { query, dbAdmin, supabaseAdmin } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
+import { OAUTH_PASSWORD_PLACEHOLDER } from '../middleware/googleAuth';
 import { ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
@@ -23,6 +24,10 @@ export interface DeletionPrincipal {
   password_hash: string | null;
 }
 
+/** OAuth sign-ups store OAUTH_PASSWORD_PLACEHOLDER, not a real hash. */
+export const hasUsablePassword = (hash: string | null): boolean =>
+  !!hash && hash !== OAUTH_PASSWORD_PLACEHOLDER;
+
 export type DeletionVerdict =
   | { allowed: true }
   | { allowed: false; status: number; code: string; message: string };
@@ -35,11 +40,11 @@ export async function authorizeAccountDeletion(
   if (!user) {
     return { allowed: false, status: 404, code: 'USER_NOT_FOUND', message: 'User not found' };
   }
-  if (user.password_hash) {
+  if (hasUsablePassword(user.password_hash)) {
     if (typeof body.password !== 'string' || body.password.length === 0) {
       return { allowed: false, status: 400, code: 'PASSWORD_REQUIRED', message: 'Please enter your password to delete your account' };
     }
-    const ok = await compare(body.password, user.password_hash);
+    const ok = await compare(body.password, user.password_hash as string);
     if (!ok) {
       return { allowed: false, status: 401, code: 'INCORRECT_PASSWORD', message: 'Incorrect password' };
     }
@@ -122,6 +127,7 @@ router.get('/profile', authenticateToken, async (req: express.Request, res: expr
       SELECT u.id, u.name, u.email, u.role, u.is_premium, u.avatar, u.preferences,
              u.xp, u.level, u.streak, u.last_active_date, u.unlocked_badges,
              u.practice_attempts, u.grade, u.premium_since, u.created_at, u.updated_at,
+             (u.password_hash IS NOT NULL AND u.password_hash != $2) AS has_password,
              COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks,
              COALESCE(nagg.notifications, '[]') as notifications,
              COALESCE((SELECT COUNT(*) FROM notifications WHERE user_id = u.id AND is_read IS NOT TRUE), 0)::int as unread_count
@@ -142,7 +148,7 @@ router.get('/profile', authenticateToken, async (req: express.Request, res: expr
       ) nagg ON true
       WHERE u.id = $1
       GROUP BY u.id, nagg.notifications
-    `, [userId]);
+    `, [userId, OAUTH_PASSWORD_PLACEHOLDER]);
 
     if (userResult.rows.length === 0) {
       res.status(404).json({
