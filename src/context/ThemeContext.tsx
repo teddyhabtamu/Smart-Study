@@ -1,30 +1,35 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+  type ThemeId,
+  ALL_THEMES,
+  isThemeId,
+  type AutoSlot,
+  type AutoSlotMap,
+  DEFAULT_AUTO_SLOTS,
+  parseAutoSlots,
+  currentAutoTheme,
+  currentSlot,
+} from './themeSchedule';
+
+// Re-export the canonical theme types from the pure schedule module so
+// existing `from '../context/ThemeContext'` imports keep working.
+export type { ThemeId, AutoSlot, AutoSlotMap };
+export { ALL_THEMES, DEFAULT_AUTO_SLOTS };
 
 // ---------------------------------------------------------------------------
-// Theme system (Phase 2 wardrobe: 3 lights + 3 darks).
+// Theme system (Phase 2 wardrobe: 3 lights + 3 darks, + Auto schedule).
 //
 // Themes are CSS-variable sets flipped by one data-theme attribute on <html>
 // (see the THEMES block in index.css; palette wiring in tailwind.config).
 // Switching is instant and class-free. Preference persists in localStorage so
-// guests keep their theme; 'system' follows the OS color scheme live.
+// guests keep their theme.
 //
-// Lineup rationale (researched Aug-2026 theme popularity + reading science):
-// - Ivory: classic warm-paper light, the pixel-identical default.
-// - Parchment: sepia paper — warm mode cuts long-session eye fatigue ~34%.
-// - Matcha: pale-green light — green tests highest for student attention.
-// - Midnight Iris: violet dark — cozy Catppuccin/Dracula-adjacent night.
-// - Abyss: Tokyo-night navy — the internet's most screenshot-loved dark.
-// - Ember: Gruvbox warm retro dark — the marathon-session proven palette.
+// Preferences: a fixed theme | 'system' (OS setting, live) | 'auto' (clock
+// schedule: Day Ivory / Evening Parchment / Night Iris by default, each slot
+// user-overridable and persisted separately).
 // ---------------------------------------------------------------------------
 
-export type ThemeId =
-  | 'ivory'
-  | 'parchment'
-  | 'matcha'
-  | 'midnight-iris'
-  | 'abyss'
-  | 'ember';
-export type ThemePreference = ThemeId | 'system';
+export type ThemePreference = ThemeId | 'system' | 'auto';
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -81,6 +86,7 @@ export const THEMES: ThemeMeta[] = [
 ];
 
 const STORAGE_KEY = 'smartstudy-theme';
+const SLOTS_KEY = 'smartstudy-theme-slots';
 const META_COLORS: Record<ThemeId, string> = {
   ivory: '#FAFAFA',
   parchment: '#F6F0E4',
@@ -90,26 +96,22 @@ const META_COLORS: Record<ThemeId, string> = {
   ember: '#1C1916',
 };
 
-const ALL_THEMES: ThemeId[] = [
-  'ivory',
-  'parchment',
-  'matcha',
-  'midnight-iris',
-  'abyss',
-  'ember',
-];
-
-const isThemeId = (v: unknown): v is ThemeId =>
-  typeof v === 'string' && ALL_THEMES.includes(v as ThemeId);
-
 const loadPreference = (): ThemePreference => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'system' || isThemeId(stored)) return stored;
+    if (stored === 'system' || stored === 'auto' || isThemeId(stored)) return stored;
   } catch {
     // Private mode etc. — fall through to system.
   }
   return 'system';
+};
+
+const loadAutoSlots = (): AutoSlotMap => {
+  try {
+    return parseAutoSlots(localStorage.getItem(SLOTS_KEY));
+  } catch {
+    return { ...DEFAULT_AUTO_SLOTS };
+  }
 };
 
 const resolveSystem = (): ThemeId =>
@@ -129,20 +131,36 @@ interface ThemeContextType {
   preference: ThemePreference;
   theme: ThemeId;
   setPreference: (p: ThemePreference) => void;
+  /** Active Day/Evening/Night mapping (defaults until overridden). */
+  autoSlots: AutoSlotMap;
+  /** The schedule slot currently in effect (meaningful when preference is 'auto'). */
+  autoSlot: AutoSlot;
+  /** Override one Auto slot's theme; persists. Applies immediately in Auto mode. */
+  setAutoSlot: (slot: AutoSlot, theme: ThemeId) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   preference: 'system',
   theme: 'ivory',
   setPreference: () => {},
+  autoSlots: DEFAULT_AUTO_SLOTS,
+  autoSlot: 'day',
+  setAutoSlot: () => {},
 });
+
+const resolveTheme = (pref: ThemePreference, slots: AutoSlotMap): ThemeId => {
+  if (pref === 'system') return resolveSystem();
+  if (pref === 'auto') return currentAutoTheme(slots);
+  return pref;
+};
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [preference, setPreferenceState] = useState<ThemePreference>(loadPreference);
-  const [theme, setTheme] = useState<ThemeId>(() => {
-    const pref = loadPreference();
-    return pref === 'system' ? resolveSystem() : pref;
-  });
+  const [autoSlots, setAutoSlotsState] = useState<AutoSlotMap>(loadAutoSlots);
+  const [theme, setTheme] = useState<ThemeId>(() =>
+    resolveTheme(loadPreference(), loadAutoSlots()),
+  );
+  const [autoSlot, setAutoSlotTick] = useState<AutoSlot>(() => currentSlot());
 
   // Apply on change + follow the OS while preference is 'system'.
   useEffect(() => {
@@ -157,6 +175,27 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => mq.removeEventListener('change', onChange);
   }, [preference]);
 
+  // While preference is 'auto', re-resolve on a 30s tick (slot boundaries are
+  // hourly; 30s keeps it prompt without pointless renders) and whenever the
+  // tab regains visibility after sleeping through a boundary.
+  useEffect(() => {
+    if (preference !== 'auto') return;
+    const tick = () => {
+      setAutoSlotTick(currentSlot());
+      setTheme((prev) => {
+        const next = currentAutoTheme(autoSlots);
+        return next === prev ? prev : next;
+      });
+    };
+    tick();
+    const id = window.setInterval(tick, 30_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [preference, autoSlots]);
+
   const setPreference = useCallback((p: ThemePreference) => {
     setPreferenceState(p);
     try {
@@ -164,11 +203,26 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // Non-fatal: theme still applies for the session.
     }
-    setTheme(p === 'system' ? resolveSystem() : p);
+    // Read slots fresh so a just-saved mapping applies on the same tap.
+    setTheme(resolveTheme(p, loadAutoSlots()));
+  }, []);
+
+  const setAutoSlot = useCallback((slot: AutoSlot, slotTheme: ThemeId) => {
+    setAutoSlotsState((prev) => {
+      const next = { ...prev, [slot]: slotTheme };
+      try {
+        localStorage.setItem(SLOTS_KEY, JSON.stringify(next));
+      } catch {
+        // Non-fatal: mapping still applies for the session.
+      }
+      return next;
+    });
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ preference, theme, setPreference }}>
+    <ThemeContext.Provider
+      value={{ preference, theme, setPreference, autoSlots, autoSlot, setAutoSlot }}
+    >
       {children}
     </ThemeContext.Provider>
   );

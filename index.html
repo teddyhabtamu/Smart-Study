@@ -16,8 +16,24 @@
        dark preference never flashes light. Mirrors ThemeContext logic. -->
   <script>
     try {
+      var themes = ['ivory', 'parchment', 'matcha', 'midnight-iris', 'abyss', 'ember'];
       var t = localStorage.getItem('smartstudy-theme');
-      if (['ivory', 'parchment', 'matcha', 'midnight-iris', 'abyss', 'ember'].indexOf(t) === -1) {
+      if (t === 'auto') {
+        // Mirror of themeSchedule.ts (Day 6-17, Evening 17-22, Night else).
+        // Deliberate duplicate: this must run before any bundle loads.
+        var slots = { day: 'ivory', evening: 'parchment', night: 'midnight-iris' };
+        try {
+          var saved = JSON.parse(localStorage.getItem('smartstudy-theme-slots') || '{}');
+          if (saved) {
+            if (themes.indexOf(saved.day) !== -1) slots.day = saved.day;
+            if (themes.indexOf(saved.evening) !== -1) slots.evening = saved.evening;
+            if (themes.indexOf(saved.night) !== -1) slots.night = saved.night;
+          }
+        } catch (e2) { /* corrupt slots — defaults stand */ }
+        var h = new Date().getHours();
+        t = (h >= 6 && h < 17) ? slots.day : (h >= 17 && h < 22) ? slots.evening : slots.night;
+      }
+      if (themes.indexOf(t) === -1) {
         t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
           ? 'midnight-iris' : 'ivory';
       }

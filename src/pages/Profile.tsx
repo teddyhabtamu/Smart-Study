@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, Palette, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles } from 'lucide-react';
+import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, Palette, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles, Sun, Sunset, Moon } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BADGES } from '../constants';
 import { usersAPI } from '../services/api';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
-import { useTheme, THEMES, type ThemePreference } from '../context/ThemeContext';
+import { useTheme, THEMES, type ThemePreference, type AutoSlot } from '../context/ThemeContext';
+import { AUTO_SLOT_META, themeName } from '../context/themeSchedule';
 
 type Tab = 'general' | 'security' | 'notifications' | 'achievements' | 'pro' | 'appearance';
 type NotificationView = 'preferences' | 'history';
@@ -21,7 +22,7 @@ const IconMap: { [key: string]: any } = {
 const Profile: React.FC = () => {
   const { user, logout, changePassword, updateUser, markNotificationsAsRead, deleteNotification } = useAuth();
   const { addToast } = useToast();
-  const { preference: themePreference, theme: activeTheme, setPreference: setThemePreference } = useTheme();
+  const { preference: themePreference, theme: activeTheme, setPreference: setThemePreference, autoSlots, autoSlot, setAutoSlot } = useTheme();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('general');
@@ -526,6 +527,83 @@ const Profile: React.FC = () => {
                     </span>
                     {themePreference === 'system' && <Check size={18} className="text-ink flex-shrink-0" />}
                   </button>
+
+                  {/* Auto schedule — clock-driven themes, per-slot overridable */}
+                  <button
+                    onClick={() => setThemePreference('auto')}
+                    aria-pressed={themePreference === 'auto'}
+                    className={`flex items-center gap-4 p-4 rounded-xl border text-left transition-all ${
+                      themePreference === 'auto'
+                        ? 'border-zinc-900 ring-2 ring-zinc-900/10 bg-zinc-50'
+                        : 'border-zinc-200 hover:border-zinc-300 bg-surface'
+                    }`}
+                  >
+                    <span className="w-10 h-10 rounded-lg bg-zinc-900 text-amber-400 flex items-center justify-center flex-shrink-0">
+                      <Clock size={18} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-semibold text-ink text-sm">
+                        Auto schedule
+                        {themePreference === 'auto' && (
+                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            Now · {themeName(activeTheme, THEMES)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-xs text-zinc-500">
+                        Day {themeName(autoSlots.day, THEMES)} · Evening {themeName(autoSlots.evening, THEMES)} · Night {themeName(autoSlots.night, THEMES)}
+                      </span>
+                    </span>
+                    {themePreference === 'auto' && <Check size={18} className="text-ink flex-shrink-0" />}
+                  </button>
+
+                  {/* Per-slot pickers — visible only in Auto mode */}
+                  {themePreference === 'auto' && (
+                    <div className="rounded-xl border border-zinc-200 bg-surface p-4 space-y-4 animate-fade-in">
+                      <p className="text-xs text-zinc-500">
+                        Auto follows your clock. Tap a dot to change what each part of the day uses.
+                      </p>
+                      {AUTO_SLOT_META.map(({ slot, label, hours }) => {
+                        const SlotIcon = slot === 'day' ? Sun : slot === 'evening' ? Sunset : Moon;
+                        return (
+                          <div key={slot} className="flex items-center gap-3">
+                            <span className="flex items-center gap-2 w-32 flex-shrink-0 min-w-0">
+                              <SlotIcon size={15} className="text-zinc-400 flex-shrink-0" />
+                              <span className="min-w-0">
+                                <span className="block text-xs font-bold text-ink leading-tight">
+                                  {label}
+                                  {autoSlot === slot && (
+                                    <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">Now</span>
+                                  )}
+                                </span>
+                                <span className="block text-[10px] text-zinc-400 leading-tight">{hours}</span>
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1.5 flex-wrap" role="group" aria-label={`${label} theme`}>
+                              {THEMES.map((t) => (
+                                <button
+                                  key={t.id}
+                                  title={`${label}: ${t.name}`}
+                                  aria-label={`${label} theme: ${t.name}`}
+                                  aria-pressed={autoSlots[slot] === t.id}
+                                  onClick={() => setAutoSlot(slot as AutoSlot, t.id)}
+                                  className={`w-6 h-6 rounded-full border transition-all ${
+                                    autoSlots[slot] === t.id
+                                      ? 'border-zinc-900 ring-2 ring-zinc-900/20 scale-110'
+                                      : 'border-black/10 hover:scale-105'
+                                  }`}
+                                  style={{ backgroundColor: t.swatches[0] }}
+                                />
+                              ))}
+                            </span>
+                            <span className="ml-auto text-[11px] font-medium text-zinc-500 flex-shrink-0 hidden sm:block">
+                              {themeName(autoSlots[slot], THEMES)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {THEMES.map((t) => (
                     <button
