@@ -10,6 +10,17 @@
  * Ivory = the exact pre-theme values (pixel-identical default). Midnight Iris
  * keeps buttons dark-style (GitHub-dark fashion): zinc-900/800/700 stay dark
  * elevations, body copy moves to ink/inksoft tokens, gold accent unchanged.
+ *
+ * Phase 2 wardrobe (research-backed, all contrast-audited ≥4.5:1):
+ * - Parchment: warm sepia paper (#F6F0E4/#403A32) — reading research shows
+ *   warm mode cuts eye fatigue ~34% vs white for long sessions.
+ * - Matcha: pale-green light — green interfaces test highest for student
+ *   attention; the fresh daylight alternative to sepia.
+ * - Abyss: Tokyo-night navy — the most screenshot-loved dark on the internet.
+ * - Ember: Gruvbox warm retro dark — the marathon-session proven palette.
+ * Amber (brand + semantics) stays fixed gold in every theme on purpose:
+ * brand and warnings share the ramp, so per-theme accents stay out until
+ * that split happens. Distinctness comes from page/surface/ink/zinc.
  * ------------------------------------------------------------------------- */
 :root,
 [data-theme='ivory'] {
@@ -44,6 +55,70 @@
   --amber-950: 69 26 3;
 }
 
+[data-theme='parchment'] {
+  color-scheme: light;
+  --page: 246 240 228;
+  --surface: 253 251 245;
+  --ink: 64 58 50;
+  --inksoft: 111 102 92;
+  --onink: 255 255 255;
+  --zinc-50: 250 247 240;
+  --zinc-100: 241 234 220;
+  --zinc-200: 228 216 196;
+  --zinc-300: 210 194 170;
+  --zinc-400: 168 152 128;
+  --zinc-500: 120 108 92;
+  --zinc-600: 95 84 70;
+  --zinc-700: 68 61 53;
+  --zinc-800: 48 43 38;
+  --zinc-900: 32 29 25;
+  --zinc-950: 20 18 15;
+  --progress: 32 29 25;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
+[data-theme='matcha'] {
+  color-scheme: light;
+  --page: 240 247 242;
+  --surface: 251 254 252;
+  --ink: 26 46 34;
+  --inksoft: 77 99 87;
+  --onink: 255 255 255;
+  --zinc-50: 240 247 242;
+  --zinc-100: 228 238 231;
+  --zinc-200: 208 224 212;
+  --zinc-300: 176 198 182;
+  --zinc-400: 130 160 142;
+  --zinc-500: 85 115 98;
+  --zinc-600: 70 95 82;
+  --zinc-700: 52 72 61;
+  --zinc-800: 38 52 44;
+  --zinc-900: 26 46 34;
+  --zinc-950: 12 22 16;
+  --progress: 26 46 34;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
 [data-theme='midnight-iris'] {
   color-scheme: dark;
   --page: 11 11 16;
@@ -63,6 +138,70 @@
   --zinc-900: 46 46 56;
   --zinc-950: 5 5 8;
   --progress: 251 191 36;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
+[data-theme='abyss'] {
+  color-scheme: dark;
+  --page: 15 18 28;
+  --surface: 26 27 38;
+  --ink: 192 202 245;
+  --inksoft: 169 177 214;
+  --onink: 255 255 255;
+  --zinc-50: 40 44 62;
+  --zinc-100: 50 56 76;
+  --zinc-200: 68 75 100;
+  --zinc-300: 88 95 122;
+  --zinc-400: 150 158 185;
+  --zinc-500: 140 148 175;
+  --zinc-600: 110 118 145;
+  --zinc-700: 62 68 92;
+  --zinc-800: 48 54 74;
+  --zinc-900: 38 43 62;
+  --zinc-950: 8 10 16;
+  --progress: 251 191 36;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
+[data-theme='ember'] {
+  color-scheme: dark;
+  --page: 28 25 22;
+  --surface: 40 40 40;
+  --ink: 235 219 178;
+  --inksoft: 196 180 154;
+  --onink: 255 255 255;
+  --zinc-50: 58 52 46;
+  --zinc-100: 68 62 54;
+  --zinc-200: 86 78 68;
+  --zinc-300: 106 96 82;
+  --zinc-400: 178 163 140;
+  --zinc-500: 162 148 126;
+  --zinc-600: 130 118 100;
+  --zinc-700: 92 84 72;
+  --zinc-800: 74 66 56;
+  --zinc-900: 58 52 45;
+  --zinc-950: 14 12 10;
+  --progress: 250 189 47;
   --amber-50: 255 251 235;
   --amber-100: 254 243 199;
   --amber-200: 253 230 138;

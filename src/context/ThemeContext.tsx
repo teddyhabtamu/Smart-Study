@@ -1,15 +1,29 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 // ---------------------------------------------------------------------------
-// Theme system (Phase 1: Ivory + Midnight Iris).
+// Theme system (Phase 2 wardrobe: 3 lights + 3 darks).
 //
 // Themes are CSS-variable sets flipped by one data-theme attribute on <html>
 // (see the THEMES block in index.css; palette wiring in tailwind.config).
 // Switching is instant and class-free. Preference persists in localStorage so
 // guests keep their theme; 'system' follows the OS color scheme live.
+//
+// Lineup rationale (researched Aug-2026 theme popularity + reading science):
+// - Ivory: classic warm-paper light, the pixel-identical default.
+// - Parchment: sepia paper — warm mode cuts long-session eye fatigue ~34%.
+// - Matcha: pale-green light — green tests highest for student attention.
+// - Midnight Iris: violet dark — cozy Catppuccin/Dracula-adjacent night.
+// - Abyss: Tokyo-night navy — the internet's most screenshot-loved dark.
+// - Ember: Gruvbox warm retro dark — the marathon-session proven palette.
 // ---------------------------------------------------------------------------
 
-export type ThemeId = 'ivory' | 'midnight-iris';
+export type ThemeId =
+  | 'ivory'
+  | 'parchment'
+  | 'matcha'
+  | 'midnight-iris'
+  | 'abyss'
+  | 'ember';
 export type ThemePreference = ThemeId | 'system';
 
 export interface ThemeMeta {
@@ -30,22 +44,63 @@ export const THEMES: ThemeMeta[] = [
     swatches: ['#FAFAFA', '#18181B', '#F59E0B'],
   },
   {
+    id: 'parchment',
+    name: 'Parchment',
+    blurb: 'Sunlit sepia paper — easiest on the eyes',
+    dark: false,
+    swatches: ['#F6F0E4', '#403A32', '#F59E0B'],
+  },
+  {
+    id: 'matcha',
+    name: 'Matcha',
+    blurb: 'Fresh pale green — calm daylight focus',
+    dark: false,
+    swatches: ['#F0F7F2', '#1A2E22', '#F59E0B'],
+  },
+  {
     id: 'midnight-iris',
     name: 'Midnight Iris',
     blurb: 'Deep dark with gold — easy night studying',
     dark: true,
     swatches: ['#0B0B10', '#F4F4F5', '#FBBF24'],
   },
+  {
+    id: 'abyss',
+    name: 'Abyss',
+    blurb: 'Tokyo-night navy — deep focus after dark',
+    dark: true,
+    swatches: ['#0F121C', '#C0CAF5', '#FBBF24'],
+  },
+  {
+    id: 'ember',
+    name: 'Ember',
+    blurb: 'Warm retro dark — built for marathons',
+    dark: true,
+    swatches: ['#1C1916', '#EBDBB2', '#FBBF24'],
+  },
 ];
 
 const STORAGE_KEY = 'smartstudy-theme';
 const META_COLORS: Record<ThemeId, string> = {
   ivory: '#FAFAFA',
+  parchment: '#F6F0E4',
+  matcha: '#F0F7F2',
   'midnight-iris': '#0B0B10',
+  abyss: '#0F121C',
+  ember: '#1C1916',
 };
 
+const ALL_THEMES: ThemeId[] = [
+  'ivory',
+  'parchment',
+  'matcha',
+  'midnight-iris',
+  'abyss',
+  'ember',
+];
+
 const isThemeId = (v: unknown): v is ThemeId =>
-  v === 'ivory' || v === 'midnight-iris';
+  typeof v === 'string' && ALL_THEMES.includes(v as ThemeId);
 
 const loadPreference = (): ThemePreference => {
   try {

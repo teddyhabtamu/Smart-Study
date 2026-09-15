@@ -17,7 +17,7 @@
   <script>
     try {
       var t = localStorage.getItem('smartstudy-theme');
-      if (t !== 'ivory' && t !== 'midnight-iris') {
+      if (['ivory', 'parchment', 'matcha', 'midnight-iris', 'abyss', 'ember'].indexOf(t) === -1) {
         t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
           ? 'midnight-iris' : 'ivory';
       }
