@@ -21,7 +21,7 @@ const IconMap: { [key: string]: any } = {
 };
 
 const Profile: React.FC = () => {
-  const { user, logout, changePassword, updateUser, markNotificationsAsRead, deleteNotification } = useAuth();
+  const { user, logout, changePassword, updateUser, markNotificationsAsRead, deleteNotification, refreshUser } = useAuth();
   const { addToast } = useToast();
   const { preference: themePreference, theme: activeTheme, setPreference: setThemePreference, autoSlots, autoSlot, setAutoSlot } = useTheme();
   const navigate = useNavigate();
@@ -47,6 +47,14 @@ const Profile: React.FC = () => {
   const [deleteCodeEmail, setDeleteCodeEmail] = useState('');
   const [deleteCodeSending, setDeleteCodeSending] = useState(false);
   const [deleteCodeSent, setDeleteCodeSent] = useState(false);
+  // OAuth set-password flow (Security tab, passwordless accounts only).
+  const [setupCode, setSetupCode] = useState('');
+  const [setupCodeSent, setSetupCodeSent] = useState(false);
+  const [setupCodeEmail, setSetupCodeEmail] = useState('');
+  const [setupCodeSending, setSetupCodeSending] = useState(false);
+  const [setupNew, setSetupNew] = useState('');
+  const [setupConfirm, setSetupConfirm] = useState('');
+  const [setupError, setSetupError] = useState('');
   // Inline modal error (persists until the next keystroke): toasts vanish in
   // seconds, but a wrong-code/password message must stay visible while the
   // user corrects it — and the modal must stay open for the same reason.
@@ -233,6 +241,46 @@ const Profile: React.FC = () => {
     } catch (error: any) {
       console.error('Password change error:', error);
       addToast(error.message || "Failed to update password.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const requestSetupCode = async () => {
+    try {
+      setSetupCodeSending(true);
+      const res = await usersAPI.requestPasswordCode();
+      setSetupCodeEmail(res?.email || '');
+      setSetupCodeSent(true);
+      setSetupError('');
+      addToast('Verification code sent to your email', 'success');
+    } catch (error: any) {
+      console.error('Setup code error:', error);
+      addToast(error.message || 'Failed to send verification code', 'error');
+    } finally {
+      setSetupCodeSending(false);
+    }
+  };
+
+  const handleSetupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (setupNew !== setupConfirm) {
+      setSetupError('Passwords do not match.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await usersAPI.setAccountPassword(setupCode, setupNew, setupConfirm);
+      setSetupCode('');
+      setSetupNew('');
+      setSetupConfirm('');
+      setSetupError('');
+      addToast('Password set successfully — you can now sign in with email + password too.', 'success');
+      // Refresh so hasPassword flips and this panel swaps to change-password.
+      await refreshUser().catch(() => {});
+    } catch (error: any) {
+      console.error('Set password error:', error);
+      setSetupError(error.message || 'Failed to set password.');
     } finally {
       setIsSaving(false);
     }
@@ -931,6 +979,95 @@ const Profile: React.FC = () => {
                   <p className="text-sm text-zinc-500">Manage your password and account security.</p>
                 </div>
 
+                {/* Google-only accounts have no password yet: code-verified
+                    setup first, then this panel becomes change-password. */}
+                {user?.hasPassword === false ? (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-sm text-amber-900 leading-relaxed">
+                      You signed in with Google, so there's no password on this account yet. Set one to sign in with email + password too.
+                    </p>
+                  </div>
+                  {!setupCodeSent ? (
+                    <button
+                      type="button"
+                      onClick={requestSetupCode}
+                      disabled={setupCodeSending}
+                      className="w-full px-4 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {setupCodeSending ? 'Sending…' : 'Email me a setup code'}
+                    </button>
+                  ) : (
+                    <>
+                      <p className="text-xs text-zinc-500">
+                        {setupCodeEmail
+                          ? `Code sent to ${setupCodeEmail} — expires in 10 minutes.`
+                          : 'Code sent — it expires in 10 minutes.'}
+                      </p>
+                      <div>
+                        <label className="block text-sm font-medium text-inksoft mb-1">6-digit code</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          value={setupCode}
+                          onChange={(e) => { setSetupCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSetupError(''); }}
+                          placeholder="123456"
+                          className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 tracking-[0.3em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-inksoft mb-1">New Password</label>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={setupNew}
+                          onChange={(e) => { setSetupNew(e.target.value); setSetupError(''); }}
+                          placeholder="At least 6 characters"
+                          className="w-full px-4 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-inksoft mb-1">Confirm New Password</label>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={setupConfirm}
+                          onChange={(e) => { setSetupConfirm(e.target.value); setSetupError(''); }}
+                          className={`w-full px-4 py-2 bg-surface border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 transition-colors text-sm ${
+                            setupConfirm && setupNew !== setupConfirm
+                              ? 'border-red-300 focus:border-red-500'
+                              : 'border-zinc-300 focus:border-zinc-500'
+                          }`}
+                        />
+                      </div>
+                      {setupError && (
+                        <p role="alert" className="text-xs font-medium text-red-600">{setupError}</p>
+                      )}
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={requestSetupCode}
+                          disabled={setupCodeSending}
+                          className="text-xs font-medium text-zinc-500 hover:text-ink disabled:opacity-50 transition-colors"
+                        >
+                          {setupCodeSending ? 'Sending…' : 'Resend code'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSetupSubmit}
+                          disabled={isSaving || setupCode.length !== 6 || setupNew.length < 6 || setupNew !== setupConfirm}
+                          className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isSaving ? 'Setting…' : 'Set Password'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                ) : (
+                <>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-inksoft mb-1">Current Password</label>
@@ -1021,6 +1158,8 @@ const Profile: React.FC = () => {
                     )}
                   </button>
                 </div>
+                </>
+                )}
 
                 <div className="mt-8 pt-8 border-t border-zinc-200">
                   <h3 className="text-sm font-bold text-red-600 mb-2 flex items-center gap-2">

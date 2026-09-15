@@ -335,6 +335,42 @@ export class EmailService {
     }
   };
   /**
+   * Password-setup verification code (OAuth set-password flow).
+   * Inline HTML like the deletion-code email: no dashboard template needed.
+   * Never log the code.
+   */
+  static async sendPasswordSetupCodeEmail(
+    email: string,
+    name: string,
+    code: string
+  ): Promise<boolean> {
+    try {
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #18181b;">
+          <h2 style="margin-bottom: 8px;">Set your SmartStudy password</h2>
+          <p>Hi ${name},</p>
+          <p>Someone requested to set a password on your Google sign-in account. Use this code to confirm — it expires in 10 minutes:</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 20px 0;">${code}</div>
+          <p style="color: #71717a; font-size: 13px;">If this wasn't you, ignore this email — nothing changes, and you may want to review your account security.</p>
+        </div>`;
+      const result = await this.sendEmail({
+        to: email,
+        subject: 'Set your SmartStudy password',
+        html,
+        text: `Hi ${name}, your SmartStudy password-setup code is ${code}. It expires in 10 minutes. If this wasn't you, ignore this email.`,
+      });
+      if (!result) console.warn('⚠️ Setup-code email sending returned false for:', email);
+      return result;
+    } catch (error: any) {
+      console.error('❌ Failed to send setup-code email:', {
+        email,
+        error: error.message || error,
+      });
+      return false;
+    }
+  };
+
+  /**
    * Send email verification email to new users using Brevo template
    * @param email - User's email address
    * @param name - User's name

@@ -531,6 +531,18 @@ export const usersAPI = {
       method: 'POST',
     }),
 
+  requestPasswordCode: (): Promise<{ email?: string }> =>
+    apiRequest('/users/account/password-code', {
+      method: 'POST',
+    }),
+
+  setAccountPassword: (code: string, newPassword: string, confirmPassword: string): Promise<void> =>
+    apiRequest('/users/account/password', {
+      method: 'PUT',
+      body: JSON.stringify({ code, newPassword, confirmPassword }),
+      // 401s here mean wrong code, never an expired session.
+    }, true, 3, 1000, true),
+
   deleteAccount: (reauth?: { password?: string; code?: string }): Promise<void> =>
     apiRequest('/users/account', {
       method: 'DELETE',

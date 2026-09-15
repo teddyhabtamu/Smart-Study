@@ -79,6 +79,31 @@ export const maskEmail = (email: string): string => {
   return `${(local || '').slice(0, 1)}***@${domain}`;
 };
 
+// --- Single-use emailed-code attempts, shared by deletion + password-setup.
+// Pure decision table over the live code row; the handler owns the UPDATEs.
+// attempts arrives as number (INT col) but string-safe just in case. ---
+export interface LiveCodeRow {
+  id: string;
+  code_hash: string;
+  attempts: number | string;
+}
+
+export type CodeVerdict =
+  | { status: 'ok'; id: string }
+  | { status: 'missing' }
+  | { status: 'locked'; id: string }
+  | { status: 'invalid'; id: string; attemptsLeft: number };
+
+export const resolveCodeAttempt = (row: LiveCodeRow | undefined, code: string): CodeVerdict => {
+  if (!row) return { status: 'missing' };
+  const attempts = typeof row.attempts === 'string' ? parseInt(row.attempts, 10) || 0 : row.attempts;
+  if (attempts >= DELETION_CODE_MAX_ATTEMPTS) return { status: 'locked', id: row.id };
+  if (!deletionCodeMatches(code, row.code_hash)) {
+    return { status: 'invalid', id: row.id, attemptsLeft: DELETION_CODE_MAX_ATTEMPTS - attempts - 1 };
+  }
+  return { status: 'ok', id: row.id };
+};
+
 // Configure multer for memory storage (we'll upload directly to Supabase)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -849,23 +874,23 @@ router.delete('/account', authenticateToken, async (req: express.Request, res: e
          ORDER BY created_at DESC LIMIT 1`,
         [userId],
       );
-      const row = codeRow.rows[0];
-      if (!row) {
+      const attempt = resolveCodeAttempt(codeRow.rows[0], code);
+      if (attempt.status === 'missing') {
         res.status(400).json({ success: false, code: 'NO_ACTIVE_CODE', message: 'Code expired or missing — request a new one' } as ApiResponse);
         return;
       }
-      if (row.attempts >= DELETION_CODE_MAX_ATTEMPTS) {
-        await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE id = $1', [row.id]);
+      if (attempt.status === 'locked') {
+        await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE id = $1', [attempt.id]);
         res.status(429).json({ success: false, code: 'CODE_LOCKED', message: 'Too many wrong attempts — request a new code' } as ApiResponse);
         return;
       }
-      if (!deletionCodeMatches(code, row.code_hash)) {
-        const attemptsLeft = DELETION_CODE_MAX_ATTEMPTS - row.attempts - 1;
-        await query('UPDATE account_deletion_codes SET attempts = attempts + 1 WHERE id = $1', [row.id]);
-        res.status(401).json({ success: false, code: 'INVALID_CODE', message: `Incorrect code${attemptsLeft > 0 ? ` — ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left` : ''}`, data: { attemptsLeft } } as ApiResponse);
+      if (attempt.status === 'invalid') {
+        const n = attempt.attemptsLeft;
+        await query('UPDATE account_deletion_codes SET attempts = attempts + 1 WHERE id = $1', [attempt.id]);
+        res.status(401).json({ success: false, code: 'INVALID_CODE', message: `Incorrect code${n > 0 ? ` — ${n} attempt${n === 1 ? '' : 's'} left` : ''}`, data: { attemptsLeft: n } } as ApiResponse);
         return;
       }
-      await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE id = $1', [row.id]);
+      await query('UPDATE account_deletion_codes SET used_at = NOW() WHERE id = $1', [attempt.id]);
     }
 
     // Delete user account (this will cascade delete related data due to ON DELETE CASCADE)
@@ -885,6 +910,116 @@ router.delete('/account', authenticateToken, async (req: express.Request, res: e
       success: false,
       message: 'Failed to delete account'
     } as ApiResponse);
+  }
+});
+
+// Issue a password-setup code (OAuth-only accounts setting their first
+// password). Without inbox proof, a stolen session could set a password and
+// take over the account — hence the code, mirroring deletion codes.
+router.post('/account/password-code', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const userResult = await query('SELECT id, name, email, password_hash FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+    if (!user) {
+      res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'User not found' } as ApiResponse);
+      return;
+    }
+    if (hasUsablePassword(user.password_hash)) {
+      res.status(400).json({ success: false, code: 'HAS_PASSWORD', message: 'This account already has a password — use change password instead' } as ApiResponse);
+      return;
+    }
+    const recent = await query(
+      `SELECT COUNT(*) AS n FROM password_setup_codes
+       WHERE user_id = $1 AND created_at > NOW() - INTERVAL '15 minutes'`,
+      [userId],
+    );
+    if (parseInt(recent.rows[0]?.n || '0', 10) >= DELETION_CODE_ISSUE_LIMIT) {
+      res.status(429).json({ success: false, code: 'TOO_MANY_CODES', message: 'Too many codes requested. Please try again in 15 minutes.' } as ApiResponse);
+      return;
+    }
+    await query('UPDATE password_setup_codes SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL', [userId]);
+    const code = generateDeletionCode();
+    await query(
+      `INSERT INTO password_setup_codes (user_id, code_hash, expires_at)
+       VALUES ($1, $2, NOW() + INTERVAL '10 minutes')`,
+      [userId, hashDeletionCode(code)],
+    );
+    // Awaited (fail closed): a code the inbox never got is unusable.
+    const sent = await EmailService.sendPasswordSetupCodeEmail(user.email, user.name, code);
+    if (!sent) {
+      res.status(503).json({ success: false, code: 'EMAIL_SEND_FAILED', message: 'Could not send the code. Please try again later.' } as ApiResponse);
+      return;
+    }
+    res.json({ success: true, data: { email: maskEmail(user.email) } } as ApiResponse);
+  } catch (error) {
+    console.error('Setup code issue error:', error);
+    res.status(500).json({ success: false, message: 'Failed to send verification code' } as ApiResponse);
+  }
+});
+
+// Set the first password on an OAuth-only account (code-verified).
+router.put('/account/password', [
+  authenticateToken,
+  body('code').matches(/^\d{6}$/).withMessage('A 6-digit code is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters long'),
+  body('confirmPassword').custom((value, { req }) => {
+    if (value !== req.body.newPassword) {
+      throw new Error('Password confirmation does not match new password');
+    }
+    return true;
+  })
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { code, newPassword } = req.body;
+    const userResult = await query('SELECT id, name, email, password_hash FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+    if (!user) {
+      res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'User not found' } as ApiResponse);
+      return;
+    }
+    if (hasUsablePassword(user.password_hash)) {
+      res.status(400).json({ success: false, code: 'HAS_PASSWORD', message: 'This account already has a password — use change password instead' } as ApiResponse);
+      return;
+    }
+    const codeRow = await query(
+      `SELECT id, code_hash, attempts FROM password_setup_codes
+       WHERE user_id = $1 AND used_at IS NULL AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId],
+    );
+    const attempt = resolveCodeAttempt(codeRow.rows[0], code);
+    if (attempt.status === 'missing') {
+      res.status(400).json({ success: false, code: 'NO_ACTIVE_CODE', message: 'Code expired or missing — request a new one' } as ApiResponse);
+      return;
+    }
+    if (attempt.status === 'locked') {
+      await query('UPDATE password_setup_codes SET used_at = NOW() WHERE id = $1', [attempt.id]);
+      res.status(429).json({ success: false, code: 'CODE_LOCKED', message: 'Too many wrong attempts — request a new code' } as ApiResponse);
+      return;
+    }
+    if (attempt.status === 'invalid') {
+      const n = attempt.attemptsLeft;
+      await query('UPDATE password_setup_codes SET attempts = attempts + 1 WHERE id = $1', [attempt.id]);
+      res.status(401).json({ success: false, code: 'INVALID_CODE', message: `Incorrect code${n > 0 ? ` — ${n} attempt${n === 1 ? '' : 's'} left` : ''}` } as ApiResponse);
+      return;
+    }
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+    await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newPasswordHash, userId]);
+    await query('UPDATE password_setup_codes SET used_at = NOW() WHERE id = $1', [attempt.id]);
+
+    // Credential-change notification (non-blocking, mirrors change-password).
+    const changeTime = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    const userAgent = (req.headers['user-agent'] || 'Unknown device').slice(0, 100);
+    EmailService.sendPasswordResetSuccessEmail(user.email, user.name, changeTime, userAgent).catch((error) => {
+      console.error('❌ Failed to send password-set confirmation email:', error);
+    });
+
+    res.json({ success: true, message: 'Password set successfully' } as ApiResponse);
+  } catch (error) {
+    console.error('Set password error:', error);
+    res.status(500).json({ success: false, message: 'Failed to set password' } as ApiResponse);
   }
 });
 

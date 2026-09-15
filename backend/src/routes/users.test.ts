@@ -11,6 +11,7 @@ import {
   generateDeletionCode,
   hashDeletionCode,
   deletionCodeMatches,
+  resolveCodeAttempt,
   maskEmail,
   DELETION_CODE_MAX_ATTEMPTS,
 } from './users';
@@ -92,6 +93,27 @@ describe('deletion codes (OAuth path)', () => {
 
   it('exposes the attempt cap for the handler', () => {
     expect(DELETION_CODE_MAX_ATTEMPTS).toBe(5);
+  });
+});
+
+describe('resolveCodeAttempt (shared deletion + password-setup verdicts)', () => {
+  const row = (attempts: number | string) => ({ id: 'row1', code_hash: hashDeletionCode('123456'), attempts });
+
+  it('missing row -> missing', () => {
+    expect(resolveCodeAttempt(undefined, '123456')).toEqual({ status: 'missing' });
+  });
+
+  it('matching code -> ok with row id', () => {
+    expect(resolveCodeAttempt(row(0), '123456')).toEqual({ status: 'ok', id: 'row1' });
+  });
+
+  it('wrong code -> invalid with attempts left', () => {
+    expect(resolveCodeAttempt(row(2), '000000')).toEqual({ status: 'invalid', id: 'row1', attemptsLeft: 2 });
+  });
+
+  it('capped attempts -> locked (string counts from pg tolerated)', () => {
+    expect(resolveCodeAttempt(row(5), '123456')).toEqual({ status: 'locked', id: 'row1' });
+    expect(resolveCodeAttempt(row('5'), '123456')).toEqual({ status: 'locked', id: 'row1' });
   });
 });
 
