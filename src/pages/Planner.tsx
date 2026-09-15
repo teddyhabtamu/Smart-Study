@@ -196,9 +196,17 @@ const Planner: React.FC = () => {
       }
     };
 
+    // The tooltip is a popover, not a Dialog — but Esc must still dismiss it
+    // for keyboard users (the mobile backdrop only helps touch/mouse).
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedEventId) closeTooltip();
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [selectedEventId]);
 

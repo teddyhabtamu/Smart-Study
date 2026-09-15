@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../../components/Dialog';
 import { Upload, FileText, Trash2, Edit2, Search, CheckCircle, Youtube, PlaySquare, Loader2 } from 'lucide-react';
 import { GRADES, SUBJECTS } from '../../constants';
 import { FileType, Document, VideoLesson } from '../../types';
@@ -900,9 +900,11 @@ const ContentTab: React.FC = () => {
              )}
           </section>
         </div>
-      {deleteConfirmation.isOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+      <Dialog
+        open={deleteConfirmation.isOpen && mounted}
+        onClose={() => setDeleteConfirmation({ isOpen: false, id: null, title: null, type: null })}
+        label="Delete content?"
+      >
             <div className="p-4 sm:p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="p-3 rounded-full bg-red-100 text-red-600">
@@ -940,10 +942,7 @@ const ContentTab: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </>
   );
 };

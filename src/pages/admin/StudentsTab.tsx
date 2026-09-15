@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../../components/Dialog';
 import { Search, CheckCircle, Crown, Ban, Loader2, X } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../context/ToastContext';
@@ -265,9 +265,16 @@ const StudentsTab: React.FC = () => {
              </>
            )}
         </div>
-      {confirmationModal.isOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+      <Dialog
+        open={confirmationModal.isOpen && mounted}
+        onClose={closeConfirmationModal}
+        label={
+          confirmationModal.type === 'upgrade' ? 'Upgrade to Premium?' :
+          confirmationModal.type === 'downgrade' ? 'Downgrade to Free Plan?' :
+          confirmationModal.type === 'ban' ? 'Ban User?' :
+          confirmationModal.type === 'activate' ? 'Activate User?' : 'Confirm action'
+        }
+      >
             <div className="p-4 sm:p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className={`p-3 rounded-full ${
@@ -346,10 +353,7 @@ const StudentsTab: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </>
   );
 };

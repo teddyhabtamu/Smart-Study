@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import Dialog from '../../components/Dialog';
 import { Archive, ArchiveRestore, Briefcase, CheckCircle, Clock, Edit2, FileText, Loader2, Mail, MapPin, Save, Trash2, UserPlus, X } from 'lucide-react';
 import CustomSelect, { Option } from '../../components/CustomSelect';
 import { useToast } from '../../context/ToastContext';
@@ -538,9 +538,12 @@ const CareersTab: React.FC = () => {
           )}
 
           {/* Position Form Modal */}
-          {isPositionFormOpen && mounted && createPortal(
-            <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative animate-slide-up max-h-[90vh] overflow-hidden flex flex-col">
+          <Dialog
+            open={isPositionFormOpen && mounted}
+            onClose={() => { setIsPositionFormOpen(false); resetPositionForm(); }}
+            label={editingPositionId ? 'Edit job position' : 'Create job position'}
+            size="lg"
+          >
                 {/* Sticky Header */}
                 <div className="p-3 sm:p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl sticky top-0 z-10">
                   <h3 className="font-bold text-zinc-900 text-sm sm:text-base flex items-center gap-2">
@@ -676,14 +679,13 @@ const CareersTab: React.FC = () => {
                     </button>
                   </div>
                 </form>
-              </div>
-            </div>,
-            document.body
-          )}
+          </Dialog>
         </div>
-      {deleteApplicationConfirmation.isOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative animate-slide-up">
+      <Dialog
+        open={deleteApplicationConfirmation.isOpen && mounted}
+        onClose={() => setDeleteApplicationConfirmation({ isOpen: false, applicationId: null, applicantName: null })}
+        label="Delete job application?"
+      >
             <div className="p-4 sm:p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="p-3 rounded-full bg-red-100 text-red-600">
@@ -721,10 +723,7 @@ const CareersTab: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </Dialog>
     </>
   );
 };
