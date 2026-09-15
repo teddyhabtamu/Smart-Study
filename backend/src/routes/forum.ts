@@ -10,6 +10,27 @@ import { logAdminActivity } from '../services/adminAuditLog';
 
 const router = express.Router();
 
+// Pure vote-transition math shared by the post and comment vote endpoints.
+// current: the user's existing vote (1 | -1) or null for first-time voters.
+// Returns the counter delta to apply atomically (UPDATE ... SET votes =
+// votes + delta). Exported for unit tests.
+// Toggle-off removes the vote (-current); changing sides swings by the
+// difference (e.g. -1 -> +1 is +2). No flooring: clamping at zero dropped
+// downvotes and inflated later removals (see vote endpoints).
+export const voteTransition = (
+  current: number | null,
+  next: 1 | -1
+): { delta: number; message: string } => {
+  if (current === next) return { delta: -next, message: 'Vote removed' };
+  if (current === null) {
+    return { delta: next, message: next === 1 ? 'Voted' : 'Downvoted' };
+  }
+  return {
+    delta: next - current,
+    message: next === 1 ? 'Upvoted' : 'Vote changed to downvote',
+  };
+};
+
 // Test route
 router.get('/test', (req: express.Request, res: express.Response): void => {
   res.json({ success: true, message: 'Forum API is working' });
@@ -112,9 +133,20 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
     const { id } = req.params;
     const userId = req.user?.id; // May be undefined for non-authenticated users
 
-    // Get post
-    const posts = await dbAdmin.get('forum_posts');
-    const post = posts.find(p => p.id === id);
+    // Single indexed query: post + author. Never SELECT users.* here — the
+    // old code fetched ALL users (password hashes included) on every post
+    // view just to find one name. Only the display columns are selected.
+    const postRows = await query(
+      `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
+              p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at,
+              p.updated_at, p.author_id,
+              u.name as author, u.role as author_role, u.avatar as author_avatar
+       FROM forum_posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       WHERE p.id = $1`,
+      [id]
+    );
+    const post = postRows.rows[0];
 
     if (!post) {
       res.status(404).json({
@@ -124,7 +156,9 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
       return;
     }
 
-    // Track unique views for authenticated users
+    // Track unique views for authenticated users. Atomic increment: the old
+    // read-modify-write (views = post.views + 1) lost views under concurrent
+    // readers.
     if (userId) {
       const existingView = await query(
         'SELECT id FROM forum_views WHERE user_id = $1 AND post_id = $2',
@@ -134,68 +168,57 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
       if (existingView.rows.length === 0) {
         // First time viewing this post - record the view and increment count
         await query('INSERT INTO forum_views (user_id, post_id) VALUES ($1, $2)', [userId, id]);
-        await dbAdmin.update('forum_posts', id, { views: (post.views || 0) + 1 });
+        await query('UPDATE forum_posts SET views = views + 1 WHERE id = $1', [id]);
+        post.views = (post.views || 0) + 1;
       }
     } else {
       // For non-authenticated users, still increment views but don't track uniqueness
-      await dbAdmin.update('forum_posts', id, { views: (post.views || 0) + 1 });
+      await query('UPDATE forum_posts SET views = views + 1 WHERE id = $1', [id]);
+      post.views = (post.views || 0) + 1;
     }
 
-    // Get author info
-    const users = await dbAdmin.get('users');
-    const author = users.find(u => u.id === post.author_id);
+    // Comments + authors in one query, ordered in SQL (was: fetch ALL
+    // comments + ALL users, join in JS, sort in JS). Votes desc so the
+    // accepted/best answers surface first, oldest first within ties.
+    const commentsResult = await query(
+      `SELECT c.id, c.content, c.votes, c.is_accepted, c.is_edited,
+              c.created_at, c.updated_at, c.author_id,
+              u.name as author, u.role as author_role, u.avatar as author_avatar
+       FROM forum_comments c
+       LEFT JOIN users u ON c.author_id = u.id
+       WHERE c.post_id = $1
+       ORDER BY c.votes DESC, c.created_at ASC`,
+      [id]
+    );
+    const enrichedComments = commentsResult.rows.map((comment: any) => ({
+      id: comment.id,
+      content: comment.content,
+      votes: comment.votes || 0,
+      is_accepted: comment.is_accepted || false,
+      is_edited: comment.is_edited || false,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+      author: comment.author,
+      author_id: comment.author_id,
+      author_role: comment.author_role,
+      author_avatar: comment.author_avatar
+    }));
 
-    // Get comments
-    const comments = await dbAdmin.get('forum_comments');
-    const postComments = comments.filter(c => c.post_id === id);
-
-    // Enrich comments with author info
-    const enrichedComments = postComments.map(comment => {
-      const commentAuthor = users.find(u => u.id === comment.author_id);
-      return {
-        id: comment.id,
-        content: comment.content,
-        votes: comment.votes || 0,
-        is_accepted: comment.is_accepted || false,
-        is_edited: comment.is_edited || false,
-        created_at: comment.created_at,
-        updated_at: comment.updated_at,
-        author: commentAuthor?.name,
-        author_id: comment.author_id,
-        author_role: commentAuthor?.role,
-        author_avatar: commentAuthor?.avatar
-      };
-    });
-
-    // Sort comments by votes desc, then by creation date
-    enrichedComments.sort((a, b) => {
-      if (b.votes !== a.votes) return b.votes - a.votes;
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    });
-
-    // Add voting information for authenticated users
+    // The voter's own votes in ONE query (was: one query per comment — N+1).
     let userPostVote = null;
     let userCommentVotes: { [commentId: string]: number } = {};
 
     if (userId) {
-      // Check if user voted on this post
-      const postVote = await query(
-        'SELECT vote_value FROM forum_votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
-        [userId, 'post', id]
+      const commentIds = enrichedComments.map((c: any) => c.id);
+      const votesResult = await query(
+        `SELECT target_type, target_id, vote_value FROM forum_votes
+         WHERE user_id = $1 AND ((target_type = 'post' AND target_id = $2)
+           OR (target_type = 'comment' AND target_id = ANY($3)))`,
+        [userId, id, commentIds]
       );
-      if (postVote.rows.length > 0) {
-        userPostVote = postVote.rows[0].vote_value;
-      }
-
-      // Check votes on comments
-      for (const comment of enrichedComments) {
-        const commentVote = await query(
-          'SELECT vote_value FROM forum_votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
-          [userId, 'comment', comment.id]
-        );
-        if (commentVote.rows.length > 0) {
-          userCommentVotes[comment.id] = commentVote.rows[0].vote_value;
-        }
+      for (const v of votesResult.rows) {
+        if (v.target_type === 'post') userPostVote = v.vote_value;
+        else userCommentVotes[v.target_id] = v.vote_value;
       }
     }
 
@@ -206,17 +229,17 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
       subject: post.subject,
       grade: post.grade,
       votes: post.votes || 0,
-      views: (post.views || 0) + 1, // Include the view we just added
+      views: post.views || 0, // Already incremented above (in memory + in SQL)
       tags: post.tags || [],
       is_solved: post.is_solved || false,
       is_edited: post.is_edited || false,
       aiAnswer: post.ai_answer, // Convert snake_case to camelCase for frontend
       created_at: post.created_at,
       updated_at: post.updated_at,
-      author: author?.name,
+      author: post.author,
       author_id: post.author_id,
-      author_role: author?.role,
-      author_avatar: author?.avatar,
+      author_role: post.author_role,
+      author_avatar: post.author_avatar,
       userVote: userPostVote, // Add user's vote on this post
       userCommentVotes: userCommentVotes // Add user's votes on comments
     };
@@ -310,11 +333,11 @@ router.put('/posts/:id', [
     const { title, content, tags } = req.body;
     const userId = req.user!.id;
 
-    // Check if user is the author
-    const posts = await dbAdmin.get('forum_posts');
-    const postCheck = posts.filter(p => p.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory filter).
+    const postRows = await query('SELECT id, author_id FROM forum_posts WHERE id = $1', [id]);
+    const postCheck = postRows.rows[0];
 
-    if (postCheck.length === 0) {
+    if (!postCheck) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'
@@ -322,7 +345,7 @@ router.put('/posts/:id', [
       return;
     }
 
-    if (postCheck[0].author_id !== userId) {
+    if (String(postCheck.author_id) !== String(userId)) {
       res.status(403).json({
         success: false,
         message: 'You can only edit your own posts'
@@ -389,9 +412,10 @@ router.post('/posts/:id/vote', authenticateToken, async (req: express.Request, r
       return;
     }
 
-    // Check if post exists
-    const post = await dbAdmin.findOne('forum_posts', p => p.id === id);
-    if (!post) {
+    // Indexed existence check (dbAdmin.findOne fetches the whole table —
+    // the facade filters client-side, so it must never back a hot path).
+    const postRows = await query('SELECT id FROM forum_posts WHERE id = $1', [id]);
+    if (postRows.rows.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Post not found'
@@ -399,13 +423,14 @@ router.post('/posts/:id/vote', authenticateToken, async (req: express.Request, r
       return;
     }
 
-    // Check if user has already voted on this post
+    // Check if user has already voted on this post (indexed by
+    // idx_forum_votes_user_target)
     const existingVote = await query(
       'SELECT vote_value FROM forum_votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
       [userId, 'post', id]
     );
 
-    let newVoteCount = post.votes || 0;
+    let delta = 0;
     let message = '';
 
     if (existingVote.rows.length > 0) {
@@ -415,30 +440,38 @@ router.post('/posts/:id/vote', authenticateToken, async (req: express.Request, r
         // User is trying to vote the same way again - remove the vote
         await query('DELETE FROM forum_votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
           [userId, 'post', id]);
-        newVoteCount = Math.max(newVoteCount - vote, 0);
+        delta = -vote;
         message = 'Vote removed';
       } else {
         // User is changing their vote
         await query('UPDATE forum_votes SET vote_value = $1 WHERE user_id = $2 AND target_type = $3 AND target_id = $4',
           [vote, userId, 'post', id]);
-        newVoteCount = newVoteCount - currentVote + vote;
+        delta = vote - currentVote;
         message = vote === 1 ? 'Post upvoted' : 'Vote changed to downvote';
       }
     } else {
       // First time voting
       await query('INSERT INTO forum_votes (user_id, target_type, target_id, vote_value) VALUES ($1, $2, $3, $4)',
         [userId, 'post', id, vote]);
-      newVoteCount += vote;
+      delta = vote;
       message = vote === 1 ? 'Post upvoted' : 'Post downvoted';
     }
 
-    // Update the post's vote count
-    await dbAdmin.update('forum_posts', id, { votes: Math.max(newVoteCount, 0) });
+    // Atomic counter: the old read-modify-write (read post.votes, add, write
+    // back) lost votes under concurrent voters, and the Math.max(..., 0)
+    // floor silently dropped downvotes at zero — then credited them back as
+    // +1 on toggle-off, inflating the score. Scores may go negative (standard
+    // forum behavior); the unused increment/decrement SQL helpers still floor
+    // and should not be wired back in without fixing that first.
+    const updated = await query(
+      'UPDATE forum_posts SET votes = votes + $1 WHERE id = $2 RETURNING votes',
+      [delta, id]
+    );
 
     res.json({
       success: true,
       message,
-      data: { votes: Math.max(newVoteCount, 0) }
+      data: { votes: updated.rows[0]?.votes ?? 0 }
     } as ApiResponse);
   } catch (error) {
     console.error('Vote on post error:', error);
@@ -459,11 +492,11 @@ router.put('/posts/:id/solved', [
     const { solved } = req.body;
     const userId = req.user!.id;
 
-    // Check if user is the author
-    const posts = await dbAdmin.get('forum_posts');
-    const postCheck = posts.filter(p => p.id === id);
-
-    if (postCheck.length === 0) {
+    // Indexed lookup (the old dbAdmin.get fetched every post to find one).
+    // Team members may also resolve threads — consistent with comment delete,
+    // where admins/moderators can act on others' content.
+    const postRows = await query('SELECT id, author_id FROM forum_posts WHERE id = $1', [id]);
+    if (postRows.rows.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'
@@ -471,7 +504,9 @@ router.put('/posts/:id/solved', [
       return;
     }
 
-    if (postCheck[0].author_id !== userId) {
+    const roleStr = String(req.user!.role || '').toUpperCase();
+    const isTeam = roleStr === 'ADMIN' || roleStr === 'MODERATOR';
+    if (String(postRows.rows[0].author_id) !== String(userId) && !isTeam) {
       res.status(403).json({
         success: false,
         message: 'You can only mark your own posts as solved'
@@ -523,8 +558,11 @@ router.post('/posts/:id/generate-ai-answer', authenticateToken, async (req: expr
       return;
     }
 
-    // Check if post exists
-    const post = await dbAdmin.findOne('forum_posts', (p: any) => p.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const postRows = await query(
+      'SELECT id, title, content, subject, grade FROM forum_posts WHERE id = $1', [id]
+    );
+    const post = postRows.rows[0];
 
     if (!post) {
       res.status(404).json({
@@ -579,11 +617,14 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
     const userId = req.user!.id;
     const userRole = req.user!.role;
 
-    // Check if user is the author or admin
-    const posts = await dbAdmin.get('forum_posts');
-    const postCheck = posts.filter(p => p.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory filter). Audit
+    // fields are selected here so the deletion audit below needs no refetch.
+    const postRows = await query(
+      'SELECT id, author_id, title, subject, grade FROM forum_posts WHERE id = $1', [id]
+    );
+    const postCheck = postRows.rows[0];
 
-    if (postCheck.length === 0) {
+    if (!postCheck) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'
@@ -594,7 +635,7 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
     const roleStr = String(userRole || '').toUpperCase();
     const isTeam = roleStr === 'ADMIN' || roleStr === 'MODERATOR';
 
-    if (postCheck[0].author_id !== userId && !isTeam) {
+    if (String(postCheck.author_id) !== String(userId) && !isTeam) {
       res.status(403).json({
         success: false,
         message: 'You can only delete your own posts'
@@ -602,7 +643,7 @@ router.delete('/posts/:id', authenticateToken, async (req: express.Request, res:
       return;
     }
 
-    const beforePost = postCheck[0];
+    const beforePost = postCheck;
     await dbAdmin.delete('forum_posts', id);
 
     // Audit log for admin/moderator deletions (non-blocking)
@@ -645,8 +686,11 @@ router.post('/posts/:postId/comments', [
     const { content } = req.body;
     const author_id = req.user!.id;
 
-    // Check if post exists
-    const post = await dbAdmin.findOne('forum_posts', p => p.id === postId);
+    // Indexed existence check (was a full-table fetch + in-memory find).
+    const postRows = await query(
+      'SELECT id, author_id, title FROM forum_posts WHERE id = $1', [postId]
+    );
+    const post = postRows.rows[0];
     if (!post) {
       res.status(404).json({
         success: false,
@@ -669,10 +713,13 @@ router.post('/posts/:postId/comments', [
     // Send notification to post author (if not commenting on own post)
     if (post.author_id !== author_id) {
       try {
-        // Get comment author's name and post author's details for notifications
-        const users = await dbAdmin.get('users');
-        const commenter = users.find(u => u.id === author_id);
-        const postAuthor = users.find(u => u.id === post.author_id);
+        // Targeted lookups (were a full users-table fetch for two rows).
+        const [commenterRows, authorRows] = await Promise.all([
+          query('SELECT id, name FROM users WHERE id = $1', [author_id]),
+          query('SELECT id, name, email FROM users WHERE id = $1', [post.author_id])
+        ]);
+        const commenter = commenterRows.rows[0];
+        const postAuthor = authorRows.rows[0];
 
         if (commenter) {
           // Create in-app notification
@@ -731,9 +778,11 @@ router.put('/comments/:id', [
     const { content } = req.body;
     const userId = req.user!.id;
 
-    // Check if comment exists using the same method as creation (dbAdmin)
-    const comments = await dbAdmin.get('forum_comments');
-    const comment = comments.find(c => c.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const commentRows = await query(
+      'SELECT id, author_id FROM forum_comments WHERE id = $1', [id]
+    );
+    const comment = commentRows.rows[0];
 
     if (!comment) {
       res.status(404).json({
@@ -782,10 +831,9 @@ router.post('/comments/:id/vote', [
     const { vote } = req.body;
     const userId = req.user!.id;
 
-    // Check if comment exists
-    const comments = await dbAdmin.get('forum_comments');
-    const comment = comments.find(c => c.id === id);
-    if (!comment) {
+    // Indexed existence check (was a full-table fetch + in-memory find).
+    const commentRows = await query('SELECT id FROM forum_comments WHERE id = $1', [id]);
+    if (commentRows.rows.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Comment not found'
@@ -793,13 +841,14 @@ router.post('/comments/:id/vote', [
       return;
     }
 
-    // Check if user has already voted on this comment
+    // Check if user has already voted on this comment (indexed by
+    // idx_forum_votes_user_target)
     const existingVote = await query(
       'SELECT vote_value FROM forum_votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
       [userId, 'comment', id]
     );
 
-    let newVoteCount = comment.votes || 0;
+    let delta = 0;
     let message = '';
 
     if (existingVote.rows.length > 0) {
@@ -809,30 +858,34 @@ router.post('/comments/:id/vote', [
         // User is trying to vote the same way again - remove the vote
         await query('DELETE FROM forum_votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
           [userId, 'comment', id]);
-        newVoteCount = Math.max(newVoteCount - vote, 0);
+        delta = -vote;
         message = 'Vote removed';
       } else {
         // User is changing their vote
         await query('UPDATE forum_votes SET vote_value = $1 WHERE user_id = $2 AND target_type = $3 AND target_id = $4',
           [vote, userId, 'comment', id]);
-        newVoteCount = newVoteCount - currentVote + vote;
+        delta = vote - currentVote;
         message = vote === 1 ? 'Comment upvoted' : 'Vote changed to downvote';
       }
     } else {
       // First time voting
       await query('INSERT INTO forum_votes (user_id, target_type, target_id, vote_value) VALUES ($1, $2, $3, $4)',
         [userId, 'comment', id, vote]);
-      newVoteCount += vote;
+      delta = vote;
       message = vote === 1 ? 'Comment upvoted' : 'Comment downvoted';
     }
 
-    // Update the comment's vote count
-    await dbAdmin.update('forum_comments', id, { votes: Math.max(newVoteCount, 0) });
+    // Atomic counter (same lost-update + floor bugs as the post vote path —
+    // see above). Scores may go negative.
+    const updated = await query(
+      'UPDATE forum_comments SET votes = votes + $1 WHERE id = $2 RETURNING votes',
+      [delta, id]
+    );
 
     res.json({
       success: true,
       message,
-      data: { votes: Math.max(newVoteCount, 0) }
+      data: { votes: updated.rows[0]?.votes ?? 0 }
     } as ApiResponse);
   } catch (error) {
     console.error('Vote on comment error:', error);
@@ -853,28 +906,35 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
     // Do not use the `query()` helper here with JOINs — it doesn't support complex SQL and can
     // incorrectly return empty rows in production. Use direct table reads instead.
 
-    // Get the comment (and post_id)
-    const comment = await dbAdmin.findOne('forum_comments', (c: any) => String(c.id) === String(id));
-    if (!comment) {
+    // Indexed lookups (were full-table fetches + in-memory finds on every
+    // accept — the users table scan ran even when only the email was needed).
+    const commentRows = await query(
+      'SELECT id, post_id, author_id FROM forum_comments WHERE id = $1', [id]
+    );
+    if (commentRows.rows.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Comment not found'
       } as ApiResponse);
       return;
     }
+    const comment = commentRows.rows[0];
 
     const post_id = comment.post_id;
     const commentAuthorId = comment.author_id;
 
-    // Get post details
-    const post = await dbAdmin.findOne('forum_posts', (p: any) => String(p.id) === String(post_id));
-    if (!post) {
+    // Get post details (indexed)
+    const postRows = await query(
+      'SELECT id, author_id, title FROM forum_posts WHERE id = $1', [post_id]
+    );
+    if (postRows.rows.length === 0) {
       res.status(404).json({
         success: false,
         message: 'Post not found'
       } as ApiResponse);
       return;
     }
+    const post = postRows.rows[0];
 
     // Permission: only post author can accept answers
     if (String(post.author_id) !== String(userId)) {
@@ -887,13 +947,12 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
 
     const postTitle = post.title;
 
-    // First, unaccept all other comments on this post
-    const allComments = await dbAdmin.get('forum_comments');
-    const otherComments = allComments.filter((c: any) => c.post_id === post_id && c.id !== id && c.is_accepted);
-    
-    for (const otherComment of otherComments) {
-      await dbAdmin.update('forum_comments', otherComment.id, { is_accepted: false });
-    }
+    // Unaccept all other comments on this post in one statement (was: fetch
+    // every comment in the table, filter in memory, N sequential updates).
+    await query(
+      'UPDATE forum_comments SET is_accepted = false WHERE post_id = $1 AND id <> $2 AND is_accepted IS TRUE',
+      [post_id, id]
+    );
 
     // Then accept this comment
     const updatedComment = await dbAdmin.update('forum_comments', id, { 
@@ -907,7 +966,16 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
       updated_at: new Date().toISOString()
     });
 
-    // Send notification to comment author
+    // Notify the comment author — unless they ARE the post author accepting
+    // their own answer, in which case a "your answer was accepted"
+    // notification (and email) about your own action is pure noise.
+    if (String(commentAuthorId) === String(userId)) {
+      res.json({
+        success: true,
+        message: 'Comment accepted as answer'
+      } as ApiResponse);
+      return;
+    }
     try {
       // Create in-app notification
       await NotificationService.createForumAnswerAcceptedNotification(
@@ -915,10 +983,12 @@ router.put('/comments/:id/accept', authenticateToken, async (req: express.Reques
         postTitle
       );
 
-      // Send email notification (non-blocking)
-      // Get comment author's details
-      const users = await dbAdmin.get('users');
-      const commentAuthor = users.find((u: any) => u.id === commentAuthorId);
+      // Send email notification (non-blocking, targeted lookup — was a full
+      // users-table fetch)
+      const authorRows = await query(
+        'SELECT email, name FROM users WHERE id = $1', [commentAuthorId]
+      );
+      const commentAuthor = authorRows.rows[0];
       
       if (commentAuthor && commentAuthor.email && commentAuthor.name) {
         console.log('📧 Triggering comment accepted as solution email for comment author:', { 
@@ -964,9 +1034,11 @@ router.delete('/comments/:id', authenticateToken, async (req: express.Request, r
     const roleStr = String(userRole || '').toUpperCase();
     const isTeam = roleStr === 'ADMIN' || roleStr === 'MODERATOR';
 
-    // Check if comment exists and user has permission
-    const comments = await dbAdmin.get('forum_comments');
-    const comment = comments.find(c => c.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const commentRows = await query(
+      'SELECT id, author_id FROM forum_comments WHERE id = $1', [id]
+    );
+    const comment = commentRows.rows[0];
 
     if (!comment) {
       res.status(404).json({
