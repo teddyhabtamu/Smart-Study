@@ -684,8 +684,10 @@ const Profile: React.FC = () => {
                       ].map(({ icon: Icon, label, value }) => (
                         <div key={label} className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 sm:p-4 text-center">
                           <Icon size={18} className="mx-auto mb-1.5 text-amber-600" />
-                          <p className="text-lg sm:text-xl font-black text-ink tabular-nums">{value}</p>
-                          <p className="text-[11px] font-medium text-zinc-500">{label}</p>
+                          {/* Fixed-cream tile (like the red-50 danger zone): text stays
+                              fixed-dark so it reads on the light tint in every theme. */}
+                          <p className="text-lg sm:text-xl font-black text-zinc-900 tabular-nums">{value}</p>
+                          <p className="text-[11px] font-medium text-zinc-600">{label}</p>
                         </div>
                       ))}
                     </div>

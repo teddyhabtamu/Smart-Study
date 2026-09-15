@@ -277,8 +277,10 @@ const Dashboard: React.FC = () => {
                    <span className="font-bold text-ink text-sm self-center sm:self-auto">{progressToNextLevel}%</span>
                 </div>
                 <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden">
+                   {/* Theme-aware fill: dark ink on light, gold on dark. A fixed
+                       zinc gradient went near-invisible on dark tracks. */}
                    <div
-                     className="h-full bg-gradient-to-r from-zinc-900 to-zinc-700 rounded-full transition-all duration-1000"
+                     className="h-full bg-[rgb(var(--progress))] rounded-full transition-all duration-1000"
                      style={{ width: `${progressToNextLevel}%` }}
                    ></div>
                 </div>
