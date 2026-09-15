@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, query, param } from 'express-validator';
-import { dbAdmin, supabaseAdmin } from '../database/config';
+import { dbAdmin, query as dbQuery, supabaseAdmin } from '../database/config';
 import { authenticateToken, optionalAuth, requireRole, validateRequest } from '../middleware/auth';
 import { ApiResponse, JobPosition, JobApplication } from '../types';
 import { NotificationService } from '../services/notificationService';
@@ -16,29 +16,26 @@ router.get('/', [
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { department, employment_type } = req.query;
-    
-    let positions = await dbAdmin.get('job_positions');
-    
-    // Filter by active status
-    positions = positions.filter((p: any) => p.is_active === true);
-    
-    // Apply filters
+
+    // Filtered/sorted in SQL (was: fetch every position, filter/sort in JS).
+    const conditions = ['is_active = TRUE'];
+    const params: any[] = [];
     if (department) {
-      positions = positions.filter((p: any) => p.department === department);
+      conditions.push(`department = $${params.length + 1}`);
+      params.push(department);
     }
-    
     if (employment_type) {
-      positions = positions.filter((p: any) => p.employment_type === employment_type);
+      conditions.push(`employment_type = $${params.length + 1}`);
+      params.push(employment_type);
     }
-    
-    // Sort by created_at descending
-    positions.sort((a: any, b: any) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    const listResult = await dbQuery(
+      `SELECT * FROM job_positions WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`,
+      params
     );
-    
+
     res.json({
       success: true,
-      data: positions,
+      data: listResult.rows,
       message: 'Job positions retrieved successfully'
     } as ApiResponse<JobPosition[]>);
   } catch (error) {
@@ -305,17 +302,14 @@ Platform: SmartStudy
 router.get('/:id', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const position = await dbAdmin.findOne('job_positions', (p: any) => p.id === id);
-    
+    // Indexed lookup (was a full-table fetch). Inactive positions 404 here —
+    // the public detail must never expose a deactivated posting.
+    const detailResult = await dbQuery(
+      'SELECT * FROM job_positions WHERE id = $1 AND is_active = TRUE', [id]
+    );
+    const position = detailResult.rows[0];
+
     if (!position) {
-      res.status(404).json({
-        success: false,
-        message: 'Job position not found'
-      } as ApiResponse);
-      return;
-    }
-    
-    if (!position.is_active) {
       res.status(404).json({
         success: false,
         message: 'Job position not found'
@@ -351,8 +345,11 @@ router.post('/:id/apply', [
     const { applicant_name, applicant_email, applicant_phone, cover_letter, resume_url } = req.body;
     const applicant_id = req.user?.id;
     
-    // Check if position exists and is active
-    const position = await dbAdmin.findOne('job_positions', (p: any) => p.id === id);
+    // Indexed lookups (were full-table fetches + in-memory finds).
+    const posResult = await dbQuery(
+      'SELECT id, title, is_active FROM job_positions WHERE id = $1', [id]
+    );
+    const position = posResult.rows[0];
     if (!position || !position.is_active) {
       res.status(404).json({
         success: false,
@@ -363,9 +360,11 @@ router.post('/:id/apply', [
     
     // Check if user already applied (if authenticated)
     if (applicant_id) {
-      const existingApplication = await dbAdmin.findOne('job_applications', (app: any) => 
-        app.position_id === id && app.applicant_id === applicant_id
+      const dupResult = await dbQuery(
+        'SELECT id FROM job_applications WHERE position_id = $1 AND applicant_id = $2 LIMIT 1',
+        [id, applicant_id]
       );
+      const existingApplication = dupResult.rows[0];
       
       if (existingApplication) {
         res.status(400).json({
@@ -379,11 +378,13 @@ router.post('/:id/apply', [
     // Duplicate guard for guests too: without this, one email address could
     // file unlimited applications for the same position (authed users are
     // checked by applicant_id above).
-    const emailClash = await dbAdmin.findOne('job_applications', (app: any) =>
-      app.position_id === id &&
-      typeof app.applicant_email === 'string' &&
-      app.applicant_email.toLowerCase() === String(applicant_email).toLowerCase()
+    // Case-insensitive email match in SQL (equivalent to the old
+    // lower() comparison, without fetching the table).
+    const clashResult = await dbQuery(
+      'SELECT id FROM job_applications WHERE position_id = $1 AND LOWER(applicant_email) = LOWER($2) LIMIT 1',
+      [id, String(applicant_email)]
     );
+    const emailClash = clashResult.rows[0];
 
     if (emailClash) {
       res.status(400).json({
@@ -405,12 +406,14 @@ router.post('/:id/apply', [
       status: 'Pending'
     });
     
-    // Notify admins (in-app notifications)
+    // Notify admins (in-app notifications). Only admin IDs are selected —
+    // the old code fetched every user row (password hashes included).
     try {
-      const admins = await dbAdmin.get('users');
-      const adminUsers = admins.filter((u: any) => u.role === 'ADMIN');
-      
-      for (const admin of adminUsers) {
+      const adminRows = await dbQuery(
+        "SELECT id FROM users WHERE role = 'ADMIN'"
+      );
+
+      for (const admin of adminRows.rows) {
         await NotificationService.create({
           user_id: admin.id,
           title: 'New Job Application',
@@ -454,16 +457,14 @@ router.get('/admin/positions', [
   requireRole(['ADMIN'])
 ], async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const positions = await dbAdmin.get('job_positions');
-    
-    // Sort by created_at descending
-    positions.sort((a: any, b: any) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    // Ordered in SQL (was: fetch all, sort in JS).
+    const allPositions = await dbQuery(
+      'SELECT * FROM job_positions ORDER BY created_at DESC'
     );
-    
+
     res.json({
       success: true,
-      data: positions,
+      data: allPositions.rows,
       message: 'Job positions retrieved successfully'
     } as ApiResponse<JobPosition[]>);
   } catch (error) {
@@ -564,7 +565,9 @@ router.put('/admin/positions/:id', [
     const { id } = req.params;
     const updates = req.body;
     
-    const position = await dbAdmin.findOne('job_positions', (p: any) => p.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const posRow = await dbQuery('SELECT * FROM job_positions WHERE id = $1', [id]);
+    const position = posRow.rows[0];
     if (!position) {
       res.status(404).json({
         success: false,
@@ -607,11 +610,23 @@ router.delete('/admin/positions/:id', [
   try {
     const { id } = req.params;
 
-    const before = await dbAdmin.findOne('job_positions', (p: any) => p.id === id);
-    
+    // Indexed lookups (were two full-table fetches — positions AND every
+    // application — for one existence check).
+    const beforeRows = await dbQuery('SELECT * FROM job_positions WHERE id = $1', [id]);
+    const before = beforeRows.rows[0];
+    if (!before) {
+      res.status(404).json({
+        success: false,
+        message: 'Job position not found'
+      } as ApiResponse);
+      return;
+    }
+
     // Check if there are applications for this position
-    const applications = await dbAdmin.get('job_applications');
-    const hasApplications = applications.some((app: any) => app.position_id === id);
+    const appCheck = await dbQuery(
+      'SELECT 1 FROM job_applications WHERE position_id = $1 LIMIT 1', [id]
+    );
+    const hasApplications = appCheck.rows.length > 0;
     
     if (hasApplications) {
       // Don't delete, just deactivate
@@ -667,33 +682,32 @@ router.get('/admin/applications', [
   try {
     const { position_id, status, archived } = req.query;
 
-    let applications = await dbAdmin.get('job_applications');
-
-    // Apply filters
+    // Filtered/sorted in SQL (was: fetch every application, filter/sort in
+    // JS). 'all' omits the archive predicate; default is active only.
+    const appConditions: string[] = [];
+    const appParams: any[] = [];
     if (position_id) {
-      applications = applications.filter((app: any) => app.position_id === position_id);
+      appConditions.push(`position_id = $${appParams.length + 1}`);
+      appParams.push(position_id);
     }
-
     if (status) {
-      applications = applications.filter((app: any) => app.status === status);
+      appConditions.push(`status = $${appParams.length + 1}`);
+      appParams.push(status);
     }
-
-    // Filter archived based on parameter (default: active only)
-    if (archived === 'false' || archived === undefined) {
-      applications = applications.filter((app: any) => app.is_archived !== true);
-    } else if (archived === 'true') {
-      applications = applications.filter((app: any) => app.is_archived === true);
+    if (archived === 'true') {
+      appConditions.push('is_archived IS TRUE');
+    } else if (archived !== 'all') {
+      appConditions.push('is_archived IS NOT TRUE');
     }
-    // 'all' shows both archived and non-archived
-    
-    // Sort by created_at descending
-    applications.sort((a: any, b: any) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    const appWhere = appConditions.length > 0 ? `WHERE ${appConditions.join(' AND ')}` : '';
+    const appList = await dbQuery(
+      `SELECT * FROM job_applications ${appWhere} ORDER BY created_at DESC`,
+      appParams
     );
-    
+
     res.json({
       success: true,
-      data: applications,
+      data: appList.rows,
       message: 'Applications retrieved successfully'
     } as ApiResponse<JobApplication[]>);
   } catch (error) {
@@ -712,8 +726,10 @@ router.get('/admin/applications/:id', [
 ], async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const application = await dbAdmin.findOne('job_applications', (app: any) => app.id === id);
-    
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const appRows = await dbQuery('SELECT * FROM job_applications WHERE id = $1', [id]);
+    const application = appRows.rows[0];
+
     if (!application) {
       res.status(404).json({
         success: false,
@@ -748,7 +764,9 @@ router.put('/admin/applications/:id/status', [
     const { status, notes } = req.body;
     const reviewed_by = req.user!.id;
     
-    const application = await dbAdmin.findOne('job_applications', (app: any) => app.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const statusAppRows = await dbQuery('SELECT * FROM job_applications WHERE id = $1', [id]);
+    const application = statusAppRows.rows[0];
     if (!application) {
       res.status(404).json({
         success: false,
@@ -782,9 +800,9 @@ router.put('/admin/applications/:id/status', [
       meta: notes ? { notes } : undefined
     }).catch(() => {});
     
-    // Get position title for notifications
-    const position = await dbAdmin.findOne('job_positions', (p: any) => p.id === application.position_id);
-    const positionTitle = position?.title || 'a position';
+    // Position title for notifications (indexed; only the column needed).
+    const posTitleRows = await dbQuery('SELECT title FROM job_positions WHERE id = $1', [application.position_id]);
+    const positionTitle = posTitleRows.rows[0]?.title || 'a position';
     
     // Notify applicant if they have an account (in-app notification)
     if (application.applicant_id) {
@@ -844,7 +862,9 @@ router.patch('/admin/applications/:id/archive', [
     const { id } = req.params;
     const { is_archived } = req.body;
 
-    const before = await dbAdmin.findOne('job_applications', (app: any) => app.id === id);
+    // Indexed lookup (was a full-table fetch + in-memory find).
+    const archRows = await dbQuery('SELECT * FROM job_applications WHERE id = $1', [id]);
+    const before = archRows.rows[0];
     if (!before) {
       res.status(404).json({
         success: false,
@@ -885,7 +905,18 @@ router.delete('/admin/applications/:id', [
 ], async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const before = await dbAdmin.findOne('job_applications', (app: any) => app.id === id);
+    // Indexed lookup (was a full-table fetch). The old code also returned
+    // success for unknown ids — deleting nothing still 200d with an audit
+    // entry. Now it 404s like every other delete route.
+    const delRows = await dbQuery('SELECT * FROM job_applications WHERE id = $1', [id]);
+    const before = delRows.rows[0];
+    if (!before) {
+      res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      } as ApiResponse);
+      return;
+    }
     await dbAdmin.delete('job_applications', id);
 
     logAdminActivity(req, {
