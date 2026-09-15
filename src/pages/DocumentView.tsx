@@ -627,7 +627,7 @@ const DocumentView: React.FC = () => {
               <div className="flex items-center gap-x-4 gap-y-1 flex-wrap py-2 text-xs text-zinc-500">
                 <span className="inline-flex items-center gap-1.5">
                   <Download size={13} className="text-zinc-400" />
-                  {doc.downloads ?? 0} downloads
+                  {doc.downloads ?? 0} {(doc.downloads ?? 0) === 1 ? 'download' : 'downloads'}
                 </span>
                 {doc.uploadedAt && (
                   <span className="inline-flex items-center gap-1.5">
