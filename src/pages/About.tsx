@@ -14,10 +14,10 @@ const About: React.FC = () => {
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 animate-fade-in pb-12">
         {/* Hero */}
-        <div className="bg-zinc-900 text-white py-12 sm:py-16 md:py-20 px-4 sm:px-6 rounded-b-2xl sm:rounded-b-3xl mb-8 sm:mb-12 relative overflow-hidden">
+        <div className="bg-zinc-900 text-onink py-12 sm:py-16 md:py-20 px-4 sm:px-6 rounded-b-2xl sm:rounded-b-3xl mb-8 sm:mb-12 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-zinc-500/20 rounded-full blur-3xl -mr-16 -mt-16 sm:-mr-20 sm:-mt-20"></div>
           <div className="max-w-4xl mx-auto text-center relative z-10">
-            <div className="inline-flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
+            <div className="inline-flex items-center gap-2 bg-surface/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
               <GraduationCap size={14} className="sm:w-4 sm:h-4" /> Our Mission
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 sm:mb-6 tracking-tight leading-tight">
@@ -33,8 +33,8 @@ const About: React.FC = () => {
           {/* Story */}
           <div className="grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-4 sm:mb-6">Our Story</h2>
-              <div className="space-y-3 sm:space-y-4 text-zinc-600 leading-relaxed text-sm sm:text-base">
+              <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-4 sm:mb-6">Our Story</h2>
+              <div className="space-y-3 sm:space-y-4 text-inksoft leading-relaxed text-sm sm:text-base">
                 <p>
                   SmartStudy started with a simple observation at home.
                 </p>
@@ -55,15 +55,15 @@ const About: React.FC = () => {
             <div className="bg-zinc-100 rounded-2xl p-6 sm:p-8 flex items-center justify-center min-h-[250px] sm:min-h-[300px]">
                <div className="text-center">
                   {/* Real platform numbers — no vanity multipliers */}
-                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-zinc-900 mb-2">800+</div>
+                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-ink mb-2">800+</div>
                   <div className="text-zinc-500 text-sm sm:text-base">Video Lessons</div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-6 sm:mt-8">
-                     <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm">
-                        <div className="font-bold text-zinc-900 text-lg sm:text-xl">15</div>
+                     <div className="bg-surface p-3 sm:p-4 rounded-xl shadow-sm">
+                        <div className="font-bold text-ink text-lg sm:text-xl">15</div>
                         <div className="text-xs text-zinc-400">Subjects</div>
                      </div>
-                     <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm">
-                        <div className="font-bold text-zinc-900 text-lg sm:text-xl">9–12</div>
+                     <div className="bg-surface p-3 sm:p-4 rounded-xl shadow-sm">
+                        <div className="font-bold text-ink text-lg sm:text-xl">9–12</div>
                         <div className="text-xs text-zinc-400">Grades</div>
                      </div>
                   </div>
@@ -73,37 +73,37 @@ const About: React.FC = () => {
 
           {/* Values */}
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-8 sm:mb-12 text-center">Core Values</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-8 sm:mb-12 text-center">Core Values</h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 hover:shadow-lg transition-shadow">
-                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600 mb-4 sm:mb-6">
+              <div className="bg-surface p-6 sm:p-8 rounded-2xl border border-zinc-200 hover:shadow-lg transition-shadow">
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-inksoft mb-4 sm:mb-6">
                    <Target size={20} className="sm:w-6 sm:h-6" />
                  </div>
-                 <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-3">Accessibility</h3>
+                 <h3 className="text-lg sm:text-xl font-bold text-ink mb-3">Accessibility</h3>
                  <p className="text-zinc-500 text-sm sm:text-base">We believe quality education is a right. Our platform is optimized for low-bandwidth environments common in Ethiopia.</p>
               </div>
-              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 hover:shadow-lg transition-shadow">
-                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600 mb-4 sm:mb-6">
+              <div className="bg-surface p-6 sm:p-8 rounded-2xl border border-zinc-200 hover:shadow-lg transition-shadow">
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-inksoft mb-4 sm:mb-6">
                    <Lightbulb size={20} className="sm:w-6 sm:h-6" />
                  </div>
-                 <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-3">Innovation</h3>
+                 <h3 className="text-lg sm:text-xl font-bold text-ink mb-3">Innovation</h3>
                  <p className="text-zinc-500 text-sm sm:text-base">We leverage AI to personalize learning, offering instant tutoring on subjects from Physics to Civics.</p>
               </div>
-              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 hover:shadow-lg transition-shadow sm:col-span-2 lg:col-span-1">
-                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600 mb-4 sm:mb-6">
+              <div className="bg-surface p-6 sm:p-8 rounded-2xl border border-zinc-200 hover:shadow-lg transition-shadow sm:col-span-2 lg:col-span-1">
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-inksoft mb-4 sm:mb-6">
                    <Users size={20} className="sm:w-6 sm:h-6" />
                  </div>
-                 <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-3">Community</h3>
+                 <h3 className="text-lg sm:text-xl font-bold text-ink mb-3">Community</h3>
                  <p className="text-zinc-500 text-sm sm:text-base">Learning happens best together. We foster a safe, collaborative environment for students to help each other.</p>
               </div>
             </div>
           </div>
 
           {/* CTA */}
-          <div className="bg-zinc-900 text-white rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center">
+          <div className="bg-zinc-900 text-onink rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center">
              <h2 className="text-2xl sm:text-3xl font-bold mb-4">Ready to start learning?</h2>
              <p className="text-zinc-400 mb-6 sm:mb-8 max-w-xl mx-auto text-sm sm:text-base">Join the SmartStudy community today and take your education to the next level.</p>
-             <Link to="/register" className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 bg-white text-zinc-900 rounded-full font-bold hover:bg-zinc-100 transition-colors text-sm sm:text-base">
+             <Link to="/register" className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 bg-surface text-ink rounded-full font-bold hover:bg-zinc-100 transition-colors text-sm sm:text-base">
                 Get Started Free <ArrowRight size={16} className="sm:w-[18px] sm:h-[18px]" />
              </Link>
           </div>

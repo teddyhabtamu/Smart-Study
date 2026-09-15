@@ -91,17 +91,17 @@ const Subscription: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto py-8 sm:py-12 animate-fade-in px-4 sm:px-6">
         <div className="text-center mb-8 sm:mb-12">
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-3">Student Pro</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight mb-3">Student Pro</h1>
           <p className="text-zinc-500 text-sm sm:text-base">Your membership details.</p>
         </div>
 
-        <div className="max-w-xl mx-auto bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+        <div className="max-w-xl mx-auto bg-surface rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
           {/* Active Plan Header */}
-          <div className="bg-zinc-900 p-6 sm:p-8 text-white relative overflow-hidden">
+          <div className="bg-zinc-900 p-6 sm:p-8 text-onink relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-gradient-to-bl from-zinc-500/20 to-transparent w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full"></div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4 relative z-10">
               <div className="flex items-center gap-3 sm:gap-4">
-                <div className="p-2 sm:p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 flex-shrink-0">
+                <div className="p-2 sm:p-3 bg-surface/10 rounded-xl backdrop-blur-sm border border-white/10 flex-shrink-0">
                   <Crown size={20} className="sm:w-7 sm:h-7 text-amber-400" />
                 </div>
                 <div>
@@ -120,32 +120,32 @@ const Subscription: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 sm:gap-y-6 gap-x-4 pb-6 sm:pb-8 border-b border-zinc-100">
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Billing</p>
-                <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
+                <p className="text-ink font-medium flex items-center gap-2 text-sm sm:text-base">
                   <Calendar size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {PRO_PLAN.priceLabel} · one-time
                 </p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Member since</p>
-                <p className="text-zinc-900 font-medium text-sm sm:text-base break-words">
+                <p className="text-ink font-medium text-sm sm:text-base break-words">
                   {memberSince ?? '—'}
                 </p>
               </div>
               <div className="sm:col-span-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5">Paid via</p>
-                <p className="text-zinc-900 font-medium flex items-center gap-2 text-sm sm:text-base">
+                <p className="text-ink font-medium flex items-center gap-2 text-sm sm:text-base">
                   <CreditCard size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {PRO_PLAN.channel} · manual activation
                 </p>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-bold text-zinc-900 text-sm sm:text-base">Your Pro perks</h4>
+              <h4 className="font-bold text-ink text-sm sm:text-base">Your Pro perks</h4>
               <div className="grid grid-cols-1 gap-3">
                 {PRO_FEATURES.map((f) => (
                   <div key={f.title} className="flex items-start gap-3">
                     <Check size={14} className="sm:w-4 sm:h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-bold text-zinc-900">{f.title}</p>
+                      <p className="text-sm font-bold text-ink">{f.title}</p>
                       <p className="text-xs text-zinc-500">{f.sub}</p>
                     </div>
                   </div>
@@ -154,8 +154,8 @@ const Subscription: React.FC = () => {
             </div>
 
 
-            <div className="bg-zinc-50 rounded-lg p-3 sm:p-4 flex gap-3 items-start text-xs sm:text-sm text-zinc-800 leading-relaxed border border-zinc-200">
-               <MessageCircle size={14} className="sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 text-zinc-600" />
+            <div className="bg-zinc-50 rounded-lg p-3 sm:p-4 flex gap-3 items-start text-xs sm:text-sm text-ink leading-relaxed border border-zinc-200">
+               <MessageCircle size={14} className="sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 text-inksoft" />
                <p>
                  Questions about your membership? Message us on Telegram{' '}
                  <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-zinc-950">
@@ -174,30 +174,30 @@ const Subscription: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto py-8 sm:py-12 animate-fade-in relative px-4 sm:px-6">
       <div className="text-center mb-8 sm:mb-12">
-        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-3">Simple, transparent pricing</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight mb-3">Simple, transparent pricing</h1>
         <p className="text-zinc-500 text-sm sm:text-base">Invest in your education with our premium resources.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
         {/* Free */}
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-zinc-200 flex flex-col">
+        <div className="bg-surface p-6 sm:p-8 rounded-2xl border border-zinc-200 flex flex-col">
            <div className="mb-4 sm:mb-6">
-             <h3 className="text-lg font-bold text-zinc-900">Basic</h3>
+             <h3 className="text-lg font-bold text-ink">Basic</h3>
              <div className="mt-2 flex items-baseline gap-1">
-               <span className="text-3xl sm:text-4xl font-bold text-zinc-900 tracking-tight">Free</span>
+               <span className="text-3xl sm:text-4xl font-bold text-ink tracking-tight">Free</span>
              </div>
              <p className="text-sm text-zinc-500 mt-2">Essential access for every student.</p>
            </div>
 
             <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8">
               {FREE_FEATURES.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm text-zinc-600">
+                <div key={i} className="flex items-center gap-3 text-sm text-inksoft">
                   <Check size={14} className="sm:w-4 sm:h-4 text-zinc-400" /> {f}
                 </div>
               ))}
             </div>
 
-           <button className="w-full py-3 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-zinc-200 transition-colors cursor-default text-sm sm:text-base">
+           <button className="w-full py-3 bg-zinc-100 text-ink font-medium rounded-lg hover:bg-zinc-200 transition-colors cursor-default text-sm sm:text-base">
              Current Plan
            </button>
         </div>
@@ -206,9 +206,9 @@ const Subscription: React.FC = () => {
         <div className="bg-zinc-900 p-6 sm:p-8 rounded-2xl border border-zinc-800 flex flex-col relative overflow-hidden shadow-2xl">
            <div className="absolute top-0 right-0 bg-gradient-to-bl from-zinc-500/20 to-transparent w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full"></div>
            <div className="mb-4 sm:mb-6 relative z-10">
-             <h3 className="text-lg font-bold text-white">Student Pro</h3>
+             <h3 className="text-lg font-bold text-onink">Student Pro</h3>
              <div className="mt-2 flex items-baseline gap-1">
-               <span className="text-3xl sm:text-4xl font-bold text-white tracking-tight">100 Birr</span>
+               <span className="text-3xl sm:text-4xl font-bold text-onink tracking-tight">100 Birr</span>
                <span className="text-zinc-400 text-sm">(One-time)</span>
              </div>
              <p className="text-sm text-zinc-400 mt-2">Unlock your full potential.</p>
@@ -219,7 +219,7 @@ const Subscription: React.FC = () => {
                 <div key={f.title} className="flex items-start gap-3 text-sm text-zinc-300">
                   <Check size={14} className="sm:w-4 sm:h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-white">{f.title}</p>
+                    <p className="font-bold text-onink">{f.title}</p>
                     <p className="text-xs text-zinc-400">{f.sub}</p>
                   </div>
                 </div>
@@ -228,7 +228,7 @@ const Subscription: React.FC = () => {
 
            <button
              onClick={() => setIsModalOpen(true)}
-             className="w-full py-3 bg-white text-zinc-900 font-medium rounded-lg hover:bg-zinc-100 transition-colors relative z-10 text-sm sm:text-base"
+             className="w-full py-3 bg-surface text-ink font-medium rounded-lg hover:bg-zinc-100 transition-colors relative z-10 text-sm sm:text-base"
            >
              Upgrade via Telebirr
            </button>
@@ -247,8 +247,8 @@ const Subscription: React.FC = () => {
         panelClassName="rounded-2xl overflow-hidden"
       >
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 flex-shrink-0">
-              <span className="font-bold text-zinc-900">Subscribe to Pro</span>
-              <button onClick={closeModal} className="p-1 text-zinc-400 hover:text-zinc-900 rounded-full hover:bg-zinc-200 transition-colors">
+              <span className="font-bold text-ink">Subscribe to Pro</span>
+              <button onClick={closeModal} className="p-1 text-zinc-400 hover:text-ink rounded-full hover:bg-zinc-200 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -257,11 +257,11 @@ const Subscription: React.FC = () => {
               {paymentStep === 'scan' && (
                 <div className="text-center space-y-6">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-zinc-900">Pay {PRO_PLAN.priceLabel} for Full Access</h3>
+                    <h3 className="text-lg font-bold text-ink">Pay {PRO_PLAN.priceLabel} for Full Access</h3>
                     <p className="text-sm text-zinc-500">One payment via {PRO_PLAN.channel} — no subscription, no renewals.</p>
                   </div>
 
-                  <div className="w-48 h-48 bg-white border-2 border-zinc-900 rounded-xl mx-auto flex items-center justify-center relative p-2">
+                  <div className="w-48 h-48 bg-surface border-2 border-zinc-900 rounded-xl mx-auto flex items-center justify-center relative p-2">
                      <img
                        src="/image/qrcode_payment.jpg"
                        alt="Telebirr Payment QR Code"
@@ -271,14 +271,14 @@ const Subscription: React.FC = () => {
 
                   {PRO_PLAN.merchantNumber ? (
                     <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left space-y-2">
-                      <p className="text-sm text-zinc-700">
+                      <p className="text-sm text-inksoft">
                         On one phone and can't scan? Pay <strong>{PRO_PLAN.priceLabel}</strong> directly to:
                       </p>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-zinc-900 text-base tracking-wider">{PRO_PLAN.merchantNumber}</span>
+                        <span className="font-mono font-bold text-ink text-base tracking-wider">{PRO_PLAN.merchantNumber}</span>
                         <button
                           onClick={copyMerchantNumber}
-                          className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                          className="p-1.5 text-zinc-500 hover:text-ink hover:bg-zinc-200 rounded-lg transition-colors"
                           title="Copy number"
                         >
                           {copiedNumber ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
@@ -291,22 +291,22 @@ const Subscription: React.FC = () => {
                   <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-100 text-left">
                     <div className="flex justify-between text-sm">
                       <span className="text-zinc-500">Amount:</span>
-                      <span className="font-bold text-zinc-900">{PRO_PLAN.priceLabel} ({PRO_PLAN.billingLabel.split('·')[0].trim()})</span>
+                      <span className="font-bold text-ink">{PRO_PLAN.priceLabel} ({PRO_PLAN.billingLabel.split('·')[0].trim()})</span>
                     </div>
                   </div>
 
                   <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left space-y-2">
-                    <h4 className="font-semibold text-zinc-900 text-sm">After Payment:</h4>
-                    <p className="text-zinc-700 text-sm leading-relaxed">
+                    <h4 className="font-semibold text-ink text-sm">After Payment:</h4>
+                    <p className="text-inksoft text-sm leading-relaxed">
                       Send your payment receipt to our Telegram channel for account activation.<br/>
-                      <strong>Telegram:</strong> <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">{PRO_PLAN.telegramHandle}</a><br/>
-                      <span className="text-xs text-zinc-600">Include your account email in the message so we can find you. Activation is manual — usually within a few hours, and you'll get an email confirmation.</span>
+                      <strong>Telegram:</strong> <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">{PRO_PLAN.telegramHandle}</a><br/>
+                      <span className="text-xs text-inksoft">Include your account email in the message so we can find you. Activation is manual — usually within a few hours, and you'll get an email confirmation.</span>
                     </p>
                   </div>
 
                   <button
                     onClick={() => setPaymentStep('confirm_sent')}
-                    className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                   >
                     I have completed payment
                   </button>
@@ -316,24 +316,24 @@ const Subscription: React.FC = () => {
               {paymentStep === 'confirm_sent' && (
                 <div className="space-y-6">
                   <div className="text-center">
-                    <div className="w-12 h-12 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-12 h-12 bg-zinc-100 text-inksoft rounded-full flex items-center justify-center mx-auto mb-4">
                       <ShieldCheck size={24} />
                     </div>
-                    <h3 className="text-lg font-bold text-zinc-900">Confirm Receipt Sent</h3>
+                    <h3 className="text-lg font-bold text-ink">Confirm Receipt Sent</h3>
                     <p className="text-sm text-zinc-500">Please send your payment receipt to our Telegram admin for verification.</p>
                   </div>
 
                   <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left space-y-3">
-                    <h4 className="font-semibold text-zinc-900 text-sm">Send Receipt To:</h4>
+                    <h4 className="font-semibold text-ink text-sm">Send Receipt To:</h4>
                     <div className="space-y-2">
-                      <p className="text-zinc-700 text-sm">
-                        <strong>Telegram:</strong> <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-800">{PRO_PLAN.telegramHandle}</a>
+                      <p className="text-inksoft text-sm">
+                        <strong>Telegram:</strong> <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-ink">{PRO_PLAN.telegramHandle}</a>
                       </p>
-                      <p className="text-zinc-700 text-sm">
+                      <p className="text-inksoft text-sm">
                         Or direct link: <span className="font-mono">{PRO_PLAN.telegramUrl.replace('https://', '')}</span>
                       </p>
                     </div>
-                    <p className="text-zinc-600 text-xs mt-3">
+                    <p className="text-inksoft text-xs mt-3">
                       Make sure to send the complete receipt/screenshot showing the transaction details.
                     </p>
                   </div>
@@ -341,11 +341,11 @@ const Subscription: React.FC = () => {
                   <div className="space-y-3">
                     <button
                       onClick={() => setPaymentStep('waiting')}
-                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                     >
                       I have sent the receipt
                     </button>
-                    <button onClick={() => setPaymentStep('scan')} className="w-full text-sm text-zinc-500 hover:text-zinc-900">
+                    <button onClick={() => setPaymentStep('scan')} className="w-full text-sm text-zinc-500 hover:text-ink">
                       Back to QR Code
                     </button>
                   </div>
@@ -355,32 +355,32 @@ const Subscription: React.FC = () => {
               {paymentStep === 'waiting' && (
                 <div className="space-y-6">
                   <div className="text-center">
-                    <div className="w-12 h-12 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-12 h-12 bg-zinc-100 text-inksoft rounded-full flex items-center justify-center mx-auto mb-4">
                       <ShieldCheck size={24} />
                     </div>
-                    <h3 className="text-lg font-bold text-zinc-900">Receipt Submitted</h3>
+                    <h3 className="text-lg font-bold text-ink">Receipt Submitted</h3>
                     <p className="text-sm text-zinc-500">Your payment receipt has been submitted for verification.</p>
                   </div>
 
                   <div className="bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-left">
-                    <p className="text-zinc-700 text-sm leading-relaxed">
+                    <p className="text-inksoft text-sm leading-relaxed">
                       <strong>What happens next?</strong><br/>
                       • Our admin will verify your payment receipt<br/>
                       • Your account will be manually upgraded to Student Pro<br/>
                       • You'll receive an email confirmation once upgraded<br/>
                       • You'll get full access to premium features immediately<br/>
-                      <span className="text-xs text-zinc-600 mt-2 block">Thank you for using SmartStudy. You can continue using free features while waiting.</span>
+                      <span className="text-xs text-inksoft mt-2 block">Thank you for using SmartStudy. You can continue using free features while waiting.</span>
                     </p>
                   </div>
 
                   <div className="space-y-3">
                     <button
                       onClick={handleSuccessContinue}
-                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                     >
                       Done
                     </button>
-                    <button onClick={() => setPaymentStep('confirm_sent')} className="w-full text-sm text-zinc-500 hover:text-zinc-900">
+                    <button onClick={() => setPaymentStep('confirm_sent')} className="w-full text-sm text-zinc-500 hover:text-ink">
                       Back
                     </button>
                   </div>
@@ -389,16 +389,16 @@ const Subscription: React.FC = () => {
 
               {paymentStep === 'success' && (
                 <div className="text-center space-y-6">
-                  <div className="w-16 h-16 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mx-auto animate-fade-in">
+                  <div className="w-16 h-16 bg-zinc-100 text-inksoft rounded-full flex items-center justify-center mx-auto animate-fade-in">
                     <Check size={32} />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-zinc-900">Welcome to Student Pro</h3>
+                    <h3 className="text-xl font-bold text-ink">Welcome to Student Pro</h3>
                     <p className="text-zinc-500">Your account has been successfully upgraded. Enjoy full access to all premium features!</p>
                   </div>
                   <button 
                     onClick={handleSuccessContinue}
-                    className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors"
+                    className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors"
                   >
                     Continue
                   </button>

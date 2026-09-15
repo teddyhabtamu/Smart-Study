@@ -20,10 +20,10 @@ const LoadingButton: React.FC<LoadingButtonProps> = ({
   const baseClasses = 'inline-flex items-center justify-center gap-2 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variantClasses = {
-    primary: 'bg-zinc-900 text-white hover:bg-zinc-800 rounded-lg',
-    secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 rounded-lg',
+    primary: 'bg-zinc-900 text-onink hover:bg-zinc-800 rounded-lg',
+    secondary: 'bg-zinc-100 text-ink hover:bg-zinc-200 rounded-lg',
     danger: 'bg-red-600 text-white hover:bg-red-700 rounded-lg',
-    outline: 'bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 rounded-lg'
+    outline: 'bg-surface border border-zinc-200 text-inksoft hover:bg-zinc-50 rounded-lg'
   };
 
   const combinedClassName = `${baseClasses} ${variantClasses[variant]} ${className}`;

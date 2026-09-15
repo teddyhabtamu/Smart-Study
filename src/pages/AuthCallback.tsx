@@ -95,7 +95,7 @@ const AuthCallback: React.FC = () => {
       </div>
       
       {/* SmartStudy Text */}
-      <p className="text-sm sm:text-base text-zinc-900 font-semibold tracking-wide">
+      <p className="text-sm sm:text-base text-ink font-semibold tracking-wide">
         Signing you in with Google…
       </p>
       <p className="text-xs sm:text-sm text-zinc-400 font-medium tracking-wide mt-1">

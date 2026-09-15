@@ -29,7 +29,7 @@ const BookmarkCard: React.FC<{
   return (
     <Link
       to={item.type === 'video' ? `/video/${item.id}` : `/document/${item.id}`}
-      className="group bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 hover:border-zinc-400 hover:shadow-md transition-all flex gap-3 sm:gap-4 items-center"
+      className="group bg-surface p-3 sm:p-4 rounded-xl border border-zinc-200 hover:border-zinc-400 hover:shadow-md transition-all flex gap-3 sm:gap-4 items-center"
     >
       <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-zinc-200 to-zinc-300 flex-shrink-0 overflow-hidden relative flex items-center justify-center">
         {hasValidImage ? (
@@ -41,21 +41,21 @@ const BookmarkCard: React.FC<{
               onError={() => setImageError(true)}
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-              {item.type === 'video' ? <PlayCircle size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" /> : <Book size={18} className="sm:w-6 sm:h-6 text-white drop-shadow-md" />}
+              {item.type === 'video' ? <PlayCircle size={18} className="sm:w-6 sm:h-6 text-onink drop-shadow-md" /> : <Book size={18} className="sm:w-6 sm:h-6 text-onink drop-shadow-md" />}
             </div>
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 via-zinc-300 to-zinc-400">
             {item.type === 'video' ? (
-              <PlayCircle size={20} className="sm:w-8 sm:h-8 text-zinc-600 drop-shadow-sm" />
+              <PlayCircle size={20} className="sm:w-8 sm:h-8 text-inksoft drop-shadow-sm" />
             ) : (
-              <Book size={20} className="sm:w-8 sm:h-8 text-zinc-600 drop-shadow-sm" />
+              <Book size={20} className="sm:w-8 sm:h-8 text-inksoft drop-shadow-sm" />
             )}
           </div>
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <h4 className="font-bold text-zinc-900 truncate text-sm mb-1 group-hover:text-zinc-700 transition-colors">{item.title}</h4>
+        <h4 className="font-bold text-ink truncate text-sm mb-1 group-hover:text-inksoft transition-colors">{item.title}</h4>
         <div className="flex items-center gap-2 text-xs text-zinc-500">
           <span className="bg-zinc-100 px-1.5 py-0.5 rounded">{item.subject}</span>
           <span>{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
          <div>
-           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 mb-1">
+           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink mb-1">
              {greeting}, {displayUser?.name?.split(' ')[0] || 'Student'}!
            </h1>
             <p className="text-zinc-500 text-sm sm:text-base">
@@ -188,18 +188,18 @@ const Dashboard: React.FC = () => {
               ) : dashboardFailed ? (
                 "Couldn't load today's plan. Your data is safe — try again."
               ) : (
-                <>Ready to make some progress? You have <span className="font-semibold text-zinc-900">{totalToday - completedToday} tasks</span> remaining today.</>
+                <>Ready to make some progress? You have <span className="font-semibold text-ink">{totalToday - completedToday} tasks</span> remaining today.</>
               )}
             </p>
          </div>
-         <div className="flex items-center gap-2 sm:gap-3 bg-white p-2 rounded-xl border border-zinc-200 shadow-sm w-full md:w-auto justify-center md:justify-start">
-            <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-100 text-zinc-700 rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Daily Streak">
+         <div className="flex items-center gap-2 sm:gap-3 bg-surface p-2 rounded-xl border border-zinc-200 shadow-sm w-full md:w-auto justify-center md:justify-start">
+            <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-100 text-inksoft rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Daily Streak">
                <Flame size={14} className={`fill-current ${(displayUser?.streak || 0) > 0 ? 'text-orange-500' : 'text-zinc-400'}`} />
                {/* No xs: breakpoint exists in this project — sm: carries the compact/full switch */}
                <span className="hidden sm:inline">{displayUser?.streak || 0} Day Streak</span>
                <span className="sm:hidden">{displayUser?.streak || 0}</span>
             </div>
-            <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-900 text-white rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Total XP">
+            <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-900 text-onink rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Total XP">
                <Trophy size={14} className="fill-current" />
                <span className="hidden sm:inline">{displayUser?.xp || 0} XP</span>
                <span className="sm:hidden">{displayUser?.xp || 0}</span>
@@ -214,7 +214,7 @@ const Dashboard: React.FC = () => {
           <p className="text-sm text-red-700 flex-1">Couldn't load your dashboard. Check your connection and try again.</p>
           <button
             onClick={() => fetchDashboard()}
-            className="px-4 py-2 bg-white border border-red-200 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors self-start sm:self-auto"
+            className="px-4 py-2 bg-surface border border-red-200 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors self-start sm:self-auto"
           >
             Retry
           </button>
@@ -227,7 +227,7 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 space-y-6 lg:space-y-8">
           
           {/* Hero / Quick AI */}
-          <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 lg:p-8 text-white relative overflow-hidden shadow-xl shadow-zinc-900/10">
+          <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 lg:p-8 text-onink relative overflow-hidden shadow-xl shadow-zinc-900/10">
              <div className="absolute top-0 right-0 w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] bg-zinc-800/50 rounded-full blur-3xl -mr-10 -mt-10 sm:-mr-20 sm:-mt-20"></div>
              <div className="absolute bottom-0 left-0 w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] bg-zinc-700/30 rounded-full blur-3xl -ml-6 -mb-6 sm:-ml-10 sm:-mb-10"></div>
 
@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
                   <input
                     type="text"
                     placeholder="e.g. Explain photosynthesis briefly..."
-                    className="w-full pl-4 sm:pl-5 pr-10 sm:pr-12 py-3 sm:py-4 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md text-white placeholder-zinc-400 focus:outline-none focus:bg-white/20 focus:border-white/30 transition-all text-sm sm:text-base"
+                    className="w-full pl-4 sm:pl-5 pr-10 sm:pr-12 py-3 sm:py-4 rounded-xl bg-surface/10 border border-white/20 backdrop-blur-md text-onink placeholder-zinc-400 focus:outline-none focus:bg-surface/20 focus:border-white/30 transition-all text-sm sm:text-base"
                     value={quickQuestion}
                     onChange={(e) => setQuickQuestion(e.target.value)}
                   />
@@ -249,7 +249,7 @@ const Dashboard: React.FC = () => {
                     type="submit"
                     disabled={!quickQuestion.trim()}
                     aria-label="Ask question"
-                    className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 p-1.5 sm:p-2 bg-white text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-['']"
+                    className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 p-1.5 sm:p-2 bg-surface text-ink rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-['']"
                   >
                     <ArrowRight size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </button>
@@ -258,10 +258,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* XP Progress Section */}
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-zinc-200 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+          <div className="bg-surface p-4 sm:p-6 rounded-2xl border border-zinc-200 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
              <div className="relative flex-shrink-0 self-center sm:self-auto">
                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-100 flex items-center justify-center border-4 border-zinc-50">
-                   <span className="text-lg sm:text-xl font-black text-zinc-900">{displayUser?.level || 1}</span>
+                   <span className="text-lg sm:text-xl font-black text-ink">{displayUser?.level || 1}</span>
                </div>
                <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
                   LEVEL
@@ -271,10 +271,10 @@ const Dashboard: React.FC = () => {
              <div className="flex-1">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-2 gap-1 sm:gap-0">
                    <div className="text-center sm:text-left">
-                      <h3 className="font-bold text-zinc-900">Level Progress</h3>
+                      <h3 className="font-bold text-ink">Level Progress</h3>
                        <p className="text-xs text-zinc-500">{xpToNextLevel} XP to Level {(displayUser?.level || 1) + 1}</p>
                    </div>
-                   <span className="font-bold text-zinc-900 text-sm self-center sm:self-auto">{progressToNextLevel}%</span>
+                   <span className="font-bold text-ink text-sm self-center sm:self-auto">{progressToNextLevel}%</span>
                 </div>
                 <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden">
                    <div
@@ -288,10 +288,10 @@ const Dashboard: React.FC = () => {
           {/* Continue Learning (Saved Items) */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-zinc-900 flex items-center gap-2">
-                <PlayCircle size={20} className="text-zinc-900" /> Continue Learning
+              <h3 className="font-bold text-ink flex items-center gap-2">
+                <PlayCircle size={20} className="text-ink" /> Continue Learning
               </h3>
-              <Link to="/library" className="text-xs font-medium text-zinc-500 hover:text-zinc-900 flex items-center gap-1">
+              <Link to="/library" className="text-xs font-medium text-zinc-500 hover:text-ink flex items-center gap-1">
                 View Library <ChevronRight size={14} />
               </Link>
             </div>
@@ -312,9 +312,9 @@ const Dashboard: React.FC = () => {
                ) : (
                  <div className="col-span-1 sm:col-span-2 py-8 sm:py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl flex flex-col items-center justify-center text-center">
                     <Bookmark size={28} className="sm:w-8 sm:h-8 text-zinc-300 mb-3" />
-                    <p className="text-sm font-medium text-zinc-900">No saved items yet</p>
+                    <p className="text-sm font-medium text-ink">No saved items yet</p>
                     <p className="text-xs text-zinc-500 mb-4 px-4">Bookmark videos or documents to access them quickly here.</p>
-                    <Link to="/library" className="text-xs bg-zinc-900 text-white px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors">
+                    <Link to="/library" className="text-xs bg-zinc-900 text-onink px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors">
                       Explore Content
                     </Link>
                  </div>
@@ -327,10 +327,10 @@ const Dashboard: React.FC = () => {
         <div className="space-y-6 lg:space-y-8">
            
            {/* Daily Progress Card */}
-           <div className="bg-white rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm">
+           <div className="bg-surface rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4 sm:mb-6">
-                 <h3 className="font-bold text-zinc-900 flex items-center gap-2">
-                    <Target size={18} className="text-zinc-900" /> Daily Goal
+                 <h3 className="font-bold text-ink flex items-center gap-2">
+                    <Target size={18} className="text-ink" /> Daily Goal
                  </h3>
                  <span className="text-xs text-zinc-500 font-medium">{Math.round(progressPercentage)}%</span>
               </div>
@@ -342,30 +342,30 @@ const Dashboard: React.FC = () => {
                        <circle
                          cx="50" cy="50" r="46"
                          fill="none" stroke="currentColor" strokeWidth="8"
-                         className="text-zinc-900 transition-all duration-1000 ease-out"
+                         className="text-ink transition-all duration-1000 ease-out"
                          strokeDasharray="289"
                          strokeDashoffset={289 - (289 * progressPercentage) / 100}
                          strokeLinecap="round"
                        />
                     </svg>
                     <div className="text-center">
-                       <span className="text-2xl sm:text-3xl font-bold text-zinc-900">{completedToday}</span>
+                       <span className="text-2xl sm:text-3xl font-bold text-ink">{completedToday}</span>
                        <span className="text-xs text-zinc-400 block uppercase">of {totalToday} tasks</span>
                     </div>
                  </div>
               </div>
 
               <div className="space-y-3">
-                 <Link to="/planner" className="block w-full py-2.5 bg-zinc-900 text-white text-center text-sm font-medium rounded-xl hover:bg-zinc-800 transition-colors">
+                 <Link to="/planner" className="block w-full py-2.5 bg-zinc-900 text-onink text-center text-sm font-medium rounded-xl hover:bg-zinc-800 transition-colors">
                     View Planner
                  </Link>
               </div>
            </div>
 
            {/* Today's Schedule */}
-           <div className="bg-white rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm flex flex-col min-h-[300px] sm:h-[400px] max-h-[400px]">
+           <div className="bg-surface rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm flex flex-col min-h-[300px] sm:h-[400px] max-h-[400px]">
               <div className="flex items-center justify-between mb-4">
-                 <h3 className="font-bold text-zinc-900 flex items-center gap-2">
+                 <h3 className="font-bold text-ink flex items-center gap-2">
                     <Calendar size={16} className="text-zinc-500" /> Today's Plan
                  </h3>
                  <span className="text-xs text-zinc-400">
@@ -388,13 +388,13 @@ const Dashboard: React.FC = () => {
                            {task.isCompleted ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                         </div>
                         <div>
-                           <h4 className={`text-sm font-semibold text-zinc-900 leading-tight ${task.isCompleted ? 'line-through text-zinc-500' : ''}`}>
+                           <h4 className={`text-sm font-semibold text-ink leading-tight ${task.isCompleted ? 'line-through text-zinc-500' : ''}`}>
                               {task.title}
                            </h4>
                            <div className="flex items-center gap-2 mt-1">
                               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{task.subject}</span>
                               <span className={`text-[10px] px-1.5 rounded font-bold uppercase ${
-                                 task.type === 'Exam' ? 'bg-red-100 text-red-600' : 'bg-zinc-200 text-zinc-600'
+                                 task.type === 'Exam' ? 'bg-red-100 text-red-600' : 'bg-zinc-200 text-inksoft'
                               }`}>
                                  {task.type}
                               </span>
@@ -408,7 +408,7 @@ const Dashboard: React.FC = () => {
                         <Calendar size={20} />
                       </div>
                       <p className="text-sm">No tasks for today.</p>
-                      <Link to="/planner" className="text-xs text-zinc-600 font-medium mt-1 hover:underline">Add a task</Link>
+                      <Link to="/planner" className="text-xs text-inksoft font-medium mt-1 hover:underline">Add a task</Link>
                    </div>
                  )}
               </div>
@@ -420,7 +420,7 @@ const Dashboard: React.FC = () => {
                 <Crown size={96} className="absolute -right-4 -bottom-4 text-white/5 rotate-12" aria-hidden="true" />
                 <div className="relative z-10 flex items-center gap-3">
                    <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0">
-                      <Crown size={18} className="text-zinc-900" />
+                      <Crown size={18} className="text-ink" />
                    </div>
                    <div className="min-w-0">
                       <p className="font-black tracking-[0.15em] text-xs">STUDENT PRO</p>
@@ -436,15 +436,15 @@ const Dashboard: React.FC = () => {
                 </div>
              </Link>
            ) : (
-             <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden">
+             <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 text-onink relative overflow-hidden">
                 <div className="relative z-10">
                    <h3 className="font-bold text-base sm:text-lg mb-1">Upgrade to Pro</h3>
                    <p className="text-zinc-300 text-sm mb-4">Premium library & videos, unlimited quizzes, AI study planner.</p>
-                   <Link to="/subscription" className="inline-block px-4 py-2 bg-white text-zinc-900 font-bold rounded-lg text-sm hover:bg-zinc-200 transition-colors">
+                   <Link to="/subscription" className="inline-block px-4 py-2 bg-surface text-ink font-bold rounded-lg text-sm hover:bg-zinc-200 transition-colors">
                       View Plans
                    </Link>
                 </div>
-                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 sm:-mr-10 sm:-mt-10"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-surface/10 rounded-full blur-2xl -mr-8 -mt-8 sm:-mr-10 sm:-mt-10"></div>
              </div>
            )}
 

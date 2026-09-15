@@ -12,6 +12,19 @@
   <meta name="apple-mobile-web-app-title" content="SmartStudy" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <!-- Theme pre-paint: apply the stored/OS theme before first paint so a
+       dark preference never flashes light. Mirrors ThemeContext logic. -->
+  <script>
+    try {
+      var t = localStorage.getItem('smartstudy-theme');
+      if (t !== 'ivory' && t !== 'midnight-iris') {
+        t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          ? 'midnight-iris' : 'ivory';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) { /* default (ivory) CSS applies */ }
+  </script>
+
   <!-- Google Search Console Verification -->
   <meta name="google-site-verification" content="dwSgb2xvyM5wFdnmXF_gzHvxclfRz-6F8Khghobq4dQ" />
 
@@ -45,9 +58,9 @@
     content="SmartStudy is an AI-powered educational platform for Ethiopian high school students. Access digital library, AI tutor, video lessons, and community support.">
   <meta property="twitter:image" content="https://smartstudy.tewodroshabtamu.dev/icon-512.png">
 
-  <!-- Additional SEO Meta Tags -->
-  <meta name="theme-color" content="#18181b">
-  <meta name="msapplication-TileColor" content="#18181b">
+  <!-- Additional SEO Meta Tags (theme-color is managed live by ThemeContext) -->
+  <meta name="theme-color" content="#FAFAFA">
+  <meta name="msapplication-TileColor" content="#FAFAFA">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 

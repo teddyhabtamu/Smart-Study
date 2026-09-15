@@ -217,20 +217,20 @@ const VideoLibrary: React.FC = () => {
             <div className="flex items-center gap-3 animate-fade-in">
               <button
                 onClick={handleBackToLanding}
-                className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-900 bg-white border border-zinc-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm hover:shadow"
+                className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-ink bg-surface border border-zinc-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm hover:shadow"
               >
                 <ArrowLeft size={14} /> All Grades
               </button>
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 bg-zinc-900 rounded-lg flex items-center justify-center">
-                  <GraduationCap size={14} className="text-white" />
+                  <GraduationCap size={14} className="text-onink" />
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">Grade {selectedGrade}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">Grade {selectedGrade}</h1>
               </div>
             </div>
           ) : (
             <>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">Video Classroom</h1>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">Video Classroom</h1>
               <p className="text-zinc-500 text-sm mt-1">Watch expert-led lessons for every subject and grade.</p>
             </>
           )}
@@ -243,7 +243,7 @@ const VideoLibrary: React.FC = () => {
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all shadow-sm"
+            className="block w-full pl-10 pr-4 py-2.5 bg-surface border border-zinc-200 rounded-xl text-sm text-ink placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all shadow-sm"
             placeholder="Search across all grades and subjects..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -257,7 +257,7 @@ const VideoLibrary: React.FC = () => {
 
           {/* Grade Selection Grid — ALWAYS at the top */}
           <section>
-            <h2 className="font-bold text-zinc-900 text-[15px] mb-4">Choose Your Grade</h2>
+            <h2 className="font-bold text-ink text-[15px] mb-4">Choose Your Grade</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {([9, 10, 11, 12] as const).map((grade) => {
                 const info = GRADE_DATA[grade];
@@ -265,25 +265,25 @@ const VideoLibrary: React.FC = () => {
                   <button
                     key={grade}
                     onClick={() => handleGradeSelect(grade)}
-                    className="group relative bg-white rounded-2xl border border-zinc-200 p-4 sm:p-6 text-left overflow-hidden hover:border-zinc-400 hover:shadow-card transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                    className="group relative bg-surface rounded-2xl border border-zinc-200 p-4 sm:p-6 text-left overflow-hidden hover:border-zinc-400 hover:shadow-card transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
                   >
                     {/* Subtle dot pattern background */}
                     <div className="absolute inset-0 bg-grid-pattern opacity-40 pointer-events-none rounded-2xl" />
 
                     <div className="relative z-10">
                       {/* Grade number badge */}
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-900 text-white rounded-xl flex items-center justify-center font-black text-base sm:text-lg mb-3 sm:mb-4 group-hover:scale-105 transition-transform duration-200 shadow-sm">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-900 text-onink rounded-xl flex items-center justify-center font-black text-base sm:text-lg mb-3 sm:mb-4 group-hover:scale-105 transition-transform duration-200 shadow-sm">
                         {grade}
                       </div>
 
-                      <h3 className="font-bold text-zinc-900 text-base sm:text-lg leading-none mb-1">
+                      <h3 className="font-bold text-ink text-base sm:text-lg leading-none mb-1">
                         Grade {grade}
                       </h3>
                       <p className="text-xs text-zinc-500 font-medium mb-2 sm:mb-3">{info.tagline}</p>
                       <p className="text-[11px] text-zinc-400 leading-relaxed hidden sm:block">{info.subjects}</p>
 
                       {/* Arrow link indicator — always visible on touch (no hover there) */}
-                      <div className="mt-3 sm:mt-4 flex items-center gap-1 text-xs font-semibold text-zinc-900 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus:opacity-100 lg:translate-x-0 lg:group-hover:translate-x-0.5 transition-all duration-200">
+                      <div className="mt-3 sm:mt-4 flex items-center gap-1 text-xs font-semibold text-ink opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus:opacity-100 lg:translate-x-0 lg:group-hover:translate-x-0.5 transition-all duration-200">
                         Explore <ChevronRight size={13} />
                       </div>
                     </div>
@@ -296,7 +296,7 @@ const VideoLibrary: React.FC = () => {
           {/* Saved / New Arrivals strip — below grade cards */}
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-zinc-900 flex items-center gap-2 text-[15px]">
+              <h2 className="font-bold text-ink flex items-center gap-2 text-[15px]">
                 <Compass size={16} className="text-zinc-500" />
                 {hasBookmarks ? 'Saved for Later' : 'New This Week'}
               </h2>
@@ -334,8 +334,8 @@ const VideoLibrary: React.FC = () => {
             <button
               onClick={() => setSelectedSubject('All')}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap border transition-all flex-shrink-0 ${selectedSubject === 'All'
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-sm'
-                : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400 hover:text-zinc-900'
+                ? 'bg-zinc-900 text-onink border-zinc-900 shadow-sm'
+                : 'bg-surface text-inksoft border-zinc-200 hover:border-zinc-400 hover:text-ink'
                 }`}
             >
               All Subjects
@@ -346,8 +346,8 @@ const VideoLibrary: React.FC = () => {
                 key={subject}
                 onClick={() => setSelectedSubject(subject)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap border transition-all flex-shrink-0 ${selectedSubject === subject
-                  ? 'bg-zinc-900 text-white border-zinc-900 shadow-sm'
-                  : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400 hover:text-zinc-900'
+                  ? 'bg-zinc-900 text-onink border-zinc-900 shadow-sm'
+                  : 'bg-surface text-inksoft border-zinc-200 hover:border-zinc-400 hover:text-ink'
                   }`}
               >
                 {SUBJECT_ICONS[subject] && (
@@ -373,8 +373,8 @@ const VideoLibrary: React.FC = () => {
               <button
                 onClick={() => setShowSavedOnly(!showSavedOnly)}
                 className={`flex items-center justify-center gap-1.5 px-3.5 py-[10px] rounded-xl text-sm font-medium border transition-colors whitespace-nowrap ${showSavedOnly
-                  ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                  ? 'bg-zinc-900 text-onink border-zinc-900'
+                  : 'bg-surface text-inksoft border-zinc-200 hover:border-zinc-400'
                   }`}
               >
                 <Bookmark size={14} className={showSavedOnly ? 'fill-current' : ''} />
@@ -383,7 +383,7 @@ const VideoLibrary: React.FC = () => {
             )}
 
             <div className="sm:ml-auto flex items-center gap-2">
-              <div className="hidden sm:flex h-[42px] w-9 items-center justify-center bg-white rounded-xl text-zinc-400 border border-zinc-200 flex-shrink-0">
+              <div className="hidden sm:flex h-[42px] w-9 items-center justify-center bg-surface rounded-xl text-zinc-400 border border-zinc-200 flex-shrink-0">
                 <ArrowUpDown size={14} />
               </div>
               <div className="w-full sm:w-44">
@@ -438,16 +438,16 @@ const VideoLibrary: React.FC = () => {
           {/* Empty State */}
           {filteredVideos.length === 0 && !loading.videos && !errors.videos && (
             <div className="py-16 text-center border-2 border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
-              <div className="w-10 h-10 bg-white border border-zinc-200 rounded-xl flex items-center justify-center mx-auto mb-3 text-zinc-400 shadow-sm">
+              <div className="w-10 h-10 bg-surface border border-zinc-200 rounded-xl flex items-center justify-center mx-auto mb-3 text-zinc-400 shadow-sm">
                 <Search className="w-4 h-4" />
               </div>
-              <p className="text-zinc-900 font-semibold text-sm">No videos found</p>
+              <p className="text-ink font-semibold text-sm">No videos found</p>
               <p className="text-zinc-500 text-xs mt-1 max-w-xs mx-auto">
                 {showSavedOnly ? "No bookmarked videos match these filters." : "Try adjusting your filters or search term."}
               </p>
               <button
                 onClick={() => { setSearchTerm(''); setSelectedSubject('All'); setSelectedChapter('All'); setShowSavedOnly(false); setSortBy('newest'); }}
-                className="mt-4 text-xs font-semibold text-white bg-zinc-900 px-4 py-2 rounded-lg hover:bg-black transition-colors"
+                className="mt-4 text-xs font-semibold text-onink bg-zinc-900 px-4 py-2 rounded-lg hover:bg-black transition-colors"
               >
                 Clear filters
               </button>
@@ -483,7 +483,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
   };
 
   return (
-    <div className="group bg-white rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full relative">
+    <div className="group bg-surface rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full relative">
       {/* Bookmark button */}
       {user && (
         <button
@@ -491,8 +491,8 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
           disabled={isBookmarking}
           aria-label={isBookmarked ? 'Remove bookmark' : 'Save bookmark'}
           className={`absolute top-2.5 right-2.5 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${isBookmarked
-            ? 'bg-zinc-900 text-white shadow-md'
-            : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow'
+            ? 'bg-zinc-900 text-onink shadow-md'
+            : 'bg-surface/90 backdrop-blur-sm text-inksoft hover:bg-surface shadow'
             }`}
         >
           {isBookmarking ? <Loader2 size={12} className="animate-spin" /> : <Bookmark size={12} className={isBookmarked ? 'fill-current' : ''} />}
@@ -516,7 +516,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
           {/* Play overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-xl opacity-100 scale-100 lg:opacity-0 lg:scale-75 lg:group-hover:opacity-100 lg:group-hover:scale-100 lg:group-focus-within:opacity-100 lg:group-focus-within:scale-100 transition-all duration-300">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-surface rounded-full flex items-center justify-center shadow-xl opacity-100 scale-100 lg:opacity-0 lg:scale-75 lg:group-hover:opacity-100 lg:group-hover:scale-100 lg:group-focus-within:opacity-100 lg:group-focus-within:scale-100 transition-all duration-300">
               <div className="w-0 h-0 border-l-[11px] border-l-zinc-900 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent ml-1"></div>
             </div>
           </div>
@@ -528,7 +528,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
                 <Crown size={8} /> Pro
               </div>
             ) : (
-              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wide flex items-center gap-1 backdrop-blur-sm shadow-sm">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-onink px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wide flex items-center gap-1 backdrop-blur-sm shadow-sm">
                 <Lock size={8} /> Premium
               </div>
             )
@@ -536,10 +536,10 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
           {/* Meta badges (bottom) */}
           <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 flex gap-1.5">
-            <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
+            <span className="bg-surface/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-inksoft border border-black/5 shadow-sm">
               {video.subject}
             </span>
-            <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
+            <span className="bg-surface/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-inksoft border border-black/5 shadow-sm">
               {video.grade === 0 ? 'General' : `Grade ${video.grade}`}
             </span>
           </div>
@@ -547,7 +547,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
         {/* Card body */}
         <div className={`${compact ? 'p-3' : 'p-3 sm:p-5'} flex-1 flex flex-col`}>
-          <h3 className={`font-semibold text-zinc-900 leading-snug mb-1.5 line-clamp-2 group-hover:text-zinc-600 transition-colors ${compact ? 'text-sm' : 'text-sm sm:text-base'}`}>
+          <h3 className={`font-semibold text-ink leading-snug mb-1.5 line-clamp-2 group-hover:text-inksoft transition-colors ${compact ? 'text-sm' : 'text-sm sm:text-base'}`}>
             {decodeHtmlEntities(video.title)}
           </h3>
 
@@ -566,7 +566,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
               <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
               <span>{video.likes} likes</span>
             </div>
-            <span className="text-[10px] sm:text-xs font-semibold text-zinc-900 flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
+            <span className="text-[10px] sm:text-xs font-semibold text-ink flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
               Watch <PlayCircle size={11} className="sm:w-3 sm:h-3" />
             </span>
           </div>

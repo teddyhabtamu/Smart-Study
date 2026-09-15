@@ -74,32 +74,32 @@ const OverviewTab: React.FC = () => {
               </>
             ) : (
               <>
-                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
-                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Users size={18} className="sm:w-5 sm:h-5" /></div>
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-inksoft rounded-lg"><Users size={18} className="sm:w-5 sm:h-5" /></div>
                    </div>
-                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalUsers.toLocaleString()}</div>
+                   <div className="text-xl sm:text-3xl font-bold text-ink tracking-tight">{stats.totalUsers.toLocaleString()}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Total Students</div>
                 </div>
-                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
-                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><Crown size={18} className="sm:w-5 sm:h-5" /></div>
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-inksoft rounded-lg"><Crown size={18} className="sm:w-5 sm:h-5" /></div>
                    </div>
-                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
+                   <div className="text-xl sm:text-3xl font-bold text-ink tracking-tight">{stats.premiumUsers.toLocaleString()}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Premium Subscribers</div>
                 </div>
-                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
-                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><FileText size={18} className="sm:w-5 sm:h-5" /></div>
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-inksoft rounded-lg"><FileText size={18} className="sm:w-5 sm:h-5" /></div>
                    </div>
-                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
+                   <div className="text-xl sm:text-3xl font-bold text-ink tracking-tight">{stats.totalDocuments + stats.totalVideos}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Learning Resources</div>
                 </div>
-                <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+                <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
                    <div className="flex justify-between items-start mb-3 sm:mb-4">
-                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-zinc-700 rounded-lg"><MessageSquare size={18} className="sm:w-5 sm:h-5" /></div>
+                      <div className="p-1.5 sm:p-2 bg-zinc-100 text-inksoft rounded-lg"><MessageSquare size={18} className="sm:w-5 sm:h-5" /></div>
                    </div>
-                   <div className="text-xl sm:text-3xl font-bold text-zinc-900 tracking-tight">{stats.totalPosts}</div>
+                   <div className="text-xl sm:text-3xl font-bold text-ink tracking-tight">{stats.totalPosts}</div>
                    <div className="text-xs sm:text-sm text-zinc-500 mt-1">Community Posts</div>
                 </div>
               </>
@@ -111,12 +111,12 @@ const OverviewTab: React.FC = () => {
           {adminLoading ? (
             <RecentActivitySkeleton />
           ) : !adminStats ? (
-            <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 text-center py-8 text-zinc-500">
+            <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6 text-center py-8 text-zinc-500">
               <p className="text-sm">{statsError || 'No recent activity to display'}</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
-              <h3 className="font-bold text-zinc-900 mb-4">Recent System Activity</h3>
+            <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
+              <h3 className="font-bold text-ink mb-4">Recent System Activity</h3>
               <div className="space-y-4">
                  {adminStats?.recent_activity && adminStats.recent_activity.length > 0 ? (
                    adminStats.recent_activity.map((item: any, i: number) => (
@@ -129,7 +129,7 @@ const OverviewTab: React.FC = () => {
                              'bg-zinc-300'
                            }`}></div>
                            <div>
-                              <p className="text-sm font-medium text-zinc-900">
+                              <p className="text-sm font-medium text-ink">
                                 {item.type === 'user_registration' ? 'New User Registration' :
                                  item.type === 'premium_subscription' ? 'Premium Subscription' :
                                  item.type === 'content_upload' ? 'Content Upload' :

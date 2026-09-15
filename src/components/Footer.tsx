@@ -10,9 +10,9 @@ const Footer: React.FC = () => {
              <div className="col-span-2 md:col-span-1">
                 <div className="flex items-center gap-2 mb-4">
                    <div className="bg-zinc-900 w-8 h-8 rounded-lg flex items-center justify-center">
-                      <GraduationCap className="text-white" size={16} />
+                      <GraduationCap className="text-onink" size={16} />
                    </div>
-                   <span className="font-bold text-lg text-zinc-900">SmartStudy</span>
+                   <span className="font-bold text-lg text-ink">SmartStudy</span>
                 </div>
                 <p className="text-sm text-zinc-500 leading-relaxed">
                    Empowering Ethiopian high school students with AI-driven tools, quality resources, and a vibrant community.
@@ -20,34 +20,34 @@ const Footer: React.FC = () => {
              </div>
              
              <div>
-                <h4 className="font-bold text-zinc-900 mb-4">Platform</h4>
+                <h4 className="font-bold text-ink mb-4">Platform</h4>
                 <ul className="space-y-3 text-sm text-zinc-500">
-                   <li><Link to="/library" className="hover:text-zinc-900">Library</Link></li>
-                   <li><Link to="/past-exams" className="hover:text-zinc-900">Past Exams</Link></li>
-                   <li><Link to="/videos" className="hover:text-zinc-900">Video Lessons</Link></li>
-                   <li><Link to="/ai-tutor" className="hover:text-zinc-900">AI Tutor</Link></li>
-                   <li><Link to="/community" className="hover:text-zinc-900">Community</Link></li>
+                   <li><Link to="/library" className="hover:text-ink">Library</Link></li>
+                   <li><Link to="/past-exams" className="hover:text-ink">Past Exams</Link></li>
+                   <li><Link to="/videos" className="hover:text-ink">Video Lessons</Link></li>
+                   <li><Link to="/ai-tutor" className="hover:text-ink">AI Tutor</Link></li>
+                   <li><Link to="/community" className="hover:text-ink">Community</Link></li>
                 </ul>
              </div>
 
              <div>
-                <h4 className="font-bold text-zinc-900 mb-4">Company</h4>
+                <h4 className="font-bold text-ink mb-4">Company</h4>
                 <ul className="space-y-3 text-sm text-zinc-500">
-                   <li><Link to="/about" className="hover:text-zinc-900">About Us</Link></li>
-                   <li><Link to="/careers" className="hover:text-zinc-900">Careers</Link></li>
-                   <li><Link to="/privacy-policy" className="hover:text-zinc-900">Privacy Policy</Link></li>
-                   <li><Link to="/terms-of-service" className="hover:text-zinc-900">Terms of Service</Link></li>
+                   <li><Link to="/about" className="hover:text-ink">About Us</Link></li>
+                   <li><Link to="/careers" className="hover:text-ink">Careers</Link></li>
+                   <li><Link to="/privacy-policy" className="hover:text-ink">Privacy Policy</Link></li>
+                   <li><Link to="/terms-of-service" className="hover:text-ink">Terms of Service</Link></li>
                 </ul>
              </div>
 
               <div>
-                 <h4 className="font-bold text-zinc-900 mb-4">Connect</h4>
+                 <h4 className="font-bold text-ink mb-4">Connect</h4>
                  <div className="flex gap-4">
                     {/* Only channels that actually exist: Telegram support +
                         LinkedIn. The old Twitter/GitHub href="#" links just
                         jumped to the top of the page. */}
-                    <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" title="Telegram" className="text-zinc-400 hover:text-zinc-900"><Send size={20} /></a>
-                    <a href="https://www.linkedin.com/company/smartstudy-official" target="_blank" rel="noopener noreferrer" title="LinkedIn" className="text-zinc-400 hover:text-zinc-900"><Linkedin size={20} /></a>
+                    <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" title="Telegram" className="text-zinc-400 hover:text-ink"><Send size={20} /></a>
+                    <a href="https://www.linkedin.com/company/smartstudy-official" target="_blank" rel="noopener noreferrer" title="LinkedIn" className="text-zinc-400 hover:text-ink"><Linkedin size={20} /></a>
                  </div>
               </div>
           </div>

@@ -40,7 +40,7 @@ const getUrgency = (dateStr: string): { label: string; tone: 'overdue' | 'today'
 const urgencyPill = (tone: string): string => {
   switch (tone) {
     case 'overdue': return 'bg-red-600 text-white';
-    case 'today': return 'bg-zinc-900 text-white';
+    case 'today': return 'bg-zinc-900 text-onink';
     case 'soon': return 'bg-amber-100 text-amber-800';
     default: return 'bg-zinc-100 text-zinc-500';
   }
@@ -437,7 +437,7 @@ const Planner: React.FC = () => {
     switch (type) {
       case 'Exam': return 'bg-red-100 text-red-700 border-red-200';
       case 'Assignment': return 'bg-amber-100 text-amber-700 border-amber-200';
-      default: return 'bg-zinc-100 text-zinc-900 border-zinc-200';
+      default: return 'bg-zinc-100 text-ink border-zinc-200';
     }
   };
 
@@ -612,20 +612,20 @@ const Planner: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">Study Planner</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">Study Planner</h1>
             <p className="text-zinc-500 text-sm sm:text-base">Organize your schedule and ace your exams.</p>
           </div>
           <div className="flex gap-2 self-start sm:self-auto">
              <button
                onClick={handleSmartScheduleClick}
-               className="px-3 sm:px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md group"
+               className="px-3 sm:px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:opacity-90 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md group"
              >
                <Sparkles size={14} className="sm:w-4 sm:h-4" /> Smart Schedule
                {!user?.isPremium && <Lock size={12} className="sm:w-3.5 sm:h-3.5 ml-0.5 opacity-80 group-hover:scale-110 transition-transform" />}
              </button>
              <button
                onClick={() => setIsManualModalOpen(true)}
-               className="px-3 sm:px-4 py-2 bg-white text-zinc-700 border border-zinc-200 text-sm font-medium rounded-lg hover:bg-zinc-50 transition-all flex items-center gap-1.5 sm:gap-2"
+               className="px-3 sm:px-4 py-2 bg-surface text-inksoft border border-zinc-200 text-sm font-medium rounded-lg hover:bg-zinc-50 transition-all flex items-center gap-1.5 sm:gap-2"
              >
                <Plus size={14} className="sm:w-4 sm:h-4" /> Add Task
              </button>
@@ -636,9 +636,9 @@ const Planner: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Col: Overview Cards */}
         <div className="lg:col-span-1 space-y-6">
-           <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
-              <h3 className="font-bold text-zinc-900 mb-3 sm:mb-4 flex items-center gap-2">
-                <Clock size={16} className="sm:w-[18px] sm:h-[18px] text-zinc-600" /> Up Next
+           <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+              <h3 className="font-bold text-ink mb-3 sm:mb-4 flex items-center gap-2">
+                <Clock size={16} className="sm:w-[18px] sm:h-[18px] text-inksoft" /> Up Next
               </h3>
               {loading.studyEvents ? (
                 <div className="space-y-4">
@@ -684,7 +684,7 @@ const Planner: React.FC = () => {
                             );
                           })()}
                        </div>
-                       <h4 className="font-semibold text-zinc-900 text-sm line-clamp-1">{event.title}</h4>
+                       <h4 className="font-semibold text-ink text-sm line-clamp-1">{event.title}</h4>
                        <p className="text-xs text-zinc-500">{event.subject}</p>
                        {(() => {
                          // Only show simple text notes, not JSON
@@ -709,7 +709,7 @@ const Planner: React.FC = () => {
               )}
            </div>
 
-           <div className="bg-zinc-900 text-white p-4 sm:p-6 rounded-xl shadow-sm relative overflow-hidden">
+           <div className="bg-zinc-900 text-onink p-4 sm:p-6 rounded-xl shadow-sm relative overflow-hidden">
               <div className="relative z-10">
                 <h3 className="font-bold mb-1 text-sm sm:text-base">Progress Tracker</h3>
                 <div className="flex items-end gap-2 mb-2">
@@ -729,12 +729,12 @@ const Planner: React.FC = () => {
            </div>
            
            <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-6 rounded-xl border border-amber-100 flex items-center gap-3 sm:gap-4">
-               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center text-amber-500 shadow-sm border border-amber-100 flex-shrink-0">
+               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-surface rounded-full flex items-center justify-center text-amber-500 shadow-sm border border-amber-100 flex-shrink-0">
                  <Trophy size={18} className="sm:w-5 sm:h-5" />
                </div>
                <div className="min-w-0">
                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">XP Reward</p>
-                 <p className="text-sm text-zinc-700">Complete tasks to earn up to <span className="font-bold">50 XP</span> each!</p>
+                 <p className="text-sm text-inksoft">Complete tasks to earn up to <span className="font-bold">50 XP</span> each!</p>
                </div>
            </div>
         </div>
@@ -747,7 +747,7 @@ const Planner: React.FC = () => {
                <button
                  onClick={() => setPlannerView('list')}
                  className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                   plannerView === 'list' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                   plannerView === 'list' ? 'bg-surface text-ink shadow-sm' : 'text-zinc-500 hover:text-inksoft'
                  }`}
                >
                  List
@@ -755,7 +755,7 @@ const Planner: React.FC = () => {
                <button
                  onClick={() => setPlannerView('calendar')}
                  className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                   plannerView === 'calendar' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                   plannerView === 'calendar' ? 'bg-surface text-ink shadow-sm' : 'text-zinc-500 hover:text-inksoft'
                  }`}
                >
                  Calendar
@@ -764,7 +764,7 @@ const Planner: React.FC = () => {
              {selectedDate && (
                <button
                  onClick={() => setSelectedDate(null)}
-                 className="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 transition-colors flex items-center gap-1.5"
+                 className="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-900 text-onink hover:bg-zinc-700 transition-colors flex items-center gap-1.5"
                >
                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                  <X size={12} />
@@ -777,8 +777,8 @@ const Planner: React.FC = () => {
                onClick={() => setStatusFilter('all')}
                className={`px-3 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
                  statusFilter === 'all'
-                   ? 'bg-zinc-900 text-white border-zinc-900'
-                   : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900'
+                   : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                All Tasks
@@ -787,8 +787,8 @@ const Planner: React.FC = () => {
                onClick={() => setStatusFilter('pending')}
                className={`px-3 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
                  statusFilter === 'pending'
-                   ? 'bg-zinc-900 text-white border-zinc-900'
-                   : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900'
+                   : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                Pending
@@ -797,8 +797,8 @@ const Planner: React.FC = () => {
                onClick={() => setStatusFilter('completed')}
                className={`px-3 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
                  statusFilter === 'completed'
-                   ? 'bg-zinc-900 text-white border-zinc-900'
-                   : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900'
+                   : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                Completed
@@ -807,8 +807,8 @@ const Planner: React.FC = () => {
                onClick={() => setStatusFilter('archived')}
                className={`px-3 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
                  statusFilter === 'archived'
-                   ? 'bg-zinc-900 text-white border-zinc-900'
-                   : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900'
+                   : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                Archived
@@ -829,29 +829,29 @@ const Planner: React.FC = () => {
                ))}
              </div>
            ) : plannerView === 'calendar' ? (
-             <div className="bg-white border border-zinc-200 rounded-xl shadow-sm p-3 sm:p-4 animate-fade-in">
+             <div className="bg-surface border border-zinc-200 rounded-xl shadow-sm p-3 sm:p-4 animate-fade-in">
                {/* Month navigation */}
                <div className="flex items-center justify-between mb-3">
                  <button
                    onClick={() => setCalCursor(new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1))}
-                   className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+                   className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-ink transition-colors"
                    aria-label="Previous month"
                  >
                    <ChevronLeft size={18} />
                  </button>
-                 <h3 className="text-sm sm:text-base font-bold text-zinc-900">
+                 <h3 className="text-sm sm:text-base font-bold text-ink">
                    {calCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                  </h3>
                  <div className="flex items-center gap-1">
                    <button
                      onClick={() => { const t = new Date(); setCalCursor(new Date(t.getFullYear(), t.getMonth(), 1)); setSelectedDate(todayKey); }}
-                     className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 hover:bg-zinc-100 transition-colors"
+                     className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-inksoft hover:bg-zinc-100 transition-colors"
                    >
                      Today
                    </button>
                    <button
                      onClick={() => setCalCursor(new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1))}
-                     className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+                     className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-ink transition-colors"
                      aria-label="Next month"
                    >
                      <ChevronRight size={18} />
@@ -877,7 +877,7 @@ const Planner: React.FC = () => {
                        onClick={() => setSelectedDate(isSelected ? null : cell.key)}
                        className={`min-h-[52px] sm:min-h-[64px] rounded-lg p-1 sm:p-1.5 text-left transition-colors flex flex-col ${
                          isSelected
-                           ? 'bg-zinc-900 text-white shadow-md'
+                           ? 'bg-zinc-900 text-onink shadow-md'
                            : isToday
                            ? 'bg-zinc-100 ring-2 ring-zinc-900 ring-inset'
                            : cell.inMonth
@@ -886,16 +886,16 @@ const Planner: React.FC = () => {
                        }`}
                      >
                        <span className={`text-[11px] sm:text-xs font-bold leading-none mb-1 ${
-                         isSelected ? 'text-white' : isToday ? 'text-zinc-900' : cell.inMonth ? 'text-zinc-700' : 'text-zinc-400'
+                         isSelected ? 'text-onink' : isToday ? 'text-ink' : cell.inMonth ? 'text-inksoft' : 'text-zinc-400'
                        }`}>
                          {cell.day}
                        </span>
                        <span className="flex flex-wrap gap-0.5">
                          {shown.map((e) => (
-                           <span key={e.id} title={`${e.title} (${e.type})`} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : typeDot(e.type)}`} />
+                           <span key={e.id} title={`${e.title} (${e.type})`} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-surface' : typeDot(e.type)}`} />
                          ))}
                          {extra > 0 && (
-                           <span className={`text-[10px] font-bold leading-none ${isSelected ? 'text-white' : 'text-zinc-500'}`}>+{extra}</span>
+                           <span className={`text-[10px] font-bold leading-none ${isSelected ? 'text-onink' : 'text-zinc-500'}`}>+{extra}</span>
                          )}
                        </span>
                      </button>
@@ -935,8 +935,8 @@ const Planner: React.FC = () => {
                           event.isCompleted
                             ? 'bg-zinc-50 border-zinc-100 opacity-60'
                             : selectedEventId === event.id
-                            ? 'bg-white border-zinc-900 shadow-lg'
-                            : 'bg-white border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md'
+                            ? 'bg-surface border-zinc-900 shadow-lg'
+                            : 'bg-surface border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md'
                         }`}
                       >
                          <button
@@ -963,7 +963,7 @@ const Planner: React.FC = () => {
 
                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                               <h4 className={`font-bold text-zinc-900 truncate text-sm sm:text-base ${event.isCompleted ? 'line-through text-zinc-500' : ''}`}>
+                               <h4 className={`font-bold text-ink truncate text-sm sm:text-base ${event.isCompleted ? 'line-through text-zinc-500' : ''}`}>
                                  {event.title}
                                </h4>
                                {event.type === 'Exam' && (
@@ -977,14 +977,14 @@ const Planner: React.FC = () => {
                                  if (!u) return null;
                                  return (
                                    <span className={`text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
-                                     {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-white animate-pulse mr-1 align-middle" />}
+                                     {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-surface animate-pulse mr-1 align-middle" />}
                                      {u.label}
                                    </span>
                                  );
                                })()}
                             </div>
                             <p className="text-xs text-zinc-500 flex items-center gap-2">
-                               <span className="font-medium text-zinc-700">{event.subject}</span>
+                               <span className="font-medium text-inksoft">{event.subject}</span>
                                {(() => {
                                  // Only show simple text notes, not JSON
                                  if (!event.notes) return null;
@@ -1070,11 +1070,11 @@ const Planner: React.FC = () => {
                </div>
              ))
            ) : (
-             <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-white border border-dashed border-zinc-200 rounded-xl text-center px-4">
+             <div className="flex flex-col items-center justify-center py-12 sm:py-20 bg-surface border border-dashed border-zinc-200 rounded-xl text-center px-4">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-3 sm:mb-4">
                    <CalendarDays size={24} className="sm:w-8 sm:h-8 text-zinc-300" />
                 </div>
-                <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Your schedule is empty</h3>
+                <h3 className="font-bold text-ink text-sm sm:text-base">Your schedule is empty</h3>
                 <p className="text-zinc-500 text-xs sm:text-sm max-w-xs mx-auto mt-2 px-2">
                   {statusFilter === 'all'
                     ? 'Add tasks manually or use our AI to generate a personalized study plan.'
@@ -1083,7 +1083,7 @@ const Planner: React.FC = () => {
                 {statusFilter === 'all' && (
                   <button
                     onClick={handleSmartScheduleClick}
-                    className="mt-4 sm:mt-6 text-xs sm:text-sm font-medium text-zinc-900 hover:text-black hover:underline flex items-center justify-center gap-1 mx-auto"
+                    className="mt-4 sm:mt-6 text-xs sm:text-sm font-medium text-ink hover:text-ink hover:underline flex items-center justify-center gap-1 mx-auto"
                   >
                     {!user?.isPremium && <Lock size={10} className="sm:w-3 sm:h-3" />} Generate Plan with AI
                   </button>
@@ -1100,26 +1100,26 @@ const Planner: React.FC = () => {
         label="Add Study Task"
       >
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
-               <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Add Study Task</h3>
-               <button onClick={() => setIsManualModalOpen(false)} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
+               <h3 className="font-bold text-ink text-sm sm:text-base">Add Study Task</h3>
+               <button onClick={() => setIsManualModalOpen(false)} className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200">
                  <X size={18} className="sm:w-5 sm:h-5" />
                </button>
             </div>
             <form onSubmit={handleAddManual} className="p-4 sm:p-6 space-y-4">
                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Task Title</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Task Title</label>
                   <input 
                     type="text" 
                     required
                     placeholder="e.g. Algebra Chapter 1 Review"
-                    className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
+                    className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                </div>
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subject</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Subject</label>
                     <CustomSelect 
                       options={subjectOptions}
                       value={subject}
@@ -1127,7 +1127,7 @@ const Planner: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Type</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Type</label>
                     <CustomSelect
                       options={typeOptions}
                       value={type}
@@ -1136,7 +1136,7 @@ const Planner: React.FC = () => {
                   </div>
                </div>
                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Date</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Date</label>
                   <DatePicker 
                     value={date}
                     onChange={setDate}
@@ -1147,7 +1147,7 @@ const Planner: React.FC = () => {
                <button
                  type="submit"
                  disabled={isAdding}
-                 className="w-full py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                 className="w-full py-3 sm:py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                >
                  {isAdding ? (
                    <>
@@ -1168,27 +1168,27 @@ const Planner: React.FC = () => {
         label="Generate smart schedule"
       >
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
-               <h3 className="font-bold text-zinc-900 flex items-center gap-2 text-sm sm:text-base">
-                 <Sparkles size={16} className="sm:w-[18px] sm:h-[18px] text-zinc-600" /> Smart Schedule
+               <h3 className="font-bold text-ink flex items-center gap-2 text-sm sm:text-base">
+                 <Sparkles size={16} className="sm:w-[18px] sm:h-[18px] text-inksoft" /> Smart Schedule
                </h3>
-               <button onClick={() => setIsAIModalOpen(false)} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
+               <button onClick={() => setIsAIModalOpen(false)} className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200">
                  <X size={18} className="sm:w-5 sm:h-5" />
                </button>
             </div>
             <div className="p-4 sm:p-6 space-y-4">
                <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-lg flex gap-3">
-                  <BookOpen className="text-zinc-600 flex-shrink-0 mt-0.5" size={18} />
-                  <p className="text-xs text-zinc-800 leading-relaxed">
+                  <BookOpen className="text-inksoft flex-shrink-0 mt-0.5" size={18} />
+                  <p className="text-xs text-ink leading-relaxed">
                     Tell us what exams or assignments you have coming up. Our AI will generate a balanced study plan for you, distributing revision sessions logically before your deadlines.
                   </p>
                </div>
                
                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Your Goal / Deadlines</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Your Goal / Deadlines</label>
                   <textarea 
                     rows={4}
                     placeholder="e.g. I have a Math exam on Quadratic Equations next Friday, and a Physics test on Newton's Laws next Monday. I want to study 2 hours a day."
-                    className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500/20 focus:border-zinc-500 resize-none"
+                    className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500/20 focus:border-zinc-500 resize-none"
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                   />
@@ -1197,7 +1197,7 @@ const Planner: React.FC = () => {
                <button
                  onClick={handleGenerateAI}
                  disabled={isGenerating || !aiPrompt.trim()}
-                 className="w-full py-3.5 sm:py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                 className="w-full py-3.5 sm:py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                >
                  {isGenerating ? (
                    <>
@@ -1262,7 +1262,7 @@ const Planner: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
             >
             <div
-              className={`bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-y-auto custom-scrollbar pointer-events-auto ${
+              className={`bg-surface rounded-xl shadow-2xl border border-zinc-200 overflow-y-auto custom-scrollbar pointer-events-auto ${
                 viewportWidth < 640 ? 'w-full max-h-[85vh]' : ''
               }`}
               style={{
@@ -1275,19 +1275,19 @@ const Planner: React.FC = () => {
               <div className="p-4 sm:p-3 sm:p-4 rounded-t-xl bg-zinc-900 border-b border-zinc-800 relative">
                 <button
                   onClick={closeTooltip}
-                  className="absolute top-4 right-4 sm:top-3 sm:right-3 sm:top-4 sm:right-4 p-2 sm:p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white transition-colors touch-manipulation"
+                  className="absolute top-4 right-4 sm:top-3 sm:right-3 sm:top-4 sm:right-4 p-2 sm:p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-onink transition-colors touch-manipulation"
                   aria-label="Close tooltip"
                 >
                   <X size={18} className="sm:w-4" />
                 </button>
                 <div className="flex items-start gap-3 pr-12">
-                  <div className="p-2.5 sm:p-2 sm:p-2.5 rounded-lg bg-white text-zinc-900 shadow-sm flex-shrink-0">
+                  <div className="p-2.5 sm:p-2 sm:p-2.5 rounded-lg bg-surface text-ink shadow-sm flex-shrink-0">
                     {event.type === 'Exam' ? <Target size={20} className="sm:w-5 sm:h-5" /> :
                      event.type === 'Assignment' ? <BookOpen size={20} className="sm:w-5 sm:h-5" /> :
                      <TrendingUp size={20} className="sm:w-5 sm:h-5" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-white text-base sm:text-sm sm:text-base mb-1 leading-tight">{event.title}</h4>
+                    <h4 className="font-bold text-onink text-base sm:text-sm sm:text-base mb-1 leading-tight">{event.title}</h4>
                     <p className="text-sm font-medium text-zinc-400">{event.subject}</p>
                     <span className="inline-block mt-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-800 text-zinc-200">
                       {event.type}
@@ -1301,17 +1301,17 @@ const Planner: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-3 mb-3 sm:mb-2 sm:mb-3">
                     <div className="p-2 bg-zinc-100 rounded-lg">
-                      <Target size={14} className="sm:w-3.5 sm:h-3.5 text-zinc-900" />
+                      <Target size={14} className="sm:w-3.5 sm:h-3.5 text-ink" />
                     </div>
-                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">How to Complete This Plan</h5>
+                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-ink uppercase tracking-wider">How to Complete This Plan</h5>
                   </div>
                   <div className="space-y-2.5">
                     {guide.howToComplete && Array.isArray(guide.howToComplete) && guide.howToComplete.map((step: string, idx: number) => (
                       <div key={idx} className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors touch-manipulation">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-white text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-onink text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
                           {idx + 1}
                         </div>
-                        <p className="text-xs text-zinc-700 leading-relaxed flex-1 font-medium"><MarkdownInline content={step} /></p>
+                        <p className="text-xs text-inksoft leading-relaxed flex-1 font-medium"><MarkdownInline content={step} /></p>
                       </div>
                     ))}
                   </div>
@@ -1321,15 +1321,15 @@ const Planner: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-3 mb-3 sm:mb-2 sm:mb-3">
                     <div className="p-2 bg-zinc-100 rounded-lg">
-                      <Lightbulb size={14} className="sm:w-3.5 sm:h-3.5 text-zinc-900" />
+                      <Lightbulb size={14} className="sm:w-3.5 sm:h-3.5 text-ink" />
                     </div>
-                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-zinc-900 uppercase tracking-wider">Quick Tips</h5>
+                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-ink uppercase tracking-wider">Quick Tips</h5>
                   </div>
                   <div className="space-y-2">
                     {guide.guides && Array.isArray(guide.guides) && guide.guides.map((item: string, idx: number) => (
                       <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-zinc-50 rounded-lg border border-zinc-200">
                         <div className="flex-shrink-0 w-2 h-2 rounded-full bg-zinc-900 mt-2"></div>
-                        <p className="text-xs text-zinc-700 leading-relaxed flex-1"><MarkdownInline content={item} /></p>
+                        <p className="text-xs text-inksoft leading-relaxed flex-1"><MarkdownInline content={item} /></p>
                       </div>
                     ))}
                   </div>
@@ -1342,7 +1342,7 @@ const Planner: React.FC = () => {
                       <span className="text-base flex-shrink-0">💡</span>
                       <div>
                         <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Suggestion</p>
-                        <p className="text-xs text-zinc-700 leading-relaxed font-medium"><MarkdownInline content={guide.suggestions} /></p>
+                        <p className="text-xs text-inksoft leading-relaxed font-medium"><MarkdownInline content={guide.suggestions} /></p>
                       </div>
                     </div>
                   </div>
@@ -1353,7 +1353,7 @@ const Planner: React.FC = () => {
                   <div className="pt-3 sm:pt-2 sm:pt-3 border-t border-zinc-200">
                     <div className="flex items-start gap-3 sm:gap-2 sm:gap-2.5 p-3 sm:p-2.5 sm:p-2.5 bg-zinc-900 rounded-lg">
                       <span className="text-lg sm:text-sm sm:text-base flex-shrink-0">✨</span>
-                      <p className="text-sm sm:text-[11px] sm:text-xs text-white italic leading-relaxed flex-1 font-medium">{randomMotivation}</p>
+                      <p className="text-sm sm:text-[11px] sm:text-xs text-onink italic leading-relaxed flex-1 font-medium">{randomMotivation}</p>
                     </div>
                   </div>
                 )}

@@ -97,11 +97,11 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
     <div className={`relative ${className}`} ref={containerRef}>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-3 py-2.5 bg-white border rounded-lg text-sm transition-all shadow-sm cursor-pointer ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 bg-surface border rounded-lg text-sm transition-all shadow-sm cursor-pointer ${
           isOpen ? 'border-zinc-400 ring-2 ring-zinc-100' : 'border-zinc-200 hover:border-zinc-300'
         }`}
       >
-        <span className={`block truncate ${displayDate ? 'text-zinc-900' : 'text-zinc-400'}`}>
+        <span className={`block truncate ${displayDate ? 'text-ink' : 'text-zinc-400'}`}>
            {displayDate || placeholder}
         </span>
         <CalendarIcon size={16} className="text-zinc-400" />
@@ -118,13 +118,13 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
       />
 
       {isOpen && (
-        <div className="absolute z-[999] mt-1.5 p-4 bg-white border border-zinc-200 rounded-xl shadow-xl animate-fade-in-fast left-0 w-72">
+        <div className="absolute z-[999] mt-1.5 p-4 bg-surface border border-zinc-200 rounded-xl shadow-xl animate-fade-in-fast left-0 w-72">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
              <button type="button" onClick={handlePrevMonth} className="p-1 hover:bg-zinc-100 rounded-full text-zinc-500 transition-colors">
                <ChevronLeft size={16} />
              </button>
-             <span className="font-semibold text-zinc-900 text-sm">
+             <span className="font-semibold text-ink text-sm">
                {MONTHS[currentMonth]} {currentYear}
              </span>
              <button type="button" onClick={handleNextMonth} className="p-1 hover:bg-zinc-100 rounded-full text-zinc-500 transition-colors">
@@ -163,10 +163,10 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
                    onClick={() => handleDayClick(day)}
                    className={`h-8 w-8 rounded-full flex items-center justify-center text-sm transition-colors ${
                      isSelected 
-                       ? 'bg-zinc-900 text-white font-medium' 
+                       ? 'bg-zinc-900 text-onink font-medium' 
                        : isToday 
-                         ? 'bg-zinc-100 text-zinc-900 font-medium'
-                         : 'text-zinc-700 hover:bg-zinc-50'
+                         ? 'bg-zinc-100 text-ink font-medium'
+                         : 'text-inksoft hover:bg-zinc-50'
                    }`}
                  >
                    {day}

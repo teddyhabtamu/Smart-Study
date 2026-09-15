@@ -194,7 +194,7 @@ export const InstallPrompt: React.FC = () => {
       role="dialog"
       aria-label="Install SmartStudy app"
     >
-      <div className="bg-zinc-900 text-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-zinc-800 p-4 sm:p-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="bg-zinc-900 text-onink rounded-t-2xl sm:rounded-2xl shadow-2xl border border-zinc-800 p-4 sm:p-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start gap-3">
           <img
             src="/icon-192.png"
@@ -212,7 +212,7 @@ export const InstallPrompt: React.FC = () => {
           </div>
           <button
             onClick={dismiss}
-            className="text-zinc-500 hover:text-white p-1 -m-1 flex-shrink-0"
+            className="text-zinc-500 hover:text-onink p-1 -m-1 flex-shrink-0"
             aria-label="Dismiss install prompt"
           >
             <X size={16} />
@@ -229,7 +229,7 @@ export const InstallPrompt: React.FC = () => {
             {installing ? 'Installing…' : 'Install app'}
           </button>
         ) : (
-          <ol className="mt-3 space-y-1.5 text-xs sm:text-sm text-zinc-300 list-none bg-white/5 rounded-xl p-3">
+          <ol className="mt-3 space-y-1.5 text-xs sm:text-sm text-zinc-300 list-none bg-surface/5 rounded-xl p-3">
             <li className="flex items-center gap-1.5">
               1. Tap
               <Share size={13} className="text-zinc-400 flex-shrink-0" />
@@ -278,7 +278,7 @@ export const InstallAppRow: React.FC<{ collapsed?: boolean; onNavigate?: () => v
       <button
         onClick={handleTap}
         disabled={installing}
-        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-70"
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors bg-zinc-900 text-onink hover:bg-zinc-800 disabled:opacity-70"
       >
         <Download size={18} className="flex-shrink-0" />
         <span>{installing ? 'Installing…' : 'Install app'}</span>

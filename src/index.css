@@ -2,6 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+ * THEMES. Every themeable color is a space-separated RGB channel consumed via
+ * rgb(var(--x) / <alpha-value>) in tailwind.config — opacity modifiers keep
+ * working, and switching themes is one data-theme attribute flip.
+ *
+ * Ivory = the exact pre-theme values (pixel-identical default). Midnight Iris
+ * keeps buttons dark-style (GitHub-dark fashion): zinc-900/800/700 stay dark
+ * elevations, body copy moves to ink/inksoft tokens, gold accent unchanged.
+ * ------------------------------------------------------------------------- */
+:root,
+[data-theme='ivory'] {
+  color-scheme: light;
+  --page: 250 250 250;
+  --surface: 255 255 255;
+  --ink: 24 24 27;
+  --inksoft: 82 82 91;
+  --onink: 255 255 255;
+  --zinc-50: 250 250 250;
+  --zinc-100: 244 244 245;
+  --zinc-200: 228 228 231;
+  --zinc-300: 212 212 216;
+  --zinc-400: 161 161 170;
+  --zinc-500: 113 113 122;
+  --zinc-600: 82 82 91;
+  --zinc-700: 63 63 70;
+  --zinc-800: 39 39 42;
+  --zinc-900: 24 24 27;
+  --zinc-950: 9 9 11;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
+[data-theme='midnight-iris'] {
+  color-scheme: dark;
+  --page: 11 11 16;
+  --surface: 23 23 29;
+  --ink: 244 244 245;
+  --inksoft: 180 180 190;
+  --onink: 255 255 255;
+  --zinc-50: 35 35 42;
+  --zinc-100: 44 44 52;
+  --zinc-200: 62 62 72;
+  --zinc-300: 82 82 94;
+  --zinc-400: 161 161 170;
+  --zinc-500: 142 142 153;
+  --zinc-600: 110 110 120;
+  --zinc-700: 52 52 62;
+  --zinc-800: 38 38 48;
+  --zinc-900: 30 30 38;
+  --zinc-950: 5 5 8;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
 /* Motion safety: ALL non-essential motion collapses for users who asked the
    OS for reduced motion — not just skeleton shimmer. Previously only
    .animate-pulse was frozen while animate-ping/bounce, slide-up/fade-in,
@@ -24,8 +96,8 @@
   }
   body {
     font-family: 'Inter', sans-serif;
-    background-color: #FAFAFA;
-    color: #18181b;
+    background-color: rgb(var(--page));
+    color: rgb(var(--ink));
   }
 }
 

@@ -130,11 +130,11 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
         aria-expanded={isOpen}
         aria-labelledby={`${id}-label`}
         aria-activedescendant={isOpen ? `${id}-option-${highlightedIndex}` : undefined}
-        className={`w-full flex items-center justify-between px-3 py-2.5 bg-white border rounded-lg text-sm transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 bg-surface border rounded-lg text-sm transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 ${
           isOpen ? 'border-zinc-400 ring-2 ring-zinc-100' : 'border-zinc-200 hover:border-zinc-300'
         }`}
       >
-        <span id={`${id}-label`} className={`block truncate ${selectedOption ? 'text-zinc-900' : 'text-zinc-400'}`}>
+        <span id={`${id}-label`} className={`block truncate ${selectedOption ? 'text-ink' : 'text-zinc-400'}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown 
@@ -147,7 +147,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
         <div 
           ref={listRef}
           role="listbox"
-          className="absolute z-[999] w-full mt-1.5 bg-white border border-zinc-200 rounded-lg shadow-xl max-h-60 overflow-y-auto animate-fade-in-fast focus:outline-none py-1.5 left-0"
+          className="absolute z-[999] w-full mt-1.5 bg-surface border border-zinc-200 rounded-lg shadow-xl max-h-60 overflow-y-auto animate-fade-in-fast focus:outline-none py-1.5 left-0"
         >
           {options.map((option, index) => (
             <div
@@ -168,12 +168,12 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
                 index === highlightedIndex ? 'bg-zinc-100' : ''
               } ${
                 value === option.value 
-                  ? 'text-zinc-900 font-medium' 
-                  : 'text-zinc-600'
+                  ? 'text-ink font-medium' 
+                  : 'text-inksoft'
               }`}
             >
               <span className="truncate">{option.label}</span>
-              {value === option.value && <Check size={14} className="text-zinc-900 flex-shrink-0 ml-2" />}
+              {value === option.value && <Check size={14} className="text-ink flex-shrink-0 ml-2" />}
             </div>
           ))}
         </div>

@@ -205,20 +205,20 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   const googleLabel = view === 'register' ? 'Sign up with Google' : 'Sign in with Google';
 
   return (
-    <div className="min-h-screen flex bg-white">
+    <div className="min-h-screen flex bg-surface">
       {/* Left Panel: Form */}
-      <div className="flex-1 flex flex-col justify-center py-8 sm:py-12 md:py-16 px-4 sm:px-6 md:px-8 lg:px-20 xl:px-24 w-full md:w-1/2 lg:w-1/2 bg-white relative z-10">
+      <div className="flex-1 flex flex-col justify-center py-8 sm:py-12 md:py-16 px-4 sm:px-6 md:px-8 lg:px-20 xl:px-24 w-full md:w-1/2 lg:w-1/2 bg-surface relative z-10">
         <div className="mx-auto w-full max-w-sm md:max-w-md lg:max-w-lg xl:w-96 animate-fade-in">
           {/* Logo */}
           <div className="flex items-center gap-2 mb-6 sm:mb-8 md:mb-10">
             <div className="bg-zinc-900 w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center">
-              <GraduationCap className="text-white sm:w-4 sm:h-4 md:w-5 md:h-5" size={14} />
+              <GraduationCap className="text-onink sm:w-4 sm:h-4 md:w-5 md:h-5" size={14} />
             </div>
-            <span className="font-bold text-base sm:text-lg md:text-xl text-zinc-900">SmartStudy</span>
+            <span className="font-bold text-base sm:text-lg md:text-xl text-ink">SmartStudy</span>
           </div>
 
           <div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-zinc-900">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-ink">
               {view === 'login' && 'Welcome back'}
               {view === 'register' && 'Create an account'}
               {view === 'forgot' && 'Reset Password'}
@@ -256,11 +256,11 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                   <MailCheck size={28} />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm text-zinc-600 leading-relaxed">
+                  <p className="text-sm text-inksoft leading-relaxed">
                     {view === 'pending' ? (
-                      <>We sent a verification link to <span className="font-bold text-zinc-900 break-all">{email}</span>.<br />Click it to activate your account, then come back and sign in.</>
+                      <>We sent a verification link to <span className="font-bold text-ink break-all">{email}</span>.<br />Click it to activate your account, then come back and sign in.</>
                     ) : (
-                      <>If an account exists for <span className="font-bold text-zinc-900 break-all">{email}</span>, a reset link is on its way — check spam too.</>
+                      <>If an account exists for <span className="font-bold text-ink break-all">{email}</span>, a reset link is on its way — check spam too.</>
                     )}
                   </p>
                 </div>
@@ -269,7 +269,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                     type="button"
                     onClick={() => handleResendVerification(email)}
                     disabled={resendCooldown > 0}
-                    className="w-full py-3 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm sm:text-base"
+                    className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm sm:text-base"
                   >
                     {resendCooldown > 0
                       ? `Resend email in ${resendCooldown}s`
@@ -280,14 +280,14 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       <button
                         type="button"
                         onClick={() => { setView('login'); }}
-                        className="w-full py-3 bg-white border border-zinc-200 text-zinc-900 font-medium rounded-xl hover:bg-zinc-50 transition-all text-sm sm:text-base"
+                        className="w-full py-3 bg-surface border border-zinc-200 text-ink font-medium rounded-xl hover:bg-zinc-50 transition-all text-sm sm:text-base"
                       >
                         I've verified — Sign In
                       </button>
                       <button
                         type="button"
                         onClick={() => { setView('register'); }}
-                        className="w-full text-sm text-zinc-500 hover:text-zinc-900"
+                        className="w-full text-sm text-zinc-500 hover:text-ink"
                       >
                         Wrong email? Start over
                       </button>
@@ -296,7 +296,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                     <button
                       type="button"
                       onClick={() => { setView('login'); }}
-                      className="w-full text-center text-sm font-medium text-zinc-500 hover:text-zinc-900 flex items-center justify-center gap-1 transition-colors"
+                      className="w-full text-center text-sm font-medium text-zinc-500 hover:text-ink flex items-center justify-center gap-1 transition-colors"
                     >
                       <ArrowLeft size={16} /> Back to Sign In
                     </button>
@@ -310,7 +310,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                 <button
                   onClick={handleGoogleLogin}
                   disabled={isGoogleLoading || isLoading}
-                  className="w-full flex items-center justify-center gap-3 bg-white text-zinc-700 border border-zinc-200 font-medium py-3 sm:py-2.5 md:py-3 rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all mb-6 relative group"
+                  className="w-full flex items-center justify-center gap-3 bg-surface text-inksoft border border-zinc-200 font-medium py-3 sm:py-2.5 md:py-3 rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all mb-6 relative group"
                 >
                   {isGoogleLoading ? (
                     <Loader2 size={20} className="animate-spin text-zinc-400" />
@@ -332,7 +332,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                     <div className="w-full border-t border-zinc-200" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="bg-white px-2 text-zinc-400">Or continue with</span>
+                    <span className="bg-surface px-2 text-zinc-400">Or continue with</span>
                   </div>
                 </div>
               </>
@@ -341,7 +341,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
               {view === 'register' && (
                 <div>
-                  <label htmlFor="auth-name" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Full Name</label>
+                  <label htmlFor="auth-name" className="block text-xs font-semibold text-inksoft mb-1.5 ml-1">Full Name</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                       <User size={18} />
@@ -351,7 +351,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       type="text"
                       required
                       autoComplete="name"
-                      className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
+                      className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                       placeholder="e.g. Hana Tesfaye"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -362,14 +362,14 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
               {view === 'register' && (
                 <div>
-                  <label htmlFor="auth-grade" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">School Grade</label>
+                  <label htmlFor="auth-grade" className="block text-xs font-semibold text-inksoft mb-1.5 ml-1">School Grade</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                       <GraduationCap size={18} />
                     </div>
                     <select
                       id="auth-grade"
-                      className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all text-zinc-700"
+                      className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all text-inksoft"
                       value={grade}
                       onChange={(e) => setGrade(e.target.value)}
                     >
@@ -385,7 +385,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               )}
 
               <div>
-                <label htmlFor="auth-email" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Email Address</label>
+                <label htmlFor="auth-email" className="block text-xs font-semibold text-inksoft mb-1.5 ml-1">Email Address</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                     <Mail size={18} />
@@ -395,7 +395,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                     type="email"
                     required
                     autoComplete="email"
-                    className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
+                    className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                     placeholder="student@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -407,12 +407,12 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                 <>
                   <div>
                     <div className="flex justify-between items-center mb-1.5 ml-1">
-                      <label htmlFor="auth-password" className="block text-xs font-semibold text-zinc-700">Password</label>
+                      <label htmlFor="auth-password" className="block text-xs font-semibold text-inksoft">Password</label>
                       {view === 'login' && (
                         <button 
                           type="button" 
                           onClick={() => setView('forgot')} 
-                          className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
+                          className="text-xs text-zinc-500 hover:text-ink transition-colors"
                         >
                           Forgot password?
                         </button>
@@ -427,7 +427,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                         type={showPassword ? "text" : "password"}
                         required
                         autoComplete={view === 'login' ? 'current-password' : 'new-password'}
-                        className="block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
+                        className="block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -435,7 +435,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -448,7 +448,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
                   {view === 'register' && (
                     <div>
-                      <label htmlFor="auth-confirm-password" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Confirm Password</label>
+                      <label htmlFor="auth-confirm-password" className="block text-xs font-semibold text-inksoft mb-1.5 ml-1">Confirm Password</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                           <Lock size={18} />
@@ -459,7 +459,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                           required
                           autoComplete="new-password"
                           aria-describedby="auth-confirm-error"
-                          className={`block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
+                          className={`block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-surface focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
                             confirmPassword && password !== confirmPassword
                               ? 'border-red-300 focus:border-red-500'
                               : 'border-zinc-200 focus:border-zinc-900'
@@ -471,7 +471,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
                           aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                         >
                           {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -494,7 +494,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                       type="button"
                       onClick={() => handleResendVerification(email)}
                       disabled={resendCooldown > 0}
-                      className="mt-2 w-full py-2 bg-white border border-red-200 text-red-800 font-medium rounded-lg hover:bg-red-100/50 disabled:opacity-50 transition-all text-sm"
+                      className="mt-2 w-full py-2 bg-surface border border-red-200 text-red-800 font-medium rounded-lg hover:bg-red-100/50 disabled:opacity-50 transition-all text-sm"
                     >
                       {resendCooldown > 0 ? `Resend email in ${resendCooldown}s` : 'Resend verification email'}
                     </button>
@@ -505,7 +505,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               <button
                 type="submit"
                 disabled={isLoading || isGoogleLoading}
-                className="w-full flex justify-center items-center gap-2 py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-white bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
+                className="w-full flex justify-center items-center gap-2 py-3.5 sm:py-3 md:py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm md:text-base font-medium text-onink bg-zinc-900 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-2"
               >
                 {isLoading ? (
                   <>
@@ -519,9 +519,9 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               {view === 'register' && (
                 <p className="text-center text-xs text-zinc-400 leading-relaxed">
                   By creating an account you agree to our{' '}
-                  <Link to="/terms-of-service" className="underline hover:text-zinc-700">Terms of Service</Link>
+                  <Link to="/terms-of-service" className="underline hover:text-inksoft">Terms of Service</Link>
                   {' '}and{' '}
-                  <Link to="/privacy-policy" className="underline hover:text-zinc-700">Privacy Policy</Link>.
+                  <Link to="/privacy-policy" className="underline hover:text-inksoft">Privacy Policy</Link>.
                 </p>
               )}
             </form>
@@ -532,21 +532,21 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               {view === 'login' ? (
                 <p className="text-center text-sm text-zinc-500">
                   Don't have an account?{' '}
-                  <button onClick={() => { setView('register'); navigate('/register'); }} className="font-semibold text-zinc-900 hover:underline">
+                  <button onClick={() => { setView('register'); navigate('/register'); }} className="font-semibold text-ink hover:underline">
                     Sign up
                   </button>
                 </p>
               ) : view === 'register' ? (
                 <p className="text-center text-sm text-zinc-500">
                   Already have an account?{' '}
-                  <button onClick={() => { setView('login'); navigate('/login'); }} className="font-semibold text-zinc-900 hover:underline">
+                  <button onClick={() => { setView('login'); navigate('/login'); }} className="font-semibold text-ink hover:underline">
                     Sign in
                   </button>
                 </p>
               ) : (
                 <button 
                   onClick={() => setView('login')}
-                  className="w-full text-center text-sm font-medium text-zinc-500 hover:text-zinc-900 flex items-center justify-center gap-1 transition-colors"
+                  className="w-full text-center text-sm font-medium text-zinc-500 hover:text-ink flex items-center justify-center gap-1 transition-colors"
                 >
                   <ArrowLeft size={16} /> Back to Sign In
                 </button>
@@ -555,7 +555,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             )}
 
             {/* Mobile highlights — real capabilities, no invented quotes */}
-            <div className="mt-6 sm:mt-8 lg:hidden p-4 bg-zinc-900 text-white rounded-xl relative overflow-hidden">
+            <div className="mt-6 sm:mt-8 lg:hidden p-4 bg-zinc-900 text-onink rounded-xl relative overflow-hidden">
                <div className="relative z-10">
                   <div className="flex gap-1 mb-3">
                      {[1,2,3,4,5].map(i => <Star key={i} size={12} className="fill-amber-400 text-amber-400" />)}
@@ -564,7 +564,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                      AI tutor, practice quizzes, past exam papers, and a study community — free to start.
                   </p>
                   <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center font-bold text-sm backdrop-blur-sm border border-white/20">
+                     <div className="w-8 h-8 bg-surface/10 rounded-full flex items-center justify-center font-bold text-sm backdrop-blur-sm border border-white/20">
                         <GraduationCap size={14} />
                      </div>
                      <div>
@@ -590,7 +590,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[100px] -ml-20 -mb-20"></div>
         </div>
 
-        <div className="absolute inset-0 flex flex-col justify-center items-center p-6 md:p-8 lg:p-12 text-white z-10">
+        <div className="absolute inset-0 flex flex-col justify-center items-center p-6 md:p-8 lg:p-12 text-onink z-10">
             <div className="max-w-md md:max-w-lg space-y-6 md:space-y-8">
                <div className="space-y-2">
                   <div className="flex gap-1 mb-3 md:mb-4">
@@ -602,7 +602,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                </div>
 
                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-surface/10 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
                      <GraduationCap size={20} className="md:w-6 md:h-6" />
                   </div>
                   <div>

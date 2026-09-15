@@ -423,8 +423,8 @@ const ContentTab: React.FC = () => {
                onClick={() => { setContentCategory('documents'); resetForm(); }}
                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
                  contentCategory === 'documents' 
-                   ? 'bg-zinc-900 text-white border-zinc-900' 
-                   : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900' 
+                   : 'bg-surface text-zinc-500 border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                <FileText size={16} /> Documents
@@ -433,8 +433,8 @@ const ContentTab: React.FC = () => {
                onClick={() => { setContentCategory('past-exams'); resetForm(); }}
                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
                  contentCategory === 'past-exams' 
-                   ? 'bg-zinc-900 text-white border-zinc-900' 
-                   : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900' 
+                   : 'bg-surface text-zinc-500 border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                <FileText size={16} /> Past Exams
@@ -443,8 +443,8 @@ const ContentTab: React.FC = () => {
                onClick={() => { setContentCategory('videos'); resetForm(); }}
                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
                  contentCategory === 'videos' 
-                   ? 'bg-zinc-900 text-white border-zinc-900' 
-                   : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'
+                   ? 'bg-zinc-900 text-onink border-zinc-900' 
+                   : 'bg-surface text-zinc-500 border-zinc-200 hover:bg-zinc-50'
                }`}
              >
                 <PlaySquare size={16} /> Video Lessons
@@ -456,10 +456,10 @@ const ContentTab: React.FC = () => {
                time-boxed with honest partial counts. Weekly cron covers the
                library automatically, so this is for on-demand top-ups. */}
            {contentCategory === 'videos' && (
-             <section className="bg-white p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm">
+             <section className="bg-surface p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm">
                <div className="flex items-center gap-2 mb-1">
                  <Youtube size={17} className="text-red-600" />
-                 <h2 className="text-sm sm:text-base font-bold text-zinc-900">YouTube auto-sync</h2>
+                 <h2 className="text-sm sm:text-base font-bold text-ink">YouTube auto-sync</h2>
                </div>
                <p className="text-xs text-zinc-500 mb-4">
                  Imports Ethiopian tutorial videos for a grade + subject (one topic per run to protect the daily API quota).
@@ -467,7 +467,7 @@ const ContentTab: React.FC = () => {
                </p>
                <div className="grid grid-cols-2 gap-3 mb-3">
                  <div>
-                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Grade</label>
+                   <label className="block text-xs font-semibold text-inksoft mb-1.5">Grade</label>
                    <CustomSelect
                      options={gradeOptions.filter(o => o.value !== 'General')}
                      value={syncGrade}
@@ -475,7 +475,7 @@ const ContentTab: React.FC = () => {
                    />
                  </div>
                  <div>
-                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subject</label>
+                   <label className="block text-xs font-semibold text-inksoft mb-1.5">Subject</label>
                    <CustomSelect
                      options={subjectOptions}
                      value={syncSubject}
@@ -488,7 +488,7 @@ const ContentTab: React.FC = () => {
                    type="button"
                    onClick={handleSingleSync}
                    disabled={isSyncingSingle || isSyncingAll}
-                   className="flex-1 px-4 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                   className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isSyncingSingle ? (
                      <><Loader2 size={16} className="animate-spin" /> Syncing Grade {syncGrade} {syncSubject}…</>
@@ -501,7 +501,7 @@ const ContentTab: React.FC = () => {
                    onClick={handleSyncAll}
                    disabled={isSyncingSingle || isSyncingAll}
                    title="Covers all grades + subjects — time-boxed to ~25s, may stop early with partial counts"
-                   className="flex-1 px-4 py-2.5 bg-white border border-zinc-300 text-zinc-700 text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                   className="flex-1 px-4 py-2.5 bg-surface border border-zinc-300 text-inksoft text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isSyncingAll ? (
                      <><Loader2 size={16} className="animate-spin" /> Syncing all…</>
@@ -528,16 +528,16 @@ const ContentTab: React.FC = () => {
            )}
 
            {/* Form Section */}
-          <section ref={formSectionRef} className={`bg-white p-4 sm:p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
+          <section ref={formSectionRef} className={`bg-surface p-4 sm:p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
             <div className="flex justify-between items-center mb-4 sm:mb-6">
-              <h2 className="text-base sm:text-lg font-bold text-zinc-900 flex items-center gap-2">
-                {editingId ? <Edit2 size={18} className="text-zinc-900 sm:w-5 sm:h-5" /> : <Upload size={18} className="text-zinc-400 sm:w-5 sm:h-5" />}
+              <h2 className="text-base sm:text-lg font-bold text-ink flex items-center gap-2">
+                {editingId ? <Edit2 size={18} className="text-ink sm:w-5 sm:h-5" /> : <Upload size={18} className="text-zinc-400 sm:w-5 sm:h-5" />}
                 <span className="line-clamp-1">{editingId ? `Edit ${contentCategory === 'documents' ? 'Document' : contentCategory === 'past-exams' ? 'Past Exam' : 'Video'}` : `Add New ${contentCategory === 'documents' ? 'Document' : contentCategory === 'past-exams' ? 'Past Exam' : 'Video'}`}</span>
               </h2>
               {editingId && (
                 <button 
                   onClick={resetForm}
-                  className="text-xs font-medium text-zinc-500 hover:text-zinc-900 bg-zinc-100 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                  className="text-xs font-medium text-zinc-500 hover:text-ink bg-zinc-100 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                 >
                   Cancel
                 </button>
@@ -547,11 +547,11 @@ const ContentTab: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Title</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Title</label>
                   <input 
                     type="text" 
                     required 
-                    className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
+                    className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
                     placeholder={contentCategory === 'documents' ? "e.g., Grade 9 Biology Ch.1" : contentCategory === 'past-exams' ? "e.g., Grade 10 Mathematics Final Exam 2023" : "e.g., Introduction to Algebra"}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
@@ -560,10 +560,10 @@ const ContentTab: React.FC = () => {
                 
                 {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Author/Source</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Author/Source</label>
                     <input 
                       type="text" 
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
+                      className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
                       placeholder="e.g., Ministry of Education"
                       value={docAuthor}
                       onChange={(e) => setDocAuthor(e.target.value)}
@@ -571,10 +571,10 @@ const ContentTab: React.FC = () => {
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Instructor Name</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Instructor Name</label>
                     <input 
                       type="text" 
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
+                      className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm" 
                       placeholder="e.g., Khan Academy"
                       value={videoInstructor}
                       onChange={(e) => setVideoInstructor(e.target.value)}
@@ -583,7 +583,7 @@ const ContentTab: React.FC = () => {
                 )}
 
                 <div>
-                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subject</label>
+                   <label className="block text-xs font-semibold text-inksoft mb-1.5">Subject</label>
                    <CustomSelect 
                      options={subjectOptions}
                      value={subject}
@@ -593,7 +593,7 @@ const ContentTab: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Grade Level</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Grade Level</label>
                     <CustomSelect 
                       options={gradeOptions}
                       value={grade}
@@ -601,10 +601,10 @@ const ContentTab: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Premium Content</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Premium Content</label>
                     <div 
                       onClick={() => setIsPremium(!isPremium)}
-                      className={`w-full px-3 py-2.5 border rounded-lg text-sm flex items-center justify-between cursor-pointer transition-colors ${isPremium ? 'bg-zinc-900 border-zinc-900 text-white' : 'bg-white border-zinc-300 text-zinc-600'}`}
+                      className={`w-full px-3 py-2.5 border rounded-lg text-sm flex items-center justify-between cursor-pointer transition-colors ${isPremium ? 'bg-zinc-900 border-zinc-900 text-onink' : 'bg-surface border-zinc-300 text-inksoft'}`}
                     >
                       <span>{isPremium ? 'Yes, Premium Only' : 'No, Free for All'}</span>
                       {isPremium && <CheckCircle size={16} />}
@@ -613,10 +613,10 @@ const ContentTab: React.FC = () => {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Description</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Description</label>
                   <textarea 
                     rows={3}
-                    className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 resize-none transition-shadow shadow-sm"
+                    className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 resize-none transition-shadow shadow-sm"
                     placeholder="Briefly describe the content..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -627,7 +627,7 @@ const ContentTab: React.FC = () => {
                    <div className="md:col-span-2 space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div>
-                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">File Type</label>
+                           <label className="block text-xs font-semibold text-inksoft mb-1.5">File Type</label>
                            <CustomSelect
                              options={fileTypeOptions}
                              value={docFileType}
@@ -635,13 +635,13 @@ const ContentTab: React.FC = () => {
                            />
                          </div>
                          <div>
-                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                           <label className="block text-xs font-semibold text-inksoft mb-1.5">
                              Document URL <span className="text-red-500">*</span>
                            </label>
                            <input
                              type="url"
                              required
-                             className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                             className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                              placeholder="https://example.com/document.pdf"
                              value={docFileUrl}
                              onChange={(e) => setDocFileUrl(e.target.value)}
@@ -652,20 +652,20 @@ const ContentTab: React.FC = () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div>
-                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Document Author</label>
+                           <label className="block text-xs font-semibold text-inksoft mb-1.5">Document Author</label>
                            <input
                              type="text"
-                             className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                             className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                              placeholder="e.g. John Smith"
                              value={docAuthor}
                              onChange={(e) => setDocAuthor(e.target.value)}
                            />
                          </div>
                          <div>
-                           <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Thumbnail URL</label>
+                           <label className="block text-xs font-semibold text-inksoft mb-1.5">Thumbnail URL</label>
                            <input
                              type="url"
-                             className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                             className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                              placeholder="https://example.com/thumbnail.jpg"
                              value={docThumbnailUrl}
                              onChange={(e) => setDocThumbnailUrl(e.target.value)}
@@ -679,12 +679,12 @@ const ContentTab: React.FC = () => {
                 ) : (
                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Video URL (YouTube)</label>
+                        <label className="block text-xs font-semibold text-inksoft mb-1.5">Video URL (YouTube)</label>
                         <div className="relative">
                           <Youtube size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                           <input 
                             type="url" 
-                            className="w-full pl-10 pr-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                            className="w-full pl-10 pr-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                             placeholder="https://youtube.com/watch?v=..."
                             value={videoUrl}
                             onChange={(e) => setVideoUrl(e.target.value)}
@@ -693,10 +693,10 @@ const ContentTab: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-1 gap-4">
                          <div>
-                            <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Thumbnail URL</label>
+                            <label className="block text-xs font-semibold text-inksoft mb-1.5">Thumbnail URL</label>
                             <input
                               type="text"
-                              className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                              className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                               placeholder="https://..."
                               value={videoThumbnail}
                               onChange={(e) => setVideoThumbnail(e.target.value)}
@@ -712,7 +712,7 @@ const ContentTab: React.FC = () => {
                    <button 
                      type="button"
                      onClick={resetForm}
-                     className="px-5 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                     className="px-5 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                    >
                      Cancel
                    </button>
@@ -720,7 +720,7 @@ const ContentTab: React.FC = () => {
                  <button
                    type="submit"
                    disabled={isUploading || ((contentCategory === 'documents' || contentCategory === 'past-exams') && !editingId && (!docFileUrl || !docFileUrl.trim()))}
-                   className="px-8 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                   className="px-8 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/10 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isUploading ? (
                      <>Saving...</>
@@ -736,9 +736,9 @@ const ContentTab: React.FC = () => {
           </section>
 
           {/* List Section */}
-          <section className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+          <section className="bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
              <div className="p-3 sm:p-4 border-b border-zinc-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-zinc-50/50">
-                <h3 className="font-bold text-zinc-900 text-sm flex items-center gap-2">
+                <h3 className="font-bold text-ink text-sm flex items-center gap-2">
                   {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
                   <span className="hidden sm:inline">Manage {contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
                   <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
@@ -748,7 +748,7 @@ const ContentTab: React.FC = () => {
                    <input 
                      type="text" 
                      placeholder="Search..." 
-                     className="pl-8 pr-3 py-1.5 bg-white border border-zinc-200 rounded-md text-xs focus:outline-none focus:border-zinc-400 w-full sm:w-48 transition-all"
+                     className="pl-8 pr-3 py-1.5 bg-surface border border-zinc-200 rounded-md text-xs focus:outline-none focus:border-zinc-400 w-full sm:w-48 transition-all"
                      value={searchTerm}
                      onChange={(e) => setSearchTerm(e.target.value)}
                    />
@@ -768,20 +768,20 @@ const ContentTab: React.FC = () => {
                            {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={18} /> : <PlaySquare size={18} />}
                          </div>
                          <div className="flex-1 min-w-0">
-                           <h4 className="font-medium text-zinc-900 text-sm line-clamp-1">{decodeHtmlEntities(item.title)}</h4>
+                           <h4 className="font-medium text-ink text-sm line-clamp-1">{decodeHtmlEntities(item.title)}</h4>
                            <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{decodeHtmlEntities(item.description)}</p>
                          </div>
                        </div>
                        <div className="flex items-center justify-between gap-2 mb-2">
                          <div className="flex flex-col gap-1 text-xs">
-                           <span className="font-medium text-zinc-700">{item.subject}</span>
+                           <span className="font-medium text-inksoft">{item.subject}</span>
                            <span className="text-zinc-500">{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
                          </div>
                          <div className="flex items-center gap-1.5">
                            {((item as any).isPremium || (item as any).is_premium) && (
                              <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
                            )}
-                           <span className="bg-zinc-100 text-zinc-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
+                           <span className="bg-zinc-100 text-inksoft text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
                              {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (item as Document).file_type : 'Video'}
                            </span>
                          </div>
@@ -789,7 +789,7 @@ const ContentTab: React.FC = () => {
                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
                          <button 
                            onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document, contentCategory === 'past-exams' ? 'past-exams' : 'documents') : handleEditVideo(item as VideoLesson)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-inksoft hover:text-ink hover:bg-zinc-200 rounded-lg transition-colors"
                          >
                            <Edit2 size={14} /> Edit
                          </button>
@@ -833,7 +833,7 @@ const ContentTab: React.FC = () => {
                      <tbody className="divide-y divide-zinc-50">
                        {filteredItems.map((item) => (
                      <tr key={item.id} className="hover:bg-zinc-50/80 transition-colors group">
-                       <td className="px-6 py-4 font-medium text-zinc-900">
+                       <td className="px-6 py-4 font-medium text-ink">
                           <div className="flex items-center gap-3">
                              <div className="w-8 h-8 rounded bg-zinc-100 flex items-center justify-center text-zinc-500">
                                 {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
@@ -846,7 +846,7 @@ const ContentTab: React.FC = () => {
                        </td>
                        <td className="px-6 py-4 text-zinc-500">
                           <div className="flex flex-col gap-1 text-xs">
-                             <span className="font-medium text-zinc-700">{item.subject}</span>
+                             <span className="font-medium text-inksoft">{item.subject}</span>
                              <span>{item.grade === 0 ? 'General' : `Grade ${item.grade}`}</span>
                           </div>
                        </td>
@@ -855,7 +855,7 @@ const ContentTab: React.FC = () => {
                             {((item as any).isPremium || (item as any).is_premium) && (
                               <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 uppercase">Pro</span>
                             )}
-                            <span className="bg-zinc-100 text-zinc-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
+                            <span className="bg-zinc-100 text-inksoft text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-200 uppercase">
                               {(contentCategory === 'documents' || contentCategory === 'past-exams') ? (item as Document).file_type : 'Video'}
                             </span>
                           </div>
@@ -867,7 +867,7 @@ const ContentTab: React.FC = () => {
                            <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document, contentCategory === 'past-exams' ? 'past-exams' : 'documents') : handleEditVideo(item as VideoLesson)}
-                                className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"
+                                className="p-1.5 text-zinc-400 hover:text-ink hover:bg-zinc-200 rounded-lg transition-colors"
                              >
                                <Edit2 size={16} />
                              </button>
@@ -911,10 +911,10 @@ const ContentTab: React.FC = () => {
                   <Trash2 size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                  <h3 className="font-bold text-ink text-lg mb-2">
                     Delete {deleteConfirmation.type === 'document' ? 'Document' : 'Video'}?
                   </h3>
-                  <p className="text-sm text-zinc-600">
+                  <p className="text-sm text-inksoft">
                     Are you sure you want to delete <strong>"{deleteConfirmation.title}"</strong>? This action is permanent and cannot be undone.
                   </p>
                 </div>
@@ -922,7 +922,7 @@ const ContentTab: React.FC = () => {
               <div className="flex gap-3 pt-4 border-t border-zinc-100">
                 <button
                   onClick={closeDeleteConfirmation}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>

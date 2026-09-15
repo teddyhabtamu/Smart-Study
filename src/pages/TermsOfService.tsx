@@ -56,9 +56,9 @@ const TermsOfService: React.FC = () => {
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 animate-fade-in pb-12">
         {/* Hero */}
-        <div className="bg-zinc-900 text-white py-8 sm:py-12 px-4 sm:px-6 rounded-b-2xl sm:rounded-b-3xl mb-8 sm:mb-12">
+        <div className="bg-zinc-900 text-onink py-8 sm:py-12 px-4 sm:px-6 rounded-b-2xl sm:rounded-b-3xl mb-8 sm:mb-12">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
+            <div className="inline-flex items-center gap-2 bg-surface/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
               <FileText size={14} className="sm:w-4 sm:h-4" /> Terms of Service
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">
@@ -76,7 +76,7 @@ const TermsOfService: React.FC = () => {
 
         {/* Content */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 sm:p-8 md:p-12">
+          <div className="bg-surface rounded-2xl shadow-sm border border-zinc-200 p-6 sm:p-8 md:p-12">
             <div className="prose prose-zinc max-w-none">
               <div className="text-sm sm:text-base leading-relaxed">
                 {renderTextWithLineBreaks(termsOfService?.content) || 'Loading terms of service...'}
@@ -88,11 +88,11 @@ const TermsOfService: React.FC = () => {
           <div className="mt-8 bg-zinc-50 rounded-xl p-6 border border-zinc-200">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
-                <Mail className="w-6 h-6 text-zinc-600 mt-1" />
+                <Mail className="w-6 h-6 text-inksoft mt-1" />
               </div>
               <div>
-                <h3 className="font-semibold text-zinc-900 mb-2">Questions about these Terms?</h3>
-                <p className="text-sm text-zinc-600 mb-3">
+                <h3 className="font-semibold text-ink mb-2">Questions about these Terms?</h3>
+                <p className="text-sm text-inksoft mb-3">
                   If you have any questions about these Terms of Service, please contact us.
                 </p>
                 <div className="text-sm text-zinc-500">

@@ -161,16 +161,16 @@ export const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+      <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-zinc-900">Privacy Policy Management</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-ink">Privacy Policy Management</h2>
             <p className="text-sm text-zinc-500 mt-1">Update the privacy policy that users see on the website</p>
           </div>
           {!isEditing && (
             <button
               onClick={handleStartEdit}
-              className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
             >
               <Edit2 className="w-4 h-4" />
               Edit Policy
@@ -187,7 +187,7 @@ export const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
             {isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Privacy Policy Content</label>
+                  <label className="block text-sm font-semibold text-inksoft mb-2">Privacy Policy Content</label>
                   <textarea
                     value={editingContent}
                     onChange={(e) => setEditingContent(e.target.value)}
@@ -196,7 +196,7 @@ export const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Last Updated (optional)</label>
+                  <label className="block text-sm font-semibold text-inksoft mb-2">Last Updated (optional)</label>
                   <input
                     type="text"
                     value={editingLastUpdated}
@@ -208,14 +208,14 @@ export const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={handleSave}
-                    className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
                   >
                     <Save className="w-4 h-4" />
                     Save Changes
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="px-4 py-2 bg-zinc-500 text-white text-sm font-medium rounded-lg hover:bg-zinc-600 transition-colors"
+                    className="px-4 py-2 bg-zinc-500 text-onink text-sm font-medium rounded-lg hover:bg-zinc-600 transition-colors"
                   >
                     Cancel
                   </button>
@@ -230,11 +230,11 @@ export const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
                 </div>
                 <div className="border border-zinc-200 rounded-lg">
                   <div className="p-4 bg-zinc-50 border-b border-zinc-200">
-                    <h3 className="font-semibold text-zinc-900">Preview</h3>
+                    <h3 className="font-semibold text-ink">Preview</h3>
                   </div>
                   <div className="p-4 max-h-96 overflow-y-auto">
                     <div className="prose prose-zinc max-w-none">
-                      <div className="text-sm leading-relaxed text-zinc-700">
+                      <div className="text-sm leading-relaxed text-inksoft">
                         {renderTextWithLineBreaks(privacyPolicy.content) || 'No privacy policy content set.'}
                       </div>
                     </div>
@@ -299,16 +299,16 @@ export const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
+      <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-zinc-900">Terms of Service Management</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-ink">Terms of Service Management</h2>
             <p className="text-sm text-zinc-500 mt-1">Update the terms of service that users see on the website</p>
           </div>
           {!isEditing && (
             <button
               onClick={handleStartEdit}
-              className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
             >
               <Edit2 className="w-4 h-4" />
               Edit Terms
@@ -325,7 +325,7 @@ export const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
             {isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Terms of Service Content</label>
+                  <label className="block text-sm font-semibold text-inksoft mb-2">Terms of Service Content</label>
                   <textarea
                     value={editingContent}
                     onChange={(e) => setEditingContent(e.target.value)}
@@ -334,7 +334,7 @@ export const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-zinc-700 mb-2">Last Updated (optional)</label>
+                  <label className="block text-sm font-semibold text-inksoft mb-2">Last Updated (optional)</label>
                   <input
                     type="text"
                     value={editingLastUpdated}
@@ -346,14 +346,14 @@ export const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={handleSave}
-                    className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
                   >
                     <Save className="w-4 h-4" />
                     Save Changes
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="px-4 py-2 bg-zinc-500 text-white text-sm font-medium rounded-lg hover:bg-zinc-600 transition-colors"
+                    className="px-4 py-2 bg-zinc-500 text-onink text-sm font-medium rounded-lg hover:bg-zinc-600 transition-colors"
                   >
                     Cancel
                   </button>
@@ -368,11 +368,11 @@ export const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
                 </div>
                 <div className="border border-zinc-200 rounded-lg">
                   <div className="p-4 bg-zinc-50 border-b border-zinc-200">
-                    <h3 className="font-semibold text-zinc-900">Preview</h3>
+                    <h3 className="font-semibold text-ink">Preview</h3>
                   </div>
                   <div className="p-4 max-h-96 overflow-y-auto">
                     <div className="prose prose-zinc max-w-none">
-                      <div className="text-sm leading-relaxed text-zinc-700">
+                      <div className="text-sm leading-relaxed text-inksoft">
                         {renderTextWithLineBreaks(termsOfService.content) || 'No terms of service content set.'}
                       </div>
                     </div>

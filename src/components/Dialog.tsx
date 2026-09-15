@@ -169,7 +169,7 @@ const Dialog: React.FC<DialogProps> = ({
         aria-label={label}
         aria-describedby={describedBy}
         tabIndex={-1}
-        className={`bg-white shadow-2xl w-full relative animate-slide-up flex flex-col overflow-hidden outline-none ${panelShape} ${panelClassName}`}
+        className={`bg-surface shadow-2xl w-full relative animate-slide-up flex flex-col overflow-hidden outline-none ${panelShape} ${panelClassName}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {children}

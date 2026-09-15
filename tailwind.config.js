@@ -13,18 +13,53 @@ export default {
         border: "hsl(var(--border))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        // ------------------------------------------------------------------
+        // Themeable palette: every color below resolves through CSS channels
+        // set per theme ([data-theme] blocks in index.css). This is what makes
+        // runtime themes possible with Tailwind v3 (build-time utilities):
+        // switching themes only flips variable values — zero class changes.
+        //
+        // Roles (see THEMES.md in docs or the ThemeContext header):
+        // - surface/ink/inksoft/onink: role tokens. ink+inksoft are body copy
+        //   (codemodded from text-zinc-900/800/700/600); surface is card/page
+        //   surfaces (from bg-white); onink is text on ink buttons.
+        // - zinc ramp: borders, fills, hovers, muted text, AND dark surfaces
+        //   (bg-zinc-900 buttons stay dark-style in every theme, GitHub-dark
+        //   fashion — they never invert, so no role split was needed there).
+        // - amber ramp: brand accent (PRO, stars). Warnings share the ramp
+        //   today; a future accent-swap must split brand vs warning first.
+        // - white/black stay FIXED: white text on fixed colors (red-600
+        //   deletes, emerald dots, gradients) must never move.
+        // ------------------------------------------------------------------
+        surface: 'rgb(var(--surface) / <alpha-value>)',
+        ink: 'rgb(var(--ink) / <alpha-value>)',
+        inksoft: 'rgb(var(--inksoft) / <alpha-value>)',
+        onink: 'rgb(var(--onink) / <alpha-value>)',
         zinc: {
-          50: '#fafafa',
-          100: '#f4f4f5',
-          200: '#e4e4e7',
-          300: '#d4d4d8',
-          400: '#a1a1aa',
-          500: '#71717a',
-          600: '#52525b',
-          700: '#3f3f46',
-          800: '#27272a',
-          900: '#18181b',
-          950: '#09090b',
+          50: 'rgb(var(--zinc-50) / <alpha-value>)',
+          100: 'rgb(var(--zinc-100) / <alpha-value>)',
+          200: 'rgb(var(--zinc-200) / <alpha-value>)',
+          300: 'rgb(var(--zinc-300) / <alpha-value>)',
+          400: 'rgb(var(--zinc-400) / <alpha-value>)',
+          500: 'rgb(var(--zinc-500) / <alpha-value>)',
+          600: 'rgb(var(--zinc-600) / <alpha-value>)',
+          700: 'rgb(var(--zinc-700) / <alpha-value>)',
+          800: 'rgb(var(--zinc-800) / <alpha-value>)',
+          900: 'rgb(var(--zinc-900) / <alpha-value>)',
+          950: 'rgb(var(--zinc-950) / <alpha-value>)',
+        },
+        amber: {
+          50: 'rgb(var(--amber-50) / <alpha-value>)',
+          100: 'rgb(var(--amber-100) / <alpha-value>)',
+          200: 'rgb(var(--amber-200) / <alpha-value>)',
+          300: 'rgb(var(--amber-300) / <alpha-value>)',
+          400: 'rgb(var(--amber-400) / <alpha-value>)',
+          500: 'rgb(var(--amber-500) / <alpha-value>)',
+          600: 'rgb(var(--amber-600) / <alpha-value>)',
+          700: 'rgb(var(--amber-700) / <alpha-value>)',
+          800: 'rgb(var(--amber-800) / <alpha-value>)',
+          900: 'rgb(var(--amber-900) / <alpha-value>)',
+          950: 'rgb(var(--amber-950) / <alpha-value>)',
         },
       },
       boxShadow: {

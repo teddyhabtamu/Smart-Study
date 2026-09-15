@@ -89,10 +89,10 @@ const AuditTab: React.FC = () => {
 
   return (
         <div className="space-y-4 sm:space-y-6 animate-fade-in">
-          <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-surface border border-zinc-200 rounded-xl shadow-sm overflow-hidden">
             <div className="p-4 sm:p-6 border-b border-zinc-100 flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-zinc-900">Admin Activity Log</h2>
+                <h2 className="text-base sm:text-lg font-bold text-ink">Admin Activity Log</h2>
                 <p className="text-xs sm:text-sm text-zinc-500">Who changed what (premium, status, content, team).</p>
               </div>
               <div className="flex gap-2 sm:gap-3 items-center w-full sm:w-auto">
@@ -104,13 +104,13 @@ const AuditTab: React.FC = () => {
                     value={auditSearch}
                     onChange={(e) => setAuditSearch(e.target.value)}
                     placeholder="Search (action, email, target, summary)..."
-                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-300 transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 bg-surface border border-zinc-200 rounded-lg text-sm text-ink placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-300 transition-all"
                   />
                 </div>
                 <button
                   onClick={() => fetchAuditLogs({ offset: 0 })}
                   disabled={auditLoading}
-                  className="px-3 py-2.5 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                  className="px-3 py-2.5 bg-zinc-900 text-onink rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                   title="Refresh"
                 >
                   {auditLoading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
@@ -150,26 +150,26 @@ const AuditTab: React.FC = () => {
                             className="hover:bg-zinc-50 cursor-pointer"
                             onClick={() => setAuditExpandedId(expanded ? null : id)}
                           >
-                            <td className="px-4 sm:px-6 py-4 text-xs text-zinc-600 whitespace-nowrap">
+                            <td className="px-4 sm:px-6 py-4 text-xs text-inksoft whitespace-nowrap">
                               {row.created_at ? new Date(row.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}
                             </td>
                             <td className="px-4 sm:px-6 py-4">
-                              <div className="text-zinc-900 font-medium">{row.actor_name || row.actor_email || 'Unknown'}</div>
+                              <div className="text-ink font-medium">{row.actor_name || row.actor_email || 'Unknown'}</div>
                               <div className="text-[11px] text-zinc-500">{row.actor_role || ''}</div>
                             </td>
-                            <td className="px-4 sm:px-6 py-4 font-mono text-xs text-zinc-700">{row.action || '-'}</td>
-                            <td className="px-4 sm:px-6 py-4 text-xs text-zinc-600">
+                            <td className="px-4 sm:px-6 py-4 font-mono text-xs text-inksoft">{row.action || '-'}</td>
+                            <td className="px-4 sm:px-6 py-4 text-xs text-inksoft">
                               <div>{row.target_type || '-'}</div>
                               <div className="font-mono text-[11px] text-zinc-400">{row.target_id || ''}</div>
                             </td>
-                            <td className="px-4 sm:px-6 py-4 text-zinc-700">{row.summary ? decodeHtmlEntities(row.summary) : '-'}</td>
+                            <td className="px-4 sm:px-6 py-4 text-inksoft">{row.summary ? decodeHtmlEntities(row.summary) : '-'}</td>
                           </tr>
                           {expanded && (
                             <tr className="bg-zinc-50/50">
                               <td className="px-4 sm:px-6 py-4" colSpan={5}>
                                 <div className="space-y-3 sm:space-y-4">
-                                  <div className="bg-white border border-zinc-200 rounded-lg p-3">
-                                    <div className="text-xs font-semibold text-zinc-700 mb-2">Changes</div>
+                                  <div className="bg-surface border border-zinc-200 rounded-lg p-3">
+                                    <div className="text-xs font-semibold text-inksoft mb-2">Changes</div>
                                     {changes.length === 0 ? (
                                       <div className="text-xs text-zinc-500">No field-level changes available.</div>
                                     ) : (
@@ -185,9 +185,9 @@ const AuditTab: React.FC = () => {
                                           <tbody className="divide-y divide-zinc-100">
                                             {changes.slice(0, 30).map((c) => (
                                               <tr key={c.key}>
-                                                <td className="py-2 pr-3 font-mono text-zinc-700">{c.key}</td>
-                                                <td className="py-2 pr-3 text-zinc-600 break-words">{formatAuditValue(c.before)}</td>
-                                                <td className="py-2 text-zinc-600 break-words">{formatAuditValue(c.after)}</td>
+                                                <td className="py-2 pr-3 font-mono text-inksoft">{c.key}</td>
+                                                <td className="py-2 pr-3 text-inksoft break-words">{formatAuditValue(c.before)}</td>
+                                                <td className="py-2 text-inksoft break-words">{formatAuditValue(c.after)}</td>
                                               </tr>
                                             ))}
                                           </tbody>
@@ -200,13 +200,13 @@ const AuditTab: React.FC = () => {
                                   </div>
 
                                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                                    <details className="bg-white border border-zinc-200 rounded-lg p-3">
-                                      <summary className="text-xs font-semibold text-zinc-700 cursor-pointer select-none">Raw Before JSON</summary>
-                                      <pre className="mt-2 text-[11px] text-zinc-700 whitespace-pre-wrap break-words max-h-[320px] overflow-auto">{JSON.stringify(row.before ?? null, null, 2)}</pre>
+                                    <details className="bg-surface border border-zinc-200 rounded-lg p-3">
+                                      <summary className="text-xs font-semibold text-inksoft cursor-pointer select-none">Raw Before JSON</summary>
+                                      <pre className="mt-2 text-[11px] text-inksoft whitespace-pre-wrap break-words max-h-[320px] overflow-auto">{JSON.stringify(row.before ?? null, null, 2)}</pre>
                                     </details>
-                                    <details className="bg-white border border-zinc-200 rounded-lg p-3">
-                                      <summary className="text-xs font-semibold text-zinc-700 cursor-pointer select-none">Raw After JSON</summary>
-                                      <pre className="mt-2 text-[11px] text-zinc-700 whitespace-pre-wrap break-words max-h-[320px] overflow-auto">{JSON.stringify(row.after ?? null, null, 2)}</pre>
+                                    <details className="bg-surface border border-zinc-200 rounded-lg p-3">
+                                      <summary className="text-xs font-semibold text-inksoft cursor-pointer select-none">Raw After JSON</summary>
+                                      <pre className="mt-2 text-[11px] text-inksoft whitespace-pre-wrap break-words max-h-[320px] overflow-auto">{JSON.stringify(row.after ?? null, null, 2)}</pre>
                                     </details>
                                   </div>
                                 </div>
@@ -223,21 +223,21 @@ const AuditTab: React.FC = () => {
 
             <div className="p-4 sm:p-6 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-500">
               <div>
-                Showing <span className="font-medium text-zinc-700">{auditLogs.length}</span> of{' '}
-                <span className="font-medium text-zinc-700">{auditPagination.total}</span>
+                Showing <span className="font-medium text-inksoft">{auditLogs.length}</span> of{' '}
+                <span className="font-medium text-inksoft">{auditPagination.total}</span>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => fetchAuditLogs({ offset: Math.max(0, auditPagination.offset - auditPagination.limit) })}
                   disabled={auditLoading || auditPagination.offset === 0}
-                  className="px-3 py-2 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Prev
                 </button>
                 <button
                   onClick={() => fetchAuditLogs({ offset: auditPagination.offset + auditPagination.limit })}
                   disabled={auditLoading || !auditPagination.hasMore}
-                  className="px-3 py-2 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2 bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>

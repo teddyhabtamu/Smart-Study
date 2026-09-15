@@ -168,11 +168,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         onClick={handleClick}
         className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium relative ${
           isActive(to)
-            ? 'bg-zinc-100 text-zinc-900'
-            : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+            ? 'bg-zinc-100 text-ink'
+            : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
         } ${isCollapsed ? 'justify-center' : ''}`}
       >
-        <Icon size={20} className={`flex-shrink-0 ${isActive(to) ? 'text-zinc-900' : isPremium ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
+        <Icon size={20} className={`flex-shrink-0 ${isActive(to) ? 'text-ink' : isPremium ? 'text-ink' : 'text-zinc-400 group-hover:text-inksoft'}`} />
         
         {!isCollapsed && (
           <span className="whitespace-nowrap overflow-hidden transition-all duration-200">
@@ -256,10 +256,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <SearchPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       
       {/* Mobile Header - Single Header with Logo, Notification & Profile */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-zinc-200 z-50 flex items-center justify-between px-4">
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-surface border-b border-zinc-200 z-50 flex items-center justify-between px-4">
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="p-2 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+          className="p-2 text-inksoft hover:text-ink hover:bg-zinc-50 rounded-lg transition-colors"
           aria-label="Open menu"
         >
           <Menu size={24} />
@@ -268,9 +268,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* SmartStudy Logo - Center */}
         <Link to="/" className="flex items-center gap-2 flex-1 justify-center" onClick={() => setIsSidebarOpen(false)}>
           <div className="bg-zinc-900 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
-            <GraduationCap className="text-white" size={16} />
+            <GraduationCap className="text-onink" size={16} />
           </div>
-          <span className="font-bold text-base text-zinc-900 tracking-tight">SmartStudy</span>
+          <span className="font-bold text-base text-ink tracking-tight">SmartStudy</span>
         </Link>
 
         <div className="flex items-center gap-3">
@@ -287,7 +287,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     });
                   }
                 }}
-                className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'}`}
+                className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-ink' : 'text-inksoft hover:text-ink hover:bg-zinc-50'}`}
                 aria-label="Notifications"
               >
                 <Bell size={22} />
@@ -306,7 +306,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               className={`relative h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs border overflow-visible flex-shrink-0 ${
                 user.isPremium
                   ? 'bg-amber-50 text-amber-700 border-amber-400 ring-1 ring-amber-300'
-                  : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                  : 'bg-zinc-100 text-inksoft border-zinc-200'
               }`}
               aria-label="Profile"
             >
@@ -319,14 +319,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </span>
               {user.isPremium && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center shadow-sm" title="Pro member">
-                  <Crown size={8} className="text-zinc-900" />
+                  <Crown size={8} className="text-ink" />
                 </span>
               )}
             </Link>
           ) : (
             <Link
               to="/login"
-              className="p-2 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 rounded-lg transition-colors"
+              className="p-2 text-inksoft hover:text-ink hover:bg-zinc-50 rounded-lg transition-colors"
               aria-label="Login"
             >
               <User size={22} />
@@ -345,7 +345,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 h-svh lg:h-screen bg-white z-50 transition-all duration-300 border-r border-zinc-200 flex flex-col overflow-visible
+        className={`fixed lg:sticky top-0 h-svh lg:h-screen bg-surface z-50 transition-all duration-300 border-r border-zinc-200 flex flex-col overflow-visible
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
           ${isCollapsed ? 'lg:w-[80px]' : 'lg:w-[260px]'}
@@ -363,11 +363,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {/* Subtle glow effect */}
                   <div className="absolute -inset-2 bg-zinc-100 rounded-full blur opacity-40"></div>
                   <div className="relative bg-zinc-900 w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ring-1 ring-zinc-900/10">
-                    <GraduationCap className="text-white" size={18} />
+                    <GraduationCap className="text-onink" size={18} />
                   </div>
                 </div>
                 <div className="flex flex-col justify-center">
-                  <span className="font-bold text-lg text-zinc-900 tracking-tight leading-none">
+                  <span className="font-bold text-lg text-ink tracking-tight leading-none">
                     SmartStudy
                   </span>
                   <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mt-0.5">
@@ -380,7 +380,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Modern Sidebar Toggle (Desktop) */}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:flex p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"
+              className="hidden lg:flex p-2 text-zinc-400 hover:text-ink hover:bg-zinc-100 rounded-lg transition-colors"
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
               {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
@@ -389,7 +389,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Close Button (Mobile) */}
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="lg:hidden p-2 text-zinc-500 hover:text-zinc-900"
+              className="lg:hidden p-2 text-zinc-500 hover:text-ink"
             >
               <X size={20} />
             </button>
@@ -399,11 +399,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className={`px-4 mt-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
              <button 
                onClick={() => setIsSearchOpen(true)}
-               className="w-full flex items-center gap-2 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm text-zinc-400 hover:border-zinc-300 hover:text-zinc-600 transition-all text-left shadow-sm"
+               className="w-full flex items-center gap-2 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm text-zinc-400 hover:border-zinc-300 hover:text-inksoft transition-all text-left shadow-sm"
              >
                <Search size={16} />
                <span className="flex-1">Search...</span>
-               <span className="text-xs border border-zinc-200 rounded px-1.5 py-0.5 bg-white">Ctrl K</span>
+               <span className="text-xs border border-zinc-200 rounded px-1.5 py-0.5 bg-surface">Ctrl K</span>
              </button>
           </div>
 
@@ -475,7 +475,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                          });
                        }
                      }}
-                     className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50'}`}
+                     className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-ink' : 'text-zinc-400 hover:text-ink hover:bg-zinc-50'}`}
                    >
                      <Bell size={20} />
                      {unreadCount > 0 && (
@@ -487,7 +487,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                    {isNotificationsOpen && (notificationRef.current || mobileNotificationRef.current) && createPortal(
                      <div
                        data-notification-dropdown
-                       className={`fixed bg-white border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in-fast overflow-hidden ${
+                       className={`fixed bg-surface border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in-fast overflow-hidden ${
                          window.innerWidth < 1024 
                            ? 'w-[calc(100vw-2rem)] max-w-sm right-4 top-20' 
                            : 'w-96'
@@ -512,10 +512,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <div className="p-4 border-b border-zinc-200 bg-zinc-900">
                            <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
-                                 <Bell size={16} className="text-white" />
-                                 <span className="text-sm font-bold text-white">Notifications</span>
+                                 <Bell size={16} className="text-onink" />
+                                 <span className="text-sm font-bold text-onink">Notifications</span>
                                  {unreadCount > 0 && (
-                                   <span className="px-2 py-0.5 bg-white text-zinc-900 text-[10px] font-bold rounded-full">
+                                   <span className="px-2 py-0.5 bg-surface text-ink text-[10px] font-bold rounded-full">
                                      {unreadCount}
                                    </span>
                                  )}
@@ -533,7 +533,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                      }
                                    }}
                                    disabled={isMarkingAllRead}
-                                   className="text-[10px] font-medium text-zinc-300 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                   className="text-[10px] font-medium text-zinc-300 hover:text-onink flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                  >
                                    {isMarkingAllRead ? (
                                      <>
@@ -555,7 +555,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 onClick={() => setNotificationFilter('all')}
                                 className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
                                   notificationFilter === 'all'
-                                    ? 'bg-white text-zinc-900'
+                                    ? 'bg-surface text-ink'
                                     : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                                 }`}
                               >
@@ -565,7 +565,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 onClick={() => setNotificationFilter('unread')}
                                 className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
                                   notificationFilter === 'unread'
-                                    ? 'bg-white text-zinc-900'
+                                    ? 'bg-surface text-ink'
                                     : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                                 }`}
                               >
@@ -601,7 +601,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                           }}
                                           className={`group relative p-3 rounded-xl border transition-all duration-200 ${
                                             notif.isRead
-                                              ? 'bg-white border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/60'
+                                              ? 'bg-surface border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50/60'
                                               : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300 hover:shadow-sm'
                                           } ${isClickable ? 'cursor-pointer active:scale-[0.99]' : ''}`}
                                         >
@@ -614,12 +614,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                               <div className="flex items-start justify-between gap-2">
-                                                 <p className={`text-sm leading-tight ${notif.isRead ? 'font-medium text-zinc-700' : 'font-semibold text-zinc-900'}`}>{notif.title}</p>
+                                                 <p className={`text-sm leading-tight ${notif.isRead ? 'font-medium text-inksoft' : 'font-semibold text-ink'}`}>{notif.title}</p>
                                                  {isClickable && (
                                                    <ExternalLink size={12} className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
                                                  )}
                                               </div>
-                                             <p className="text-xs text-zinc-600 mt-1 leading-relaxed line-clamp-2">{notif.message}</p>
+                                             <p className="text-xs text-inksoft mt-1 leading-relaxed line-clamp-2">{notif.message}</p>
                                              <div className="flex items-center gap-2 mt-2">
                                                 <Clock size={10} className="text-zinc-400" />
                                                 <p className="text-[10px] text-zinc-400">
@@ -642,7 +642,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                                    }
                                                  }}
                                                  disabled={isMarkingRead === notif.id}
-                                                  className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                                  className="p-1.5 text-zinc-400 hover:text-ink hover:bg-zinc-100 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                                  title="Mark as read"
                                                >
                                                  {isMarkingRead === notif.id ? (
@@ -687,7 +687,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                  <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Bell size={24} className="text-zinc-400" />
                                  </div>
-                                <p className="text-sm font-medium text-zinc-900 mb-1">
+                                <p className="text-sm font-medium text-ink mb-1">
                                    {notificationFilter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
                                 </p>
                                 <p className="text-xs text-zinc-500">
@@ -705,7 +705,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               <Link
                                  to="/profile?tab=notifications&view=history"
                                  onClick={() => setIsNotificationsOpen(false)}
-                                 className="block w-full text-center text-xs font-medium text-white hover:text-zinc-200 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
+                                 className="block w-full text-center text-xs font-medium text-onink hover:text-zinc-200 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
                               >
                                  View all notifications
                               </Link>
@@ -720,7 +720,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <div className={`relative h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs border flex-shrink-0 overflow-visible ${
                     user.isPremium
                       ? 'bg-amber-50 text-amber-700 border-amber-400 ring-1 ring-amber-300'
-                      : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                      : 'bg-zinc-100 text-inksoft border-zinc-200'
                   }`}>
                     <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
                       {user.avatar ? (
@@ -731,13 +731,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </span>
                     {user.isPremium && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center shadow-sm" title="Pro member">
-                        <Crown size={8} className="text-zinc-900" />
+                        <Crown size={8} className="text-ink" />
                       </span>
                     )}
                   </div>
                   {!isCollapsed && (
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold text-zinc-900 truncate">{user.name}</span>
+                      <span className="text-sm font-semibold text-ink truncate">{user.name}</span>
                       <div className="flex items-center gap-1.5">
                          <span className="text-[11px] text-zinc-500 truncate">
                            {user.role === 'ADMIN' ? 'Administrator' : user.role === 'MODERATOR' ? 'Content Manager' : 'Student'}
@@ -758,18 +758,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </Link>
                 <button 
                   onClick={() => setShowLogoutConfirm(true)} 
-                  className="p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-all" 
+                  className="p-2 text-zinc-400 hover:text-ink hover:bg-zinc-100 rounded-lg transition-all" 
                   title="Sign Out"
                 >
                   <LogOut size={18} />
                 </button>
               </div>
             ) : isCollapsed ? (
-              <Link to="/login" className="flex items-center justify-center w-full bg-zinc-900 text-white p-2.5 rounded-lg hover:bg-zinc-800 transition-colors" title="Sign In">
+              <Link to="/login" className="flex items-center justify-center w-full bg-zinc-900 text-onink p-2.5 rounded-lg hover:bg-zinc-800 transition-colors" title="Sign In">
                 <User size={18} />
               </Link>
             ) : (
-              <Link to="/login" className="flex items-center justify-center w-full bg-zinc-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors">
+              <Link to="/login" className="flex items-center justify-center w-full bg-zinc-900 text-onink py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors">
                 Sign In
               </Link>
             )}
@@ -778,7 +778,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-white relative lg:mt-0 mt-16">
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-surface relative lg:mt-0 mt-16">
         
         {/* Modern Watermark - Fixed Background Layer */}
         <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none overflow-hidden select-none">
@@ -811,13 +811,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogOut size={24} />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 mb-2">Sign Out?</h3>
+              <h3 className="text-lg font-bold text-ink mb-2">Sign Out?</h3>
               <p className="text-sm text-zinc-500 mb-6">Are you sure you want to sign out of your account?</p>
               
               <div className="flex gap-3">
                 <button 
                   onClick={() => setShowLogoutConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                 >
                   Cancel
                 </button>

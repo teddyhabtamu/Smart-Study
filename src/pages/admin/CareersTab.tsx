@@ -260,8 +260,8 @@ const CareersTab: React.FC = () => {
     <>
         <div className="space-y-4 sm:space-y-6 animate-fade-in">
           {/* View Toggle */}
-          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
-            <h2 className="text-base sm:text-lg font-bold text-zinc-900">Careers Management</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-surface p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
+            <h2 className="text-base sm:text-lg font-bold text-ink">Careers Management</h2>
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -270,8 +270,8 @@ const CareersTab: React.FC = () => {
                 }}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   positionView === 'positions'
-                    ? 'bg-zinc-900 text-white'
-                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                    ? 'bg-zinc-900 text-onink'
+                    : 'bg-zinc-100 text-inksoft hover:bg-zinc-200'
                 }`}
               >
                 Positions
@@ -283,8 +283,8 @@ const CareersTab: React.FC = () => {
                 }}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   positionView === 'applications'
-                    ? 'bg-zinc-900 text-white'
-                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                    ? 'bg-zinc-900 text-onink'
+                    : 'bg-zinc-100 text-inksoft hover:bg-zinc-200'
                 }`}
               >
                 Applications
@@ -295,7 +295,7 @@ const CareersTab: React.FC = () => {
                     resetPositionForm();
                     setIsPositionFormOpen(true);
                   }}
-                  className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
                 >
                   <UserPlus size={16} /> New Position
                 </button>
@@ -309,25 +309,25 @@ const CareersTab: React.FC = () => {
               {careersLoading ? (
                 <PositionsSkeleton />
               ) : positions.length === 0 ? (
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-8 sm:p-12 text-center">
+                <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-8 sm:p-12 text-center">
                   <Briefcase size={48} className="mx-auto text-zinc-300 mb-4" />
                   <p className="text-zinc-500 text-sm sm:text-base">No job positions yet. Create your first position!</p>
                 </div>
               ) : (
                 <div className="space-y-3 sm:space-y-4">
                   {positions.map((position) => (
-                    <div key={position.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 hover:border-zinc-300 hover:shadow-md transition-all">
+                    <div key={position.id} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 hover:border-zinc-300 hover:shadow-md transition-all">
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start gap-3 mb-2 flex-wrap">
                             <div className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
                               position.is_active
                                 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
+                                : 'bg-zinc-100 text-inksoft border border-zinc-200'
                             }`}>
                               {position.is_active ? 'Active' : 'Inactive'}
                             </div>
-                            <h3 className="font-bold text-zinc-900 text-base sm:text-lg flex-1 min-w-0">{position.title}</h3>
+                            <h3 className="font-bold text-ink text-base sm:text-lg flex-1 min-w-0">{position.title}</h3>
                           </div>
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm text-zinc-500 mb-3">
                             {position.department && (
@@ -347,12 +347,12 @@ const CareersTab: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs sm:text-sm text-zinc-600 line-clamp-2 leading-relaxed">{position.description}</p>
+                          <p className="text-xs sm:text-sm text-inksoft line-clamp-2 leading-relaxed">{position.description}</p>
                         </div>
                         <div className="flex gap-2 sm:flex-shrink-0">
                           <button
                             onClick={() => handleEditPosition(position)}
-                            className="p-2.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"
+                            className="p-2.5 text-inksoft hover:text-ink hover:bg-zinc-100 rounded-lg transition-colors"
                             title="Edit position"
                           >
                             <Edit2 size={18} />
@@ -382,11 +382,11 @@ const CareersTab: React.FC = () => {
           {positionView === 'applications' && (
             <div className="space-y-4">
               {/* Filter */}
-              <div className="bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
+              <div className="bg-surface p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                      <label className="text-xs font-semibold text-zinc-700 sm:mr-2 whitespace-nowrap">Filter by Status:</label>
+                      <label className="text-xs font-semibold text-inksoft sm:mr-2 whitespace-nowrap">Filter by Status:</label>
                       <div className="flex-1 sm:flex-initial sm:w-48">
                         <CustomSelect
                           options={applicationStatusOptions}
@@ -398,7 +398,7 @@ const CareersTab: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                      <label className="text-xs font-semibold text-zinc-700 sm:mr-2 whitespace-nowrap">Archive Status:</label>
+                      <label className="text-xs font-semibold text-inksoft sm:mr-2 whitespace-nowrap">Archive Status:</label>
                       <div className="flex-1 sm:flex-initial sm:w-48">
                         <CustomSelect
                           options={archiveStatusOptions}
@@ -416,7 +416,7 @@ const CareersTab: React.FC = () => {
               {applicationsLoading ? (
                 <ApplicationsSkeleton />
               ) : applications.length === 0 ? (
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-8 sm:p-12 text-center">
+                <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-8 sm:p-12 text-center">
                   <Mail size={48} className="mx-auto text-zinc-300 mb-4" />
                   <p className="text-zinc-500 text-sm sm:text-base">No applications found.</p>
                 </div>
@@ -425,7 +425,7 @@ const CareersTab: React.FC = () => {
                   {applications.map((application) => {
                     const position = positions.find(p => p.id === application.position_id);
                     return (
-                      <div key={application.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 hover:border-zinc-300 hover:shadow-md transition-all">
+                      <div key={application.id} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 hover:border-zinc-300 hover:shadow-md transition-all">
                         <div className="flex flex-col gap-4">
                           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -439,11 +439,11 @@ const CareersTab: React.FC = () => {
                                     ? 'bg-amber-100 text-amber-700 border-amber-200'
                                     : application.status === 'Under Review'
                                     ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                    : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                                    : 'bg-zinc-100 text-inksoft border-zinc-200'
                                 }`}>
                                   {application.status}
                                 </div>
-                                <h3 className="font-bold text-zinc-900 text-base sm:text-lg flex-1 min-w-0">{application.applicant_name}</h3>
+                                <h3 className="font-bold text-ink text-base sm:text-lg flex-1 min-w-0">{application.applicant_name}</h3>
                               </div>
                               <div className="space-y-1.5 mb-3">
                                 <p className="text-xs sm:text-sm text-zinc-500 flex items-center gap-1.5">
@@ -457,9 +457,9 @@ const CareersTab: React.FC = () => {
                                   </p>
                                 )}
                                 {position && (
-                                  <p className="text-xs sm:text-sm text-zinc-600 flex items-center gap-1.5">
+                                  <p className="text-xs sm:text-sm text-inksoft flex items-center gap-1.5">
                                     <Briefcase size={12} className="text-zinc-400" />
-                                    Applied for: <strong className="text-zinc-900">{position.title}</strong>
+                                    Applied for: <strong className="text-ink">{position.title}</strong>
                                   </p>
                                 )}
                               </div>
@@ -477,7 +477,7 @@ const CareersTab: React.FC = () => {
                                   href={application.resume_url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="px-3 py-2 bg-zinc-100 text-zinc-700 rounded-lg text-xs sm:text-sm hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5 font-medium whitespace-nowrap"
+                                  className="px-3 py-2 bg-zinc-100 text-inksoft rounded-lg text-xs sm:text-sm hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5 font-medium whitespace-nowrap"
                                 >
                                   <FileText size={14} />
                                   Resume
@@ -513,8 +513,8 @@ const CareersTab: React.FC = () => {
                           </div>
                           {application.cover_letter && (
                             <div className="pt-4 border-t border-zinc-100">
-                              <p className="text-xs font-semibold text-zinc-700 mb-2">Cover Letter:</p>
-                              <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed whitespace-pre-wrap">{application.cover_letter}</p>
+                              <p className="text-xs font-semibold text-inksoft mb-2">Cover Letter:</p>
+                              <p className="text-xs sm:text-sm text-inksoft leading-relaxed whitespace-pre-wrap">{application.cover_letter}</p>
                             </div>
                           )}
                           {application.created_at && (
@@ -546,8 +546,8 @@ const CareersTab: React.FC = () => {
           >
                 {/* Sticky Header */}
                 <div className="p-3 sm:p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl sticky top-0 z-10">
-                  <h3 className="font-bold text-zinc-900 text-sm sm:text-base flex items-center gap-2">
-                    <Briefcase size={18} className="text-zinc-600" />
+                  <h3 className="font-bold text-ink text-sm sm:text-base flex items-center gap-2">
+                    <Briefcase size={18} className="text-inksoft" />
                     {editingPositionId ? 'Edit Position' : 'Create New Position'}
                   </h3>
                   <button
@@ -555,7 +555,7 @@ const CareersTab: React.FC = () => {
                       setIsPositionFormOpen(false);
                       resetPositionForm();
                     }}
-                    className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200 transition-colors"
+                    className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200 transition-colors"
                   >
                     <X size={20} />
                   </button>
@@ -564,23 +564,23 @@ const CareersTab: React.FC = () => {
                 {/* Form Content */}
                 <form onSubmit={handlePositionSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Job Title *</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Job Title *</label>
                     <input
                       type="text"
                       value={positionForm.title}
                       onChange={(e) => setPositionForm({ ...positionForm, title: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                      className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                       placeholder="e.g., Senior Content Developer (Physics)"
                       required
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Description *</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Description *</label>
                     <textarea
                       value={positionForm.description}
                       onChange={(e) => setPositionForm({ ...positionForm, description: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm resize-none"
+                      className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm resize-none"
                       rows={5}
                       placeholder="Describe the role, responsibilities, and what makes it exciting..."
                       required
@@ -588,11 +588,11 @@ const CareersTab: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Requirements & Qualifications</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Requirements & Qualifications</label>
                     <textarea
                       value={positionForm.requirements}
                       onChange={(e) => setPositionForm({ ...positionForm, requirements: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm resize-none"
+                      className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm resize-none"
                       rows={4}
                       placeholder="List required skills, experience, education, etc."
                     />
@@ -600,17 +600,17 @@ const CareersTab: React.FC = () => {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Department</label>
+                      <label className="block text-xs font-semibold text-inksoft mb-1.5">Department</label>
                       <input
                         type="text"
                         value={positionForm.department}
                         onChange={(e) => setPositionForm({ ...positionForm, department: e.target.value })}
-                        className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                        className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                         placeholder="e.g., Content, Engineering"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Employment Type *</label>
+                      <label className="block text-xs font-semibold text-inksoft mb-1.5">Employment Type *</label>
                       <CustomSelect
                         options={employmentTypeOptions}
                         value={positionForm.employment_type}
@@ -620,12 +620,12 @@ const CareersTab: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Location</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Location</label>
                     <input
                       type="text"
                       value={positionForm.location}
                       onChange={(e) => setPositionForm({ ...positionForm, location: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                      className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                       placeholder="e.g., Addis Ababa / Remote"
                     />
                   </div>
@@ -636,9 +636,9 @@ const CareersTab: React.FC = () => {
                       id="is_active"
                       checked={positionForm.is_active}
                       onChange={(e) => setPositionForm({ ...positionForm, is_active: e.target.checked })}
-                      className="w-4 h-4 text-zinc-900 bg-white border-zinc-300 rounded focus:ring-zinc-900/5 focus:ring-2"
+                      className="w-4 h-4 text-ink bg-surface border-zinc-300 rounded focus:ring-zinc-900/5 focus:ring-2"
                     />
-                    <label htmlFor="is_active" className="text-xs sm:text-sm text-zinc-700 cursor-pointer">
+                    <label htmlFor="is_active" className="text-xs sm:text-sm text-inksoft cursor-pointer">
                       <span className="font-medium">Active Position</span>
                       <span className="text-zinc-500 block mt-0.5">Visible to applicants on the careers page</span>
                     </label>
@@ -651,14 +651,14 @@ const CareersTab: React.FC = () => {
                         setIsPositionFormOpen(false);
                         resetPositionForm();
                       }}
-                      className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                      className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isSavingPosition}
-                      className="flex-1 px-4 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSavingPosition ? (
                         <>
@@ -692,10 +692,10 @@ const CareersTab: React.FC = () => {
                   <Trash2 size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                  <h3 className="font-bold text-ink text-lg mb-2">
                     Delete Application?
                   </h3>
-                  <p className="text-sm text-zinc-600">
+                  <p className="text-sm text-inksoft">
                     Are you sure you want to permanently delete the application from <strong>{deleteApplicationConfirmation.applicantName}</strong>? This action cannot be undone.
                   </p>
                 </div>
@@ -703,7 +703,7 @@ const CareersTab: React.FC = () => {
               <div className="flex gap-3 pt-4 border-t border-zinc-100">
                 <button
                   onClick={() => setDeleteApplicationConfirmation({ isOpen: false, applicationId: null, applicantName: null })}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>

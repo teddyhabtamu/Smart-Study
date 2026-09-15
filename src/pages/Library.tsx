@@ -131,7 +131,7 @@ const Library: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:gap-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">Library</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">Library</h1>
           <p className="text-zinc-500 text-sm sm:text-base">Explore educational resources.</p>
         </div>
 
@@ -143,7 +143,7 @@ const Library: React.FC = () => {
              </div>
              <input
                type="text"
-               className="block w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-300 transition-all shadow-sm"
+               className="block w-full pl-9 sm:pl-10 pr-3 py-2.5 sm:py-3 bg-surface border border-zinc-200 rounded-lg text-sm text-ink placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-300 transition-all shadow-sm"
                placeholder="Search by title, topic, or keyword..."
                value={searchTerm}
                onChange={(e) => setSearchTerm(e.target.value)}
@@ -179,7 +179,7 @@ const Library: React.FC = () => {
                 className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
                   showSavedOnly
                     ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                    : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-50'
                 }`}
               >
                 <Bookmark size={14} className={showSavedOnly ? "fill-current" : ""} />
@@ -265,13 +265,13 @@ const Library: React.FC = () => {
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-100 rounded-xl flex items-center justify-center mx-auto mb-3 text-zinc-400">
              <Search size={16} className="sm:w-5 sm:h-5" />
           </div>
-          <p className="text-zinc-900 font-medium text-sm">No documents found</p>
+          <p className="text-ink font-medium text-sm">No documents found</p>
           <p className="text-zinc-500 text-xs mt-1 px-2">
             {showSavedOnly ? "You haven't saved any documents matching these filters." : "Try adjusting your search or filters."}
           </p>
           <button
             onClick={() => {setSearchTerm(''); setSelectedSubject('All'); setSelectedGrade('All'); setShowSavedOnly(false); setSortBy('newest');}}
-            className="mt-4 text-xs font-medium text-zinc-900 hover:text-black bg-zinc-100 px-3 py-1.5 rounded-md transition-colors"
+            className="mt-4 text-xs font-medium text-ink hover:text-ink bg-zinc-100 px-3 py-1.5 rounded-md transition-colors"
           >
             Clear all filters
           </button>
@@ -302,7 +302,7 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
   };
 
   return (
-    <div className="group bg-white rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full relative">
+    <div className="group bg-surface rounded-xl border border-zinc-200 overflow-hidden hover:border-zinc-300 hover:shadow-card transition-all flex flex-col h-full relative">
       {/* Bookmark Button - Positioned absolutely */}
       {user && (
         <button
@@ -312,13 +312,13 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
           className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${
             isBookmarked
               ? 'bg-amber-500 text-white shadow-lg hover:bg-amber-600'
-              : 'bg-white/90 backdrop-blur-sm text-zinc-600 hover:bg-white shadow-md'
+              : 'bg-surface/90 backdrop-blur-sm text-inksoft hover:bg-surface shadow-md'
           }`}
         >
           {isBookmarking ? (
             <Loader2 size={12} className="animate-spin" />
           ) : (
-            <Bookmark size={12} className={isBookmarked ? "fill-current text-white" : ""} />
+            <Bookmark size={12} className={isBookmarked ? "fill-current text-onink" : ""} />
           )}
         </button>
       )}
@@ -345,7 +345,7 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
                 <Crown size={8} className="sm:w-2.5 sm:h-2.5" /> Pro
               </div>
             ) : (
-              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-zinc-900/90 text-onink px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                 <Lock size={8} className="sm:w-2.5 sm:h-2.5" /> Premium
               </div>
             )
@@ -354,17 +354,17 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
               above a gradient instead of colliding with cover text. */}
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 via-black/10 to-transparent pointer-events-none" aria-hidden="true" />
           <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 flex gap-1.5 sm:gap-2 z-10">
-             <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
+             <span className="bg-surface/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-ink border border-black/5 shadow-sm">
                {doc.subject}
              </span>
-             <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
+             <span className="bg-surface/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-ink border border-black/5 shadow-sm">
                {doc.grade === 0 ? 'General' : `Grade ${doc.grade}`}
              </span>
           </div>
         </div>
 
     <div className="p-3 sm:p-5 flex-1 flex flex-col">
-      <h3 className="font-semibold text-zinc-900 leading-snug mb-2 line-clamp-2 group-hover:text-zinc-600 transition-colors text-sm sm:text-base">{doc.title}</h3>
+      <h3 className="font-semibold text-ink leading-snug mb-2 line-clamp-2 group-hover:text-inksoft transition-colors text-sm sm:text-base">{doc.title}</h3>
       <p className="text-zinc-500 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2 flex-1 font-light leading-relaxed">
         {doc.description}
       </p>
@@ -373,7 +373,7 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
           <span className="text-[10px] sm:text-[11px] text-zinc-400 font-medium uppercase tracking-wider flex items-center gap-1">
             {doc.file_type} • {doc.downloads} Download{(doc.downloads || 0) === 1 ? '' : 's'}
           </span>
-          <span className="text-xs font-medium text-zinc-900 flex items-center gap-1 sm:gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity lg:transform lg:translate-x-2 lg:group-hover:translate-x-0 lg:group-focus-within:translate-x-0">
+          <span className="text-xs font-medium text-ink flex items-center gap-1 sm:gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity lg:transform lg:translate-x-2 lg:group-hover:translate-x-0 lg:group-focus-within:translate-x-0">
             View <BookOpen size={12} className="sm:w-3.5 sm:h-3.5" />
           </span>
         </div>

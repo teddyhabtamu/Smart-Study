@@ -2,7 +2,7 @@ import React from 'react';
 
 // Shared admin page loading placeholders (extracted from Admin.tsx).
 export const StatsCardSkeleton: React.FC = () => (
-  <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
+  <div className="bg-surface p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
     <div className="flex justify-between items-start mb-4">
       <div className="w-10 h-10 bg-zinc-200 rounded-lg"></div>
       <div className="w-12 h-4 bg-zinc-200 rounded"></div>
@@ -13,7 +13,7 @@ export const StatsCardSkeleton: React.FC = () => (
 );
 
 export const RecentActivitySkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+  <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
     <div className="w-48 h-6 bg-zinc-200 rounded mb-6 animate-pulse"></div>
     <div className="space-y-4">
       {[1, 2, 3, 4].map((i) => (
@@ -33,7 +33,7 @@ export const RecentActivitySkeleton: React.FC = () => (
 );
 
 export const StudentsTableSkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+  <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-left">
         <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -83,7 +83,7 @@ export const StudentsTableSkeleton: React.FC = () => (
 export const PositionsSkeleton: React.FC = () => (
   <div className="space-y-3 sm:space-y-4">
     {[1, 2, 3].map((i) => (
-      <div key={i} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 animate-pulse">
+      <div key={i} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 animate-pulse">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex-1 space-y-3">
             <div className="flex items-start gap-3">
@@ -113,7 +113,7 @@ export const PositionsSkeleton: React.FC = () => (
 export const ApplicationsSkeleton: React.FC = () => (
   <div className="space-y-3 sm:space-y-4">
     {[1, 2, 3].map((i) => (
-      <div key={i} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 animate-pulse">
+      <div key={i} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 animate-pulse">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="flex-1 space-y-3">
@@ -144,7 +144,7 @@ export const ApplicationsSkeleton: React.FC = () => (
 );
 
 export const ContentTableSkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+  <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-left">
         <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -196,7 +196,7 @@ export const ContentTableSkeleton: React.FC = () => (
 export const CommunityPostsSkeleton: React.FC = () => (
   <div className="grid gap-4">
     {[1, 2, 3, 4].map((i) => (
-      <div key={i} className="bg-white p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-4 animate-pulse">
+      <div key={i} className="bg-surface p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-4 animate-pulse">
         <div className="flex flex-col items-center gap-1 pt-1">
           <div className="w-5 h-5 bg-zinc-200 rounded"></div>
         </div>
@@ -221,7 +221,7 @@ export const CommunityPostsSkeleton: React.FC = () => (
 );
 
 export const AdminTeamSkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+  <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-left">
         <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">

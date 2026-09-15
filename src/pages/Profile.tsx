@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles } from 'lucide-react';
+import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, Palette, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BADGES } from '../constants';
 import { usersAPI } from '../services/api';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
+import { useTheme, THEMES, type ThemePreference } from '../context/ThemeContext';
 
-type Tab = 'general' | 'security' | 'notifications' | 'achievements' | 'pro';
+type Tab = 'general' | 'security' | 'notifications' | 'achievements' | 'pro' | 'appearance';
 type NotificationView = 'preferences' | 'history';
 
 // Map icon string names to components
@@ -20,6 +21,7 @@ const IconMap: { [key: string]: any } = {
 const Profile: React.FC = () => {
   const { user, logout, changePassword, updateUser, markNotificationsAsRead, deleteNotification } = useAuth();
   const { addToast } = useToast();
+  const { preference: themePreference, theme: activeTheme, setPreference: setThemePreference } = useTheme();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('general');
@@ -271,7 +273,7 @@ const Profile: React.FC = () => {
       {/* Header Profile Card */}
       <div className="flex flex-col items-center gap-4 sm:gap-6 border-b border-zinc-200 pb-6 sm:pb-8">
         <div className="relative group w-fit">
-          <div className={`w-24 h-24 sm:w-28 sm:h-28 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-600 font-bold text-2xl sm:text-4xl border-4 border-white shadow-lg overflow-hidden relative ${
+          <div className={`w-24 h-24 sm:w-28 sm:h-28 bg-zinc-100 rounded-full flex items-center justify-center text-inksoft font-bold text-2xl sm:text-4xl border-4 border-white shadow-lg overflow-hidden relative ${
             user.isPremium ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-white' : 'ring-1 ring-zinc-200/50'
           }`}>
             {avatar ? (
@@ -285,14 +287,14 @@ const Profile: React.FC = () => {
               onClick={handleAvatarClick}
               className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer backdrop-blur-sm"
             >
-              <Camera className="text-white sm:w-7 sm:h-7" size={24} />
+              <Camera className="text-onink sm:w-7 sm:h-7" size={24} />
             </div>
           </div>
 
           {/* Floating Edit Button */}
           <button
              onClick={handleAvatarClick}
-             className="absolute bottom-0 right-0 sm:bottom-1 sm:right-1 bg-zinc-900 text-white p-1.5 sm:p-2 rounded-full border-2 border-white shadow-md hover:bg-zinc-800 hover:scale-110 transition-all z-10"
+             className="absolute bottom-0 right-0 sm:bottom-1 sm:right-1 bg-zinc-900 text-onink p-1.5 sm:p-2 rounded-full border-2 border-white shadow-md hover:bg-zinc-800 hover:scale-110 transition-all z-10"
              title="Change Photo"
           >
              <Upload size={12} className="sm:w-3.5 sm:h-3.5" />
@@ -308,17 +310,17 @@ const Profile: React.FC = () => {
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900">{user.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink">{user.name}</h1>
           <div className="flex flex-col items-center gap-2 sm:gap-3 text-sm text-zinc-500 mt-2">
             <span>{user.email}</span>
 
             {(user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR) ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-900 text-white border border-zinc-800">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-900 text-onink border border-zinc-800">
                 <Shield size={10} className="sm:w-3 sm:h-3" />
                 Administrator
               </span>
             ) : (
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${user.isPremium ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'}`}>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${user.isPremium ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-zinc-100 text-inksoft border border-zinc-200'}`}>
                 {user.isPremium ? <Crown size={10} className="sm:w-3 sm:h-3" /> : null}
                 {user.isPremium ? 'Student Pro' : 'Free Account'}
               </span>
@@ -333,7 +335,7 @@ const Profile: React.FC = () => {
           <button
             onClick={() => setActiveTab('general')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === 'general' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+              activeTab === 'general' ? 'bg-zinc-100 text-ink' : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
             }`}
           >
             <User size={18} /> General
@@ -344,7 +346,7 @@ const Profile: React.FC = () => {
             <button
               onClick={() => setActiveTab('achievements')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'achievements' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+                activeTab === 'achievements' ? 'bg-zinc-100 text-ink' : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
               }`}
             >
               <Trophy size={18} /> Achievements
@@ -358,7 +360,7 @@ const Profile: React.FC = () => {
                 ? 'bg-amber-100 text-amber-900'
                 : user.isPremium
                 ? 'text-amber-700 hover:bg-amber-50'
-                : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+                : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
             }`}
           >
             <Crown size={18} /> Pro
@@ -370,7 +372,7 @@ const Profile: React.FC = () => {
           <button
             onClick={() => setActiveTab('security')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === 'security' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+              activeTab === 'security' ? 'bg-zinc-100 text-ink' : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
             }`}
           >
             <Lock size={18} /> Security
@@ -378,10 +380,18 @@ const Profile: React.FC = () => {
           <button
             onClick={() => setActiveTab('notifications')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === 'notifications' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+              activeTab === 'notifications' ? 'bg-zinc-100 text-ink' : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
             }`}
           >
             <Bell size={18} /> Notifications
+          </button>
+          <button
+            onClick={() => setActiveTab('appearance')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'appearance' ? 'bg-zinc-100 text-ink' : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
+            }`}
+          >
+            <Palette size={18} /> Appearance
           </button>
           
           <div className="pt-4 mt-4 border-t border-zinc-100">
@@ -396,19 +406,19 @@ const Profile: React.FC = () => {
 
         {/* Content Area */}
         <div className="md:col-span-3">
-          <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden min-h-[500px]">
+          <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden min-h-[500px]">
             
             {/* General Tab */}
             {activeTab === 'general' && (
               <form onSubmit={handleGeneralSubmit} className="p-6 space-y-6 animate-fade-in">
                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 mb-1">Personal Information</h2>
+                  <h2 className="text-lg font-bold text-ink mb-1">Personal Information</h2>
                   <p className="text-sm text-zinc-500">Update your personal details here.</p>
                 </div>
                 
                 <div className="grid gap-6">
                   <div>
-                    <label htmlFor="profile-name" className="block text-sm font-medium text-zinc-700 mb-1">Full Name</label>
+                    <label htmlFor="profile-name" className="block text-sm font-medium text-inksoft mb-1">Full Name</label>
                     <div className="relative">
                       <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                       <input
@@ -417,13 +427,13 @@ const Profile: React.FC = () => {
                         autoComplete="name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 transition-all"
+                        className="w-full pl-10 pr-4 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 transition-all"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="profile-email" className="block text-sm font-medium text-zinc-700 mb-1">Email Address</label>
+                    <label htmlFor="profile-email" className="block text-sm font-medium text-inksoft mb-1">Email Address</label>
                     <div className="relative">
                       <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                       <input
@@ -435,18 +445,18 @@ const Profile: React.FC = () => {
                         className="w-full pl-10 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-zinc-500 cursor-not-allowed"
                       />
                     </div>
-                    <p className="text-xs text-zinc-400 mt-1">To change your email, contact support on <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" className="text-zinc-700 font-medium hover:text-zinc-900 hover:underline">Telegram</a>.</p>
+                    <p className="text-xs text-zinc-400 mt-1">To change your email, contact support on <a href="https://t.me/ethio_smartstudy" target="_blank" rel="noopener noreferrer" className="text-inksoft font-medium hover:text-ink hover:underline">Telegram</a>.</p>
                   </div>
 
                   <div>
-                    <label htmlFor="profile-grade" className="block text-sm font-medium text-zinc-700 mb-1">School Grade</label>
+                    <label htmlFor="profile-grade" className="block text-sm font-medium text-inksoft mb-1">School Grade</label>
                     <div className="relative">
                       <GraduationCap size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                       <select
                         id="profile-grade"
                         value={grade}
                         onChange={(e) => setGrade(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 transition-all text-zinc-700"
+                        className="w-full pl-10 pr-4 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 transition-all text-inksoft"
                       >
                         <option value="">Not set</option>
                         <option value="9">Grade 9</option>
@@ -470,7 +480,7 @@ const Profile: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSaving || (name === user.name && avatar === user.avatar && grade === (user.grade ? String(user.grade) : ''))}
-                    className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
+                    className="px-6 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                   >
                     {isSaving ? (
                       <>
@@ -488,11 +498,75 @@ const Profile: React.FC = () => {
               </form>
             )}
 
+            {/* Appearance Tab */}
+            {activeTab === 'appearance' && (
+              <div className="p-6 space-y-6 animate-fade-in">
+                <div>
+                  <h2 className="text-lg font-bold text-ink mb-1">Appearance</h2>
+                  <p className="text-sm text-zinc-500">Pick a theme — it applies instantly and is remembered on this device.</p>
+                </div>
+
+                <div className="grid gap-3">
+                  {/* System default */}
+                  <button
+                    onClick={() => setThemePreference('system')}
+                    aria-pressed={themePreference === 'system'}
+                    className={`flex items-center gap-4 p-4 rounded-xl border text-left transition-all ${
+                      themePreference === 'system'
+                        ? 'border-zinc-900 ring-2 ring-zinc-900/10 bg-zinc-50'
+                        : 'border-zinc-200 hover:border-zinc-300 bg-surface'
+                    }`}
+                  >
+                    <span className="w-10 h-10 rounded-lg bg-zinc-900 text-onink flex items-center justify-center font-bold text-xs flex-shrink-0">
+                      A<span className="text-zinc-400">a</span>
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-semibold text-ink text-sm">System default</span>
+                      <span className="block text-xs text-zinc-500">Follows your device light/dark setting</span>
+                    </span>
+                    {themePreference === 'system' && <Check size={18} className="text-ink flex-shrink-0" />}
+                  </button>
+
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setThemePreference(t.id as ThemePreference)}
+                      aria-pressed={themePreference === t.id}
+                      className={`flex items-center gap-4 p-4 rounded-xl border text-left transition-all ${
+                        themePreference === t.id
+                          ? 'border-zinc-900 ring-2 ring-zinc-900/10 bg-zinc-50'
+                          : 'border-zinc-200 hover:border-zinc-300 bg-surface'
+                      }`}
+                    >
+                      <span
+                        className="w-10 h-10 rounded-lg flex items-center justify-center gap-1 flex-shrink-0 border border-black/10"
+                        style={{ backgroundColor: t.swatches[0] }}
+                        aria-hidden="true"
+                      >
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.swatches[1] }} />
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.swatches[2] }} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-semibold text-ink text-sm">
+                          {t.name}
+                          {activeTheme === t.id && themePreference !== 'system' && (
+                            <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Active</span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-zinc-500">{t.blurb}</span>
+                      </span>
+                      {themePreference === t.id && <Check size={18} className="text-ink flex-shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Achievements Tab - Hidden for Admins */}
             {activeTab === 'achievements' && user.role !== UserRole.ADMIN && (
               <div className="p-6 space-y-6 animate-fade-in">
                  <div>
-                    <h2 className="text-lg font-bold text-zinc-900 mb-1">Achievements & Badges</h2>
+                    <h2 className="text-lg font-bold text-ink mb-1">Achievements & Badges</h2>
                     <p className="text-sm text-zinc-500">Track your progress and unlocked milestones.</p>
                  </div>
                  
@@ -519,7 +593,7 @@ const Profile: React.FC = () => {
                              {isUnlocked ? <Icon size={24} /> : <Lock size={20} />}
                            </div>
                            <div>
-                              <h3 className="font-bold text-zinc-900 text-sm">{badge.name}</h3>
+                              <h3 className="font-bold text-ink text-sm">{badge.name}</h3>
                               <p className="text-xs text-zinc-500 mt-1">{badge.description}</p>
                            </div>
                            {!isUnlocked ? (
@@ -546,7 +620,7 @@ const Profile: React.FC = () => {
             {activeTab === 'pro' && (
               <div className="p-6 space-y-6 animate-fade-in">
                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 mb-1 flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-ink mb-1 flex items-center gap-2">
                     <Crown size={18} className="text-amber-500" />
                     {user.isPremium ? 'Pro Membership' : 'Go Pro'}
                   </h2>
@@ -571,7 +645,7 @@ const Profile: React.FC = () => {
                         <div className="flex items-center justify-between mb-6">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-amber-400 flex items-center justify-center">
-                              <Crown size={16} className="text-zinc-900" />
+                              <Crown size={16} className="text-ink" />
                             </div>
                             <span className="font-black tracking-[0.2em] text-sm">STUDENT&nbsp;PRO</span>
                           </div>
@@ -610,7 +684,7 @@ const Profile: React.FC = () => {
                       ].map(({ icon: Icon, label, value }) => (
                         <div key={label} className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 sm:p-4 text-center">
                           <Icon size={18} className="mx-auto mb-1.5 text-amber-600" />
-                          <p className="text-lg sm:text-xl font-black text-zinc-900 tabular-nums">{value}</p>
+                          <p className="text-lg sm:text-xl font-black text-ink tabular-nums">{value}</p>
                           <p className="text-[11px] font-medium text-zinc-500">{label}</p>
                         </div>
                       ))}
@@ -618,7 +692,7 @@ const Profile: React.FC = () => {
 
                     {/* Member benefits */}
                     <div>
-                      <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">Your Pro perks</h3>
+                      <h3 className="text-sm font-bold text-ink uppercase tracking-wider mb-3">Your Pro perks</h3>
                       <div className="space-y-2">
                         {[
                           { icon: BookOpen, title: 'Premium document library', sub: 'Textbooks & study guides' },
@@ -626,12 +700,12 @@ const Profile: React.FC = () => {
                           { icon: BrainCircuit, title: 'AI practice quizzes', sub: 'No daily limits — drill as much as you want' },
                           { icon: Sparkles, title: 'AI Smart Schedule planner', sub: 'Personal study plans built around your deadlines' },
                         ].map(({ icon: Icon, title, sub }) => (
-                          <div key={title} className="flex items-start gap-3 p-3 bg-white border border-zinc-200 rounded-xl">
-                            <div className="w-9 h-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center flex-shrink-0">
+                          <div key={title} className="flex items-start gap-3 p-3 bg-surface border border-zinc-200 rounded-xl">
+                            <div className="w-9 h-9 rounded-lg bg-zinc-900 text-onink flex items-center justify-center flex-shrink-0">
                               <Icon size={16} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-zinc-900">{title}</p>
+                              <p className="text-sm font-bold text-ink">{title}</p>
                               <p className="text-xs text-zinc-500">{sub}</p>
                             </div>
                             <Check size={16} className="text-emerald-500 flex-shrink-0 mt-1" />
@@ -674,7 +748,7 @@ const Profile: React.FC = () => {
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">What Pro unlocks</h3>
+                      <h3 className="text-sm font-bold text-ink uppercase tracking-wider mb-3">What Pro unlocks</h3>
                       <div className="space-y-2">
                         {[
                           { icon: BookOpen, title: 'Premium document library', sub: 'Full textbook & study-guide collection' },
@@ -683,11 +757,11 @@ const Profile: React.FC = () => {
                           { icon: Sparkles, title: 'AI Smart Schedule planner', sub: 'Personal study plans built around your deadlines' },
                         ].map(({ icon: Icon, title, sub }) => (
                           <div key={title} className="flex items-start gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-xl">
-                            <div className="w-9 h-9 rounded-lg bg-white border border-zinc-200 text-zinc-400 flex items-center justify-center flex-shrink-0">
+                            <div className="w-9 h-9 rounded-lg bg-surface border border-zinc-200 text-zinc-400 flex items-center justify-center flex-shrink-0">
                               <Icon size={16} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-zinc-900">{title}</p>
+                              <p className="text-sm font-bold text-ink">{title}</p>
                               <p className="text-xs text-zinc-500">{sub}</p>
                             </div>
                             <Lock size={14} className="text-zinc-300 flex-shrink-0 mt-1" />
@@ -704,24 +778,24 @@ const Profile: React.FC = () => {
             {activeTab === 'security' && (
               <form onSubmit={handlePasswordSubmit} className="p-6 space-y-6 animate-fade-in">
                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 mb-1">Password & Security</h2>
+                  <h2 className="text-lg font-bold text-ink mb-1">Password & Security</h2>
                   <p className="text-sm text-zinc-500">Manage your password and account security.</p>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Current Password</label>
+                    <label className="block text-sm font-medium text-inksoft mb-1">Current Password</label>
                     <div className="relative">
                       <input
                         type={showCurrentPassword ? "text" : "password"}
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-4 pr-10 py-2 bg-white border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500"
+                        className="w-full px-4 pr-10 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500"
                       />
                       <button
                         type="button"
                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
                         aria-label={showCurrentPassword ? "Hide password" : "Show password"}
                       >
                         {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -729,18 +803,18 @@ const Profile: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">New Password</label>
+                    <label className="block text-sm font-medium text-inksoft mb-1">New Password</label>
                     <div className="relative">
                       <input
                         type={showNewPassword ? "text" : "password"}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-4 pr-10 py-2 bg-white border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500"
+                        className="w-full px-4 pr-10 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500"
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
                         aria-label={showNewPassword ? "Hide password" : "Show password"}
                       >
                         {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -748,13 +822,13 @@ const Profile: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Confirm New Password</label>
+                    <label className="block text-sm font-medium text-inksoft mb-1">Confirm New Password</label>
                     <div className="relative">
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className={`w-full px-4 pr-10 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 transition-colors ${
+                        className={`w-full px-4 pr-10 py-2 bg-surface border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 transition-colors ${
                            confirmPassword && newPassword !== confirmPassword 
                              ? 'border-red-300 focus:border-red-500' 
                              : 'border-zinc-300 focus:border-zinc-500'
@@ -763,7 +837,7 @@ const Profile: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 transition-colors"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
                         aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                       >
                         {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -783,7 +857,7 @@ const Profile: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSaving || !currentPassword || !newPassword || newPassword !== confirmPassword}
-                    className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
+                    className="px-6 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                   >
                     {isSaving ? (
                       <>
@@ -811,7 +885,7 @@ const Profile: React.FC = () => {
                     <button 
                       type="button"
                       onClick={handleDeleteAccount}
-                      className="px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
+                      className="px-4 py-2 bg-surface border border-red-200 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
                     >
                       Delete Account
                     </button>
@@ -826,7 +900,7 @@ const Profile: React.FC = () => {
                  {/* View Toggle */}
                  <div className="flex items-center justify-between">
                    <div>
-                     <h2 className="text-lg font-bold text-zinc-900 mb-1">Notifications</h2>
+                     <h2 className="text-lg font-bold text-ink mb-1">Notifications</h2>
                      <p className="text-sm text-zinc-500">Manage your notification preferences and history.</p>
                    </div>
                    <div className="flex gap-2 bg-zinc-100 p-1 rounded-lg">
@@ -834,8 +908,8 @@ const Profile: React.FC = () => {
                        onClick={() => setNotificationView('preferences')}
                        className={`px-4 py-1.5 text-xs font-medium rounded transition-all ${
                          notificationView === 'preferences'
-                           ? 'bg-white text-zinc-900 shadow-sm'
-                           : 'text-zinc-600 hover:text-zinc-900'
+                           ? 'bg-surface text-ink shadow-sm'
+                           : 'text-inksoft hover:text-ink'
                        }`}
                      >
                        Preferences
@@ -844,8 +918,8 @@ const Profile: React.FC = () => {
                        onClick={() => setNotificationView('history')}
                        className={`px-4 py-1.5 text-xs font-medium rounded transition-all ${
                          notificationView === 'history'
-                           ? 'bg-white text-zinc-900 shadow-sm'
-                           : 'text-zinc-600 hover:text-zinc-900'
+                           ? 'bg-surface text-ink shadow-sm'
+                           : 'text-inksoft hover:text-ink'
                        }`}
                      >
                        History
@@ -863,13 +937,13 @@ const Profile: React.FC = () => {
                               <Mail size={20} />
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-zinc-900">Email Notifications</p>
+                              <p className="text-sm font-bold text-ink">Email Notifications</p>
                               <p className="text-xs text-zinc-500">Receive updates about new content and features.</p>
                             </div>
                          </div>
                          <label className="relative inline-flex items-center cursor-pointer">
                            <input type="checkbox" checked={emailNotifs} onChange={() => setEmailNotifs(!emailNotifs)} className="sr-only peer" />
-                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-surface after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
                          </label>
                        </div>
 
@@ -879,13 +953,13 @@ const Profile: React.FC = () => {
                               <Bell size={20} />
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-zinc-900">Study Reminders</p>
+                              <p className="text-sm font-bold text-ink">Study Reminders</p>
                               <p className="text-xs text-zinc-500">Get reminded about your study schedule.</p>
                             </div>
                          </div>
                          <label className="relative inline-flex items-center cursor-pointer">
                            <input type="checkbox" checked={studyReminders} onChange={() => setStudyReminders(!studyReminders)} className="sr-only peer" />
-                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-surface after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
                          </label>
                        </div>
                      </div>
@@ -901,7 +975,7 @@ const Profile: React.FC = () => {
                        <button
                          type="submit"
                          disabled={isSaving || (emailNotifs === user.preferences?.emailNotifications && studyReminders === user.preferences?.studyReminders)}
-                         className="px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
+                         className="px-6 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
                        >
                          {isSaving ? (
                            <>
@@ -931,8 +1005,8 @@ const Profile: React.FC = () => {
                            onClick={() => setNotificationTypeFilter(type)}
                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                              notificationTypeFilter === type
-                               ? 'bg-zinc-900 text-white'
-                               : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                               ? 'bg-zinc-900 text-onink'
+                               : 'bg-zinc-100 text-inksoft hover:bg-zinc-200'
                            }`}
                          >
                            {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -941,7 +1015,7 @@ const Profile: React.FC = () => {
                        {user.notifications && user.notifications.filter(n => !n.isRead).length > 0 && (
                          <button
                            onClick={() => markNotificationsAsRead()}
-                           className="ml-auto px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-all flex items-center gap-1"
+                           className="ml-auto px-3 py-1.5 text-xs font-medium text-inksoft hover:text-ink bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-all flex items-center gap-1"
                          >
                            <Check size={12} /> Mark all read
                          </button>
@@ -955,7 +1029,7 @@ const Profile: React.FC = () => {
                            return (
                              <div className="text-center py-16">
                                <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
-                               <p className="text-sm font-medium text-zinc-900 mb-1">No notifications yet</p>
+                               <p className="text-sm font-medium text-ink mb-1">No notifications yet</p>
                                <p className="text-xs text-zinc-400">You'll see your notifications here when they arrive</p>
                              </div>
                            );
@@ -965,7 +1039,7 @@ const Profile: React.FC = () => {
                            return (
                              <div className="text-center py-16">
                                <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
-                               <p className="text-sm font-medium text-zinc-900 mb-1">No notifications yet</p>
+                               <p className="text-sm font-medium text-ink mb-1">No notifications yet</p>
                                <p className="text-xs text-zinc-400">You'll see your notifications here when they arrive</p>
                              </div>
                            );
@@ -984,7 +1058,7 @@ const Profile: React.FC = () => {
                            return (
                              <div className="text-center py-16">
                                <Bell size={32} className="text-zinc-300 mx-auto mb-3" />
-                               <p className="text-sm font-medium text-zinc-900 mb-1">No notifications found</p>
+                               <p className="text-sm font-medium text-ink mb-1">No notifications found</p>
                                <p className="text-xs text-zinc-400">Try adjusting your filters</p>
                              </div>
                            );
@@ -1018,7 +1092,7 @@ const Profile: React.FC = () => {
                                  onClick={() => isClickable && navigate(actionUrl!)}
                                  className={`group relative p-4 rounded-lg border-l-4 transition-all duration-200 ${
                                    notif.isRead
-                                     ? 'opacity-75 hover:opacity-100 bg-white hover:bg-zinc-50/50'
+                                     ? 'opacity-75 hover:opacity-100 bg-surface hover:bg-zinc-50/50'
                                      : `${getTypeColor(notif.type)} hover:shadow-sm`
                                  } ${isClickable ? 'cursor-pointer' : ''}`}
                                >
@@ -1031,12 +1105,12 @@ const Profile: React.FC = () => {
                                    </div>
                                    <div className="flex-1 min-w-0">
                                      <div className="flex items-start justify-between gap-2">
-                                       <p className="text-sm font-semibold text-zinc-900 leading-tight">{notif.title}</p>
+                                       <p className="text-sm font-semibold text-ink leading-tight">{notif.title}</p>
                                         {isClickable && (
                                           <ExternalLink size={12} className="text-zinc-400 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
                                         )}
                                      </div>
-                                     <p className="text-xs text-zinc-600 mt-1 leading-relaxed">{notif.message}</p>
+                                     <p className="text-xs text-inksoft mt-1 leading-relaxed">{notif.message}</p>
                                      <div className="flex items-center gap-2 mt-2">
                                        <Clock size={10} className="text-zinc-400" />
                                        <p className="text-[10px] text-zinc-400">
@@ -1052,7 +1126,7 @@ const Profile: React.FC = () => {
                                             e.stopPropagation();
                                             markNotificationsAsRead([notif.id]);
                                           }}
-                                          className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-all duration-200"
+                                          className="p-1.5 text-zinc-400 hover:text-ink hover:bg-zinc-100 rounded transition-all duration-200"
                                           title="Mark as read"
                                         >
                                           <Check size={14} />
@@ -1094,13 +1168,13 @@ const Profile: React.FC = () => {
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <LogOut size={24} />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 mb-2">Sign Out?</h3>
+              <h3 className="text-lg font-bold text-ink mb-2">Sign Out?</h3>
               <p className="text-sm text-zinc-500 mb-6">Are you sure you want to sign out of your account?</p>
               
               <div className="flex gap-3">
                 <button 
                   onClick={() => setShowLogoutConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                 >
                   Cancel
                 </button>
@@ -1125,13 +1199,13 @@ const Profile: React.FC = () => {
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle size={24} />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 mb-2">Delete Account?</h3>
+              <h3 className="text-lg font-bold text-ink mb-2">Delete Account?</h3>
               <p className="text-sm text-zinc-500 mb-6">This action is permanent and cannot be undone. All your data and progress will be lost.</p>
               
               <div className="flex gap-3">
                 <button 
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                 >
                   Cancel
                 </button>

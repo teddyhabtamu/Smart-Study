@@ -56,11 +56,11 @@ const Admin: React.FC = () => {
         <div className="flex flex-col gap-3 sm:gap-4">
           <div>
             <div className="flex items-center gap-2 sm:gap-3 mb-2">
-              <span className="px-2 py-1 rounded-md bg-zinc-900 text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              <span className="px-2 py-1 rounded-md bg-zinc-900 text-onink text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                 <Shield size={10} /> Admin Panel
               </span>
             </div>
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 tracking-tight">System Administration</h1>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-ink tracking-tight">System Administration</h1>
           </div>
 
           {/* Main Tabs - Mobile Optimized */}
@@ -84,8 +84,8 @@ const Admin: React.FC = () => {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200'
-                      : 'text-zinc-500 hover:text-zinc-700 active:bg-white/50'
+                      ? 'bg-surface text-ink shadow-sm ring-1 ring-zinc-200'
+                      : 'text-zinc-500 hover:text-inksoft active:bg-surface/50'
                   }`}
                 >
                   <tab.icon size={16} className="flex-shrink-0" />

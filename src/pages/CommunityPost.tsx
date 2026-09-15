@@ -111,7 +111,7 @@ const CommunityPost: React.FC = () => {
       <div className="flex flex-col items-center justify-center py-20 text-zinc-500 animate-fade-in">
         <p className="mb-2">Discussion not found.</p>
         <p className="text-xs text-zinc-400 mb-6">It may have been deleted or the link is incorrect.</p>
-        <Link to="/community" className="px-4 py-2 bg-zinc-100 text-zinc-900 rounded-lg hover:bg-zinc-200 text-sm font-medium transition-colors">
+        <Link to="/community" className="px-4 py-2 bg-zinc-100 text-ink rounded-lg hover:bg-zinc-200 text-sm font-medium transition-colors">
           Return to Community
         </Link>
       </div>
@@ -449,11 +449,11 @@ const CommunityPost: React.FC = () => {
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full text-base sm:text-lg font-bold text-zinc-900 bg-white border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
+              className="w-full text-base sm:text-lg font-bold text-ink bg-surface border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
               placeholder="Question Title"
             />
           ) : (
-            <h1 className="text-base sm:text-lg font-bold text-zinc-900 leading-snug mb-1 line-clamp-2">{post.title}</h1>
+            <h1 className="text-base sm:text-lg font-bold text-ink leading-snug mb-1 line-clamp-2">{post.title}</h1>
           )}
           <p className="text-xs text-zinc-500 flex items-center gap-1.5 sm:gap-2 mt-1">
             <span>{post.subject}</span>
@@ -469,17 +469,17 @@ const CommunityPost: React.FC = () => {
                  <button
                    onClick={() => setShowMobileMenu(!showMobileMenu)}
                    aria-label="More actions"
-                   className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                   className="p-2 text-inksoft hover:bg-zinc-100 rounded-lg transition-colors"
                  >
                    <MoreVertical size={18} />
                  </button>
                  {showMobileMenu && (
                    <>
                      <div className="fixed inset-0 z-10" onClick={() => setShowMobileMenu(false)} />
-                     <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 py-2">
+                     <div className="absolute right-0 top-full mt-2 w-48 bg-surface border border-zinc-200 rounded-lg shadow-lg z-20 py-2">
                        <button
                          onClick={() => { handleShare(); setShowMobileMenu(false); }}
-                         className="w-full px-4 py-3 text-left text-sm font-medium text-zinc-600 hover:bg-zinc-50 flex items-center gap-3"
+                         className="w-full px-4 py-3 text-left text-sm font-medium text-inksoft hover:bg-zinc-50 flex items-center gap-3"
                        >
                          <Share2 size={16} /> Share
                        </button>
@@ -487,7 +487,7 @@ const CommunityPost: React.FC = () => {
                          <>
                            <button
                              onClick={() => { setIsEditing(true); setShowMobileMenu(false); }}
-                             className="w-full px-4 py-3 text-left text-sm font-medium text-zinc-600 hover:bg-zinc-50 flex items-center gap-3"
+                             className="w-full px-4 py-3 text-left text-sm font-medium text-inksoft hover:bg-zinc-50 flex items-center gap-3"
                            >
                              <Edit2 size={16} /> Edit Post
                            </button>
@@ -509,14 +509,14 @@ const CommunityPost: React.FC = () => {
                <div className="flex gap-1">
                  <button
                    onClick={handleCancelEdit}
-                   className="px-2.5 py-1.5 text-xs font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
+                   className="px-2.5 py-1.5 text-xs font-medium text-inksoft bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
                  >
                    <X size={14} />
                  </button>
                  <button
                    onClick={handleSaveEdit}
                    disabled={isSavingPost}
-                   className="px-2.5 py-1.5 text-xs font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                   className="px-2.5 py-1.5 text-xs font-medium text-onink bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                  >
                    {isSavingPost ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                  </button>
@@ -529,7 +529,7 @@ const CommunityPost: React.FC = () => {
              {!isEditing && (
                <button
                  onClick={handleShare}
-                 className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 flex items-center gap-2"
+                 className="px-3 py-1.5 text-sm font-medium text-inksoft bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 flex items-center gap-2"
                >
                  <Share2 size={14} /> Share
                </button>
@@ -539,7 +539,7 @@ const CommunityPost: React.FC = () => {
                <>
                  <button
                    onClick={() => setIsEditing(true)}
-                   className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                   className="px-3 py-1.5 text-sm font-medium text-inksoft bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
                    title="Edit Discussion"
                  >
                    <Edit2 size={14} /> Edit
@@ -547,7 +547,7 @@ const CommunityPost: React.FC = () => {
                  <button
                    onClick={handleDeletePost}
                    disabled={isDeletingPost}
-                   className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                   className="px-3 py-1.5 text-sm font-medium text-red-600 bg-surface border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                    title="Delete Discussion"
                  >
                    {isDeletingPost ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -560,14 +560,14 @@ const CommunityPost: React.FC = () => {
                <>
                  <button
                    onClick={handleCancelEdit}
-                   className="px-3 py-1.5 text-sm font-medium text-zinc-600 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                   className="px-3 py-1.5 text-sm font-medium text-inksoft bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
                  >
                    <X size={14} /> Cancel
                  </button>
                  <button
                    onClick={handleSaveEdit}
                    disabled={isSavingPost}
-                   className="px-3 py-1.5 text-sm font-medium text-white bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                   className="px-3 py-1.5 text-sm font-medium text-onink bg-zinc-900 border border-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                  >
                    {isSavingPost ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                    {isSavingPost ? 'Saving...' : 'Save'}
@@ -585,32 +585,32 @@ const CommunityPost: React.FC = () => {
              <div className="w-full max-w-3xl space-y-4 sm:space-y-6">
 
                 {/* Main Question Card */}
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 md:p-8">
+                <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 md:p-8">
                    <div className="flex gap-3 sm:gap-6">
                       {/* Vote Column - Mobile optimized */}
                       <div className="flex flex-col items-center gap-1 pt-1 flex-shrink-0">
                          <button
                            onClick={handleVote}
                            disabled={isVotingPost}
-                           className={`p-1.5 sm:p-2 rounded-lg transition-colors ${(fullPost?.userVote === 1) ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'} disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation`}
+                           className={`p-1.5 sm:p-2 rounded-lg transition-colors ${(fullPost?.userVote === 1) ? 'bg-zinc-100 text-ink' : 'text-zinc-400 hover:bg-zinc-100 hover:text-inksoft'} disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation`}
                          >
                             {isVotingPost ? <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" /> : <ThumbsUp size={20} className={`sm:w-6 sm:h-6 ${fullPost?.userVote === 1 ? 'fill-current' : ''}`} />}
                          </button>
-                          <span className={`font-bold text-lg sm:text-xl ${fullPost?.userVote === 1 ? 'text-zinc-900' : 'text-zinc-700'}`}>{fullPost?.votes || post?.votes || 0}</span>
+                          <span className={`font-bold text-lg sm:text-xl ${fullPost?.userVote === 1 ? 'text-ink' : 'text-inksoft'}`}>{fullPost?.votes || post?.votes || 0}</span>
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
                            <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold text-white flex-shrink-0 ${
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold text-onink flex-shrink-0 ${
                               postAuthorRole === UserRole.TUTOR ? 'bg-zinc-800' :
                               postAuthorRole === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
                             }`}>
                                {post.author.charAt(0)}
                              </div>
                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-zinc-900 leading-tight truncate">{post.author}</p>
+                                <p className="text-sm font-semibold text-ink leading-tight truncate">{post.author}</p>
                                 <p className="text-xs text-zinc-500">
                                   <span title={postCreatedAt ? new Date(postCreatedAt).toLocaleString() : undefined}>
                                     {formatRelativeTime(postCreatedAt || post.createdAt)}
@@ -634,11 +634,11 @@ const CommunityPost: React.FC = () => {
                              value={editContent}
                              onChange={(e) => setEditContent(e.target.value)}
                              rows={12}
-                             className="w-full p-4 bg-white text-zinc-900 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400 resize-y shadow-sm mb-4"
+                             className="w-full p-4 bg-surface text-ink border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400 resize-y shadow-sm mb-4"
                              placeholder="Type your content here..."
                            />
                          ) : (
-                           <div className="prose prose-zinc max-w-none text-zinc-800 mb-8">
+                           <div className="prose prose-zinc max-w-none text-ink mb-8">
                               <MarkdownRenderer content={post.content} />
                            </div>
                          )}
@@ -663,32 +663,32 @@ const CommunityPost: React.FC = () => {
                    </div>
 
                    <div className="flex items-center gap-3 mb-4 relative z-10">
-                      <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center text-white shadow-sm">
+                      <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center text-onink shadow-sm">
                          <Bot size={18} />
                       </div>
-                      <h3 className="font-bold text-zinc-900">AI Smart Analysis</h3>
-                      {post.aiAnswer && <span className="text-[10px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-bold border border-zinc-300">AI-GENERATED</span>}
+                      <h3 className="font-bold text-ink">AI Smart Analysis</h3>
+                      {post.aiAnswer && <span className="text-[10px] bg-zinc-100 text-inksoft px-2 py-0.5 rounded-full font-bold border border-zinc-300">AI-GENERATED</span>}
                    </div>
 
                    {post.aiAnswer ? (
                       <div className="relative z-10">
-                         <div className="prose prose-sm prose-zinc text-zinc-800 mb-2">
+                         <div className="prose prose-sm prose-zinc text-ink mb-2">
                             <MarkdownRenderer content={post.aiAnswer} />
                          </div>
                          <div className="flex justify-end pt-2 border-t border-zinc-200/50">
-                            <TTSButton text={post.aiAnswer} size={16} quality="high" className="text-zinc-400 hover:text-zinc-900 bg-white shadow-sm" />
+                            <TTSButton text={post.aiAnswer} size={16} quality="high" className="text-zinc-400 hover:text-ink bg-surface shadow-sm" />
                          </div>
                       </div>
                    ) : (
                       <div className="relative z-10">
-                         <p className="text-sm text-zinc-700 mb-4 max-w-xl">
+                         <p className="text-sm text-inksoft mb-4 max-w-xl">
                             Get an instant, AI-generated explanation for this question.
                             Our Smart Tutor can break down the problem and show you the steps.
                          </p>
                          <button
                             onClick={handleGenerateAIAnswer}
                             disabled={isGeneratingAI}
-                            className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
+                            className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
                          >
                             {isGeneratingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                             {user?.isPremium ? "Generate AI Answer" : "Unlock AI Answer"}
@@ -698,7 +698,7 @@ const CommunityPost: React.FC = () => {
                 </div>
 
                 {/* Answers Count */}
-                <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-zinc-900 px-1 pt-2 border-t border-zinc-200">
+                <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-ink px-1 pt-2 border-t border-zinc-200">
                   <MessageSquare size={16} className="sm:w-[18px] sm:h-[18px]" />
                   {(postComments.length || (post as any).comment_count || 0)} Answers
                 </div>
@@ -711,17 +711,17 @@ const CommunityPost: React.FC = () => {
                       const commentIsEdited = Boolean(comment.isEdited ?? comment.is_edited);
                       const commentIsAccepted = Boolean(comment.isAccepted ?? comment.is_accepted);
                       return (
-                      <div key={comment.id} className={`bg-white rounded-xl border p-4 sm:p-6 md:p-8 shadow-sm ${commentIsAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
+                      <div key={comment.id} className={`bg-surface rounded-xl border p-4 sm:p-6 md:p-8 shadow-sm ${commentIsAccepted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-zinc-200'}`}>
                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
                             <div className="flex items-center gap-2">
-                               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
+                               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold text-onink flex-shrink-0 ${
                                  commentRole === UserRole.TUTOR ? 'bg-zinc-800' :
                                  commentRole === UserRole.ADMIN ? 'bg-zinc-900' : 'bg-zinc-400'
                                }`}>
                                  {comment.author.charAt(0)}
                                </div>
                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-zinc-900 truncate">{comment.author}</p>
+                                  <p className="text-sm font-semibold text-ink truncate">{comment.author}</p>
                                   <p className="text-[10px] text-zinc-500">
                                     {commentRole === UserRole.TUTOR ? 'Expert Tutor' : commentRole === UserRole.ADMIN ? 'Administrator' : 'Student'} •{' '}
                                     <span title={commentCreatedAt ? new Date(commentCreatedAt).toLocaleString() : undefined}>
@@ -733,7 +733,7 @@ const CommunityPost: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <TTSButton text={comment.content} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-zinc-900" />
+                              <TTSButton text={comment.content} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-ink" />
                               {commentIsAccepted && (
                                 <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-emerald-50 text-emerald-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-200">
                                   <Check size={10} className="sm:w-3 sm:h-3" /> Solution
@@ -754,16 +754,16 @@ const CommunityPost: React.FC = () => {
                                <button
                                  onClick={() => handleSaveCommentEdit(comment.id)}
                                  disabled={isSavingComment}
-                                 className="px-3 py-1.5 bg-zinc-900 text-white text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                 className="px-3 py-1.5 bg-zinc-900 text-onink text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                >
                                  {isSavingComment ? <Loader2 size={12} className="animate-spin" /> : null}
                                  {isSavingComment ? 'Saving...' : 'Save'}
                                </button>
-                               <button onClick={handleCancelCommentEdit} className="px-3 py-1.5 bg-white border border-zinc-200 text-zinc-600 text-xs rounded-md">Cancel</button>
+                               <button onClick={handleCancelCommentEdit} className="px-3 py-1.5 bg-surface border border-zinc-200 text-inksoft text-xs rounded-md">Cancel</button>
                              </div>
                            </div>
                          ) : (
-                           <div className="text-sm text-zinc-700 leading-relaxed mb-6">
+                           <div className="text-sm text-inksoft leading-relaxed mb-6">
                               <MarkdownRenderer content={comment.content} />
                            </div>
                          )}
@@ -774,7 +774,7 @@ const CommunityPost: React.FC = () => {
                                  onClick={() => handleCommentVote(comment.id)}
                                  disabled={isVotingComment}
                                 className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
-                                  fullPost?.userCommentVotes?.[comment.id] === 1 ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-900'
+                                  fullPost?.userCommentVotes?.[comment.id] === 1 ? 'text-ink' : 'text-zinc-500 hover:text-ink'
                                 }`}
                                >
                                  {isVotingComment ? <Loader2 size={12} className="sm:w-3.5 sm:h-3.5 animate-spin" /> : <ThumbsUp size={12} className="sm:w-3.5 sm:h-3.5" />}
@@ -784,7 +784,7 @@ const CommunityPost: React.FC = () => {
                                  <div className="flex items-center gap-2 sm:gap-3">
                                    <button
                                      onClick={() => handleEditComment(comment)}
-                                     className="text-xs sm:text-sm font-medium text-zinc-400 hover:text-zinc-900 transition-colors px-2 py-1 rounded hover:bg-zinc-50"
+                                     className="text-xs sm:text-sm font-medium text-zinc-400 hover:text-ink transition-colors px-2 py-1 rounded hover:bg-zinc-50"
                                    >
                                      Edit
                                    </button>
@@ -818,14 +818,14 @@ const CommunityPost: React.FC = () => {
                 </div>
 
                 {/* Reply Form - NOT STICKY ANYMORE */}
-                <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 mt-6 sm:mt-8">
-                   <h3 className="font-bold text-zinc-900 mb-3 sm:mb-4 text-sm sm:text-base">Post a Reply</h3>
+                <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 mt-6 sm:mt-8">
+                   <h3 className="font-bold text-ink mb-3 sm:mb-4 text-sm sm:text-base">Post a Reply</h3>
                    {!user ? (
                      <div className="text-center py-4">
                        <p className="text-sm text-zinc-500 mb-3">Log in to join the discussion and help others.</p>
                        <button
                          onClick={() => navigate('/login', { state: { from: window.location.pathname } })}
-                         className="px-5 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
+                         className="px-5 py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
                        >
                          Log in to reply
                        </button>
@@ -844,7 +844,7 @@ const CommunityPost: React.FC = () => {
                          <button
                            type="submit"
                            disabled={!replyContent.trim() || isPostingComment}
-                           className="px-4 sm:px-6 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center justify-center gap-2 text-sm sm:text-base touch-manipulation"
+                           className="px-4 sm:px-6 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center justify-center gap-2 text-sm sm:text-base touch-manipulation"
                          >
                            {isPostingComment ? <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" /> : <Send size={14} className="sm:w-4 sm:h-4" />}
                            {isPostingComment ? 'Posting...' : 'Post Answer'}
@@ -856,14 +856,14 @@ const CommunityPost: React.FC = () => {
 
                 {/* Related on mobile: below the answers, inside the scroll */}
                 <div className="lg:hidden">
-                   <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
-                      <h3 className="font-bold text-zinc-900 text-sm mb-3 flex items-center gap-2">
+                   <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4">
+                      <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-2">
                          <HelpCircle size={16} className="text-zinc-500" /> Related Questions
                       </h3>
                       <div className="space-y-3">
                          {relatedPosts.length > 0 ? relatedPosts.map(rp => (
                             <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
-                       <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-zinc-900 group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
+                       <h4 className="text-xs font-semibold text-ink group-hover:text-ink group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
                           {rp.title}
                        </h4>
                        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
@@ -885,14 +885,14 @@ const CommunityPost: React.FC = () => {
         {/* Right Sidebar: Related Content (Hidden on small screens) */}
         <div className="hidden lg:block w-80 flex-shrink-0 space-y-6">
            {/* Related Questions */}
-           <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-5">
-              <h3 className="font-bold text-zinc-900 text-sm mb-4 flex items-center gap-2">
+           <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-5">
+              <h3 className="font-bold text-ink text-sm mb-4 flex items-center gap-2">
                  <HelpCircle size={16} className="text-zinc-500" /> Related Questions
               </h3>
               <div className="space-y-4">
                  {relatedPosts.length > 0 ? relatedPosts.map(rp => (
                     <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
-                       <h4 className="text-xs font-semibold text-zinc-800 group-hover:text-zinc-900 group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
+                       <h4 className="text-xs font-semibold text-ink group-hover:text-ink group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
                           {rp.title}
                        </h4>
                        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
@@ -909,7 +909,7 @@ const CommunityPost: React.FC = () => {
 
            {/* Mobile App Promo */}
            <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-xl p-6 text-white text-center shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-surface/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
               <h4 className="font-bold text-sm mb-2 relative z-10">Study on the go</h4>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed relative z-10">
                  Install the SmartStudy app for offline access and practice notifications.
@@ -919,7 +919,7 @@ const CommunityPost: React.FC = () => {
                   dead button with no handler. */}
               <button
                 onClick={requestInstallPrompt}
-                className="w-full py-2 bg-white text-zinc-900 rounded-lg text-xs font-bold hover:bg-zinc-100 transition-colors relative z-10 min-h-[44px]"
+                className="w-full py-2 bg-surface text-ink rounded-lg text-xs font-bold hover:bg-zinc-100 transition-colors relative z-10 min-h-[44px]"
               >
                  Get Mobile App
               </button>
@@ -939,13 +939,13 @@ const CommunityPost: React.FC = () => {
               <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trash2 size={24} />
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 mb-2">Delete {deleteTarget?.type === 'post' ? 'Discussion' : 'Comment'}?</h3>
+              <h3 className="text-lg font-bold text-ink mb-2">Delete {deleteTarget?.type === 'post' ? 'Discussion' : 'Comment'}?</h3>
               <p className="text-sm text-zinc-500 mb-6">Are you sure you want to delete this? This action cannot be undone.</p>
               
               <div className="flex gap-3">
                 <button 
                   onClick={() => setDeleteTarget(null)}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                 >
                   Cancel
                 </button>

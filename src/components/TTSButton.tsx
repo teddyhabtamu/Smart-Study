@@ -239,8 +239,8 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
       disabled={isLoading}
       className={`flex items-center justify-center p-2 rounded-lg transition-colors relative group after:absolute after:-inset-2 after:content-[''] ${
         isPlaying 
-          ? 'bg-zinc-900 text-white' 
-          : 'bg-zinc-100 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200'
+          ? 'bg-zinc-900 text-onink' 
+          : 'bg-zinc-100 text-zinc-500 hover:text-ink hover:bg-zinc-200'
       } ${className}`}
       title={isPlaying ? "Stop Reading" : quality === 'high' ? "Read Aloud (Gemini Voice)" : "Read Aloud"}
     >
@@ -253,7 +253,7 @@ const TTSButton: React.FC<TTSButtonProps> = ({ text, className = "", size = 20, 
       )}
       
       {quality === 'high' && !isPlaying && !isLoading && (
-        <span className="absolute -top-1 -right-1 text-amber-500 bg-white rounded-full">
+        <span className="absolute -top-1 -right-1 text-amber-500 bg-surface rounded-full">
           <Sparkles size={10} fill="currentColor" />
         </span>
       )}

@@ -430,9 +430,9 @@ const DocumentView: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
         <div className="bg-red-50 p-4 rounded-full mb-4"><FileText className="text-red-500" size={32} /></div>
-        <h3 className="text-xl font-bold text-zinc-900 mb-2">Document Unavailable</h3>
+        <h3 className="text-xl font-bold text-ink mb-2">Document Unavailable</h3>
         <p className="text-zinc-500 mb-6">{error || "This document could not be found."}</p>
-        <Link to={doc?.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"} className="px-6 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors">
+        <Link to={doc?.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"} className="px-6 py-2 bg-zinc-900 text-onink rounded-lg hover:bg-zinc-800 transition-colors">
           Return to {doc?.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "Past Exams" : "Library"}
         </Link>
       </div>
@@ -442,21 +442,21 @@ const DocumentView: React.FC = () => {
   if (isRestricted) {
     return (
       <div className="max-w-4xl mx-auto py-12 px-6 animate-fade-in text-center">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-12 shadow-xl max-w-lg mx-auto relative overflow-hidden">
+        <div className="bg-surface border border-zinc-200 rounded-3xl p-12 shadow-xl max-w-lg mx-auto relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-2 bg-zinc-900"></div>
-          <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-6 text-zinc-900 shadow-inner">
+          <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-6 text-ink shadow-inner">
             <Lock size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-zinc-900 mb-3">Preview Limit Reached</h2>
+          <h2 className="text-2xl font-bold text-ink mb-3">Preview Limit Reached</h2>
           <p className="text-zinc-500 mb-8 leading-relaxed">
             You've viewed your free documents for this session. <br />
             Sign in to unlock full access to our library and AI tools.
           </p>
           <div className="space-y-3">
-            <Link to="/register" className="block w-full py-3.5 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-200">
+            <Link to="/register" className="block w-full py-3.5 bg-zinc-900 text-onink font-medium rounded-xl hover:bg-zinc-800 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-200">
               <UserPlus size={18} /> Create Free Account
             </Link>
-            <Link to="/login" className="block w-full py-3.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-xl hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2">
+            <Link to="/login" className="block w-full py-3.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-xl hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2">
               <LogIn size={18} /> Sign In
             </Link>
           </div>
@@ -472,23 +472,23 @@ const DocumentView: React.FC = () => {
   return (
     <div className="min-h-screen bg-zinc-100">
       {/* 1. HEADER BAR */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-200">
+      <header className="sticky top-0 z-30 bg-surface/95 backdrop-blur border-b border-zinc-200">
         <div className="max-w-[1440px] mx-auto flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2.5">
           <Link
             to={doc.tags && Array.isArray(doc.tags) && doc.tags.some((t: string) => t.toLowerCase() === 'past-exam') ? "/past-exams" : "/library"}
-            className="p-2 -ml-1 rounded-xl hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors flex-shrink-0"
+            className="p-2 -ml-1 rounded-xl hover:bg-zinc-100 text-zinc-500 hover:text-ink transition-colors flex-shrink-0"
             aria-label="Back to library"
           >
             <ChevronLeft size={20} />
           </Link>
           <div className="min-w-0 flex-1">
-            <h1 className="text-sm sm:text-lg font-bold text-zinc-900 truncate leading-tight">{doc.title}</h1>
+            <h1 className="text-sm sm:text-lg font-bold text-ink truncate leading-tight">{doc.title}</h1>
             <div className="flex items-center gap-1.5 mt-1 text-[11px] sm:text-xs text-zinc-500">
-              <span className="px-2 py-0.5 bg-zinc-900 text-white rounded-full font-semibold truncate max-w-[140px] sm:max-w-none">{doc.subject}</span>
+              <span className="px-2 py-0.5 bg-zinc-900 text-onink rounded-full font-semibold truncate max-w-[140px] sm:max-w-none">{doc.subject}</span>
               <span className="hidden min-[420px]:inline text-zinc-300">•</span>
               <span className="hidden min-[420px]:inline whitespace-nowrap">{doc.grade === 0 ? 'General' : `Grade ${doc.grade}`}</span>
               <span className="hidden md:inline text-zinc-300">•</span>
-              <span className="hidden md:inline px-2 py-0.5 bg-zinc-100 rounded-full font-semibold text-zinc-600">{doc.file_type}</span>
+              <span className="hidden md:inline px-2 py-0.5 bg-zinc-100 rounded-full font-semibold text-inksoft">{doc.file_type}</span>
               {doc.is_premium && (
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">
                   <Lock size={10} /> Pro
@@ -501,7 +501,7 @@ const DocumentView: React.FC = () => {
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={handleShare}
-              className="p-2.5 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+              className="p-2.5 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-ink transition-colors"
               title="Share this document"
               aria-label="Share this document"
             >
@@ -513,7 +513,7 @@ const DocumentView: React.FC = () => {
               className={`p-2.5 rounded-xl transition-colors border disabled:opacity-50 disabled:cursor-not-allowed ${
                 isBookmarked
                   ? 'bg-amber-50 border-amber-200 text-amber-600'
-                  : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+                  : 'bg-surface border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-ink'
               }`}
               title={isBookmarked ? "Remove from saved" : "Save for later"}
               aria-label={isBookmarked ? "Remove from saved" : "Save for later"}
@@ -528,7 +528,7 @@ const DocumentView: React.FC = () => {
               <button
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="flex items-center gap-2 pl-3 pr-3 sm:pl-4 sm:pr-5 py-2.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-700 disabled:opacity-70 transition-all shadow-sm text-sm"
+                className="flex items-center gap-2 pl-3 pr-3 sm:pl-4 sm:pr-5 py-2.5 bg-zinc-900 text-onink rounded-xl hover:bg-zinc-700 disabled:opacity-70 transition-all shadow-sm text-sm"
               >
                 {isDownloading ? <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> : <Download size={17} />}
                 <span className="font-semibold hidden sm:inline">Download</span>
@@ -544,11 +544,11 @@ const DocumentView: React.FC = () => {
 
       {/* 2. MOBILE VIEW TOGGLE */}
       <div className="lg:hidden sticky top-[57px] sm:top-[65px] z-20 px-3 py-2 bg-zinc-100/95 backdrop-blur">
-        <div className="flex p-1 bg-white border border-zinc-200 rounded-xl shadow-sm">
+        <div className="flex p-1 bg-surface border border-zinc-200 rounded-xl shadow-sm">
           <button
             onClick={() => setMobileView('doc')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[13px] font-semibold rounded-lg transition-all ${
-              mobileView === 'doc' ? 'bg-zinc-900 text-white shadow' : 'text-zinc-500'
+              mobileView === 'doc' ? 'bg-zinc-900 text-onink shadow' : 'text-zinc-500'
             }`}
           >
             <Eye size={15} /> Read
@@ -556,7 +556,7 @@ const DocumentView: React.FC = () => {
           <button
             onClick={() => setMobileView('tools')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[13px] font-semibold rounded-lg transition-all ${
-              mobileView === 'tools' ? 'bg-zinc-900 text-white shadow' : 'text-zinc-500'
+              mobileView === 'tools' ? 'bg-zinc-900 text-onink shadow' : 'text-zinc-500'
             }`}
           >
             <Sparkles size={15} /> AI Tools
@@ -575,20 +575,20 @@ const DocumentView: React.FC = () => {
         <section className={`min-w-0 space-y-4 sm:space-y-6 ${mobileView === 'tools' ? 'hidden lg:block' : 'block'}`}>
 
           {/* Viewer card */}
-          <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-surface border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
             {/* Viewer toolbar */}
             <div className="flex items-center gap-2 px-3 sm:px-4 h-12 border-b border-zinc-100">
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
                 <Eye size={13} /> Preview
               </span>
-              <span className="px-2 py-0.5 bg-zinc-100 rounded-md text-[11px] font-bold text-zinc-600">{doc.file_type}</span>
+              <span className="px-2 py-0.5 bg-zinc-100 rounded-md text-[11px] font-bold text-inksoft">{doc.file_type}</span>
               <div className="flex-1" />
               {previewUrl && (
                 <a
                   href={previewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                  className="p-2 rounded-lg text-zinc-400 hover:text-ink hover:bg-zinc-100 transition-colors"
                   title="Open in new tab"
                   aria-label="Open preview in new tab"
                 >
@@ -597,7 +597,7 @@ const DocumentView: React.FC = () => {
               )}
               <button
                 onClick={toggleFullScreen}
-                className="p-2 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                className="p-2 rounded-lg text-zinc-400 hover:text-ink hover:bg-zinc-100 transition-colors"
                 title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                 aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
               >
@@ -610,8 +610,8 @@ const DocumentView: React.FC = () => {
                 aria-pressed={isToolsOpen}
                 className={`hidden lg:flex items-center gap-1.5 pl-2.5 pr-2 py-2 rounded-lg text-xs font-semibold transition-colors border ${
                   isToolsOpen
-                    ? 'bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-700'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900'
+                    ? 'bg-zinc-900 text-onink border-zinc-900 hover:bg-zinc-700'
+                    : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-100 hover:text-ink'
                 }`}
                 title={isToolsOpen ? 'Hide AI tools for a wider reading view' : 'Show AI tutor, quiz and notes'}
               >
@@ -644,7 +644,7 @@ const DocumentView: React.FC = () => {
                 {doc.tags && doc.tags.length > 0 && (
                   <span className="hidden sm:inline-flex items-center gap-1.5">
                     {doc.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded-full text-[11px] font-medium">
+                      <span key={tag} className="px-2 py-0.5 bg-zinc-100 text-inksoft rounded-full text-[11px] font-medium">
                         {tag}
                       </span>
                     ))}
@@ -656,7 +656,7 @@ const DocumentView: React.FC = () => {
                     <button
                       onClick={() => setShowAbout((v) => !v)}
                       aria-expanded={showAbout}
-                      className="inline-flex items-center gap-1 font-semibold text-zinc-700 hover:text-zinc-900 transition-colors"
+                      className="inline-flex items-center gap-1 font-semibold text-inksoft hover:text-ink transition-colors"
                     >
                       About
                       <ChevronDown size={14} className={`transition-transform ${showAbout ? 'rotate-180' : ''}`} />
@@ -666,11 +666,11 @@ const DocumentView: React.FC = () => {
               </div>
               {showAbout && doc.description && (
                 <div className="pb-3 animate-fade-in">
-                  <p className="text-[13px] text-zinc-600 leading-relaxed">{doc.description}</p>
+                  <p className="text-[13px] text-inksoft leading-relaxed">{doc.description}</p>
                   {doc.tags && doc.tags.length > 3 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {doc.tags.slice(3).map((tag) => (
-                        <span key={tag} className="px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded-full text-[11px] font-medium">
+                        <span key={tag} className="px-2 py-0.5 bg-zinc-100 text-inksoft rounded-full text-[11px] font-medium">
                           {tag}
                         </span>
                       ))}
@@ -686,9 +686,9 @@ const DocumentView: React.FC = () => {
               className={isFullscreen ? 'fixed inset-0 z-[100] bg-zinc-950 flex flex-col' : 'relative bg-zinc-200/60'}
             >
               {isFullscreen && (
-                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-14 bg-zinc-950 text-white flex-shrink-0">
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-14 bg-zinc-950 text-onink flex-shrink-0">
                   <span className="font-semibold text-sm truncate">{doc.title}</span>
-                  <button onClick={toggleFullScreen} className="p-2 hover:bg-white/10 rounded-full flex-shrink-0" aria-label="Exit fullscreen">
+                  <button onClick={toggleFullScreen} className="p-2 hover:bg-surface/10 rounded-full flex-shrink-0" aria-label="Exit fullscreen">
                     <Minimize size={20} />
                   </button>
                 </div>
@@ -697,19 +697,19 @@ const DocumentView: React.FC = () => {
               {previewUrl ? (
                 <iframe
                   src={previewUrl}
-                  className={`w-full border-0 bg-white ${isFullscreen ? 'flex-1' : 'h-[68vh] sm:h-[74vh] lg:h-[80vh]'}`}
+                  className={`w-full border-0 bg-surface ${isFullscreen ? 'flex-1' : 'h-[68vh] sm:h-[74vh] lg:h-[80vh]'}`}
                   allowFullScreen
                   title={`${doc.title} preview`}
                 />
               ) : (
-                <div className="w-full h-[50vh] sm:h-[60vh] flex flex-col items-center justify-center bg-white p-8 text-center">
+                <div className="w-full h-[50vh] sm:h-[60vh] flex flex-col items-center justify-center bg-surface p-8 text-center">
                   <div className="w-20 h-20 bg-zinc-100 rounded-3xl flex items-center justify-center mb-4">
                     <FileText size={36} className="text-zinc-400" />
                   </div>
-                  <h3 className="text-lg font-bold text-zinc-900">Preview unavailable</h3>
+                  <h3 className="text-lg font-bold text-ink">Preview unavailable</h3>
                   <p className="text-zinc-500 max-w-xs mt-2 text-sm">This file type can't be previewed in the browser. Download it to read the full document.</p>
                   {canDownload && (
-                    <button onClick={handleDownload} className="mt-6 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                    <button onClick={handleDownload} className="mt-6 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-700 text-onink text-sm font-semibold rounded-xl transition-colors">
                       Download file
                     </button>
                   )}
@@ -721,19 +721,19 @@ const DocumentView: React.FC = () => {
                   only guests were blocked while free users could read the full
                   text, contradicting the locks everywhere else.) */}
               {!canDownload && previewUrl && (
-                <div className="absolute inset-0 bg-white/85 backdrop-blur-md flex flex-col items-center justify-center z-20 p-6 text-center">
+                <div className="absolute inset-0 bg-surface/85 backdrop-blur-md flex flex-col items-center justify-center z-20 p-6 text-center">
                   <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-200 mb-4">
-                    <Lock size={26} className="text-white" />
+                    <Lock size={26} className="text-onink" />
                   </div>
-                  <h3 className="text-xl font-bold text-zinc-900">Premium document</h3>
+                  <h3 className="text-xl font-bold text-ink">Premium document</h3>
                   <p className="text-zinc-500 mb-6 mt-1 max-w-xs text-sm">This document is exclusive to Student Pro members.</p>
                   <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
                     {!user && (
-                      <Link to="/login" className="px-8 py-3 bg-white border border-zinc-300 text-zinc-900 rounded-xl font-semibold hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 text-sm">
+                      <Link to="/login" className="px-8 py-3 bg-surface border border-zinc-300 text-ink rounded-xl font-semibold hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 text-sm">
                         <LogIn size={16} /> Sign in
                       </Link>
                     )}
-                    <Link to="/subscription" className="px-8 py-3 bg-zinc-900 text-white rounded-xl font-semibold hover:bg-zinc-700 transition-colors text-sm">
+                    <Link to="/subscription" className="px-8 py-3 bg-zinc-900 text-onink rounded-xl font-semibold hover:bg-zinc-700 transition-colors text-sm">
                       Go Pro to unlock
                     </Link>
                   </div>
@@ -744,7 +744,7 @@ const DocumentView: React.FC = () => {
         </section>
 
         {/* RIGHT: AI TOOLS */}
-        <aside className={`min-w-0 lg:sticky lg:top-[136px] flex-col bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden ${
+        <aside className={`min-w-0 lg:sticky lg:top-[136px] flex-col bg-surface border border-zinc-200 rounded-2xl shadow-sm overflow-hidden ${
           !isToolsOpen ? 'hidden' : mobileView === 'doc' ? 'hidden lg:flex' : 'flex'
         }`}>
 
@@ -763,8 +763,8 @@ const DocumentView: React.FC = () => {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex-1 py-2 text-[13px] font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-all ${
                     activeTab === tab.id
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-800'
+                      ? 'bg-surface text-ink shadow-sm'
+                      : 'text-zinc-500 hover:text-ink'
                   }`}
                 >
                   <tab.icon size={15} /> {tab.label}
@@ -782,13 +782,13 @@ const DocumentView: React.FC = () => {
                 {/* Summary Card */}
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5 mb-4">
                   <div className="flex justify-between items-center mb-1.5">
-                    <h4 className="text-[11px] font-bold text-zinc-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <h4 className="text-[11px] font-bold text-inksoft uppercase tracking-wider flex items-center gap-1.5">
                       <span className="w-5 h-5 rounded-lg bg-zinc-900 flex items-center justify-center">
                         <Sparkles size={11} className="text-amber-400" />
                       </span>
                       AI Summary
                     </h4>
-                    {summary && <TTSButton text={stripForSpeech(summary)} size={14} className="text-zinc-400 hover:text-zinc-900" />}
+                    {summary && <TTSButton text={stripForSpeech(summary)} size={14} className="text-zinc-400 hover:text-ink" />}
                   </div>
                   {isSummaryLoading ? (
                     <div className="space-y-2 animate-pulse py-1">
@@ -797,7 +797,7 @@ const DocumentView: React.FC = () => {
                     </div>
                   ) : summaryUnavailable ? (
                     <div className="py-1">
-                      <p className="text-[13px] font-medium text-zinc-900">We couldn&apos;t read this document&apos;s text.</p>
+                      <p className="text-[13px] font-medium text-ink">We couldn&apos;t read this document&apos;s text.</p>
                       <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
                         {{
                           'no-text-layer': 'This looks like a scanned copy with no readable text layer.',
@@ -810,13 +810,13 @@ const DocumentView: React.FC = () => {
                       </p>
                       <button
                         onClick={() => { setSummaryUnavailable(null); setSummaryAttempt(a => a + 1); }}
-                        className="mt-2.5 text-xs font-semibold text-zinc-900 hover:underline inline-flex items-center gap-1 min-h-[32px]"
+                        className="mt-2.5 text-xs font-semibold text-ink hover:underline inline-flex items-center gap-1 min-h-[32px]"
                       >
                         Try again
                       </button>
                     </div>
                   ) : (
-                    <div className="text-[13px] text-zinc-700 leading-relaxed">
+                    <div className="text-[13px] text-inksoft leading-relaxed">
                       <MarkdownRenderer content={summary || ''} />
                     </div>
                   )}
@@ -829,11 +829,11 @@ const DocumentView: React.FC = () => {
                       <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-3">
                         <Bot size={22} className="text-amber-400" />
                       </div>
-                      <p className="text-sm font-semibold text-zinc-800">Ask about this document</p>
+                      <p className="text-sm font-semibold text-ink">Ask about this document</p>
                       <p className="text-xs text-zinc-500 mt-1 mb-4">Explanations, key points, summaries.</p>
                       <div className="flex flex-wrap justify-center gap-2">
                         {["Explain the main concept", "List key dates", "Summarize in bullets"].map(q => (
-                          <button key={q} onClick={() => setChatInput(q)} className="text-xs bg-white border border-zinc-200 px-3 py-1.5 rounded-full hover:border-zinc-900 hover:text-zinc-900 text-zinc-600 transition-colors">
+                          <button key={q} onClick={() => setChatInput(q)} className="text-xs bg-surface border border-zinc-200 px-3 py-1.5 rounded-full hover:border-zinc-900 hover:text-ink text-inksoft transition-colors">
                             {q}
                           </button>
                         ))}
@@ -844,7 +844,7 @@ const DocumentView: React.FC = () => {
                   {chatHistory.map((msg, i) => (
                     msg.role === 'user' ? (
                       <div key={i} className="flex justify-end animate-fade-in">
-                        <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-br-md bg-zinc-900 text-white text-sm leading-relaxed shadow-sm">
+                        <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-br-md bg-zinc-900 text-onink text-sm leading-relaxed shadow-sm">
                           <MarkdownRenderer content={msg.text} />
                         </div>
                       </div>
@@ -853,7 +853,7 @@ const DocumentView: React.FC = () => {
                         <div className="w-7 h-7 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Bot size={14} className="text-amber-400" />
                         </div>
-                        <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-tl-md bg-white text-zinc-800 border border-zinc-200 text-sm leading-relaxed shadow-sm">
+                        <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-tl-md bg-surface text-ink border border-zinc-200 text-sm leading-relaxed shadow-sm">
                           <MarkdownRenderer content={msg.text} />
                         </div>
                       </div>
@@ -879,12 +879,12 @@ const DocumentView: React.FC = () => {
                     <div className="p-3.5 bg-amber-100 rounded-2xl inline-flex items-center justify-center mb-3 text-amber-600">
                       <HelpCircle size={26} />
                     </div>
-                    <h3 className="text-zinc-900 font-bold">Test your knowledge</h3>
+                    <h3 className="text-ink font-bold">Test your knowledge</h3>
                     <p className="text-[13px] text-zinc-500 mb-5 mt-1">Generate an instant 5-question quiz from this document.</p>
                     <button
                       onClick={handleGenerateQuiz}
                       disabled={isQuizLoading}
-                      className="mx-auto px-6 py-2.5 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="mx-auto px-6 py-2.5 bg-zinc-900 text-onink text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {isQuizLoading ? (
                         <>
@@ -906,8 +906,8 @@ const DocumentView: React.FC = () => {
                 )}
 
                 {quizContent && (
-                  <div className="bg-white rounded-2xl border border-zinc-200 p-5 shadow-sm">
-                    <div className="prose prose-sm prose-zinc max-w-none prose-headings:text-zinc-800 prose-p:text-zinc-600 prose-li:text-zinc-600">
+                  <div className="bg-surface rounded-2xl border border-zinc-200 p-5 shadow-sm">
+                    <div className="prose prose-sm prose-zinc max-w-none prose-headings:text-ink prose-p:text-inksoft prose-li:text-inksoft">
                       <MarkdownRenderer content={quizContent} />
                     </div>
                     <div className="mt-6 pt-4 border-t border-zinc-100 flex gap-2">
@@ -917,7 +917,7 @@ const DocumentView: React.FC = () => {
                       <button
                         onClick={handleGenerateQuiz}
                         disabled={isQuizLoading}
-                        className="flex-1 py-2.5 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="flex-1 py-2.5 bg-zinc-900 text-onink text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {isQuizLoading ? (
                           <>
@@ -951,7 +951,7 @@ const DocumentView: React.FC = () => {
                     value={notes}
                     onChange={handleNoteChange}
                     placeholder="Take notes while you read..."
-                    className="flex-1 w-full bg-transparent p-4 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none resize-none leading-relaxed min-h-[240px]"
+                    className="flex-1 w-full bg-transparent p-4 text-sm text-ink placeholder-zinc-400 focus:outline-none resize-none leading-relaxed min-h-[240px]"
                     spellCheck={false}
                   ></textarea>
                 </div>
@@ -962,11 +962,11 @@ const DocumentView: React.FC = () => {
 
           {/* Chat Input Area */}
           {activeTab === 'chat' && (
-            <div className="p-3 bg-white border-t border-zinc-100 flex-shrink-0">
-              <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-1.5 bg-zinc-100 border border-transparent rounded-2xl p-1.5 transition-all focus-within:bg-white focus-within:border-zinc-300 focus-within:shadow-sm">
+            <div className="p-3 bg-surface border-t border-zinc-100 flex-shrink-0">
+              <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-end gap-1.5 bg-zinc-100 border border-transparent rounded-2xl p-1.5 transition-all focus-within:bg-surface focus-within:border-zinc-300 focus-within:shadow-sm">
                 {/* Image Preview */}
                 {imagePreview && (
-                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
+                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-surface border border-zinc-200 rounded-lg shadow-lg z-10">
                     <div className="relative">
                       <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
                       <button
@@ -996,8 +996,8 @@ const DocumentView: React.FC = () => {
                   htmlFor="document-image-upload-input"
                   className={`p-2 mb-0.5 rounded-lg transition-colors flex items-center justify-center cursor-pointer ${
                     isProcessingImage
-                      ? 'bg-zinc-100 text-zinc-900'
-                      : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                      ? 'bg-zinc-100 text-ink'
+                      : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
                   } ${isChatLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title="Upload Image with Text"
                 >
@@ -1009,7 +1009,7 @@ const DocumentView: React.FC = () => {
                 </label>
                 <textarea
                   rows={1}
-                  className="w-full bg-transparent text-sm p-2 focus:outline-none resize-none max-h-32 text-zinc-700 placeholder-zinc-400"
+                  className="w-full bg-transparent text-sm p-2 focus:outline-none resize-none max-h-32 text-inksoft placeholder-zinc-400"
                   placeholder={isProcessingImage ? "Extracting text from image..." : "Ask follow-up question or paste an image..."}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
@@ -1027,7 +1027,7 @@ const DocumentView: React.FC = () => {
                   type="submit"
                   disabled={!chatInput.trim() || isChatLoading || isProcessingImage}
                   aria-label="Send question"
-                  className="p-2.5 mb-0.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0"
+                  className="p-2.5 mb-0.5 bg-zinc-900 text-onink rounded-xl hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0"
                 >
                   {isChatLoading ? (
                     <Loader2 size={16} className="animate-spin" />

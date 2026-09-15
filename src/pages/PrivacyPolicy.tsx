@@ -140,9 +140,9 @@ Platform: SmartStudy
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 animate-fade-in pb-12">
         {/* Hero */}
-        <div className="bg-zinc-900 text-white py-8 sm:py-12 px-4 sm:px-6 rounded-b-2xl sm:rounded-b-3xl mb-8 sm:mb-12">
+        <div className="bg-zinc-900 text-onink py-8 sm:py-12 px-4 sm:px-6 rounded-b-2xl sm:rounded-b-3xl mb-8 sm:mb-12">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
+            <div className="inline-flex items-center gap-2 bg-surface/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
               <Shield size={14} className="sm:w-4 sm:h-4" /> Privacy Policy
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">
@@ -160,9 +160,9 @@ Platform: SmartStudy
 
         {/* Content */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 sm:p-8 md:p-12">
+          <div className="bg-surface rounded-2xl shadow-sm border border-zinc-200 p-6 sm:p-8 md:p-12">
             <div className="prose prose-zinc max-w-none">
-              <div className="text-sm sm:text-base leading-relaxed text-zinc-700">
+              <div className="text-sm sm:text-base leading-relaxed text-inksoft">
                 {renderTextWithLineBreaks(privacyPolicy?.content) || 'Loading privacy policy...'}
               </div>
             </div>
@@ -170,12 +170,12 @@ Platform: SmartStudy
 
           {/* Contact Section */}
           <div className="mt-8 sm:mt-12 bg-zinc-50 rounded-2xl p-6 sm:p-8 text-center">
-            <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-4">Questions about your privacy?</h3>
-            <p className="text-zinc-600 mb-6 text-sm sm:text-base">
+            <h3 className="text-lg sm:text-xl font-bold text-ink mb-4">Questions about your privacy?</h3>
+            <p className="text-inksoft mb-6 text-sm sm:text-base">
               If you have any questions or concerns about this Privacy Policy or how we handle your data, please don't hesitate to contact us.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <div className="flex items-center gap-2 text-zinc-600">
+              <div className="flex items-center gap-2 text-inksoft">
                 <Mail size={16} />
                 <span className="text-sm">smartstudy.ethio@gmail.com</span>
               </div>

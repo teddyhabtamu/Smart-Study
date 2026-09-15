@@ -118,8 +118,8 @@ const StudentsTab: React.FC = () => {
   return (
     <>
         <div className="space-y-4 sm:space-y-6 animate-fade-in">
-           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
-              <h2 className="text-base sm:text-lg font-bold text-zinc-900">Student Management</h2>
+           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-surface p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
+              <h2 className="text-base sm:text-lg font-bold text-ink">Student Management</h2>
               <div className="relative w-full sm:w-auto">
                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                  <input 
@@ -139,10 +139,10 @@ const StudentsTab: React.FC = () => {
                {/* Mobile Card Layout */}
                <div className="md:hidden space-y-3">
                  {filteredStudents.map((student) => (
-                   <div key={student.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
+                   <div key={student.id} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4">
                      <div className="flex items-start justify-between mb-3">
                        <div className="flex-1 min-w-0">
-                         <h4 className="font-medium text-zinc-900 truncate">{student.name}</h4>
+                         <h4 className="font-medium text-ink truncate">{student.name}</h4>
                          <p className="text-xs text-zinc-500 truncate">{student.email}</p>
                        </div>
                        <button 
@@ -188,7 +188,7 @@ const StudentsTab: React.FC = () => {
                </div>
 
                {/* Desktop Table Layout */}
-               <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+               <div className="hidden md:block bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -205,7 +205,7 @@ const StudentsTab: React.FC = () => {
                       <tr key={student.id} className="hover:bg-zinc-50/50 transition-colors">
                         <td className="px-6 py-4">
                            <div>
-                             <p className="font-medium text-zinc-900">{student.name}</p>
+                             <p className="font-medium text-ink">{student.name}</p>
                              <p className="text-xs text-zinc-500">{student.email}</p>
                            </div>
                         </td>
@@ -284,7 +284,7 @@ const StudentsTab: React.FC = () => {
                     ? 'bg-emerald-100 text-emerald-600'
                     : confirmationModal.type === 'upgrade'
                     ? 'bg-amber-100 text-amber-600'
-                    : 'bg-zinc-100 text-zinc-600'
+                    : 'bg-zinc-100 text-inksoft'
                 }`}>
                   {confirmationModal.type === 'ban' && <Ban size={24} />}
                   {confirmationModal.type === 'activate' && <CheckCircle size={24} />}
@@ -292,13 +292,13 @@ const StudentsTab: React.FC = () => {
                   {confirmationModal.type === 'downgrade' && <X size={24} />}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                  <h3 className="font-bold text-ink text-lg mb-2">
                     {confirmationModal.type === 'upgrade' && 'Upgrade to Premium?'}
                     {confirmationModal.type === 'downgrade' && 'Downgrade to Free Plan?'}
                     {confirmationModal.type === 'ban' && 'Ban User?'}
                     {confirmationModal.type === 'activate' && 'Activate User?'}
                   </h3>
-                  <p className="text-sm text-zinc-600">
+                  <p className="text-sm text-inksoft">
                     {confirmationModal.type === 'upgrade' && (
                       <>Are you sure you want to upgrade <strong>{confirmationModal.studentName}</strong> to Premium Plan? They will gain access to all premium content.</>
                     )}
@@ -317,7 +317,7 @@ const StudentsTab: React.FC = () => {
               <div className="flex gap-3 pt-4 border-t border-zinc-100">
                 <button
                   onClick={closeConfirmationModal}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -331,7 +331,7 @@ const StudentsTab: React.FC = () => {
                       ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                       : confirmationModal.type === 'upgrade'
                       ? 'bg-amber-600 text-white hover:bg-amber-700'
-                      : 'bg-zinc-600 text-white hover:bg-zinc-700'
+                      : 'bg-zinc-600 text-onink hover:bg-zinc-700'
                   }`}
                 >
                   {isConfirmingAction ? (

@@ -62,16 +62,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-4 space-y-2 text-zinc-700 marker:text-zinc-400" {...props} />,
-          ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-4 space-y-2 text-zinc-700 marker:text-zinc-400" {...props} />,
+          ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 mb-4 space-y-2 text-inksoft marker:text-zinc-400" {...props} />,
+          ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-4 mb-4 space-y-2 text-inksoft marker:text-zinc-400" {...props} />,
           li: ({node, ...props}) => <li className="pl-1 leading-relaxed" {...props} />,
-          h1: ({node, ...props}) => <h1 className="text-xl font-bold mt-6 mb-3 text-zinc-900 border-b border-zinc-100 pb-2" {...props} />,
-          h2: ({node, ...props}) => <h2 className="text-lg font-bold mt-5 mb-2 text-zinc-900" {...props} />,
-          h3: ({node, ...props}) => <h3 className="text-base font-bold mt-4 mb-2 text-zinc-900" {...props} />,
-          p: ({node, ...props}) => <p className="mb-4 last:mb-0 leading-relaxed text-zinc-700" {...props} />,
-          strong: ({node, ...props}) => <strong className="font-semibold text-zinc-900" {...props} />,
-          em: ({node, ...props}) => <em className="italic text-zinc-600" {...props} />,
-          blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-zinc-300 pl-4 italic my-4 text-zinc-600 bg-zinc-50 py-2 rounded-r" {...props} />,
+          h1: ({node, ...props}) => <h1 className="text-xl font-bold mt-6 mb-3 text-ink border-b border-zinc-100 pb-2" {...props} />,
+          h2: ({node, ...props}) => <h2 className="text-lg font-bold mt-5 mb-2 text-ink" {...props} />,
+          h3: ({node, ...props}) => <h3 className="text-base font-bold mt-4 mb-2 text-ink" {...props} />,
+          p: ({node, ...props}) => <p className="mb-4 last:mb-0 leading-relaxed text-inksoft" {...props} />,
+          strong: ({node, ...props}) => <strong className="font-semibold text-ink" {...props} />,
+          em: ({node, ...props}) => <em className="italic text-inksoft" {...props} />,
+          blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-zinc-300 pl-4 italic my-4 text-inksoft bg-zinc-50 py-2 rounded-r" {...props} />,
           code: ({node, ...props}) => {
             const isBlock = node?.position?.start.line !== node?.position?.end.line;
             return isBlock ? (
@@ -79,17 +79,17 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
                  <code {...props} />
                </div>
             ) : (
-               <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-zinc-700 border border-zinc-200" {...props} />
+               <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-inksoft border border-zinc-200" {...props} />
             );
           },
-          a: (props) => renderSafeLink(props, 'text-zinc-900 hover:text-black underline decoration-zinc-400 underline-offset-2'),
+          a: (props) => renderSafeLink(props, 'text-ink hover:text-ink underline decoration-zinc-400 underline-offset-2'),
           hr: ({node, ...props}) => <hr className="my-6 border-zinc-200" {...props} />,
           table: ({node, ...props}) => <div className="overflow-x-auto my-4 border border-zinc-200 rounded-lg"><table className="w-full text-sm text-left" {...props} /></div>,
-          thead: ({node, ...props}) => <thead className="bg-zinc-50 border-b border-zinc-200 font-semibold text-zinc-900" {...props} />,
+          thead: ({node, ...props}) => <thead className="bg-zinc-50 border-b border-zinc-200 font-semibold text-ink" {...props} />,
           tbody: ({node, ...props}) => <tbody className="divide-y divide-zinc-100" {...props} />,
           tr: ({node, ...props}) => <tr className="hover:bg-zinc-50/50 transition-colors" {...props} />,
           th: ({node, ...props}) => <th className="px-4 py-3" {...props} />,
-          td: ({node, ...props}) => <td className="px-4 py-3 text-zinc-600" {...props} />,
+          td: ({node, ...props}) => <td className="px-4 py-3 text-inksoft" {...props} />,
         }}
       >
         {content}

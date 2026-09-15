@@ -4,6 +4,7 @@ import App from './App';
 import { DataProvider } from './context/DataContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
@@ -25,6 +26,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ErrorBoundary>
+      <ThemeProvider>
       <AuthProvider>
         <DataProvider>
           <ToastProvider>
@@ -32,6 +34,7 @@ ReactDOM.createRoot(rootElement).render(
           </ToastProvider>
         </DataProvider>
       </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 );

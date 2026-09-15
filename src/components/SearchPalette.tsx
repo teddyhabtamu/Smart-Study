@@ -141,7 +141,7 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
             aria-expanded={results.length > 0}
             aria-controls="search-palette-listbox"
             aria-activedescendant={results.length > 0 ? `search-option-${selectedIndex}` : undefined}
-            className="flex-1 bg-transparent text-lg focus:outline-none placeholder-zinc-400 text-zinc-900"
+            className="flex-1 bg-transparent text-lg focus:outline-none placeholder-zinc-400 text-ink"
             placeholder="Search pages, documents, videos..."
             value={searchTerm}
             onChange={(e) => {
@@ -187,7 +187,7 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
                   }`}
                 >
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    result.type === 'navigation' ? 'bg-zinc-900 text-white' :
+                    result.type === 'navigation' ? 'bg-zinc-900 text-onink' :
                     result.type === 'document' ? 'bg-indigo-100 text-indigo-600' :
                     result.type === 'video' ? 'bg-rose-100 text-rose-600' :
                     'bg-emerald-100 text-emerald-600'
@@ -199,7 +199,7 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-zinc-900 truncate">{result.title}</h4>
+                    <h4 className="text-sm font-medium text-ink truncate">{result.title}</h4>
                     {result.type === 'navigation' && (
                       <p className="text-xs text-zinc-500 truncate">Go to page</p>
                     )}

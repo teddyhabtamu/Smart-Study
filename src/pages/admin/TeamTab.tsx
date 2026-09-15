@@ -133,12 +133,12 @@ const TeamTab: React.FC = () => {
         <div className="space-y-4 sm:space-y-8 animate-fade-in">
            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-3">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-zinc-900">Admin Team</h2>
+                <h2 className="text-base sm:text-lg font-bold text-ink">Admin Team</h2>
                 <p className="text-xs sm:text-sm text-zinc-500">Manage admins and moderators with access to the admin panel.</p>
               </div>
               <button 
                 onClick={() => setIsInviteOpen(true)}
-                className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
+                className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
               >
                 <UserPlus size={16} /> <span>Invite Member</span>
               </button>
@@ -159,21 +159,21 @@ const TeamTab: React.FC = () => {
                      <div>
                        <div className="flex items-center gap-2 mb-4">
                          <div className="w-1 h-5 bg-emerald-500 rounded-full"></div>
-                         <h3 className="text-sm font-bold text-zinc-900">Active Members ({activeMembers.length})</h3>
+                         <h3 className="text-sm font-bold text-ink">Active Members ({activeMembers.length})</h3>
                        </div>
                        
                        {/* Mobile Card Layout - Active */}
                        <div className="md:hidden space-y-3">
                          {activeMembers.length > 0 ? (
                            activeMembers.map((member) => (
-                             <div key={member.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4">
+                             <div key={member.id} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4">
                                <div className="flex items-start justify-between mb-3">
                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                   <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-600 flex-shrink-0">
+                                   <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-inksoft flex-shrink-0">
                                      {member.name.charAt(0)}
                                    </div>
                                    <div className="flex-1 min-w-0">
-                                     <h4 className="font-medium text-zinc-900 truncate">{member.name}</h4>
+                                     <h4 className="font-medium text-ink truncate">{member.name}</h4>
                                      <p className="text-xs text-zinc-500 truncate">{member.email}</p>
                                    </div>
                                  </div>
@@ -193,7 +193,7 @@ const TeamTab: React.FC = () => {
                                  <div className="flex items-center gap-2 flex-wrap">
                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                                      member.role === 'ADMIN' 
-                                       ? 'bg-zinc-900 text-white' 
+                                       ? 'bg-zinc-900 text-onink' 
                                        : 'bg-blue-50 text-blue-700 border border-blue-100'
                                    }`}>
                                      {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
@@ -209,12 +209,12 @@ const TeamTab: React.FC = () => {
                              </div>
                            ))
                          ) : (
-                           <div className="text-center py-8 text-zinc-400 text-sm bg-white rounded-xl border border-zinc-200">No active members.</div>
+                           <div className="text-center py-8 text-zinc-400 text-sm bg-surface rounded-xl border border-zinc-200">No active members.</div>
                          )}
                        </div>
 
                        {/* Desktop Table Layout - Active */}
-                       <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+                       <div className="hidden md:block bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm text-left">
                             <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -232,11 +232,11 @@ const TeamTab: React.FC = () => {
                                   <tr key={member.id} className="hover:bg-zinc-50/50 transition-colors">
                                     <td className="px-6 py-4">
                                        <div className="flex items-center gap-3">
-                                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
+                                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-inksoft">
                                              {member.name.charAt(0)}
                                           </div>
                                           <div>
-                                            <p className="font-medium text-zinc-900">{member.name}</p>
+                                            <p className="font-medium text-ink">{member.name}</p>
                                             <p className="text-xs text-zinc-500">{member.email}</p>
                                           </div>
                                        </div>
@@ -244,7 +244,7 @@ const TeamTab: React.FC = () => {
                                     <td className="px-6 py-4">
                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                                          member.role === 'ADMIN' 
-                                           ? 'bg-zinc-900 text-white' 
+                                           ? 'bg-zinc-900 text-onink' 
                                            : 'bg-blue-50 text-blue-700 border border-blue-100'
                                        }`}>
                                          {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
@@ -291,20 +291,20 @@ const TeamTab: React.FC = () => {
                        <div>
                          <div className="flex items-center gap-2 mb-4">
                            <div className="w-1 h-5 bg-amber-500 rounded-full"></div>
-                           <h3 className="text-sm font-bold text-zinc-900">Pending Invitations ({inactiveMembers.length})</h3>
+                           <h3 className="text-sm font-bold text-ink">Pending Invitations ({inactiveMembers.length})</h3>
                          </div>
                          
                          {/* Mobile Card Layout - Inactive */}
                          <div className="md:hidden space-y-3">
                            {inactiveMembers.map((member) => (
-                             <div key={member.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 opacity-75">
+                             <div key={member.id} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 opacity-75">
                                <div className="flex items-start justify-between mb-3">
                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                   <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-zinc-600 flex-shrink-0">
+                                   <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-inksoft flex-shrink-0">
                                      {member.name.charAt(0)}
                                    </div>
                                    <div className="flex-1 min-w-0">
-                                     <h4 className="font-medium text-zinc-900 truncate">{member.name}</h4>
+                                     <h4 className="font-medium text-ink truncate">{member.name}</h4>
                                      <p className="text-xs text-zinc-500 truncate">{member.email}</p>
                                    </div>
                                  </div>
@@ -324,7 +324,7 @@ const TeamTab: React.FC = () => {
                                  <div className="flex items-center gap-2 flex-wrap">
                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                                      member.role === 'ADMIN' 
-                                       ? 'bg-zinc-900 text-white' 
+                                       ? 'bg-zinc-900 text-onink' 
                                        : 'bg-blue-50 text-blue-700 border border-blue-100'
                                    }`}>
                                      {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
@@ -342,7 +342,7 @@ const TeamTab: React.FC = () => {
                          </div>
 
                          {/* Desktop Table Layout - Inactive */}
-                         <div className="hidden md:block bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden opacity-90">
+                         <div className="hidden md:block bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden opacity-90">
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
                               <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
@@ -359,11 +359,11 @@ const TeamTab: React.FC = () => {
                                   <tr key={member.id} className="hover:bg-zinc-50/50 transition-colors">
                                     <td className="px-6 py-4">
                                        <div className="flex items-center gap-3">
-                                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600">
+                                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-inksoft">
                                              {member.name.charAt(0)}
                                           </div>
                                           <div>
-                                            <p className="font-medium text-zinc-900">{member.name}</p>
+                                            <p className="font-medium text-ink">{member.name}</p>
                                             <p className="text-xs text-zinc-500">{member.email}</p>
                                           </div>
                                        </div>
@@ -371,7 +371,7 @@ const TeamTab: React.FC = () => {
                                     <td className="px-6 py-4">
                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                                          member.role === 'ADMIN' 
-                                           ? 'bg-zinc-900 text-white' 
+                                           ? 'bg-zinc-900 text-onink' 
                                            : 'bg-blue-50 text-blue-700 border border-blue-100'
                                        }`}>
                                          {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
@@ -419,34 +419,34 @@ const TeamTab: React.FC = () => {
               label="Invite Team Member"
           >
                   <div className="p-3 sm:p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl sticky top-0">
-                     <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Invite Team Member</h3>
-                     <button onClick={() => setIsInviteOpen(false)} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
+                     <h3 className="font-bold text-ink text-sm sm:text-base">Invite Team Member</h3>
+                     <button onClick={() => setIsInviteOpen(false)} className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200">
                        <X size={20} />
                      </button>
                   </div>
                   <form onSubmit={handleInvite} className="p-4 sm:p-6 space-y-4">
                      <div>
-                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Full Name</label>
+                        <label className="block text-xs font-semibold text-inksoft mb-1.5">Full Name</label>
                         <input 
                           type="text" 
                           required
-                          className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
+                          className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
                           value={inviteName}
                           onChange={(e) => setInviteName(e.target.value)}
                         />
                      </div>
                      <div>
-                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Email Address</label>
+                        <label className="block text-xs font-semibold text-inksoft mb-1.5">Email Address</label>
                         <input 
                           type="email" 
                           required
-                          className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
+                          className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
                           value={inviteEmail}
                           onChange={(e) => setInviteEmail(e.target.value)}
                         />
                      </div>
                      <div>
-                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Role</label>
+                        <label className="block text-xs font-semibold text-inksoft mb-1.5">Role</label>
                         <CustomSelect 
                           options={roleOptions}
                           value={inviteRole}
@@ -456,7 +456,7 @@ const TeamTab: React.FC = () => {
                      <button 
                        type="submit"
                        disabled={isInviting}
-                       className="w-full py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                       className="w-full py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                      >
                        {isInviting ? (
                          <>
@@ -481,10 +481,10 @@ const TeamTab: React.FC = () => {
                   <Trash2 size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                  <h3 className="font-bold text-ink text-lg mb-2">
                     Remove Team Member?
                   </h3>
-                  <p className="text-sm text-zinc-600">
+                  <p className="text-sm text-inksoft">
                     Are you sure you want to remove <strong>"{removeTeamMemberConfirmation.name}"</strong> from the admin team? This action cannot be undone.
                   </p>
                 </div>
@@ -492,7 +492,7 @@ const TeamTab: React.FC = () => {
               <div className="flex gap-3 pt-4 border-t border-zinc-100">
                 <button
                   onClick={closeRemoveTeamMemberConfirmation}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>

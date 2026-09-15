@@ -538,20 +538,20 @@ const AITutor: React.FC = () => {
       {/* History Sidebar */}
       {user && (
         <div className={`
-          fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 sm:w-72 md:w-64 bg-white border-r md:border border-zinc-200 rounded-r-2xl md:rounded-2xl shadow-2xl md:shadow-sm transform transition-transform duration-300 ease-in-out flex flex-col
+          fixed md:static inset-y-0 left-0 z-30 md:z-auto w-72 sm:w-72 md:w-64 bg-surface border-r md:border border-zinc-200 rounded-r-2xl md:rounded-2xl shadow-2xl md:shadow-sm transform transition-transform duration-300 ease-in-out flex flex-col
           ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           md:relative md:transform-none
         `}>
           <div className="p-4 sm:p-3 md:p-4 border-b border-zinc-100 flex items-center justify-between">
-            <h3 className="font-bold text-zinc-900 text-sm sm:text-sm">Chat History</h3>
-            <button onClick={() => setIsHistoryOpen(false)} className="md:hidden text-zinc-400 hover:text-zinc-900 p-2 rounded-lg hover:bg-zinc-100 transition-colors">
+            <h3 className="font-bold text-ink text-sm sm:text-sm">Chat History</h3>
+            <button onClick={() => setIsHistoryOpen(false)} className="md:hidden text-zinc-400 hover:text-ink p-2 rounded-lg hover:bg-zinc-100 transition-colors">
               <X size={18} className="sm:w-5 sm:h-5" />
             </button>
           </div>
           <div className="p-4 sm:p-3">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center gap-2 px-3 sm:px-3 py-3 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+              className="w-full flex items-center gap-2 px-3 sm:px-3 py-3 bg-zinc-900 text-onink rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
             >
               <Plus size={16} className="sm:w-4 sm:h-4" /> New Chat
             </button>
@@ -579,8 +579,8 @@ const AITutor: React.FC = () => {
                   onClick={() => handleSelectSession(session)}
                   className={`group flex items-center justify-between px-3 sm:px-3 py-3 rounded-lg text-sm cursor-pointer transition-colors ${
                     activeSessionId === session.id
-                      ? 'bg-zinc-100 text-zinc-900 font-medium border border-zinc-200'
-                      : 'text-zinc-600 hover:bg-zinc-50'
+                      ? 'bg-zinc-100 text-ink font-medium border border-zinc-200'
+                      : 'text-inksoft hover:bg-zinc-50'
                   }`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden min-w-0">
@@ -601,32 +601,32 @@ const AITutor: React.FC = () => {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm relative md:ml-0">
+      <div className="flex-1 flex flex-col bg-surface border border-zinc-200 rounded-2xl overflow-hidden shadow-sm relative md:ml-0">
         {/* Header */}
-        <div className="p-3 sm:p-4 border-b border-zinc-100 flex items-center justify-between bg-white/80 backdrop-blur-md z-10 sticky top-0">
+        <div className="p-3 sm:p-4 border-b border-zinc-100 flex items-center justify-between bg-surface/80 backdrop-blur-md z-10 sticky top-0">
           <div className="flex items-center gap-2 sm:gap-3">
             {user && (
               <button
                 onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                className="md:hidden p-2 -ml-2 mr-1 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
+                className="md:hidden p-2 -ml-2 mr-1 text-inksoft hover:text-ink hover:bg-zinc-100 rounded-lg transition-colors border border-transparent hover:border-zinc-200"
                 title="Open chat history"
               >
                 <Menu size={18} className="sm:w-5 sm:h-5" />
               </button>
             )}
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-zinc-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-zinc-900/10">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-zinc-900 rounded-xl flex items-center justify-center text-onink shadow-lg shadow-zinc-900/10">
               <Sparkles size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
             <div>
-              <h1 className="font-bold text-xs sm:text-sm text-zinc-900 flex items-center gap-1 sm:gap-2">
+              <h1 className="font-bold text-xs sm:text-sm text-ink flex items-center gap-1 sm:gap-2">
                 Smart Tutor
                 {deepThinking && (
-                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-zinc-800 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-ink px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
                     <Brain size={8} className="sm:w-2.5 sm:h-2.5" /> Deep Think
                   </span>
                 )}
                 {subjectFocus !== 'General' && (
-                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-zinc-700 px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-inksoft px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
                     <GraduationCap size={8} className="sm:w-2.5 sm:h-2.5" /> {subjectFocus}
                   </span>
                 )}
@@ -642,17 +642,17 @@ const AITutor: React.FC = () => {
             <div className="relative">
               <button 
                 onClick={() => setShowSettings(!showSettings)}
-                className={`p-2 rounded-lg transition-colors ${showSettings ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-50'}`}
+                className={`p-2 rounded-lg transition-colors ${showSettings ? 'bg-zinc-100 text-ink' : 'text-zinc-400 hover:text-ink hover:bg-zinc-50'}`}
                 title="Tutor Settings"
               >
                 <Settings2 size={18} />
               </button>
               
               {showSettings && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-zinc-200 rounded-xl shadow-xl z-30 p-4 animate-fade-in-fast">
+                <div className="absolute right-0 top-full mt-2 w-64 bg-surface border border-zinc-200 rounded-xl shadow-xl z-30 p-4 animate-fade-in-fast">
                    <div className="flex justify-between items-center mb-4">
-                     <h3 className="font-bold text-sm text-zinc-900">Tutor Settings</h3>
-                     <button onClick={() => setShowSettings(false)} className="text-zinc-400 hover:text-zinc-900"><X size={16} /></button>
+                     <h3 className="font-bold text-sm text-ink">Tutor Settings</h3>
+                     <button onClick={() => setShowSettings(false)} className="text-zinc-400 hover:text-ink"><X size={16} /></button>
                    </div>
                    
                    <div className="space-y-4">
@@ -665,8 +665,8 @@ const AITutor: React.FC = () => {
                                onClick={() => setSubjectFocus(sub)}
                                className={`text-xs px-2 py-1.5 rounded-md border transition-all text-left ${
                                  subjectFocus === sub 
-                                   ? 'bg-zinc-900 text-white border-zinc-900' 
-                                   : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                                   ? 'bg-zinc-900 text-onink border-zinc-900' 
+                                   : 'bg-surface text-inksoft border-zinc-200 hover:bg-zinc-50'
                                }`}
                              >
                                {sub}
@@ -678,9 +678,9 @@ const AITutor: React.FC = () => {
                       <div className="pt-2 border-t border-zinc-100">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                             <Brain size={16} className={deepThinking ? "text-zinc-900" : "text-zinc-400"} />
+                             <Brain size={16} className={deepThinking ? "text-ink" : "text-zinc-400"} />
                              <div>
-                               <p className="text-sm font-medium text-zinc-900">Deep Reasoning</p>
+                               <p className="text-sm font-medium text-ink">Deep Reasoning</p>
                                <p className="text-[10px] text-zinc-500">For complex STEM problems</p>
                              </div>
                           </div>
@@ -688,7 +688,7 @@ const AITutor: React.FC = () => {
                             onClick={() => setDeepThinking(!deepThinking)}
                             className={`w-10 h-6 rounded-full transition-colors relative ${deepThinking ? 'bg-zinc-900' : 'bg-zinc-200'}`}
                           >
-                             <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${deepThinking ? 'translate-x-4' : ''}`}></div>
+                             <div className={`absolute top-1 left-1 w-4 h-4 bg-surface rounded-full transition-transform ${deepThinking ? 'translate-x-4' : ''}`}></div>
                           </button>
                         </div>
                       </div>
@@ -697,7 +697,7 @@ const AITutor: React.FC = () => {
                         <div className="pt-2 border-t border-zinc-100">
                            <button 
                              onClick={handleExportChat}
-                             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-xs font-medium transition-colors"
+                             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-inksoft rounded-lg text-xs font-medium transition-colors"
                            >
                              <Download size={14} /> Export Chat
                            </button>
@@ -710,7 +710,7 @@ const AITutor: React.FC = () => {
 
             <button 
               onClick={handleNewChat}
-              className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+              className="p-2 text-zinc-400 hover:text-ink transition-colors"
               title="Clear Chat"
             >
               <Eraser size={18} />
@@ -724,16 +724,16 @@ const AITutor: React.FC = () => {
             <div key={idx} className={`flex gap-2 sm:gap-3 md:gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'model' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
-                    <Bot size={12} className="sm:w-4 sm:h-4 text-zinc-900" />
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-surface border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
+                    <Bot size={12} className="sm:w-4 sm:h-4 text-ink" />
                   </div>
                 </div>
               )}
 
               <div className={`max-w-[90%] sm:max-w-[85%] md:max-w-[70%] rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm relative group ${
                 msg.role === 'user'
-                  ? 'bg-zinc-900 text-white rounded-br-sm'
-                  : 'bg-white border border-zinc-200 text-zinc-800 rounded-bl-sm'
+                  ? 'bg-zinc-900 text-onink rounded-br-sm'
+                  : 'bg-surface border border-zinc-200 text-ink rounded-bl-sm'
               }`}>
                 {msg.role === 'user' ? (
                   <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
@@ -751,7 +751,7 @@ const AITutor: React.FC = () => {
                       <span className="streaming-cursor" aria-hidden="true" />
                     )}
                     <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                       <TTSButton text={stripForSpeech(msg.text)} size={12} className="sm:w-3.5 sm:h-3.5 bg-white/80 hover:bg-white shadow-sm" />
+                       <TTSButton text={stripForSpeech(msg.text)} size={12} className="sm:w-3.5 sm:h-3.5 bg-surface/80 hover:bg-surface shadow-sm" />
                     </div>
                   </>
                 )}
@@ -759,7 +759,7 @@ const AITutor: React.FC = () => {
 
               {msg.role === 'user' && (
                 <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-zinc-200 flex items-center justify-center flex-shrink-0 mt-1">
-                  <UserIcon size={12} className="sm:w-4 sm:h-4 text-zinc-600" />
+                  <UserIcon size={12} className="sm:w-4 sm:h-4 text-inksoft" />
                 </div>
               )}
             </div>
@@ -767,10 +767,10 @@ const AITutor: React.FC = () => {
 
           {isLoading && streamingIndex === null && (
             <div className="flex gap-2 sm:gap-3 md:gap-4 justify-start animate-fade-in">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Bot size={12} className="sm:w-4 sm:h-4 text-zinc-900" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-surface border border-zinc-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Bot size={12} className="sm:w-4 sm:h-4 text-ink" />
               </div>
-              <div className="px-3 sm:px-4 md:px-5 py-3 sm:py-4 bg-white border border-zinc-200 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-1 sm:gap-1.5">
+              <div className="px-3 sm:px-4 md:px-5 py-3 sm:py-4 bg-surface border border-zinc-200 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-1 sm:gap-1.5">
                 <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-zinc-400 rounded-full animate-bounce"></span>
                 <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-zinc-400 rounded-full animate-bounce delay-100"></span>
                 <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-zinc-400 rounded-full animate-bounce delay-200"></span>
@@ -780,7 +780,7 @@ const AITutor: React.FC = () => {
         </div>
 
         {/* Input Area */}
-        <div className="p-3 sm:p-4 bg-white border-t border-zinc-100">
+        <div className="p-3 sm:p-4 bg-surface border-t border-zinc-100">
           <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4">
             {!isBusy && messages.length < 3 && !limitReached && (
               <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 hide-scrollbar">
@@ -788,7 +788,7 @@ const AITutor: React.FC = () => {
                   <button
                     key={i}
                     onClick={() => handleSend(s.label)}
-                    className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-zinc-50 border border-zinc-200 rounded-full text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300 transition-all whitespace-nowrap"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-zinc-50 border border-zinc-200 rounded-full text-xs font-medium text-inksoft hover:bg-zinc-100 hover:border-zinc-300 transition-all whitespace-nowrap"
                   >
                     <s.icon size={10} className="sm:w-3 sm:h-3" />
                     {s.label}
@@ -799,18 +799,18 @@ const AITutor: React.FC = () => {
 
             {limitReached ? (
                <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 sm:p-6 text-center">
-                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-zinc-100">
-                    <Lock size={16} className="sm:w-5 sm:h-5 text-zinc-900" />
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-surface rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-zinc-100">
+                    <Lock size={16} className="sm:w-5 sm:h-5 text-ink" />
                  </div>
-                 <h3 className="font-bold text-zinc-900 mb-2 text-sm sm:text-base">Free Limit Reached</h3>
+                 <h3 className="font-bold text-ink mb-2 text-sm sm:text-base">Free Limit Reached</h3>
                  <p className="text-xs sm:text-sm text-zinc-500 mb-4 sm:mb-6 max-w-sm mx-auto">
                     You've used your 5 free AI Tutor questions. Sign in to keep chatting.
                  </p>
                  <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
-                    <Link to="/login" className="px-4 sm:px-6 py-2 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm">
+                    <Link to="/login" className="px-4 sm:px-6 py-2 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm">
                       Log In
                     </Link>
-                    <Link to="/register" className="px-4 sm:px-6 py-2 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm">
+                    <Link to="/register" className="px-4 sm:px-6 py-2 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm">
                       Create Account
                     </Link>
                  </div>
@@ -822,7 +822,7 @@ const AITutor: React.FC = () => {
               >
                 {/* Image Preview */}
                 {imagePreview && (
-                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-zinc-200 rounded-lg shadow-lg z-10">
+                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-surface border border-zinc-200 rounded-lg shadow-lg z-10">
                     <div className="relative">
                       <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
                       <button
@@ -866,7 +866,7 @@ const AITutor: React.FC = () => {
                       className={`relative p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer after:absolute after:-inset-2 after:content-[''] ${
                         isProcessingImage
                           ? 'bg-blue-50 text-blue-600 animate-pulse'
-                          : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                          : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
                       } ${isLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title="Upload Image with Text"
                     >
@@ -884,7 +884,7 @@ const AITutor: React.FC = () => {
                       className={`relative p-1 sm:p-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${
                         isListening
                           ? 'bg-red-50 text-red-600 animate-pulse'
-                          : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+                          : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
                       }`}
                       title="Voice Input"
                     >
@@ -896,7 +896,7 @@ const AITutor: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isBusy || !input.trim()}
-                  className="p-3 sm:p-3.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center"
+                  className="p-3 sm:p-3.5 bg-zinc-900 text-onink rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center"
                 >
                   {isLoading ? (
                     <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
@@ -909,7 +909,7 @@ const AITutor: React.FC = () => {
 
             <div className="text-center flex flex-col items-center gap-1">
               {!user && !limitReached && (
-                 <p className="text-[10px] sm:text-[11px] bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full font-medium">
+                 <p className="text-[10px] sm:text-[11px] bg-zinc-100 text-inksoft px-2 py-0.5 rounded-full font-medium">
                     {MAX_FREE_PROMPTS - guestPromptCount} free messages remaining
                  </p>
               )}
@@ -931,10 +931,10 @@ const AITutor: React.FC = () => {
                   <Trash2 size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-zinc-900 text-lg mb-2">
+                  <h3 className="font-bold text-ink text-lg mb-2">
                     Delete Chat Session?
                   </h3>
-                  <p className="text-sm text-zinc-600">
+                  <p className="text-sm text-inksoft">
                     Are you sure you want to delete <strong>"{deleteConfirmation.sessionTitle}"</strong>? This action cannot be undone.
                   </p>
                 </div>
@@ -942,7 +942,7 @@ const AITutor: React.FC = () => {
               <div className="flex gap-3 pt-4 border-t border-zinc-100">
                 <button
                   onClick={() => setDeleteConfirmation({ isOpen: false, sessionId: null, sessionTitle: '' })}
-                  className="flex-1 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
                 </button>

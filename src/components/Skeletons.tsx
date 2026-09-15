@@ -2,7 +2,7 @@ import React from 'react';
 
 // Document Card Skeleton
 export const DocumentCardSkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden animate-pulse">
+  <div className="bg-surface rounded-xl border border-zinc-200 overflow-hidden animate-pulse">
     <div className="h-40 bg-zinc-200"></div>
     <div className="p-5 space-y-3">
       <div className="h-5 bg-zinc-200 rounded w-3/4"></div>
@@ -18,7 +18,7 @@ export const DocumentCardSkeleton: React.FC = () => (
 
 // Video Card Skeleton
 export const VideoCardSkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden animate-pulse">
+  <div className="bg-surface rounded-xl border border-zinc-200 overflow-hidden animate-pulse">
     <div className="aspect-video bg-zinc-200"></div>
     <div className="p-4 space-y-3">
       <div className="h-4 bg-zinc-200 rounded w-20"></div>
@@ -34,7 +34,7 @@ export const VideoCardSkeleton: React.FC = () => (
 
 // Forum Post Skeleton
 export const ForumPostSkeleton: React.FC = () => (
-  <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
+  <div className="bg-surface p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
     <div className="flex items-start gap-4">
       <div className="flex flex-col items-center gap-1 min-w-[3rem]">
         <div className="w-6 h-6 bg-zinc-200 rounded"></div>
@@ -65,7 +65,7 @@ export const ForumPostSkeleton: React.FC = () => (
 
 // Dashboard Stats Card Skeleton
 export const DashboardStatsCardSkeleton: React.FC = () => (
-  <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm animate-pulse">
+  <div className="bg-surface p-6 rounded-2xl border border-zinc-200 shadow-sm animate-pulse">
     <div className="flex justify-between items-start mb-4">
       <div className="w-10 h-10 bg-zinc-200 rounded-lg"></div>
       <div className="w-12 h-4 bg-zinc-200 rounded"></div>
@@ -77,7 +77,7 @@ export const DashboardStatsCardSkeleton: React.FC = () => (
 
 // Dashboard Bookmark Card Skeleton
 export const BookmarkCardSkeleton: React.FC = () => (
-  <div className="bg-white p-4 rounded-xl border border-zinc-200 hover:border-zinc-400 transition-all flex gap-4 items-center animate-pulse">
+  <div className="bg-surface p-4 rounded-xl border border-zinc-200 hover:border-zinc-400 transition-all flex gap-4 items-center animate-pulse">
     <div className="w-16 h-16 rounded-lg bg-zinc-200 flex-shrink-0"></div>
     <div className="flex-1 min-w-0 space-y-2">
       <div className="h-4 bg-zinc-200 rounded w-3/4"></div>
@@ -120,7 +120,7 @@ export const LeaderboardItemSkeleton: React.FC = () => (
 
 // Planner Event Skeleton
 export const PlannerEventSkeleton: React.FC = () => (
-  <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
+  <div className="bg-surface p-4 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
     <div className="flex items-start justify-between mb-3">
       <div className="space-y-2 flex-1">
         <div className="h-5 bg-zinc-200 rounded w-3/4"></div>
@@ -137,7 +137,7 @@ export const PlannerEventSkeleton: React.FC = () => (
 
 // Profile Section Skeleton
 export const ProfileSectionSkeleton: React.FC = () => (
-  <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 animate-pulse">
+  <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6 animate-pulse">
     <div className="flex items-center gap-4 mb-6">
       <div className="w-16 h-16 rounded-full bg-zinc-200"></div>
       <div className="space-y-2 flex-1">
@@ -221,7 +221,7 @@ export const DocumentViewSkeleton: React.FC = () => (
   // details strip, and the sticky AI-tools aside (not the old 3-col grid).
   <div className="min-h-screen bg-zinc-100 animate-pulse" aria-hidden="true">
     {/* Header */}
-    <div className="bg-white border-b border-zinc-200">
+    <div className="bg-surface border-b border-zinc-200">
       <div className="max-w-[1440px] mx-auto flex items-center gap-3 px-3 sm:px-5 py-2.5">
         <div className="w-9 h-9 bg-zinc-200 rounded-xl flex-shrink-0"></div>
         <div className="flex-1 space-y-2 min-w-0">
@@ -238,7 +238,7 @@ export const DocumentViewSkeleton: React.FC = () => (
 
     <div className="max-w-[1600px] mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
       {/* Viewer card */}
-      <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden min-w-0">
+      <div className="bg-surface border border-zinc-200 rounded-2xl overflow-hidden min-w-0">
         <div className="h-12 border-b border-zinc-100 flex items-center px-4 gap-2">
           <div className="h-3 bg-zinc-200 rounded w-20"></div>
           <div className="h-5 bg-zinc-200 rounded-md w-12"></div>
@@ -257,7 +257,7 @@ export const DocumentViewSkeleton: React.FC = () => (
       </div>
 
       {/* AI tools aside */}
-      <div className="hidden lg:block bg-white border border-zinc-200 rounded-2xl overflow-hidden">
+      <div className="hidden lg:block bg-surface border border-zinc-200 rounded-2xl overflow-hidden">
         <div className="p-2.5 pb-0">
           <div className="h-10 bg-zinc-100 rounded-xl"></div>
         </div>
@@ -289,7 +289,7 @@ export const CommunityPostDetailSkeleton: React.FC = () => (
     </div>
 
     {/* Post Header */}
-    <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
       <div className="flex items-start gap-4">
         {/* Vote Section */}
         <div className="flex flex-col items-center gap-2">
@@ -326,7 +326,7 @@ export const CommunityPostDetailSkeleton: React.FC = () => (
     </div>
 
     {/* Comments Section */}
-    <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
       <div className="h-6 bg-zinc-200 rounded w-32 mb-6"></div>
       
       {/* Comment Input */}
@@ -355,7 +355,7 @@ export const CommunityPostDetailSkeleton: React.FC = () => (
     </div>
 
     {/* Related Posts */}
-    <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-6">
+    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
       <div className="h-6 bg-zinc-200 rounded w-40 mb-4"></div>
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (

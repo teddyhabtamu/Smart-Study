@@ -196,14 +196,14 @@ const Community: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900">Student Community</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">Student Community</h1>
             <p className="text-zinc-500 text-sm sm:text-base">Ask questions, share knowledge, and learn together.</p>
           </div>
 
           <div className="flex flex-col gap-2 self-start sm:self-auto">
             <button
               onClick={handleAskQuestion}
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/10 group"
+              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/10 group"
             >
               <Plus size={14} className="sm:w-4 sm:h-4" />
               Ask Question
@@ -221,7 +221,7 @@ const Community: React.FC = () => {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
-            className="w-full pl-10 pr-4 py-3 bg-white border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 shadow-sm"
+            className="w-full pl-10 pr-4 py-3 bg-surface border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 shadow-sm"
             placeholder="Search discussions..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -231,8 +231,8 @@ const Community: React.FC = () => {
 
       {/* Mobile Leaderboard */}
       <div className="lg:hidden">
-        <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-          <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2 text-sm">
+        <div className="bg-surface p-4 rounded-xl border border-zinc-200 shadow-sm">
+          <h3 className="font-bold text-ink mb-4 flex items-center gap-2 text-sm">
             <Trophy size={16} className="text-amber-500" /> Top Learners
           </h3>
           <div className="grid grid-cols-1 gap-3">
@@ -263,14 +263,14 @@ const Community: React.FC = () => {
                leaderboard.slice(0, 3).map((learner) => (
                  <div key={learner.id} className={`flex items-center justify-between p-3 rounded-lg ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'bg-zinc-50'}`}>
                     <div className="flex items-center gap-3">
-                       <div className="w-6 h-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-zinc-600">
+                       <div className="w-6 h-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-inksoft">
                           {learner.rank}
                        </div>
-                       <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-600 border border-zinc-200">
+                       <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-inksoft border border-zinc-200">
                           {learner.initial}
                        </div>
                        <div>
-                          <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-zinc-900'}`}>
+                          <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-ink'}`}>
                              {learner.name}
                           </p>
                           <p className="text-xs text-zinc-500">Level {learner.level}</p>
@@ -288,8 +288,8 @@ const Community: React.FC = () => {
              )}
              {user && !leaderboard.some(l => l.isUser) && (
                <div className="mt-2 p-2 rounded-lg bg-zinc-50 border border-zinc-100 text-center">
-                 <p className="text-xs text-zinc-600">
-                   You have <span className="font-bold text-zinc-900">{(user.xp || 0).toLocaleString()} XP</span> — keep learning to reach the top.
+                 <p className="text-xs text-inksoft">
+                   You have <span className="font-bold text-ink">{(user.xp || 0).toLocaleString()} XP</span> — keep learning to reach the top.
                  </p>
                </div>
              )}
@@ -308,8 +308,8 @@ const Community: React.FC = () => {
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-4 sm:space-y-6">
           {/* Filters - Desktop */}
-          <div className="hidden lg:block bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-            <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2">
+          <div className="hidden lg:block bg-surface p-4 rounded-xl border border-zinc-200 shadow-sm">
+            <h3 className="font-bold text-ink mb-4 flex items-center gap-2">
               <Filter size={16} /> Filter Topics
             </h3>
 
@@ -334,8 +334,8 @@ const Community: React.FC = () => {
                       onClick={() => setSelectedSubject(sub)}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                         selectedSubject === sub
-                          ? 'bg-zinc-100 text-zinc-900 font-medium'
-                          : 'text-zinc-600 hover:bg-zinc-50'
+                          ? 'bg-zinc-100 text-ink font-medium'
+                          : 'text-inksoft hover:bg-zinc-50'
                       }`}
                     >
                       {sub === 'All' ? 'All Topics' : sub}
@@ -353,8 +353,8 @@ const Community: React.FC = () => {
                       onClick={() => setSelectedGrade(g)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         selectedGrade === g
-                          ? 'bg-zinc-900 text-white'
-                          : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                          ? 'bg-zinc-900 text-onink'
+                          : 'bg-zinc-50 text-inksoft hover:bg-zinc-100'
                       }`}
                     >
                       {g === 'All' ? 'All' : `G${g}`}
@@ -370,11 +370,11 @@ const Community: React.FC = () => {
             {/* Mobile Filter Button */}
             <button
               onClick={() => setShowMobileFilters(true)}
-              className="w-full bg-white p-3 rounded-xl border border-zinc-200 shadow-sm flex items-center justify-between hover:border-zinc-300 transition-colors"
+              className="w-full bg-surface p-3 rounded-xl border border-zinc-200 shadow-sm flex items-center justify-between hover:border-zinc-300 transition-colors"
             >
               <div className="flex items-center gap-2">
                 <SlidersHorizontal size={16} className="text-zinc-500" />
-                <span className="text-sm font-medium text-zinc-900">
+                <span className="text-sm font-medium text-ink">
                   {selectedSubject === 'All' ? 'All Topics' : selectedSubject}
                   {selectedGrade !== 'All' && ` • Grade ${selectedGrade}`}
                   {searchTerm && ` • "${searchTerm}"`}
@@ -393,10 +393,10 @@ const Community: React.FC = () => {
             >
                   <div className="p-4 border-b border-zinc-100">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-zinc-900 text-base">Filter Discussions</h3>
+                      <h3 className="font-bold text-ink text-base">Filter Discussions</h3>
                       <button
                         onClick={() => setShowMobileFilters(false)}
-                        className="p-2 text-zinc-400 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors"
+                        className="p-2 text-zinc-400 hover:text-ink rounded-lg hover:bg-zinc-100 transition-colors"
                       >
                         <X size={20} />
                       </button>
@@ -406,7 +406,7 @@ const Community: React.FC = () => {
                   <div className="p-4 space-y-6 overflow-y-auto max-h-[calc(80vh-80px)]">
                     {/* Search */}
                     <div>
-                      <label className="block text-sm font-semibold text-zinc-900 mb-2">Search</label>
+                      <label className="block text-sm font-semibold text-ink mb-2">Search</label>
                       <div className="relative">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                         <input
@@ -421,7 +421,7 @@ const Community: React.FC = () => {
 
                     {/* Subject Filter */}
                     <div>
-                      <label className="block text-sm font-semibold text-zinc-900 mb-3">Subject</label>
+                      <label className="block text-sm font-semibold text-ink mb-3">Subject</label>
                       <div className="grid grid-cols-2 gap-2">
                         {SUBJECTS.map(sub => (
                           <button
@@ -429,8 +429,8 @@ const Community: React.FC = () => {
                             onClick={() => setSelectedSubject(sub)}
                             className={`p-3 rounded-lg text-sm font-medium transition-colors border ${
                               selectedSubject === sub
-                                ? 'bg-zinc-900 text-white border-zinc-900'
-                                : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
+                                ? 'bg-zinc-900 text-onink border-zinc-900'
+                                : 'bg-zinc-50 text-inksoft border-zinc-200 hover:bg-zinc-100'
                             }`}
                           >
                             {sub === 'All' ? 'All Topics' : sub}
@@ -440,7 +440,7 @@ const Community: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-zinc-900 mb-3">Grade</label>
+                      <label className="block text-sm font-semibold text-ink mb-3">Grade</label>
                       <div className="grid grid-cols-5 gap-2">
                         {['All', '9', '10', '11', '12'].map(g => (
                           <button
@@ -448,8 +448,8 @@ const Community: React.FC = () => {
                             onClick={() => setSelectedGrade(g)}
                             className={`p-2.5 rounded-lg text-sm font-medium transition-colors border ${
                               selectedGrade === g
-                                ? 'bg-zinc-900 text-white border-zinc-900'
-                                : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
+                                ? 'bg-zinc-900 text-onink border-zinc-900'
+                                : 'bg-zinc-50 text-inksoft border-zinc-200 hover:bg-zinc-100'
                             }`}
                           >
                             {g === 'All' ? 'All' : `G${g}`}
@@ -467,13 +467,13 @@ const Community: React.FC = () => {
                             setSelectedGrade('All');
                             setSearchTerm('');
                           }}
-                          className="flex-1 py-2.5 bg-zinc-100 text-zinc-700 font-medium rounded-lg hover:bg-zinc-200 transition-colors text-sm"
+                          className="flex-1 py-2.5 bg-zinc-100 text-inksoft font-medium rounded-lg hover:bg-zinc-200 transition-colors text-sm"
                         >
                           Clear All
                         </button>
                         <button
                           onClick={() => setShowMobileFilters(false)}
-                          className="flex-1 py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm"
+                          className="flex-1 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm"
                         >
                           Apply Filters
                         </button>
@@ -484,8 +484,8 @@ const Community: React.FC = () => {
           </div>
 
           {/* Leaderboard - Desktop Only */}
-          <div className="hidden lg:block bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-            <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2">
+          <div className="hidden lg:block bg-surface p-4 rounded-xl border border-zinc-200 shadow-sm">
+            <h3 className="font-bold text-ink mb-4 flex items-center gap-2">
               <Trophy size={16} className="text-amber-500" /> Top Learners
             </h3>
             <div className="space-y-3">
@@ -501,16 +501,16 @@ const Community: React.FC = () => {
                  leaderboard.map((learner) => (
                    <div key={learner.id} className={`flex items-start gap-2 p-2 rounded-lg transition-colors ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'hover:bg-zinc-50'}`}>
                       <div className="flex-shrink-0 pt-0.5">
-                         <div className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-zinc-600">
+                         <div className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-inksoft">
                             {learner.rank}
                          </div>
                       </div>
                       <div className="flex-1 min-w-0">
                          <div className="flex items-center gap-2 mb-1">
-                            <div className="w-6 h-6 flex-shrink-0 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600 border border-zinc-200">
+                            <div className="w-6 h-6 flex-shrink-0 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-inksoft border border-zinc-200">
                                {learner.initial}
                             </div>
-                            <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-zinc-900'} truncate flex-1`} title={learner.name}>
+                            <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-ink'} truncate flex-1`} title={learner.name}>
                                {learner.name}
                             </p>
                          </div>
@@ -530,8 +530,8 @@ const Community: React.FC = () => {
                )}
                {user && !leaderboard.some(l => l.isUser) && (
                  <div className="mt-2 p-2.5 rounded-lg bg-zinc-50 border border-zinc-100 text-center">
-                   <p className="text-xs text-zinc-600">
-                     You have <span className="font-bold text-zinc-900">{(user.xp || 0).toLocaleString()} XP</span> — keep learning to climb into the top 5.
+                   <p className="text-xs text-inksoft">
+                     You have <span className="font-bold text-ink">{(user.xp || 0).toLocaleString()} XP</span> — keep learning to climb into the top 5.
                    </p>
                  </div>
                )}
@@ -570,7 +570,7 @@ const Community: React.FC = () => {
             return (
             <article
               key={post.id}
-              className="block bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group"
+              className="block bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group"
             >
               <div className="flex items-start gap-3 sm:gap-4">
                 {/* Vote Section */}
@@ -579,7 +579,7 @@ const Community: React.FC = () => {
                     onClick={(e) => handleVote(post.id, e)}
                     disabled={votingPosts.has(post.id)}
                     aria-label="Upvote post"
-                    className="relative text-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center p-1 after:absolute after:-inset-2 after:content-['']"
+                    className="relative text-zinc-400 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center p-1 after:absolute after:-inset-2 after:content-['']"
                   >
                     {votingPosts.has(post.id) ? (
                       <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
@@ -587,7 +587,7 @@ const Community: React.FC = () => {
                       <ThumbsUp size={16} className="sm:w-[18px] sm:h-[18px]" />
                     )}
                   </button>
-                  <span className="font-bold text-zinc-900 text-sm">{post.votes}</span>
+                  <span className="font-bold text-ink text-sm">{post.votes}</span>
                 </div>
 
                 {/* Post Content */}
@@ -609,21 +609,21 @@ const Community: React.FC = () => {
                     </span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-bold text-zinc-900 mb-2 transition-colors">
+                  <h3 className="text-base sm:text-lg font-bold text-ink mb-2 transition-colors">
                     <Link
                       to={`/community/${post.id}`}
-                      className="group-hover:text-zinc-700 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/30 rounded"
+                      className="group-hover:text-inksoft hover:text-inksoft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/30 rounded"
                     >
                       {post.title}
                     </Link>
                   </h3>
 
-                  <p className="text-zinc-600 text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
+                  <p className="text-inksoft text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
 
                   <div className="flex items-center justify-between border-t border-zinc-50 pt-3 sm:pt-4">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-white ${
+                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-onink ${
                           authorRole === UserRole.TUTOR
                             ? 'bg-zinc-800'
                             : authorRole === UserRole.ADMIN
@@ -634,7 +634,7 @@ const Community: React.FC = () => {
                         {post.author.charAt(0)}
                       </div>
 
-                      <span className="text-xs font-medium text-zinc-700">{post.author}</span>
+                      <span className="text-xs font-medium text-inksoft">{post.author}</span>
                       <span
                         className="text-xs text-zinc-500"
                         title={createdAt ? new Date(createdAt).toLocaleString() : undefined}
@@ -658,13 +658,13 @@ const Community: React.FC = () => {
               <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
                 <button
                   onClick={() => { setSelectedSubject('All'); setSelectedGrade('All'); setSearchTerm(''); }}
-                  className="px-4 py-2 bg-white border border-zinc-200 text-zinc-700 text-sm font-medium rounded-lg hover:bg-zinc-100 transition-colors"
+                  className="px-4 py-2 bg-surface border border-zinc-200 text-inksoft text-sm font-medium rounded-lg hover:bg-zinc-100 transition-colors"
                 >
                   Clear filters
                 </button>
                 <button
                   onClick={handleAskQuestion}
-                  className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
+                  className="px-4 py-2 bg-zinc-900 text-onink text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors"
                 >
                   Be the first to ask
                 </button>
@@ -681,8 +681,8 @@ const Community: React.FC = () => {
         label="Ask the Community"
       >
               <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl">
-                <h3 className="font-bold text-zinc-900 text-sm sm:text-base">Ask the Community</h3>
-                <button onClick={() => { setIsModalOpen(false); setFreeLimitHit(false); }} className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-200">
+                <h3 className="font-bold text-ink text-sm sm:text-base">Ask the Community</h3>
+                <button onClick={() => { setIsModalOpen(false); setFreeLimitHit(false); }} className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200">
                   <X size={18} className="sm:w-5 sm:h-5" />
                 </button>
               </div>
@@ -693,7 +693,7 @@ const Community: React.FC = () => {
                     <Crown size={24} className="text-amber-600" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-zinc-900 text-base sm:text-lg">You've used today's free question</h4>
+                    <h4 className="font-bold text-ink text-base sm:text-lg">You've used today's free question</h4>
                     <p className="text-sm text-zinc-500 mt-1 leading-relaxed">
                       Free accounts get 1 community question per day. Your draft above is saved —
                       upgrade to Pro to post it now, or come back tomorrow.
@@ -702,13 +702,13 @@ const Community: React.FC = () => {
                   <div className="space-y-2">
                     <button
                       onClick={() => { setIsModalOpen(false); setFreeLimitHit(false); navigate('/subscription'); }}
-                      className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm"
+                      className="w-full py-3 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm"
                     >
                       Go Pro — ask unlimited questions
                     </button>
                     <button
                       onClick={() => setFreeLimitHit(false)}
-                      className="w-full py-2 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+                      className="w-full py-2 text-sm text-zinc-500 hover:text-ink transition-colors"
                     >
                       Back to my draft
                     </button>
@@ -717,11 +717,11 @@ const Community: React.FC = () => {
               ) : (
               <form onSubmit={handleCreatePost} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Question Title</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Question Title</label>
                   <input
                     type="text"
                     required
-                    className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
+                    className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                     placeholder="What's your question?"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
@@ -730,21 +730,21 @@ const Community: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subject</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Subject</label>
                     <CustomSelect options={postSubjectOptions} value={newSubject} onChange={setNewSubject} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Grade Level</label>
+                    <label className="block text-xs font-semibold text-inksoft mb-1.5">Grade Level</label>
                     <CustomSelect options={gradeOptions} value={newGrade} onChange={setNewGrade} />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Details</label>
+                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Details</label>
                   <textarea
                     required
                     rows={5}
-                    className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 resize-none transition-shadow shadow-sm"
+                    className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 resize-none transition-shadow shadow-sm"
                     placeholder="Describe your problem in detail..."
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
@@ -755,7 +755,7 @@ const Community: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isCreatingPost}
-                    className="w-full py-3 sm:py-2.5 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center justify-center gap-2"
+                    className="w-full py-3 sm:py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-zinc-900/10 flex items-center justify-center gap-2"
                   >
                     {isCreatingPost ? <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" /> : null}
                     {isCreatingPost ? 'Posting...' : 'Post Question'}
