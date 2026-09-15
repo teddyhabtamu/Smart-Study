@@ -47,6 +47,10 @@ const Profile: React.FC = () => {
   const [deleteCodeEmail, setDeleteCodeEmail] = useState('');
   const [deleteCodeSending, setDeleteCodeSending] = useState(false);
   const [deleteCodeSent, setDeleteCodeSent] = useState(false);
+  // Inline modal error (persists until the next keystroke): toasts vanish in
+  // seconds, but a wrong-code/password message must stay visible while the
+  // user corrects it — and the modal must stay open for the same reason.
+  const [deleteError, setDeleteError] = useState('');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -262,6 +266,7 @@ const Profile: React.FC = () => {
       const res = await usersAPI.requestDeletionCode();
       setDeleteCodeEmail(res?.email || '');
       setDeleteCodeSent(true);
+      setDeleteError('');
       addToast('Verification code sent to your email', 'success');
     } catch (error: any) {
       console.error('Deletion code error:', error);
@@ -276,6 +281,7 @@ const Profile: React.FC = () => {
     setDeleteCode('');
     setDeleteCodeEmail('');
     setDeleteCodeSent(false);
+    setDeleteError('');
     // Google-only accounts have no password: open on the code step, but the
     // code is only sent when explicitly requested — opening the modal must
     // never fire emails by itself.
@@ -305,13 +311,24 @@ const Profile: React.FC = () => {
       if (error?.code === 'PASSWORD_FLOW') {
         // Backend says this account has a password after all: swap back.
         setDeleteNeedsEmail(false);
+        setDeleteError('Please enter your password to confirm');
         keepOpen = true;
-        addToast('Please enter your password to confirm', 'error');
         return;
       }
-      if (error?.code === 'NO_ACTIVE_CODE' || error?.code === 'CODE_LOCKED') {
+      if (
+        error?.code === 'NO_ACTIVE_CODE' ||
+        error?.code === 'CODE_LOCKED' ||
+        error?.code === 'INVALID_CODE' ||
+        error?.code === 'CODE_REQUIRED' ||
+        error?.code === 'INCORRECT_PASSWORD' ||
+        error?.code === 'PASSWORD_REQUIRED'
+      ) {
+        // Expected re-auth failures (wrong code/password, expired code):
+        // stay open with a persistent inline message so the user can simply
+        // correct and retry — closing here would wipe the code step and burn
+        // one of the 3 code requests on reopen.
+        setDeleteError(error.message || 'Confirmation failed — please try again');
         keepOpen = true;
-        addToast(error.message || 'Request a new code', 'error');
         return;
       }
       addToast(error.message || 'Failed to delete account', 'error');
@@ -1340,7 +1357,7 @@ const Profile: React.FC = () => {
                 <input
                   type="password"
                   value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
+                  onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(''); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteAccount(); }}
                   placeholder="Enter your password to confirm"
                   autoComplete="current-password"
@@ -1373,7 +1390,7 @@ const Profile: React.FC = () => {
                     autoComplete="one-time-code"
                     maxLength={6}
                     value={deleteCode}
-                    onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onChange={(e) => { setDeleteCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setDeleteError(''); }}
                     onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteAccount(); }}
                     placeholder="6-digit code"
                     className="w-full px-3 py-2.5 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 tracking-[0.3em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
@@ -1387,6 +1404,9 @@ const Profile: React.FC = () => {
                     {deleteCodeSending ? 'Sending…' : "Didn't get it? Resend code"}
                   </button>
                 </div>
+              )}
+              {deleteError && (
+                <p role="alert" className="text-xs font-medium text-red-600 mb-3">{deleteError}</p>
               )}
               
               <div className="flex gap-3">
