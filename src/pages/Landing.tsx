@@ -23,7 +23,7 @@ const Landing: React.FC = () => {
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-white border border-zinc-200 shadow-sm mb-6 sm:mb-8 animate-fade-in">
             <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
-            <span className="text-xs sm:text-sm font-medium text-zinc-600">Updated for 2024 Curriculum</span>
+            <span className="text-xs sm:text-sm font-medium text-zinc-600">Aligned with the Ethiopian Curriculum</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tighter text-zinc-900 mb-6 sm:mb-8 animate-slide-up leading-[0.9]">
@@ -141,7 +141,7 @@ const Landing: React.FC = () => {
             <Link to="/videos" className="bg-zinc-50 rounded-2xl md:rounded-3xl p-6 sm:p-8 border border-zinc-200 hover:border-zinc-300 transition-colors group block">
                <PlayCircle size={28} className="sm:w-8 sm:h-8 text-zinc-900 mb-4 sm:mb-6" />
                <h3 className="text-lg sm:text-xl font-bold text-zinc-900 mb-2">Video Classroom</h3>
-               <p className="text-zinc-500 text-sm sm:text-base">Visual lessons from Ethiopia's top instructors.</p>
+               <p className="text-zinc-500 text-sm sm:text-base">Curated video lessons organized by subject and grade.</p>
             </Link>
 
             {/* Past Exams Card */}

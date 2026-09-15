@@ -281,8 +281,8 @@ const VideoLibrary: React.FC = () => {
                       <p className="text-xs text-zinc-500 font-medium mb-2 sm:mb-3">{info.tagline}</p>
                       <p className="text-[11px] text-zinc-400 leading-relaxed hidden sm:block">{info.subjects}</p>
 
-                      {/* Arrow link indicator */}
-                      <div className="mt-3 sm:mt-4 flex items-center gap-1 text-xs font-semibold text-zinc-900 opacity-0 group-hover:opacity-100 translate-x-0 group-hover:translate-x-0.5 transition-all duration-200">
+                      {/* Arrow link indicator — always visible on touch (no hover there) */}
+                      <div className="mt-3 sm:mt-4 flex items-center gap-1 text-xs font-semibold text-zinc-900 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-x-0 lg:group-hover:translate-x-0.5 transition-all duration-200">
                         Explore <ChevronRight size={13} />
                       </div>
                     </div>
@@ -514,7 +514,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
 
           {/* Play overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all duration-300">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-xl opacity-100 scale-100 lg:opacity-0 lg:scale-75 lg:group-hover:opacity-100 lg:group-hover:scale-100 transition-all duration-300">
               <div className="w-0 h-0 border-l-[11px] border-l-zinc-900 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent ml-1"></div>
             </div>
           </div>
@@ -564,7 +564,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
               <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
               <span>{video.likes} likes</span>
             </div>
-            <span className="text-[10px] sm:text-xs font-semibold text-zinc-900 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] sm:text-xs font-semibold text-zinc-900 flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
               Watch <PlayCircle size={11} className="sm:w-3 sm:h-3" />
             </span>
           </div>

@@ -194,7 +194,7 @@ const Community: React.FC = () => {
 
   const subjectOptions: Option[] = SUBJECTS.map(s => ({ label: s === 'All' ? 'All Topics' : s, value: s }));
   const postSubjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
-  const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
+  const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: g === 'General' ? 'General' : `Grade ${g}`, value: g }));
 
   return (
     <div className="space-y-8 animate-fade-in">

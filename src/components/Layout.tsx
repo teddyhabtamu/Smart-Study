@@ -630,7 +630,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                                 </p>
                                              </div>
                                            </div>
-                                           <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                           <div className="flex flex-col gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                              {!notif.isRead && (
                                                <button
                                                  onClick={async (e) => {

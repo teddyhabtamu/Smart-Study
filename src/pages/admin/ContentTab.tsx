@@ -66,7 +66,7 @@ const ContentTab: React.FC = () => {
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ kind: 'success' | 'error' | 'quota'; text: string } | null>(null);
 
-  const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
+  const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: g === 'General' ? 'General' : `Grade ${g}`, value: g }));
   const subjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
   const fileTypeOptions: Option[] = ['PDF', 'DOCX', 'PPT'].map(t => ({ label: t, value: t }));
 

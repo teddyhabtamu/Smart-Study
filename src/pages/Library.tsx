@@ -119,7 +119,7 @@ const Library: React.FC = () => {
   }, [documents]);
 
   const subjectOptions: Option[] = SUBJECTS.map(s => ({ label: s === 'All' ? 'All Subjects' : s, value: s }));
-  const gradeOptions: Option[] = GRADES.map(g => ({ label: g === 'All' ? 'All Grades' : `Grade ${g}`, value: g }));
+  const gradeOptions: Option[] = GRADES.map(g => ({ label: g === 'All' ? 'All Grades' : g === 'General' ? 'General' : `Grade ${g}`, value: g }));
   const sortOptions: Option[] = [
     { label: 'Newest First', value: 'newest' },
     { label: 'Most Popular', value: 'popular' },
@@ -369,7 +369,7 @@ const DocumentCard: React.FC<{ doc: Document }> = ({ doc }) => {
           <span className="text-[10px] sm:text-[11px] text-zinc-400 font-medium uppercase tracking-wider flex items-center gap-1">
             {doc.file_type} • {doc.downloads} Downloads
           </span>
-          <span className="text-xs font-medium text-zinc-900 flex items-center gap-1 sm:gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0">
+          <span className="text-xs font-medium text-zinc-900 flex items-center gap-1 sm:gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity lg:transform lg:translate-x-2 lg:group-hover:translate-x-0">
             View <BookOpen size={12} className="sm:w-3.5 sm:h-3.5" />
           </span>
         </div>
