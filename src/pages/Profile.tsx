@@ -54,6 +54,8 @@ const Profile: React.FC = () => {
   const [setupCodeSending, setSetupCodeSending] = useState(false);
   const [setupNew, setSetupNew] = useState('');
   const [setupConfirm, setSetupConfirm] = useState('');
+  const [showSetupNew, setShowSetupNew] = useState(false);
+  const [showSetupConfirm, setShowSetupConfirm] = useState(false);
   const [setupError, setSetupError] = useState('');
   // Inline modal error (persists until the next keystroke): toasts vanish in
   // seconds, but a wrong-code/password message must stay visible while the
@@ -276,8 +278,9 @@ const Profile: React.FC = () => {
       setSetupConfirm('');
       setSetupError('');
       addToast('Password set successfully — you can now sign in with email + password too.', 'success');
-      // Refresh so hasPassword flips and this panel swaps to change-password.
-      await refreshUser().catch(() => {});
+      // Forced refresh (bypasses the 30s profile cache): a plain refreshUser()
+      // returns the stale hasPassword:false and the setup panel never swaps.
+      await refreshUser(true).catch(() => {});
     } catch (error: any) {
       console.error('Set password error:', error);
       setSetupError(error.message || 'Failed to set password.');
@@ -1019,28 +1022,48 @@ const Profile: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-inksoft mb-1">New Password</label>
-                        <input
-                          type="password"
-                          autoComplete="new-password"
-                          value={setupNew}
-                          onChange={(e) => { setSetupNew(e.target.value); setSetupError(''); }}
-                          placeholder="At least 6 characters"
-                          className="w-full px-4 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 text-sm"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showSetupNew ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={setupNew}
+                            onChange={(e) => { setSetupNew(e.target.value); setSetupError(''); }}
+                            placeholder="At least 6 characters"
+                            className="w-full px-4 pr-10 py-2 bg-surface border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-500 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSetupNew(!showSetupNew)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
+                            aria-label={showSetupNew ? "Hide password" : "Show password"}
+                          >
+                            {showSetupNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-inksoft mb-1">Confirm New Password</label>
-                        <input
-                          type="password"
-                          autoComplete="new-password"
-                          value={setupConfirm}
-                          onChange={(e) => { setSetupConfirm(e.target.value); setSetupError(''); }}
-                          className={`w-full px-4 py-2 bg-surface border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 transition-colors text-sm ${
-                            setupConfirm && setupNew !== setupConfirm
-                              ? 'border-red-300 focus:border-red-500'
-                              : 'border-zinc-300 focus:border-zinc-500'
-                          }`}
-                        />
+                        <div className="relative">
+                          <input
+                            type={showSetupConfirm ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={setupConfirm}
+                            onChange={(e) => { setSetupConfirm(e.target.value); setSetupError(''); }}
+                            className={`w-full px-4 pr-10 py-2 bg-surface border rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 transition-colors text-sm ${
+                              setupConfirm && setupNew !== setupConfirm
+                                ? 'border-red-300 focus:border-red-500'
+                                : 'border-zinc-300 focus:border-zinc-500'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSetupConfirm(!showSetupConfirm)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-inksoft transition-colors"
+                            aria-label={showSetupConfirm ? "Hide password" : "Show password"}
+                          >
+                            {showSetupConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                       </div>
                       {setupError && (
                         <p role="alert" className="text-xs font-medium text-red-600">{setupError}</p>
