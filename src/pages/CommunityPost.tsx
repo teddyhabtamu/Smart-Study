@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
 import { forumAPI } from '../services/api';
+import { requestInstallPrompt } from '../components/PwaInstall';
 import { ForumPost } from '../types';
 import { CommunityPostDetailSkeleton } from '../components/Skeletons';
 import { formatRelativeTime } from '../utils/dateUtils';
@@ -911,9 +912,15 @@ const CommunityPost: React.FC = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
               <h4 className="font-bold text-sm mb-2 relative z-10">Study on the go</h4>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed relative z-10">
-                 Download the SmartStudy app for offline access and practice notifications.
+                 Install the SmartStudy app for offline access and practice notifications.
               </p>
-              <button className="w-full py-2 bg-white text-zinc-900 rounded-lg text-xs font-bold hover:bg-zinc-100 transition-colors relative z-10">
+              {/* Wired to the real PWA install flow (native prompt when the
+                  browser offers it, manual steps otherwise) — previously a
+                  dead button with no handler. */}
+              <button
+                onClick={requestInstallPrompt}
+                className="w-full py-2 bg-white text-zinc-900 rounded-lg text-xs font-bold hover:bg-zinc-100 transition-colors relative z-10 min-h-[44px]"
+              >
                  Get Mobile App
               </button>
            </div>

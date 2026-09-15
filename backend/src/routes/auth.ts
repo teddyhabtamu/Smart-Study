@@ -354,8 +354,21 @@ router.post('/refresh', [
 
     const user = userResult.rows[0] as User;
 
-    // Rotate: mark old token used, issue a new pair
-    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [tokenRecord.id]);
+    // Rotate: atomically consume the old token — the UPDATE only matches
+    // while still unused, so a double-submitted refresh (retry/race) gets
+    // exactly one live pair. Zero rows means a concurrent request won the
+    // race: reject without the theft mass-revoke (a retry is not an attack).
+    const consumeResult = await query(
+      "UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1 AND used_at IS NULL RETURNING id",
+      [tokenRecord.id]
+    );
+    if ((consumeResult.rowCount ?? 0) === 0) {
+      res.status(401).json({
+        success: false,
+        message: 'Refresh token already used. Please log in again.'
+      } as AuthResponse);
+      return;
+    }
     const { token, refreshToken: newRefreshToken } = await issueTokenPair(user);
 
     // Load bookmarks like the login flow does
@@ -575,9 +588,25 @@ router.post('/reset-password', [
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
-    // Update password and mark token as used
+    // Atomically consume the token BEFORE writing the new password: the
+    // UPDATE only matches a live token, so a double-submitted reset applies
+    // exactly once. Zero rows means it was consumed/raced after our checks
+    // above — the specific invalid/used/expired messages were already given
+    // their chance, so this is a generic re-request prompt.
+    const consumeReset = await query(
+      "UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1 AND type = 'password-reset' AND used_at IS NULL AND expires_at > NOW() RETURNING user_id",
+      [cleanedToken]
+    );
+    if ((consumeReset.rowCount ?? 0) === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'This reset token is no longer valid. Please request a new one.'
+      } as ApiResponse);
+      return;
+    }
+
+    // Update password (token already consumed above)
     await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [password_hash, user.id]);
-    await query('UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1', [cleanedToken]);
 
     // Send password reset success email (non-blocking, security notification)
     const changeTime = new Date().toLocaleString('en-US', {

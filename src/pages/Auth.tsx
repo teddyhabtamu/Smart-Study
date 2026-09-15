@@ -341,14 +341,16 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
               {view === 'register' && (
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Full Name</label>
+                  <label htmlFor="auth-name" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Full Name</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                       <User size={18} />
                     </div>
                     <input
+                      id="auth-name"
                       type="text"
                       required
+                      autoComplete="name"
                       className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                       placeholder="e.g. Hana Tesfaye"
                       value={name}
@@ -360,12 +362,13 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
               {view === 'register' && (
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">School Grade</label>
+                  <label htmlFor="auth-grade" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">School Grade</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                       <GraduationCap size={18} />
                     </div>
                     <select
+                      id="auth-grade"
                       className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all text-zinc-700"
                       value={grade}
                       onChange={(e) => setGrade(e.target.value)}
@@ -382,14 +385,16 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Email Address</label>
+                <label htmlFor="auth-email" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Email Address</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                     <Mail size={18} />
                   </div>
                   <input
+                    id="auth-email"
                     type="email"
                     required
+                    autoComplete="email"
                     className="block w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                     placeholder="student@example.com"
                     value={email}
@@ -402,7 +407,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                 <>
                   <div>
                     <div className="flex justify-between items-center mb-1.5 ml-1">
-                      <label className="block text-xs font-semibold text-zinc-700">Password</label>
+                      <label htmlFor="auth-password" className="block text-xs font-semibold text-zinc-700">Password</label>
                       {view === 'login' && (
                         <button 
                           type="button" 
@@ -418,8 +423,10 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                         <Lock size={18} />
                       </div>
                       <input
+                        id="auth-password"
                         type={showPassword ? "text" : "password"}
                         required
+                        autoComplete={view === 'login' ? 'current-password' : 'new-password'}
                         className="block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all placeholder-zinc-400"
                         placeholder="••••••••"
                         value={password}
@@ -441,14 +448,17 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
                   {view === 'register' && (
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Confirm Password</label>
+                      <label htmlFor="auth-confirm-password" className="block text-xs font-semibold text-zinc-700 mb-1.5 ml-1">Confirm Password</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
                           <Lock size={18} />
                         </div>
                         <input
+                          id="auth-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           required
+                          autoComplete="new-password"
+                          aria-describedby="auth-confirm-error"
                           className={`block w-full pl-10 pr-10 py-2.5 bg-zinc-50 border rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900/5 transition-all placeholder-zinc-400 ${
                             confirmPassword && password !== confirmPassword
                               ? 'border-red-300 focus:border-red-500'
@@ -468,7 +478,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                         </button>
                       </div>
                       {confirmPassword && password !== confirmPassword && (
-                        <p className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
+                        <p id="auth-confirm-error" role="alert" className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
                       )}
                     </div>
                   )}

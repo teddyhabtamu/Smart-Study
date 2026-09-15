@@ -175,11 +175,6 @@ const Community: React.FC = () => {
     }
   };
 
-  const handlePostClick = (postId: string) => {
-    // Guests can read (lurk) — voting, commenting and AI stay gated inside.
-    navigate(`/community/${postId}`);
-  };
-
   const handleAskQuestion = () => {
     if (!user) {
       navigate('/login');
@@ -579,10 +574,9 @@ const Community: React.FC = () => {
             const authorRole = post?.authorRole ?? post?.author_role;
             const isSolved = post?.isSolved ?? post?.is_solved ?? false;
             return (
-            <div
+            <article
               key={post.id}
-              onClick={() => handlePostClick(post.id)}
-              className="block bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group cursor-pointer"
+              className="block bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group"
             >
               <div className="flex items-start gap-3 sm:gap-4">
                 {/* Vote Section */}
@@ -621,8 +615,13 @@ const Community: React.FC = () => {
                     </span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-bold text-zinc-900 mb-2 group-hover:text-zinc-700 transition-colors">
-                    {post.title}
+                  <h3 className="text-base sm:text-lg font-bold text-zinc-900 mb-2 transition-colors">
+                    <Link
+                      to={`/community/${post.id}`}
+                      className="group-hover:text-zinc-700 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/30 rounded"
+                    >
+                      {post.title}
+                    </Link>
                   </h3>
 
                   <p className="text-zinc-600 text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
@@ -656,7 +655,7 @@ const Community: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </article>
           )})}
 
           {!loading.forumPosts && !errors.forumPosts && filteredPosts.length === 0 && (

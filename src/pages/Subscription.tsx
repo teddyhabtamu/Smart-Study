@@ -371,7 +371,7 @@ const Subscription: React.FC = () => {
                       onClick={handleSuccessContinue}
                       className="w-full py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"
                     >
-                      Continue with Free Features
+                      Done
                     </button>
                     <button onClick={() => setPaymentStep('confirm_sent')} className="w-full text-sm text-zinc-500 hover:text-zinc-900">
                       Back

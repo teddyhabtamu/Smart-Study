@@ -321,9 +321,11 @@ const Careers: React.FC = () => {
               </div>
               <form onSubmit={handleApplicationSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Full Name *</label>
+                  <label htmlFor="apply-name" className="block text-sm font-medium text-zinc-700 mb-1">Full Name *</label>
                   <input
+                    id="apply-name"
                     type="text"
+                    autoComplete="name"
                     value={applicationForm.applicant_name}
                     onChange={(e) => setApplicationForm({ ...applicationForm, applicant_name: e.target.value })}
                     className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
@@ -331,9 +333,11 @@ const Careers: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Email *</label>
+                  <label htmlFor="apply-email" className="block text-sm font-medium text-zinc-700 mb-1">Email *</label>
                   <input
+                    id="apply-email"
                     type="email"
+                    autoComplete="email"
                     value={applicationForm.applicant_email}
                     onChange={(e) => setApplicationForm({ ...applicationForm, applicant_email: e.target.value })}
                     className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
@@ -341,18 +345,22 @@ const Careers: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Phone Number</label>
+                  <label htmlFor="apply-phone" className="block text-sm font-medium text-zinc-700 mb-1">Phone Number</label>
                   <input
+                    id="apply-phone"
                     type="tel"
+                    autoComplete="tel"
                     value={applicationForm.applicant_phone}
                     onChange={(e) => setApplicationForm({ ...applicationForm, applicant_phone: e.target.value })}
                     className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Resume URL</label>
+                  <label htmlFor="apply-resume" className="block text-sm font-medium text-zinc-700 mb-1">Resume URL</label>
                   <input
+                    id="apply-resume"
                     type="url"
+                    autoComplete="url"
                     value={applicationForm.resume_url}
                     onChange={(e) => setApplicationForm({ ...applicationForm, resume_url: e.target.value })}
                     className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
@@ -361,8 +369,9 @@ const Careers: React.FC = () => {
                   <p className="text-xs text-zinc-500 mt-1">Upload your resume to a file sharing service and paste the link here</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Cover Letter</label>
+                  <label htmlFor="apply-cover" className="block text-sm font-medium text-zinc-700 mb-1">Cover Letter</label>
                   <textarea
+                    id="apply-cover"
                     value={applicationForm.cover_letter}
                     onChange={(e) => setApplicationForm({ ...applicationForm, cover_letter: e.target.value })}
                     className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500"
