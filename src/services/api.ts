@@ -1211,6 +1211,23 @@ export const adminAPI = {
       method: 'PUT',
       body: JSON.stringify({ status }),
     }),
+
+  // YouTube library sync (ADMIN / MODERATOR). Single-subject fits the 30s
+  // serverless budget; sync-all is time-boxed server-side and reports honest
+  // partial counts (stoppedEarly) plus quotaExceeded. 429 = daily API quota
+  // gone — the thrown Error carries the backend's user-facing message.
+  youtube: {
+    sync: (grade: number, subject: string): Promise<{ added: number }> =>
+      apiRequest('/admin/youtube/sync', {
+        method: 'POST',
+        body: JSON.stringify({ grade, subject }),
+      }),
+
+    syncAll: (): Promise<{ added: number; errors: number; stoppedEarly: boolean; quotaExceeded: boolean }> =>
+      apiRequest('/admin/youtube/sync-all', {
+        method: 'POST',
+      }),
+  },
 };
 
 // Search API
@@ -1397,7 +1414,10 @@ export const careersAPI = {
     apiRequest(`/careers/${positionId}/apply`, {
       method: 'POST',
       body: JSON.stringify(data),
-    }, false), // Optional auth - works for both logged in and guest users
+    }), // Default includeAuth=true: sends the token when logged in (links
+    // applicant_id + enables status notifications), still works for guests
+    // (no header sent when no token stored). `false` here used to silently
+    // orphan every logged-in application.
 
   // Admin endpoints
   admin: {

@@ -15,6 +15,21 @@ export const SUBJECTS = CONTENT_SUBJECTS;
 
 export const GRADES = [9, 10, 11, 12];
 
+// YouTube API quota errors (403 quotaExceeded / rateLimitExceeded). When the
+// daily 10k-unit budget is gone, EVERY further search fails identically —
+// callers must stop early instead of burning the serverless time budget on
+// 60 guaranteed-fail calls.
+export const isQuotaExceededError = (err: any): boolean => {
+    const status = err?.response?.status;
+    if (status !== 403 && status !== 429) return false;
+    try {
+        const details = JSON.stringify(err?.response?.data?.error?.errors || err?.response?.data || '');
+        return /quotaExceeded|rateLimitExceeded|quota/i.test(details);
+    } catch {
+        return status === 403;
+    }
+};
+
 export class YouTubeService {
     private static getApiKey(): string {
         const apiKey = process.env.YOUTUBE_API_KEY;
@@ -68,15 +83,16 @@ export class YouTubeService {
      *   time limit, so cron callers pass one and get honest partial counts
      *   instead of a killed run that looks like a failure.
      */
-    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; stoppedEarly: boolean }> {
+    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; stoppedEarly: boolean; quotaExceeded: boolean }> {
         if (!process.env.YOUTUBE_API_KEY) {
             console.log('YouTube sync skipped: YOUTUBE_API_KEY not configured');
-            return { added: 0, errors: 0, stoppedEarly: false };
+            return { added: 0, errors: 0, stoppedEarly: false, quotaExceeded: false };
         }
 
         let totalAdded = 0;
         let totalErrors = 0;
         let stoppedEarly = false;
+        let quotaExceeded = false;
 
         for (const grade of GRADES) {
             for (const subject of SUBJECTS) {
@@ -91,6 +107,15 @@ export class YouTubeService {
                     const result = await this.syncVideosForGradeAndSubject(grade, subject, adminUserId);
                     totalAdded += result.added;
                 } catch (error) {
+                    // Quota gone: every remaining subject would fail identically.
+                    // Stop now and say so honestly instead of burning the whole
+                    // time budget on ~60 failing API calls.
+                    if (isQuotaExceededError(error)) {
+                        console.error('YouTube API quota exhausted — stopping global sync early');
+                        quotaExceeded = true;
+                        stoppedEarly = true;
+                        break;
+                    }
                     console.error(`Failed to sync Grade ${grade} ${subject}:`, error);
                     totalErrors++;
                 }
@@ -98,7 +123,7 @@ export class YouTubeService {
             if (stoppedEarly) break;
         }
 
-        return { added: totalAdded, errors: totalErrors, stoppedEarly };
+        return { added: totalAdded, errors: totalErrors, stoppedEarly, quotaExceeded };
     }
 
     /**
@@ -146,49 +171,54 @@ export class YouTubeService {
                 const items = response.data?.items;
                 if (!items || items.length === 0) continue;
 
-                let addedCount = 0;
-
-                // 2. Process each video found
+                // Batch the duplicate check: one .in() query per subject
+                // instead of one query per video (6 round-trips per subject,
+                // ~360 for a full run — a big slice of the 25s cron budget).
+                const candidates = [];
                 for (const item of items) {
                     const videoId = item.id.videoId;
                     const snippet = item.snippet;
-
                     if (!videoId || !snippet) continue;
+                    candidates.push({
+                        videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+                        title: String(snippet.title || '').substring(0, 500),
+                        description: snippet.description,
+                        channelTitle: snippet.channelTitle,
+                        thumbnail: snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
+                    });
+                }
+                if (candidates.length === 0) continue;
 
-                    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-                    const title = snippet.title;
-                    const description = snippet.description;
-                    const channelTitle = snippet.channelTitle;
-                    const thumbnail = snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url;
-
-                    // 3. Check for duplicates
+                let existingUrls = new Set<string>();
+                try {
                     const { data: existing, error: err } = await supabaseAdmin
                         .from('videos')
-                        .select('id')
-                        .eq('video_url', videoUrl)
-                        .limit(1)
-                        .maybeSingle();
-
+                        .select('video_url')
+                        .in('video_url', candidates.map((c) => c.videoUrl));
                     if (err) {
-                        console.error('Error checking for duplicate video:', err);
-                        continue;
+                        console.error('Error checking for duplicate videos:', err);
+                    } else {
+                        existingUrls = new Set((existing || []).map((e: any) => e.video_url));
                     }
+                } catch (dupErr) {
+                    console.error('Error checking for duplicate videos:', dupErr);
+                }
 
-                    if (existing) continue;
-
-                    // 4. Insert new video
-                    const cleanTitle = title.substring(0, 500);
+                // 2. Insert each video not already in the library
+                let addedCount = 0;
+                for (const c of candidates) {
+                    if (existingUrls.has(c.videoUrl)) continue;
 
                     // If chapter column wasn't added successfully and this throws, you must migrate
                     await dbAdmin.insert('videos', {
-                        title: cleanTitle,
-                        description: description,
+                        title: c.title,
+                        description: c.description,
                         subject: subject,
                         grade: grade,
                         chapter: topic, // This maps to the topic found from JSON
-                        video_url: videoUrl,
-                        thumbnail: thumbnail,
-                        instructor: channelTitle,
+                        video_url: c.videoUrl,
+                        thumbnail: c.thumbnail,
+                        instructor: c.channelTitle,
                         is_premium: false,
                         uploaded_by: adminUserId
                     });
@@ -198,6 +228,11 @@ export class YouTubeService {
 
                 totalAddedForSubject += addedCount;
             } catch (error) {
+                // Quota exhaustion must propagate: syncAll aborts the whole run
+                // on it, and single-sync reports 429 instead of a misleading
+                // "0 new videos" success. Other errors stay per-query (one bad
+                // query must not fail the subject).
+                if (isQuotaExceededError(error)) throw error;
                 console.error(`YouTube API Error for query [${searchQuery}]:`, error);
                 // Intentionally let it map to other topics instead of totally failing the subject
             }

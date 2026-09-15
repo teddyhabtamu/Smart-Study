@@ -56,6 +56,16 @@ const ContentTab: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
 
+  // YouTube auto-sync (videos tab only). Single-subject sync fits the 30s
+  // serverless budget; full sync is time-boxed server-side with honest
+  // partial counts. Separate grade/subject state so picking a sync target
+  // never disturbs the create/edit form above.
+  const [syncGrade, setSyncGrade] = useState('10');
+  const [syncSubject, setSyncSubject] = useState('Mathematics');
+  const [isSyncingSingle, setIsSyncingSingle] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ kind: 'success' | 'error' | 'quota'; text: string } | null>(null);
+
   const gradeOptions: Option[] = GRADES.filter(g => g !== 'All').map(g => ({ label: `Grade ${g}`, value: g }));
   const subjectOptions: Option[] = SUBJECTS.filter(s => s !== 'All').map(s => ({ label: s, value: s }));
   const fileTypeOptions: Option[] = ['PDF', 'DOCX', 'PPT'].map(t => ({ label: t, value: t }));
@@ -356,6 +366,52 @@ const ContentTab: React.FC = () => {
     setDeleteConfirmation({ isOpen: false, id: null, title: null, type: null });
   };
 
+  const handleSingleSync = async () => {
+    setIsSyncingSingle(true);
+    setSyncFeedback(null);
+    try {
+      const gradeNum = syncGrade === 'General' ? 0 : parseInt(syncGrade, 10);
+      const result = await adminAPI.youtube.sync(gradeNum, syncSubject);
+      const msg = result.added === 0
+        ? `No new videos for Grade ${syncGrade} ${syncSubject} — library already has these results.`
+        : `Added ${result.added} new video${result.added === 1 ? '' : 's'} for Grade ${syncGrade} ${syncSubject}.`;
+      setSyncFeedback({ kind: 'success', text: msg });
+      addToast(msg, 'success');
+      await fetchVideos();
+    } catch (error: any) {
+      const text = error?.message || 'YouTube sync failed. Please try again.';
+      const isQuota = /quota/i.test(text);
+      setSyncFeedback({ kind: isQuota ? 'quota' : 'error', text });
+      addToast(text, 'error');
+    } finally {
+      setIsSyncingSingle(false);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    setIsSyncingAll(true);
+    setSyncFeedback(null);
+    try {
+      const result = await adminAPI.youtube.syncAll();
+      let text = `Global sync added ${result.added} new video${result.added === 1 ? '' : 's'} (${result.errors} error${result.errors === 1 ? '' : 's'}).`;
+      if (result.quotaExceeded) {
+        text += ' YouTube API quota exhausted — rerun after the daily reset.';
+      } else if (result.stoppedEarly) {
+        text += ' Stopped early on time budget — rerun to cover more combinations.';
+      }
+      setSyncFeedback({ kind: result.quotaExceeded ? 'quota' : 'success', text });
+      addToast(text, result.quotaExceeded ? 'error' : 'success');
+      await fetchVideos();
+    } catch (error: any) {
+      const text = error?.message || 'Global YouTube sync failed. Please try again.';
+      const isQuota = /quota/i.test(text);
+      setSyncFeedback({ kind: isQuota ? 'quota' : 'error', text });
+      addToast(text, 'error');
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
   return (
     <>
         <div className="space-y-4 sm:space-y-8 animate-fade-in">
@@ -390,11 +446,87 @@ const ContentTab: React.FC = () => {
                    : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'
                }`}
              >
-               <PlaySquare size={16} /> Video Lessons
-             </button>
-          </div>
+                <PlaySquare size={16} /> Video Lessons
+              </button>
+           </div>
 
-          {/* Form Section */}
+           {/* YouTube auto-sync — videos tab only. Single-subject is the
+               reliable path (fits the 30s serverless budget); full sync is
+               time-boxed with honest partial counts. Weekly cron covers the
+               library automatically, so this is for on-demand top-ups. */}
+           {contentCategory === 'videos' && (
+             <section className="bg-white p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm">
+               <div className="flex items-center gap-2 mb-1">
+                 <Youtube size={17} className="text-red-600" />
+                 <h2 className="text-sm sm:text-base font-bold text-zinc-900">YouTube auto-sync</h2>
+               </div>
+               <p className="text-xs text-zinc-500 mb-4">
+                 Imports Ethiopian tutorial videos for a grade + subject (one topic per run to protect the daily API quota).
+                 The weekly auto-sync covers the library — use this for on-demand top-ups.
+               </p>
+               <div className="grid grid-cols-2 gap-3 mb-3">
+                 <div>
+                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Grade</label>
+                   <CustomSelect
+                     options={gradeOptions.filter(o => o.value !== 'General')}
+                     value={syncGrade}
+                     onChange={setSyncGrade}
+                   />
+                 </div>
+                 <div>
+                   <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subject</label>
+                   <CustomSelect
+                     options={subjectOptions}
+                     value={syncSubject}
+                     onChange={setSyncSubject}
+                   />
+                 </div>
+               </div>
+               <div className="flex flex-col sm:flex-row gap-2">
+                 <button
+                   type="button"
+                   onClick={handleSingleSync}
+                   disabled={isSyncingSingle || isSyncingAll}
+                   className="flex-1 px-4 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   {isSyncingSingle ? (
+                     <><Loader2 size={16} className="animate-spin" /> Syncing Grade {syncGrade} {syncSubject}…</>
+                   ) : (
+                     <><Youtube size={16} /> Sync Grade {syncGrade} {syncSubject}</>
+                   )}
+                 </button>
+                 <button
+                   type="button"
+                   onClick={handleSyncAll}
+                   disabled={isSyncingSingle || isSyncingAll}
+                   title="Covers all grades + subjects — time-boxed to ~25s, may stop early with partial counts"
+                   className="flex-1 px-4 py-2.5 bg-white border border-zinc-300 text-zinc-700 text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   {isSyncingAll ? (
+                     <><Loader2 size={16} className="animate-spin" /> Syncing all…</>
+                   ) : (
+                     'Sync all grades + subjects'
+                   )}
+                 </button>
+               </div>
+               {syncFeedback && (
+                 <p
+                   role="status"
+                   className={`mt-3 text-xs sm:text-sm leading-relaxed px-3 py-2.5 rounded-lg border ${
+                     syncFeedback.kind === 'success'
+                       ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                       : syncFeedback.kind === 'quota'
+                         ? 'bg-amber-50 border-amber-200 text-amber-800'
+                         : 'bg-red-50 border-red-200 text-red-700'
+                   }`}
+                 >
+                   {syncFeedback.text}
+                 </p>
+               )}
+             </section>
+           )}
+
+           {/* Form Section */}
           <section ref={formSectionRef} className={`bg-white p-4 sm:p-6 md:p-8 rounded-xl border shadow-sm transition-colors ${editingId ? 'border-zinc-400 ring-4 ring-zinc-100' : 'border-zinc-200'}`}>
             <div className="flex justify-between items-center mb-4 sm:mb-6">
               <h2 className="text-base sm:text-lg font-bold text-zinc-900 flex items-center gap-2">
