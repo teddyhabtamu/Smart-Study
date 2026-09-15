@@ -1,4 +1,5 @@
 import express from 'express';
+import { createHash } from 'crypto';
 import { body, query as queryValidator } from 'express-validator';
 import { db, dbAdmin, query } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
@@ -172,9 +173,46 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
         post.views = (post.views || 0) + 1;
       }
     } else {
-      // For non-authenticated users, still increment views but don't track uniqueness
-      await query('UPDATE forum_posts SET views = views + 1 WHERE id = $1', [id]);
-      post.views = (post.views || 0) + 1;
+      // Guest dedup (mirrors video views): one counted view per
+      // (viewer_hash, post_id). viewer_hash is SHA-256(IP + User-Agent) — no
+      // identity stored. Previously EVERY guest load incremented (refresh-loop
+      // view farming). Best-effort: if tracking fails (e.g. the viewer_hash
+      // migration hasn't run yet), count the view rather than fail the post
+      // fetch — same degradation philosophy as the video route.
+      try {
+        const forwardedFor = req.headers['x-forwarded-for'];
+        const ip = (() => {
+          if (typeof forwardedFor === 'string') {
+            const first = forwardedFor.split(',').shift();
+            return (first ?? '').trim() || req.ip || 'unknown';
+          }
+          return req.ip || 'unknown';
+        })();
+        const ua = String(req.headers['user-agent'] || 'unknown');
+        const viewerHash = createHash('sha256').update(`${ip}|${ua}`).digest('hex');
+
+        const seen = await query(
+          'SELECT id FROM forum_views WHERE viewer_hash = $1 AND post_id = $2',
+          [viewerHash, id]
+        );
+        if (seen.rows.length === 0) {
+          try {
+            await query(
+              'INSERT INTO forum_views (post_id, viewer_hash) VALUES ($1, $2)',
+              [id, viewerHash]
+            );
+          } catch (insErr: any) {
+            // Racy double-insert means already counted — same outcome.
+            if (String(insErr?.code) !== '23505') throw insErr;
+          }
+          await query('UPDATE forum_posts SET views = views + 1 WHERE id = $1', [id]);
+          post.views = (post.views || 0) + 1;
+        }
+      } catch (trackErr: any) {
+        console.warn('Guest view tracking unavailable; counting view:', trackErr?.message || trackErr);
+        await query('UPDATE forum_posts SET views = views + 1 WHERE id = $1', [id]);
+        post.views = (post.views || 0) + 1;
+      }
     }
 
     // Comments + authors in one query, ordered in SQL (was: fetch ALL

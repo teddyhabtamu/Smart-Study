@@ -97,6 +97,26 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
       setIsOpen(false);
     } else if (e.key === 'Tab') {
       setIsOpen(false);
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Type-ahead: printable chars jump to the next option starting with
+      // that letter (cycling), matching native <select> behavior. Moves the
+      // highlight only — Enter still confirms, so mis-hits cost nothing.
+      const ch = e.key.toLowerCase();
+      if (options.length > 0) {
+        e.preventDefault();
+        if (!isOpen) {
+          setIsOpen(true);
+          const first = options.findIndex(opt => opt.label.toLowerCase().startsWith(ch));
+          setHighlightedIndex(first >= 0 ? first : 0);
+        } else {
+          let idx = highlightedIndex;
+          for (let i = 0; i < options.length; i++) {
+            idx = (idx + 1) % options.length;
+            if (options[idx].label.toLowerCase().startsWith(ch)) break;
+          }
+          setHighlightedIndex(idx);
+        }
+      }
     }
   };
 

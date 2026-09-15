@@ -30,6 +30,7 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const { documents, videos, forumPosts } = useData();
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -90,6 +91,10 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
 
   // Use searchResults instead of computed results
   const results = searchResults;
+
+  useEffect(() => {
+    itemRefs.current.get(selectedIndex)?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -166,6 +171,10 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
                 <div
                   key={`${result.type}-${(result as any).id || result.title}`}
                   id={`search-option-${index}`}
+                  ref={(el) => {
+                    if (el) itemRefs.current.set(index, el);
+                    else itemRefs.current.delete(index);
+                  }}
                   role="option"
                   aria-selected={index === selectedIndex}
                   onClick={() => {
