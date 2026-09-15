@@ -29,8 +29,10 @@ const Landing: React.FC = () => {
       {/* Hero Section with Grid Background */}
       <section className="relative pt-16 sm:pt-20 md:pt-24 pb-20 sm:pb-24 md:pb-32 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#f4f4f5_1px,transparent_1px),linear-gradient(to_bottom,#f4f4f5_1px,transparent_1px)] bg-[size:4rem_4rem] md:bg-[size:4rem_4rem] bg-[size:2rem_2rem]"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent"></div>
+          {/* Theme-aware grid + fade: hardcoded #f4f4f5/white drew a bright
+              wash over dark themes. Vars resolve identically in Ivory. */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgb(var(--zinc-100))_1px,transparent_1px),linear-gradient(to_bottom,rgb(var(--zinc-100))_1px,transparent_1px)] bg-[size:4rem_4rem] md:bg-[size:4rem_4rem] bg-[size:2rem_2rem]"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-surface to-transparent"></div>
         </div>
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center">

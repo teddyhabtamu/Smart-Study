@@ -102,7 +102,7 @@
 }
 
 .bg-grid-pattern {
-  background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
+  background-image: radial-gradient(rgb(var(--zinc-200)) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
