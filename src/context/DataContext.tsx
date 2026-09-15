@@ -117,7 +117,7 @@ interface DataContextType {
   fetchMoreVideos: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
   fetchForumPosts: (params?: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number }) => Promise<void>;
   fetchStudyEvents: (params?: { date?: string; type?: string; completed?: boolean; archived?: boolean | 'all' }) => Promise<void>;
-  fetchUsers: (params?: { limit?: number; offset?: number; search?: string }) => Promise<void>;
+  fetchUsers: (params?: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' }) => Promise<void>;
   fetchDashboard: () => Promise<void>;
 
   // CRUD operations
@@ -382,7 +382,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const fetchUsers = useCallback(async (params?: { limit?: number; offset?: number; search?: string }) => {
+  const fetchUsers = useCallback(async (params?: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' }) => {
     try {
       setLoadingState('users', true);
       setErrorState('users', null);

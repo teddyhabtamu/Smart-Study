@@ -61,7 +61,7 @@ router.get('/posts', async (req: express.Request, res: express.Response): Promis
       params.push(parseInt(grade as string));
     }
     if (search) {
-      conditions.push(`(p.title ILIKE $${paramCount} OR p.content ILIKE $${paramCount})`);
+      conditions.push(`(p.title ILIKE $${paramCount} OR p.content ILIKE $${paramCount} OR u.name ILIKE $${paramCount})`);
       params.push(`%${search}%`);
       paramCount++;
     }
@@ -69,7 +69,7 @@ router.get('/posts', async (req: express.Request, res: express.Response): Promis
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await query(
-      `SELECT COUNT(*) as total FROM forum_posts p ${whereClause}`,
+      `SELECT COUNT(*) as total FROM forum_posts p LEFT JOIN users u ON u.id = p.author_id ${whereClause}`,
       params
     );
     const total = parseInt(countResult.rows[0]?.total || '0', 10);

@@ -1,19 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '../../components/Dialog';
 import { Search, CheckCircle, Crown, Ban, Loader2, X } from 'lucide-react';
-import { useData } from '../../context/DataContext';
+import CustomSelect, { Option } from '../../components/CustomSelect';
 import { useToast } from '../../context/ToastContext';
-import { UserRole } from '../../types';
+import { User } from '../../types';
 import { adminAPI } from '../../services/api';
 import { StudentsTableSkeleton } from './skeletons';
 
-// Students management tab (extracted from Admin.tsx): search, premium
-// toggle, ban/activate. Owns its search + confirmation state.
+const PAGE_SIZE = 20;
+
+// Students management tab (extracted from Admin.tsx): server-side search,
+// plan/status filters, pagination, premium toggle, ban/activate.
+// Self-contained (mirrors AuditTab): the shared DataContext user list is a
+// bare first-50 fetch, so filtering it locally made every student past row
+// 50 invisible and unreachable.
 const StudentsTab: React.FC = () => {
-  const { allUsers, fetchUsers, loading } = useData();
   const { addToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Debounced: the fetch effect fires per value, so raw keystrokes would
+  // spam a request per character.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+  const [planFilter, setPlanFilter] = useState<'all' | 'free' | 'premium'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Banned'>('all');
+  const [students, setStudents] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE, offset: 0, hasMore: false });
   const [isConfirmingAction, setIsConfirmingAction] = useState(false);
 
   useEffect(() => {
@@ -35,7 +51,45 @@ const StudentsTab: React.FC = () => {
     studentName: null
   });
 
-  const filteredStudents = allUsers.filter(s => s.role === UserRole.STUDENT && ((s.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (s.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())));
+  const planOptions: Option[] = [
+    { label: 'All Plans', value: 'all' },
+    { label: 'Free', value: 'free' },
+    { label: 'Pro', value: 'premium' }
+  ];
+  const statusOptions: Option[] = [
+    { label: 'All Statuses', value: 'all' },
+    { label: 'Active', value: 'Active' },
+    { label: 'Banned', value: 'Banned' }
+  ];
+
+  const fetchStudents = useCallback(async (opts?: { offset?: number }) => {
+    try {
+      setUsersLoading(true);
+      const offset = opts?.offset ?? 0;
+      const result = await adminAPI.getUsers({
+        limit: PAGE_SIZE,
+        offset,
+        role: 'STUDENT',
+        search: debouncedSearch.trim() || undefined,
+        plan: planFilter === 'all' ? undefined : planFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter
+      });
+      setStudents(result.users || []);
+      setPagination(result.pagination || { total: 0, limit: PAGE_SIZE, offset, hasMore: false });
+    } catch (error: any) {
+      console.error('Failed to fetch students:', error);
+      addToast('Failed to load students', 'error');
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [addToast, debouncedSearch, planFilter, statusFilter]);
+
+  // Refetch from page one whenever search/filters change; pager drives offsets.
+  useEffect(() => {
+    fetchStudents({ offset: 0 });
+  }, [fetchStudents]);
+
+  const hasActiveFilters = debouncedSearch.trim() !== '' || planFilter !== 'all' || statusFilter !== 'all';
 
   // joinedDate is optional — never render "Invalid Date"
   const formatJoined = (value?: string): string => {
@@ -74,7 +128,7 @@ const StudentsTab: React.FC = () => {
       if (confirmationModal.type === 'upgrade' || confirmationModal.type === 'downgrade') {
         // Premium toggle
         await adminAPI.updateUserPremium(confirmationModal.studentId, confirmationModal.type === 'upgrade');
-        await fetchUsers();
+        await fetchStudents({ offset: pagination.offset });
         addToast(
           confirmationModal.type === 'upgrade'
             ? 'User upgraded to Premium Plan'
@@ -85,7 +139,7 @@ const StudentsTab: React.FC = () => {
         // Status toggle
         const newStatus = confirmationModal.type === 'ban' ? 'Banned' : 'Active';
         await adminAPI.updateUserStatus(confirmationModal.studentId, newStatus);
-        await fetchUsers();
+        await fetchStudents({ offset: pagination.offset });
         addToast(
           `User marked as ${newStatus}`,
           newStatus === 'Active' ? 'success' : 'warning'
@@ -118,27 +172,44 @@ const StudentsTab: React.FC = () => {
   return (
     <>
         <div className="space-y-4 sm:space-y-6 animate-fade-in">
-           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-surface p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
+           <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 bg-surface p-3 sm:p-4 rounded-xl border border-zinc-200 shadow-sm">
               <h2 className="text-base sm:text-lg font-bold text-ink">Student Management</h2>
-              <div className="relative w-full sm:w-auto">
-                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                 <input 
-                   type="text" 
-                   placeholder="Search students..." 
-                   className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all w-full sm:w-64"
-                   value={searchTerm}
-                   onChange={(e) => setSearchTerm(e.target.value)}
-                 />
+              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <div className="relative flex-1 sm:flex-initial">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    placeholder="Search name or email..."
+                    aria-label="Search students by name or email"
+                    className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all w-full sm:w-64"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="w-full sm:w-36">
+                  <CustomSelect
+                    options={planOptions}
+                    value={planFilter}
+                    onChange={(value) => setPlanFilter(value as 'all' | 'free' | 'premium')}
+                  />
+                </div>
+                <div className="w-full sm:w-40">
+                  <CustomSelect
+                    options={statusOptions}
+                    value={statusFilter}
+                    onChange={(value) => setStatusFilter(value as 'all' | 'Active' | 'Banned')}
+                  />
+                </div>
               </div>
            </div>
 
-           {loading.users ? (
+           {usersLoading ? (
              <StudentsTableSkeleton />
            ) : (
              <>
                {/* Mobile Card Layout */}
                <div className="md:hidden space-y-3">
-                 {filteredStudents.map((student) => (
+                 {students.map((student) => (
                    <div key={student.id} className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4">
                      <div className="flex items-start justify-between mb-3">
                        <div className="flex-1 min-w-0">
@@ -182,8 +253,10 @@ const StudentsTab: React.FC = () => {
                       </div>
                    </div>
                  ))}
-                 {filteredStudents.length === 0 && (
-                   <div className="text-center py-12 text-zinc-400 text-sm">No students found.</div>
+                 {students.length === 0 && (
+                   <div className="text-center py-12 text-zinc-400 text-sm">
+                     {hasActiveFilters ? 'No students match your search or filters.' : 'No students found.'}
+                   </div>
                  )}
                </div>
 
@@ -201,7 +274,7 @@ const StudentsTab: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-50">
-                      {filteredStudents.map((student) => (
+                      {students.map((student) => (
                       <tr key={student.id} className="hover:bg-zinc-50/50 transition-colors">
                         <td className="px-6 py-4">
                            <div>
@@ -251,15 +324,39 @@ const StudentsTab: React.FC = () => {
                         </td>
                       </tr>
                       ))}
-                      {filteredStudents.length === 0 && (
+                      {students.length === 0 && (
                         <tr>
                           <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 text-sm">
-                            No students found.
+                            {hasActiveFilters ? 'No students match your search or filters.' : 'No students found.'}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* Pagination footer */}
+              <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between text-xs text-zinc-500">
+                <div>
+                  Showing <span className="font-medium text-inksoft">{students.length}</span> of{' '}
+                  <span className="font-medium text-inksoft">{pagination.total}</span> students
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fetchStudents({ offset: Math.max(0, pagination.offset - pagination.limit) })}
+                    disabled={usersLoading || pagination.offset === 0}
+                    className="px-3 py-2 bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => fetchStudents({ offset: pagination.offset + pagination.limit })}
+                    disabled={usersLoading || !pagination.hasMore}
+                    className="px-3 py-2 bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
              </>

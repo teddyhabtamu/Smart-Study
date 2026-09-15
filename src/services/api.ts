@@ -157,6 +157,11 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       if (errorData.code) {
         (error as any).code = errorData.code;
       }
+      // Carry structured error payloads (e.g. USER_EXISTS ships the existing
+      // user's profile) so callers can offer next-step actions.
+      if (errorData.data !== undefined) {
+        (error as any).data = errorData.data;
+      }
       // Check if the error message indicates a timeout/network issue
       const messageLower = errorData.message.toLowerCase();
       // 500 errors often mean backend can't reach database (network issue)
@@ -218,6 +223,10 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       // callers can branch instead of string-matching messages.
       if (data.code) {
         (error as any).code = data.code;
+      }
+      // Carry structured error payloads (mirrors the !response.ok branch).
+      if (data.data !== undefined) {
+        (error as any).data = data.data;
       }
       // Check if the error message indicates a timeout/network issue
       const messageLower = data.message.toLowerCase();
@@ -1153,7 +1162,7 @@ export const adminAPI = {
   }> =>
     apiRequest('/admin/stats'),
 
-  getUsers: (params: { limit?: number; offset?: number; search?: string } = {}): Promise<{
+  getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
     users: User[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {
@@ -1241,10 +1250,45 @@ export const adminAPI = {
   getAdmins: (): Promise<User[]> =>
     apiRequest('/admin/admins'),
 
-  inviteAdmin: (data: { email: string; name: string; role?: string }): Promise<void> =>
+  inviteAdmin: (data: { email: string; name: string; role?: string }): Promise<{
+    userId: string;
+    email: string;
+    name: string;
+    role: string;
+    emailSent: boolean;
+    invitationLink: string;
+    expiresAt: string;
+  }> =>
     apiRequest('/admin/admins/invite', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  resendInvitation: (userId: string): Promise<{
+    userId: string;
+    email: string;
+    emailSent: boolean;
+    invitationLink: string;
+    expiresAt: string;
+  }> =>
+    apiRequest(`/admin/admins/${userId}/resend-invitation`, {
+      method: 'POST',
+    }),
+
+  revokeInvitation: (userId: string): Promise<{ success: boolean; message: string }> =>
+    apiRequest(`/admin/admins/${userId}/invitation`, {
+      method: 'DELETE',
+    }),
+
+  updateAdminRole: (userId: string, role: 'ADMIN' | 'MODERATOR'): Promise<{
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+  }> =>
+    apiRequest(`/admin/admins/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
     }),
 
   removeAdmin: (userId: string): Promise<void> =>

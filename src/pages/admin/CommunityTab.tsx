@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '../../components/Dialog';
-import { AlertTriangle, Trash2 } from 'lucide-react';
-import { useData } from '../../context/DataContext';
+import { AlertTriangle, Trash2, Search } from 'lucide-react';
+import CustomSelect, { Option } from '../../components/CustomSelect';
 import { useToast } from '../../context/ToastContext';
+import { forumAPI } from '../../services/api';
+import { SUBJECTS } from '../../constants';
 import { CommunityPostsSkeleton } from './skeletons';
 
+const PAGE_SIZE = 15;
+
 // Community moderation tab (extracted from Admin.tsx): review + delete posts.
+// Self-contained with server-side search (title/content/author), subject
+// filter, and pagination — rendering the full unfiltered list forced admins
+// to scroll every post to find abuse.
 const CommunityTab: React.FC = () => {
-  const { forumPosts, deleteForumPost, fetchForumPosts, loading } = useData();
   const { addToast } = useToast();
   const [mounted, setMounted] = useState(false);
 
@@ -15,6 +21,51 @@ const CommunityTab: React.FC = () => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
+
+  const [posts, setPosts] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE, offset: 0, hasMore: false });
+  const [searchTerm, setSearchTerm] = useState('');
+  // Debounced: the fetch effect fires per value, so raw keystrokes would
+  // spam a request per character.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+  const [subjectFilter, setSubjectFilter] = useState('');
+
+  const subjectOptions: Option[] = [
+    { label: 'All Subjects', value: '' },
+    ...SUBJECTS.filter((s) => s !== 'All').map((s) => ({ label: s, value: s }))
+  ];
+
+  const fetchPosts = useCallback(async (opts?: { offset?: number }) => {
+    try {
+      setPostsLoading(true);
+      const offset = opts?.offset ?? 0;
+      const result = await forumAPI.getPosts({
+        limit: PAGE_SIZE,
+        offset,
+        search: debouncedSearch.trim() || undefined,
+        subject: subjectFilter || undefined
+      });
+      setPosts(result.posts || []);
+      setPagination(result.pagination || { total: 0, limit: PAGE_SIZE, offset, hasMore: false });
+    } catch (error: any) {
+      console.error('Failed to fetch community posts:', error);
+      addToast('Failed to load community posts', 'error');
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [addToast, debouncedSearch, subjectFilter]);
+
+  // Refetch from page one whenever search/subject change; pager drives offsets.
+  useEffect(() => {
+    fetchPosts({ offset: 0 });
+  }, [fetchPosts]);
+
+  const hasActiveFilters = debouncedSearch.trim() !== '' || subjectFilter !== '';
 
   const [deletePostConfirmation, setDeletePostConfirmation] = useState<{
     isOpen: boolean;
@@ -40,8 +91,13 @@ const CommunityTab: React.FC = () => {
 
     setIsDeletingPost(true);
     try {
-      await deleteForumPost(deletePostConfirmation.id);
-      await fetchForumPosts(); // Refresh posts list
+      await forumAPI.deletePost(deletePostConfirmation.id);
+      // If the page's last post was deleted, step back so the admin never
+      // lands on an empty page with a Next/Prev dead end.
+      const nextOffset = posts.length <= 1 && pagination.offset > 0
+        ? Math.max(0, pagination.offset - pagination.limit)
+        : pagination.offset;
+      await fetchPosts({ offset: nextOffset });
       addToast('Discussion post deleted successfully', 'success');
       setDeletePostConfirmation({ isOpen: false, id: null, title: null });
     } catch (error: any) {
@@ -61,15 +117,36 @@ const CommunityTab: React.FC = () => {
     <>
          <div className="space-y-4 sm:space-y-6 animate-fade-in">
             <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm">
-              <h2 className="text-base sm:text-lg font-bold text-ink mb-2">Community Moderation</h2>
-              <p className="text-xs sm:text-sm text-zinc-500">Review and manage discussions.</p>
+              <h2 className="text-base sm:text-lg font-bold text-ink mb-1">Community Moderation</h2>
+              <p className="text-xs sm:text-sm text-zinc-500 mb-4">Review and manage discussions.</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    placeholder="Search title, content, or author..."
+                    aria-label="Search community posts"
+                    className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 transition-all w-full"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="w-full sm:w-48">
+                  <CustomSelect
+                    options={subjectOptions}
+                    value={subjectFilter}
+                    onChange={(value) => setSubjectFilter(value)}
+                  />
+                </div>
+              </div>
             </div>
 
-            {loading.forumPosts ? (
+            {postsLoading ? (
               <CommunityPostsSkeleton />
             ) : (
+              <>
               <div className="grid gap-3 sm:gap-4">
-                 {forumPosts.map(post => (
+                 {posts.map(post => (
                    <div key={post.id} className="bg-surface p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm flex gap-3 sm:gap-4">
                       <div className="flex flex-col items-center gap-1 text-zinc-400 pt-1 hidden sm:flex">
                          <AlertTriangle size={20} />
@@ -97,10 +174,37 @@ const CommunityTab: React.FC = () => {
                       </div>
                    </div>
                  ))}
-                 {forumPosts.length === 0 && (
-                   <div className="text-center py-12 text-zinc-400">No community posts to moderate.</div>
+                 {posts.length === 0 && (
+                   <div className="text-center py-12 text-zinc-400">
+                     {hasActiveFilters ? 'No discussions match your search or filter.' : 'No community posts to moderate.'}
+                   </div>
                  )}
               </div>
+
+              {/* Pagination footer */}
+              <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between text-xs text-zinc-500">
+                <div>
+                  Showing <span className="font-medium text-inksoft">{posts.length}</span> of{' '}
+                  <span className="font-medium text-inksoft">{pagination.total}</span> discussions
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fetchPosts({ offset: Math.max(0, pagination.offset - pagination.limit) })}
+                    disabled={postsLoading || pagination.offset === 0}
+                    className="px-3 py-2 bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => fetchPosts({ offset: pagination.offset + pagination.limit })}
+                    disabled={postsLoading || !pagination.hasMore}
+                    className="px-3 py-2 bg-surface border border-zinc-200 rounded-lg hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+              </>
             )}
          </div>
       <Dialog

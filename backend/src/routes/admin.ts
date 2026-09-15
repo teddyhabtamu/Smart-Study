@@ -190,12 +190,18 @@ router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Re
 router.get('/users', requireRole(['ADMIN']), [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
   query('offset').optional().isInt({ min: 0 }).toInt(),
-  query('search').optional().isString()
+  query('search').optional().isString(),
+  query('plan').optional().isIn(['all', 'free', 'premium']).withMessage('Plan must be all, free, or premium'),
+  query('status').optional().isIn(['all', 'Active', 'Banned']).withMessage('Status must be all, Active, or Banned'),
+  query('role').optional().isIn(['STUDENT', 'MODERATOR']).withMessage('Role must be STUDENT or MODERATOR')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
     const search = req.query.search;
+    const plan = req.query.plan as string | undefined;
+    const status = req.query.status as string | undefined;
+    const role = req.query.role as string | undefined;
 
     // Explicit safe projection IN SQL: the old code fetched every user row
     // (SELECT *) and returned it, leaking bcrypt password_hash (plus avatar
@@ -203,9 +209,26 @@ router.get('/users', requireRole(['ADMIN']), [
     // excluded by default — allowlist, not blocklist.
     const userConditions = [`role <> 'ADMIN'`];
     const userParams: any[] = [];
+    if (role) {
+      userConditions.push(`role = $${userParams.length + 1}`);
+      userParams.push(role);
+    }
     if (search) {
       userConditions.push(`(name ILIKE $${userParams.length + 1} OR email ILIKE $${userParams.length + 1})`);
       userParams.push(`%${String(search).replace(/[\\%_]/g, (m) => `\\${m}`)}%`);
+    }
+    // Plan filter: premium = is_premium true; free = anything else (false/NULL).
+    if (plan === 'premium') {
+      userConditions.push(`is_premium IS TRUE`);
+    } else if (plan === 'free') {
+      userConditions.push(`is_premium IS NOT TRUE`);
+    }
+    // Status filter: legacy rows may carry NULL, which the UI treats as
+    // Active — mirror that here so "Active" + "Banned" partition the table.
+    if (status === 'Active') {
+      userConditions.push(`(status = 'Active' OR status IS NULL)`);
+    } else if (status === 'Banned') {
+      userConditions.push(`status = 'Banned'`);
     }
     const userWhere = `WHERE ${userConditions.join(' AND ')}`;
     const SAFE_USER_COLS = 'id, name, email, role, status, is_premium, xp, level, streak, grade, premium_since, created_at, updated_at';
@@ -760,6 +783,28 @@ router.get('/admins', requireRole(['ADMIN']), async (req: express.Request, res: 
 
     // Return safe fields only. A previous version spread the whole row,
     // shipping password_hash and recovery tokens to the admin panel.
+    // Pending invites also carry their latest unused invitation expiry so
+    // the UI can show "Expires <date>" / "Expired" and offer resend. Token
+    // VALUES never leave the server — only the expiry timestamp.
+    const pendingIds = teamMembers
+      .filter((u: any) => u.status !== 'Active')
+      .map((u: any) => u.id);
+    let expiryByUser = new Map<string, string | null>();
+    if (pendingIds.length > 0) {
+      try {
+        const expRows = await dbQuery(
+          `SELECT user_id, MAX(expires_at) AS exp FROM tokens
+           WHERE type = 'admin-invitation' AND used_at IS NULL AND user_id = ANY($1)
+           GROUP BY user_id`,
+          [pendingIds]
+        );
+        for (const row of expRows.rows) {
+          expiryByUser.set(String(row.user_id), row.exp ? new Date(row.exp).toISOString() : null);
+        }
+      } catch (expErr) {
+        console.error('Failed to load invitation expiries:', expErr);
+      }
+    }
     const membersWithStatus = teamMembers.map((member: any) => ({
       id: member.id,
       name: member.name,
@@ -769,7 +814,10 @@ router.get('/admins', requireRole(['ADMIN']), async (req: express.Request, res: 
       is_premium: member.is_premium,
       created_at: member.created_at,
       updated_at: member.updated_at,
-      status: member.status === 'Active' ? 'Active' : 'Inactive'
+      status: member.status === 'Active' ? 'Active' : 'Inactive',
+      invitation_expires_at: member.status === 'Active'
+        ? null
+        : (expiryByUser.has(String(member.id)) ? expiryByUser.get(String(member.id)) ?? null : null)
     }));
 
     res.json({
@@ -794,12 +842,22 @@ router.post('/admins/invite', requireRole(['ADMIN']), [
   try {
     const { email, name, role = 'ADMIN' } = req.body;
 
-    // Check if user already exists
+    // Check if user already exists — return their safe profile with a
+    // machine-readable code so the UI can offer promotion instead of a
+    // dead-end "User already exists".
     const existingUser = await dbAdmin.findOne('users', (u: any) => u.email === email);
     if (existingUser) {
       res.status(400).json({
         success: false,
-        message: 'User already exists'
+        code: 'USER_EXISTS',
+        message: `${email} already has an account (${existingUser.name || 'no name'}, role ${existingUser.role}). You can promote them to the team instead of inviting.`,
+        data: {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          role: existingUser.role,
+          status: existingUser.status || 'Active'
+        }
       } as ApiResponse);
       return;
     }
@@ -845,31 +903,43 @@ router.post('/admins/invite', requireRole(['ADMIN']), [
     const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
     const invitationLink = `${frontendUrl}/accept-invitation?token=${invitationToken}`;
 
-    // Send admin invitation email (non-blocking)
+    // Send admin invitation email — AWAITED, not fire-and-forget. The old
+    // code toasted "Invitation sent" while logging SMTP failures to the
+    // server console, leaving the invitee with nothing and the admin unaware.
+    // The invitation is created regardless; emailSent tells the UI whether
+    // to show the copy-link fallback.
     console.log('📧 Triggering admin invitation email:', { email, name, role });
-    EmailService.sendAdminInvitationEmail(email, name, role, invitationLink).catch(error => {
+    let emailSent = false;
+    try {
+      emailSent = await EmailService.sendAdminInvitationEmail(email, name, role, invitationLink);
+    } catch (error) {
       console.error('❌ Failed to send admin invitation email:', error);
-      // Don't fail the request if email fails
-    });
+      emailSent = false;
+    }
 
     // Audit log (non-blocking)
     logAdminActivity(req, {
       action: 'admin.invite',
       target_type: 'admin_team',
       target_id: String(inserted?.id || ''),
-      summary: `Invited ${email} as ${role}`,
+      summary: `Invited ${email} as ${role}${emailSent ? '' : ' (email failed — link shared manually)'}`,
       after: { id: inserted?.id, email, name, role, status: 'Inactive' },
-      meta: { invited_email: email, invited_role: role },
+      meta: { invited_email: email, invited_role: role, emailSent },
     }).catch(() => {});
 
     res.status(201).json({
       success: true,
-      message: 'Admin invitation sent successfully. They will receive an email with instructions to accept the invitation.',
+      message: emailSent
+        ? 'Admin invitation sent successfully. They will receive an email with instructions to accept the invitation.'
+        : 'Invitation created, but the email failed to send. Copy the invitation link below and share it manually, or resend it from the team list.',
       data: {
         userId: inserted.id,
         email,
         name,
-        role
+        role,
+        emailSent,
+        invitationLink,
+        expiresAt: expiresAt.toISOString()
       }
     } as ApiResponse);
   } catch (error) {
@@ -878,6 +948,196 @@ router.post('/admins/invite', requireRole(['ADMIN']), [
       success: false,
       message: 'Failed to send invitation'
     } as ApiResponse);
+  }
+});
+
+// Resend a pending team invitation (fresh 7-day token, old links die).
+router.post('/admins/:userId/resend-invitation', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' } as ApiResponse);
+      return;
+    }
+    if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
+      res.status(400).json({ success: false, message: 'User is not a team member' } as ApiResponse);
+      return;
+    }
+    if (user.status === 'Active') {
+      res.status(400).json({ success: false, message: 'Invitation already accepted — nothing to resend' } as ApiResponse);
+      return;
+    }
+
+    // Invalidate previous unused links, then issue a fresh 7-day token.
+    await dbQuery(
+      `UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND type = 'admin-invitation' AND used_at IS NULL`,
+      [userId]
+    );
+    const invitationToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await dbQuery(
+      'INSERT INTO tokens (token, user_id, type, expires_at) VALUES ($1, $2, $3, $4)',
+      [invitationToken, userId, 'admin-invitation', expiresAt.toISOString()]
+    );
+    const frontendUrl = config.server.frontendUrl || 'http://localhost:5173';
+    const invitationLink = `${frontendUrl}/accept-invitation?token=${invitationToken}`;
+
+    let emailSent = false;
+    try {
+      emailSent = await EmailService.sendAdminInvitationEmail(user.email, user.name, user.role, invitationLink);
+    } catch (error) {
+      console.error('❌ Failed to resend admin invitation email:', error);
+      emailSent = false;
+    }
+
+    logAdminActivity(req, {
+      action: 'admin.invite.resend',
+      target_type: 'admin_team',
+      target_id: String(userId),
+      summary: `Resent invitation to ${user.email}${emailSent ? '' : ' (email failed — link shared manually)'}`,
+      after: { id: user.id, email: user.email, name: user.name, role: user.role },
+      meta: { emailSent },
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: emailSent
+        ? `Invitation resent to ${user.email}`
+        : 'Invitation renewed, but the email failed to send. Copy the invitation link below and share it manually.',
+      data: { userId, email: user.email, emailSent, invitationLink, expiresAt: expiresAt.toISOString() }
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Resend invitation error:', error);
+    res.status(500).json({ success: false, message: 'Failed to resend invitation' } as ApiResponse);
+  }
+});
+
+// Revoke a pending team invitation (deletes the placeholder account + links).
+// Active members go through team removal instead — deleting them here would
+// destroy a real account with history.
+router.delete('/admins/:userId/invitation', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' } as ApiResponse);
+      return;
+    }
+    if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
+      res.status(400).json({ success: false, message: 'User is not a team member' } as ApiResponse);
+      return;
+    }
+    if (user.status === 'Active') {
+      res.status(400).json({ success: false, message: 'Invitation already accepted — remove them from the team instead' } as ApiResponse);
+      return;
+    }
+    if (userId === req.user!.id) {
+      res.status(403).json({
+        success: false,
+        code: 'SELF_ACTION',
+        message: 'You cannot revoke your own invitation — ask another admin'
+      } as ApiResponse);
+      return;
+    }
+
+    await dbQuery(`DELETE FROM tokens WHERE user_id = $1 AND type = 'admin-invitation'`, [userId]);
+    await dbAdmin.delete('users', userId);
+
+    logAdminActivity(req, {
+      action: 'admin.invite.revoke',
+      target_type: 'admin_team',
+      target_id: String(userId),
+      summary: `Revoked pending invitation for ${user.email} (${user.role})`,
+      before: { id: user.id, email: user.email, name: user.name, role: user.role },
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `Invitation for ${user.email} revoked`
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Revoke invitation error:', error);
+    res.status(500).json({ success: false, message: 'Failed to revoke invitation' } as ApiResponse);
+  }
+});
+
+// Change a user's team role — promotion (STUDENT -> team) and ADMIN <->
+// MODERATOR moves. Carries the same self/last-admin guards as removal.
+router.put('/admins/:userId/role', requireRole(['ADMIN']), [
+  body('role').isIn(['ADMIN', 'MODERATOR']).withMessage('Role must be ADMIN or MODERATOR')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { role } = req.body;
+    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' } as ApiResponse);
+      return;
+    }
+
+    if (user.role === role) {
+      res.json({
+        success: true,
+        message: `${user.email} is already ${role === 'ADMIN' ? 'a Super Admin' : 'a Content Manager'} — no changes made`
+      } as ApiResponse);
+      return;
+    }
+
+    if (userId === req.user!.id) {
+      res.status(403).json({
+        success: false,
+        code: 'SELF_ACTION',
+        message: 'You cannot change your own team role — ask another admin'
+      } as ApiResponse);
+      return;
+    }
+
+    if ((user.status || 'Active') === 'Banned') {
+      res.status(400).json({
+        success: false,
+        message: 'Unban this account before adding them to the team'
+      } as ApiResponse);
+      return;
+    }
+
+    if (user.role === 'ADMIN' && role !== 'ADMIN') {
+      const allUsers = await dbAdmin.get('users');
+      const admins = allUsers.filter((u: any) => u.role === 'ADMIN');
+      if (admins.length <= 1) {
+        res.status(400).json({ success: false, message: 'Cannot demote the last admin' } as ApiResponse);
+        return;
+      }
+    }
+
+    const beforeRole = user.role;
+    const updated = await dbAdmin.update('users', userId, {
+      role,
+      updated_at: new Date().toISOString()
+    });
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'User not found or update failed' } as ApiResponse);
+      return;
+    }
+
+    logAdminActivity(req, {
+      action: 'admin.role.update',
+      target_type: 'admin_team',
+      target_id: String(userId),
+      summary: `Changed ${user.email} role ${beforeRole} -> ${role}`,
+      before: { id: user.id, email: user.email, name: user.name, role: beforeRole },
+      after: { id: user.id, email: user.email, name: user.name, role },
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `${user.email} is now ${role === 'ADMIN' ? 'a Super Admin' : 'a Content Manager'}`,
+      data: { id: user.id, email: user.email, name: user.name, role }
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Update admin role error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update team role' } as ApiResponse);
   }
 });
 

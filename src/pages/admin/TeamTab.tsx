@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '../../components/Dialog';
-import { Loader2, Trash2, UserPlus, X, Mail, Search, Shield, CheckCircle } from 'lucide-react';
+import { Loader2, Trash2, UserPlus, X, Copy, Check, Send, AlertTriangle, CheckCircle } from 'lucide-react';
 import CustomSelect, { Option } from '../../components/CustomSelect';
 import { User } from '../../types';
 import { useToast } from '../../context/ToastContext';
@@ -40,6 +40,32 @@ const TeamTab: React.FC = () => {
   });
   const [isInviting, setIsInviting] = useState(false);
   const [isRemovingAdmin, setIsRemovingAdmin] = useState<string | null>(null);
+  // Post-invite result (link fallback when email fails + manual sharing).
+  const [inviteResult, setInviteResult] = useState<{
+    email: string;
+    invitationLink: string;
+    expiresAt: string;
+    emailSent: boolean;
+  } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  // Promote-existing-account flow (invite on a taken email is a 400 with code).
+  const [promoteCandidate, setPromoteCandidate] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    status: string;
+  } | null>(null);
+  const [promoteRole, setPromoteRole] = useState<'ADMIN' | 'MODERATOR'>('MODERATOR');
+  const [isPromoting, setIsPromoting] = useState(false);
+  // Pending-invite actions.
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [revokeConfirmation, setRevokeConfirmation] = useState<{
+    isOpen: boolean;
+    id: string | null;
+    name: string | null;
+  }>({ isOpen: false, id: null, name: null });
+  const [isRevoking, setIsRevoking] = useState<string | null>(null);
 
   const roleOptions: Option[] = [
     { label: 'Content Manager (Can upload & edit)', value: 'Content Manager' },
@@ -70,30 +96,140 @@ const TeamTab: React.FC = () => {
     }
   }, [addToast]);
 
+  // Invitation expiry display: the server ships the latest unused link
+  // expiry per pending member (never the token itself).
+  const inviteExpiry = (member: any): { label: string; expired: boolean } => {
+    const raw = (member as any).invitation_expires_at;
+    if (!raw) return { label: 'No active link — resend', expired: true };
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return { label: 'No active link — resend', expired: true };
+    const date = formatMemberDate(raw);
+    return d.getTime() < Date.now()
+      ? { label: `Link expired ${date} — resend`, expired: true }
+      : { label: `Link expires ${date}`, expired: false };
+  };
+
+  const closeInviteDialog = () => {
+    setIsInviteOpen(false);
+    setInviteResult(null);
+    setLinkCopied(false);
+  };
+
+  const copyInviteLink = async () => {
+    if (!inviteResult) return;
+    try {
+      await navigator.clipboard.writeText(inviteResult.invitationLink);
+      setLinkCopied(true);
+      addToast('Invitation link copied', 'success');
+    } catch {
+      addToast('Copy failed — select the link manually', 'error');
+    }
+  };
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail || !inviteName) return;
 
     setIsInviting(true);
     try {
-      await adminAPI.inviteAdmin({
+      const result = await adminAPI.inviteAdmin({
         email: inviteEmail,
         name: inviteName,
         role: inviteRole === 'Super Admin' ? 'ADMIN' : 'MODERATOR'
       });
-      setIsInviteOpen(false);
+      // Keep the dialog open on the result panel: the link is shown once,
+      // and is the fallback when the email failed.
+      setInviteResult({
+        email: result.email,
+        invitationLink: result.invitationLink,
+        expiresAt: result.expiresAt,
+        emailSent: result.emailSent
+      });
+      setLinkCopied(false);
       setInviteName('');
       setInviteEmail('');
       // Refresh so the Pending list shows the new invite immediately —
       // otherwise the admin re-invites thinking it didn't register.
-      await fetchAdmins().catch(() => {
-        addToast('Invite sent, but the list failed to refresh — reopen this tab to confirm.', 'warning');
-      });
-      addToast(`Invitation sent to ${inviteEmail}`, 'success');
+      await fetchAdmins();
+      if (result.emailSent) {
+        addToast(`Invitation sent to ${result.email}`, 'success');
+      }
     } catch (error: any) {
-      addToast(error.message || 'Failed to send invitation', 'error');
+      // Taken email -> promote flow instead of a dead-end error.
+      if (error?.code === 'USER_EXISTS' && error?.data?.id) {
+        setPromoteCandidate({
+          id: error.data.id,
+          name: error.data.name || inviteName,
+          email: error.data.email || inviteEmail,
+          role: error.data.role || 'STUDENT',
+          status: error.data.status || 'Active'
+        });
+        setPromoteRole('MODERATOR');
+      } else {
+        addToast(error.message || 'Failed to send invitation', 'error');
+      }
     } finally {
       setIsInviting(false);
+    }
+  };
+
+  const confirmPromote = async () => {
+    if (!promoteCandidate || isPromoting) return;
+    setIsPromoting(true);
+    try {
+      const updated = await adminAPI.updateAdminRole(promoteCandidate.id, promoteRole);
+      await fetchAdmins();
+      addToast(
+        `${updated.email} is now ${promoteRole === 'ADMIN' ? 'a Super Admin' : 'a Content Manager'}`,
+        'success'
+      );
+      setPromoteCandidate(null);
+      closeInviteDialog();
+    } catch (error: any) {
+      addToast(error.message || 'Failed to promote user', 'error');
+    } finally {
+      setIsPromoting(false);
+    }
+  };
+
+  const handleResend = async (member: User) => {
+    setResendingId(member.id);
+    try {
+      const result = await adminAPI.resendInvitation(member.id);
+      await fetchAdmins();
+      if (result.emailSent) {
+        addToast(`Invitation resent to ${result.email}`, 'success');
+      } else {
+        // Surface the fresh link: email failed again, admin shares manually.
+        setInviteResult({
+          email: result.email,
+          invitationLink: result.invitationLink,
+          expiresAt: result.expiresAt,
+          emailSent: false
+        });
+        setLinkCopied(false);
+        setIsInviteOpen(true);
+        addToast('Invitation renewed, but the email failed — copy the link below', 'warning');
+      }
+    } catch (error: any) {
+      addToast(error.message || 'Failed to resend invitation', 'error');
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const confirmRevoke = async () => {
+    if (!revokeConfirmation.id || isRevoking) return;
+    setIsRevoking(revokeConfirmation.id);
+    try {
+      const res = await adminAPI.revokeInvitation(revokeConfirmation.id);
+      await fetchAdmins();
+      addToast(res?.message || 'Invitation revoked', 'success');
+      setRevokeConfirmation({ isOpen: false, id: null, name: null });
+    } catch (error: any) {
+      addToast(error.message || 'Failed to revoke invitation', 'error');
+    } finally {
+      setIsRevoking(null);
     }
   };
 
@@ -326,43 +462,66 @@ const TeamTab: React.FC = () => {
                                    <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-sm font-bold text-inksoft flex-shrink-0">
                                      {member.name.charAt(0)}
                                    </div>
-                                   <div className="flex-1 min-w-0">
-                                     <h4 className="font-medium text-ink truncate">{member.name}</h4>
-                                     <p className="text-xs text-zinc-500 truncate">{member.email}</p>
-                                   </div>
-                                 </div>
-                                 <button
-                                   onClick={() => handleRemoveAdmin(member.id, member.name)}
-                                   disabled={isRemovingAdmin === member.id}
-                                   className="ml-2 p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                                 >
-                                   {isRemovingAdmin === member.id ? (
-                                     <Loader2 size={16} className="animate-spin" />
-                                   ) : (
-                                     <Trash2 size={16} />
-                                   )}
-                                 </button>
-                               </div>
-                               <div className="flex items-center justify-between text-xs">
-                                 <div className="flex items-center gap-2 flex-wrap">
-                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                     member.role === 'ADMIN' 
-                                       ? 'bg-zinc-900 text-onink' 
-                                       : 'bg-blue-50 text-blue-700 border border-blue-100'
-                                   }`}>
-                                     {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
-                                   </span>
-                                   <span className="px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-100 text-[10px]">
-                                     Pending
-                                   </span>
-                                 </div>
-                                 <span className="text-zinc-400 text-[10px]">
-                                   Invited {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
-                                 </span>
-                               </div>
-                             </div>
-                           ))}
-                         </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-medium text-ink truncate">{member.name}</h4>
+                                      <p className="text-xs text-zinc-500 truncate">{member.email}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 ml-2">
+                                    <button
+                                      onClick={() => handleResend(member)}
+                                      disabled={resendingId === member.id}
+                                      title="Resend invitation (fresh 7-day link)"
+                                      className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                    >
+                                      {resendingId === member.id ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                      ) : (
+                                        <Send size={16} />
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={() => setRevokeConfirmation({ isOpen: true, id: member.id, name: member.name })}
+                                      disabled={isRevoking === member.id}
+                                      title="Revoke invitation (deletes the pending account)"
+                                      className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                    >
+                                      {isRevoking === member.id ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                      ) : (
+                                        <Trash2 size={16} />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                      member.role === 'ADMIN' 
+                                        ? 'bg-zinc-900 text-onink' 
+                                        : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                    }`}>
+                                      {member.role === 'ADMIN' ? 'Super Admin' : member.role === 'MODERATOR' ? 'Content Manager' : member.role}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-100 text-[10px]">
+                                      Pending
+                                    </span>
+                                  </div>
+                                  <span className="text-zinc-400 text-[10px]">
+                                    Invited {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
+                                  </span>
+                                </div>
+                                {(() => {
+                                  const expiry = inviteExpiry(member);
+                                  return (
+                                    <p className={`mt-1.5 text-[10px] font-medium ${expiry.expired ? 'text-red-600' : 'text-zinc-500'}`}>
+                                      {expiry.label}
+                                    </p>
+                                  );
+                                })()}
+                              </div>
+                            ))}
+                          </div>
 
                          {/* Desktop Table Layout - Inactive */}
                          <div className="hidden md:block bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden opacity-90">
@@ -407,19 +566,42 @@ const TeamTab: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-zinc-500 text-xs">
                                        {formatMemberDate((member as any).created_at || (member as any).joinedDate)}
+                                       {(() => {
+                                         const expiry = inviteExpiry(member);
+                                         return (
+                                           <span className={`block mt-0.5 font-medium ${expiry.expired ? 'text-red-600' : ''}`}>
+                                             {expiry.label}
+                                           </span>
+                                         );
+                                       })()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                       <button
-                                         onClick={() => handleRemoveAdmin(member.id, member.name)}
-                                         disabled={isRemovingAdmin === member.id}
-                                         className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                                       >
-                                         {isRemovingAdmin === member.id ? (
-                                           <Loader2 size={16} className="animate-spin" />
-                                         ) : (
-                                           <Trash2 size={16} />
-                                         )}
-                                       </button>
+                                       <div className="flex justify-end items-center gap-1">
+                                         <button
+                                           onClick={() => handleResend(member)}
+                                           disabled={resendingId === member.id}
+                                           title="Resend invitation (fresh 7-day link)"
+                                           className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                         >
+                                           {resendingId === member.id ? (
+                                             <Loader2 size={16} className="animate-spin" />
+                                           ) : (
+                                             <Send size={16} />
+                                           )}
+                                         </button>
+                                         <button
+                                           onClick={() => setRevokeConfirmation({ isOpen: true, id: member.id, name: member.name })}
+                                           disabled={isRevoking === member.id}
+                                           title="Revoke invitation (deletes the pending account)"
+                                           className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                         >
+                                           {isRevoking === member.id ? (
+                                             <Loader2 size={16} className="animate-spin" />
+                                           ) : (
+                                             <Trash2 size={16} />
+                                           )}
+                                         </button>
+                                       </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -438,15 +620,62 @@ const TeamTab: React.FC = () => {
            {/* Invite Modal */}
            <Dialog
               open={isInviteOpen && mounted}
-              onClose={() => setIsInviteOpen(false)}
+              onClose={closeInviteDialog}
               label="Invite Team Member"
           >
                   <div className="p-3 sm:p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50 rounded-t-xl sticky top-0">
                      <h3 className="font-bold text-ink text-sm sm:text-base">Invite Team Member</h3>
-                     <button onClick={() => setIsInviteOpen(false)} className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200">
+                     <button onClick={closeInviteDialog} className="p-1 text-zinc-400 hover:text-ink rounded hover:bg-zinc-200">
                        <X size={20} />
                      </button>
                   </div>
+                  {inviteResult ? (
+                    <div className="p-4 sm:p-6 space-y-4">
+                      <div className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
+                        inviteResult.emailSent
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : 'bg-amber-50 border-amber-200 text-amber-800'
+                      }`}>
+                        {inviteResult.emailSent ? (
+                          <CheckCircle size={18} className="flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+                        )}
+                        <p>
+                          {inviteResult.emailSent ? (
+                            <>Invitation sent to <strong>{inviteResult.email}</strong>. The link below works too, in case the email goes missing.</>
+                          ) : (
+                            <>The email failed to send — share this link with <strong>{inviteResult.email}</strong> manually. It expires {formatMemberDate(inviteResult.expiresAt)}.</>
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-inksoft mb-1.5">Invitation link (single use, 7 days)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={inviteResult.invitationLink}
+                            onFocus={(e) => e.target.select()}
+                            className="flex-1 min-w-0 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-xs text-inksoft truncate"
+                          />
+                          <button
+                            onClick={copyInviteLink}
+                            className="px-3 py-2 bg-zinc-900 text-onink text-xs font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-1.5 flex-shrink-0"
+                          >
+                            {linkCopied ? <Check size={14} /> : <Copy size={14} />}
+                            {linkCopied ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        onClick={closeInviteDialog}
+                        className="w-full py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  ) : (
                   <form onSubmit={handleInvite} className="p-4 sm:p-6 space-y-4">
                      <div>
                         <label className="block text-xs font-semibold text-inksoft mb-1.5">Full Name</label>
@@ -491,6 +720,7 @@ const TeamTab: React.FC = () => {
                        )}
                      </button>
                   </form>
+                  )}
            </Dialog>
         </div>
       <Dialog
@@ -531,6 +761,112 @@ const TeamTab: React.FC = () => {
                     </>
                   ) : (
                     'Remove Member'
+                  )}
+                </button>
+              </div>
+            </div>
+      </Dialog>
+      {/* Promote existing account (invite hit a taken email) */}
+      <Dialog
+        open={promoteCandidate !== null && mounted}
+        onClose={() => setPromoteCandidate(null)}
+        label="Promote to team?"
+      >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-blue-100 text-blue-700">
+                  <UserPlus size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-ink text-lg mb-2">
+                    Already Has an Account
+                  </h3>
+                  <p className="text-sm text-inksoft">
+                    <strong>{promoteCandidate?.name}</strong> ({promoteCandidate?.email}) already has an
+                    account{promoteCandidate?.role && promoteCandidate.role !== 'STUDENT' ? (
+                      <> with role <strong>{promoteCandidate.role}</strong></>
+                    ) : null}. Promote them to the team instead of inviting?
+                  </p>
+                  {promoteCandidate?.status === 'Banned' && (
+                    <p className="mt-2 text-sm text-red-600 font-medium">
+                      This account is banned — unban it from Student Management first.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-inksoft mb-1.5">Team role</label>
+                <CustomSelect
+                  options={roleOptions}
+                  value={promoteRole === 'ADMIN' ? 'Super Admin' : 'Content Manager'}
+                  onChange={(value) => setPromoteRole(value === 'Super Admin' ? 'ADMIN' : 'MODERATOR')}
+                />
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setPromoteCandidate(null)}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmPromote}
+                  disabled={isPromoting || promoteCandidate?.status === 'Banned'}
+                  title={promoteCandidate?.status === 'Banned' ? 'Unban this account first' : 'Promote to team'}
+                  className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isPromoting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Promoting...
+                    </>
+                  ) : (
+                    'Promote to Team'
+                  )}
+                </button>
+              </div>
+            </div>
+      </Dialog>
+      {/* Revoke pending invitation (deletes placeholder account + links) */}
+      <Dialog
+        open={revokeConfirmation.isOpen && mounted}
+        onClose={() => setRevokeConfirmation({ isOpen: false, id: null, name: null })}
+        label="Revoke invitation?"
+      >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-ink text-lg mb-2">
+                    Revoke Invitation?
+                  </h3>
+                  <p className="text-sm text-inksoft">
+                    Revoke the pending invitation for <strong>{revokeConfirmation.name}</strong>? Their
+                    placeholder account and invitation links are deleted — they won't be able to accept.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setRevokeConfirmation({ isOpen: false, id: null, name: null })}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRevoke}
+                  disabled={isRevoking === revokeConfirmation.id}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRevoking === revokeConfirmation.id ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Revoking...
+                    </>
+                  ) : (
+                    'Revoke Invitation'
                   )}
                 </button>
               </div>
