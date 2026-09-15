@@ -41,7 +41,7 @@ const StudentsTab: React.FC = () => {
   const formatJoined = (value?: string): string => {
     if (!value) return '—';
     const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const openStatusConfirmation = (student: any) => {

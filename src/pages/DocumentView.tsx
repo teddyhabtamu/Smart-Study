@@ -69,6 +69,11 @@ const DocumentView: React.FC = () => {
 
   // Feature State
   const [summary, setSummary] = useState<string | null>(null);
+  // Ungrounded summary: the backend answered without the document excerpt
+  // (scan, no file, fetch failure…). Rendering the model's apology as "AI
+  // Summary" looked broken — this state renders a designed empty state.
+  const [summaryUnavailable, setSummaryUnavailable] = useState<string | null>(null);
+  const [summaryAttempt, setSummaryAttempt] = useState(0);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   
   const [chatInput, setChatInput] = useState('');
@@ -173,7 +178,7 @@ const DocumentView: React.FC = () => {
   // the PDF); without it the model only saw the title and honestly replied
   // "I cannot access external documents."
   useEffect(() => {
-    if (!doc || isRestricted || summary) return;
+    if (!doc || isRestricted || summary || summaryUnavailable) return;
     let cancelled = false;
     setIsSummaryLoading(true);
     aiTutorAPI.chat(
@@ -185,7 +190,13 @@ const DocumentView: React.FC = () => {
     )
       .then(res => {
         if (cancelled) return;
-        setSummary(res.response);
+        // A summary answered WITHOUT the excerpt is not a document summary —
+        // route to the designed empty state (with retry), not the model text.
+        if (res.grounded === false) {
+          setSummaryUnavailable(res.unavailableReason || 'unavailable');
+        } else {
+          setSummary(res.response);
+        }
         setIsSummaryLoading(false);
       })
       .catch(() => {
@@ -195,7 +206,7 @@ const DocumentView: React.FC = () => {
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc, isRestricted]);
+  }, [doc, isRestricted, summaryAttempt]);
 
   // Save Chat persistence
   useEffect(() => {
@@ -783,6 +794,26 @@ const DocumentView: React.FC = () => {
                     <div className="space-y-2 animate-pulse py-1">
                       <div className="h-2 bg-zinc-200 rounded w-full"></div>
                       <div className="h-2 bg-zinc-200 rounded w-3/4"></div>
+                    </div>
+                  ) : summaryUnavailable ? (
+                    <div className="py-1">
+                      <p className="text-[13px] font-medium text-zinc-900">We couldn&apos;t read this document&apos;s text.</p>
+                      <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                        {{
+                          'no-text-layer': 'This looks like a scanned copy with no readable text layer.',
+                          'no-file': 'No file is attached to this entry yet.',
+                          'unsupported-type': 'Only PDFs with readable text can be summarized right now.',
+                          'fetch-failed': 'The file could not be downloaded — it may be very large or Drive-limited.',
+                          'parse-failed': 'The file could not be read.',
+                          'premium-gated': 'AI reading is a Pro feature for premium documents.',
+                        }[summaryUnavailable] || 'The text is temporarily unavailable.'}
+                      </p>
+                      <button
+                        onClick={() => { setSummaryUnavailable(null); setSummaryAttempt(a => a + 1); }}
+                        className="mt-2.5 text-xs font-semibold text-zinc-900 hover:underline inline-flex items-center gap-1 min-h-[32px]"
+                      >
+                        Try again
+                      </button>
                     </div>
                   ) : (
                     <div className="text-[13px] text-zinc-700 leading-relaxed">

@@ -349,7 +349,10 @@ const ExamCard: React.FC<{ exam: Document }> = ({ exam }) => {
               </div>
             )
           )}
-          <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 flex gap-1.5 sm:gap-2">
+          {/* Legibility scrim: covers print their own titles — pills float
+              above a gradient instead of colliding with cover text. */}
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 via-black/10 to-transparent pointer-events-none" aria-hidden="true" />
+          <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 flex gap-1.5 sm:gap-2 z-10">
              <span className="bg-white/90 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-zinc-800 border border-black/5 shadow-sm">
                {exam.subject}
              </span>
@@ -367,7 +370,7 @@ const ExamCard: React.FC<{ exam: Document }> = ({ exam }) => {
 
           <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-zinc-50 mt-auto">
             <span className="text-[10px] sm:text-[11px] text-zinc-400 font-medium uppercase tracking-wider flex items-center gap-1">
-              {exam.file_type} • {exam.downloads} Downloads
+              {exam.file_type} • {exam.downloads} Download{(exam.downloads || 0) === 1 ? '' : 's'}
             </span>
             <span className="text-xs font-medium text-zinc-900 flex items-center gap-1 sm:gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity lg:transform lg:translate-x-2 lg:group-hover:translate-x-0 lg:group-focus-within:translate-x-0">
               View <BookOpen size={12} className="sm:w-3.5 sm:h-3.5" />

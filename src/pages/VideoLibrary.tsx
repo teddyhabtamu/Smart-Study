@@ -8,6 +8,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { VideoCardSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
+import { decodeHtmlEntities } from '../utils/textUtils';
 import { useSEO, pageSEO } from '../utils/seoUtils';
 import { videosAPI } from '../services/api';
 
@@ -504,7 +505,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
           {video.thumbnail ? (
             <img
               src={convertGoogleDriveImageUrl(video.thumbnail)}
-              alt={video.title}
+              alt={decodeHtmlEntities(video.title)}
               className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
@@ -539,7 +540,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
               {video.subject}
             </span>
             <span className="bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase text-zinc-700 border border-black/5 shadow-sm">
-              {video.grade === 0 ? 'General' : `G${video.grade}`}
+              {video.grade === 0 ? 'General' : `Grade ${video.grade}`}
             </span>
           </div>
         </div>
@@ -547,7 +548,7 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
         {/* Card body */}
         <div className={`${compact ? 'p-3' : 'p-3 sm:p-5'} flex-1 flex flex-col`}>
           <h3 className={`font-semibold text-zinc-900 leading-snug mb-1.5 line-clamp-2 group-hover:text-zinc-600 transition-colors ${compact ? 'text-sm' : 'text-sm sm:text-base'}`}>
-            {video.title}
+            {decodeHtmlEntities(video.title)}
           </h3>
 
           {!compact && (

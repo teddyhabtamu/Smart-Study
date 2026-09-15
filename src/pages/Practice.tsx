@@ -316,7 +316,7 @@ const Practice: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">Practice Center</h1>
           <p className="text-zinc-500 mt-2 text-sm sm:text-base">
             {user?.isPremium
-              ? 'Generate unlimited quizzes powered by AI to master any subject.'
+              ? 'Generate AI-powered quizzes to master any subject.'
               : 'Generate an AI quiz to master any subject — 1 free quiz per day.'}
           </p>
 

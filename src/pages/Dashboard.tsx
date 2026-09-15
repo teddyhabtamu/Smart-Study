@@ -156,7 +156,14 @@ const Dashboard: React.FC = () => {
   const progressPercentage = Math.min(100, Math.max(0, dashboardData?.progress.todayPercentage || 0));
   const recentSaved = dashboardData?.recentBookmarks.slice(0, 5) || [];
   const dashboardFailed = !!errors.dashboard && !loading.dashboard;
-  const progressToNextLevel = dashboardData?.progress.levelProgress || Math.min(100, Math.round(((user.xp - (user.level - 1) * 1000) / 1000) * 100));
+  // Clamped 0–100 AND finite-guarded: the bar fill uses this directly for its
+  // width, so any out-of-range value (stale payload, corrupt row) would
+  // overdraw the track. ?? (not ||): a real 0 must not fall into the
+  // recompute branch.
+  const progressToNextLevel = (() => {
+    const raw = dashboardData?.progress.levelProgress ?? Math.min(100, Math.round(((user.xp - (user.level - 1) * 1000) / 1000) * 100));
+    return Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : 0;
+  })();
   const xpToNextLevel = dashboardData?.progress.xpToNextLevel || (user.level * 1000 - user.xp);
 
   const handleQuickAsk = (e: React.FormEvent) => {

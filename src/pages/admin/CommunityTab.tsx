@@ -90,9 +90,9 @@ const CommunityTab: React.FC = () => {
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
                              <span className="truncate">Posted by <span className="font-medium text-zinc-600">{post.author}</span></span>
                              <span className="hidden sm:inline">•</span>
-                             <span className="text-[10px] sm:text-xs">{(post as any).created_at ? new Date((post as any).created_at).toLocaleDateString() : '—'}</span>
+                             <span className="text-[10px] sm:text-xs">{(post as any).created_at ? new Date((post as any).created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
                              <span className="hidden sm:inline">•</span>
-                             <span className="text-[10px] sm:text-xs">{post.comment_count} comments</span>
+                             <span className="text-[10px] sm:text-xs">{post.comment_count} {(post.comment_count || 0) === 1 ? 'comment' : 'comments'}</span>
                           </div>
                       </div>
                    </div>

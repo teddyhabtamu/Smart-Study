@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { useData } from '../context/DataContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import TTSButton from '../components/TTSButton';
-import { stripForSpeech } from '../utils/textUtils';
+import { stripForSpeech, decodeHtmlEntities } from '../utils/textUtils';
 import { VideoWatchSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 
@@ -510,7 +510,7 @@ const VideoWatch: React.FC = () => {
           <span className="text-zinc-300">/</span>
           <span className="truncate">{video.subject}</span>
           <span className="text-zinc-300 hidden sm:inline">/</span>
-          <span className="text-zinc-900 font-medium truncate max-w-[120px] sm:max-w-[200px]">{video.title}</span>
+          <span className="text-zinc-900 font-medium truncate max-w-[120px] sm:max-w-[200px]">{decodeHtmlEntities(video.title)}</span>
        </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -522,7 +522,7 @@ const VideoWatch: React.FC = () => {
                      width="100%"
                      height="100%"
                      src={embedUrl}
-                     title={video.title}
+                     title={decodeHtmlEntities(video.title)}
                      frameBorder="0"
                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                      referrerPolicy="strict-origin-when-cross-origin"
@@ -562,7 +562,7 @@ const VideoWatch: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
                   <div>
                     <div className="flex items-start gap-2 flex-wrap mb-2">
-                      <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 leading-tight">{video.title}</h1>
+                      <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 leading-tight">{decodeHtmlEntities(video.title)}</h1>
                       {isPremiumVideo && (
                         <div className="mt-0.5 bg-zinc-900/90 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                           <Lock size={8} className="sm:w-2.5 sm:h-2.5" /> Premium
@@ -627,9 +627,19 @@ const VideoWatch: React.FC = () => {
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
                    <div className="flex items-center gap-4 text-sm text-zinc-500">
-                      <span>{(video.views || 0).toLocaleString()} views</span>
+                      <span>{(video.views || 0).toLocaleString()} {(video.views || 0) === 1 ? 'view' : 'views'}</span>
                       <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
-                      <span>{video.uploadedAt || (video.created_at ? new Date(video.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown date')}</span>
+                      {/* uploadedAt arrives as a raw ISO string from the API —
+                          never render it verbatim (microseconds + offset on
+                          screen). Guarded: unparseable stays 'Unknown date'. */}
+                      <span>{(() => {
+                        const raw = video.uploadedAt || video.created_at;
+                        if (!raw) return 'Unknown date';
+                        const d = new Date(raw);
+                        return Number.isNaN(d.getTime())
+                          ? 'Unknown date'
+                          : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                      })()}</span>
                    </div>
                    <div className="flex items-center gap-2 relative">
                       <button
@@ -662,9 +672,13 @@ const VideoWatch: React.FC = () => {
                     <div>
                        <h3 className="font-bold text-zinc-900">{video.instructor || 'SmartStudy'}</h3>
                        <p className="text-xs text-zinc-500 mb-3">{video.subject} • {video.grade === 0 ? 'General' : `Grade ${video.grade}`}</p>
+                      {/* Empty descriptions rendered an empty bordered box
+                          (ghost placeholder). Render only when text exists. */}
+                      {video.description ? (
                       <p className="text-sm text-zinc-700 leading-relaxed bg-zinc-50 p-4 rounded-lg border border-zinc-100">
-                         {video.description}
+                         {decodeHtmlEntities(video.description)}
                       </p>
+                      ) : null}
                    </div>
                 </div>
              </div>

@@ -739,7 +739,7 @@ export const aiTutorAPI = {
       method: 'DELETE',
     }),
 
-  chat: (message: string, subject?: string, grade?: number, sessionId?: string, documentId?: string): Promise<{ response: string; sessionId?: string; xpGained?: number }> =>
+  chat: (message: string, subject?: string, grade?: number, sessionId?: string, documentId?: string): Promise<{ response: string; sessionId?: string; xpGained?: number; grounded?: boolean; unavailableReason?: string }> =>
     apiRequest('/ai-tutor/chat', {
       method: 'POST',
       body: JSON.stringify({ message, subject, grade, sessionId, documentId }),

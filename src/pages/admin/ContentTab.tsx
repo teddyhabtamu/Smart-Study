@@ -8,6 +8,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../../context/ToastContext';
 import { adminAPI } from '../../services/api';
 import { ContentTableSkeleton } from './skeletons';
+import { decodeHtmlEntities } from '../../utils/textUtils';
 
 // Content management tab (extracted from Admin.tsx): documents, videos and
 // past-exam papers with create/edit/delete. Owns all form + modal state.
@@ -767,8 +768,8 @@ const ContentTab: React.FC = () => {
                            {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={18} /> : <PlaySquare size={18} />}
                          </div>
                          <div className="flex-1 min-w-0">
-                           <h4 className="font-medium text-zinc-900 text-sm line-clamp-1">{item.title}</h4>
-                           <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{item.description}</p>
+                           <h4 className="font-medium text-zinc-900 text-sm line-clamp-1">{decodeHtmlEntities(item.title)}</h4>
+                           <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{decodeHtmlEntities(item.description)}</p>
                          </div>
                        </div>
                        <div className="flex items-center justify-between gap-2 mb-2">
@@ -838,8 +839,8 @@ const ContentTab: React.FC = () => {
                                 {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
                              </div>
                              <div>
-                               <p className="line-clamp-1">{item.title}</p>
-                               <p className="text-xs text-zinc-400 font-normal mt-0.5 line-clamp-1">{item.description}</p>
+                               <p className="line-clamp-1">{decodeHtmlEntities(item.title)}</p>
+                               <p className="text-xs text-zinc-400 font-normal mt-0.5 line-clamp-1">{decodeHtmlEntities(item.description)}</p>
                              </div>
                           </div>
                        </td>
@@ -860,8 +861,10 @@ const ContentTab: React.FC = () => {
                           </div>
                        </td>
                         <td className="px-6 py-4 text-right">
-                           {/* Hover-reveal on desktop; always visible on touch (no hover) */}
-                           <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                           {/* Always visible: these are admin row actions, not
+                               decorative reveals — hover-only hid them from
+                               keyboard users and made the column read empty. */}
+                           <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => (contentCategory === 'documents' || contentCategory === 'past-exams') ? handleEditDocument(item as Document, contentCategory === 'past-exams' ? 'past-exams' : 'documents') : handleEditVideo(item as VideoLesson)}
                                 className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded-lg transition-colors"

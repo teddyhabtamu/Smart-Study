@@ -34,3 +34,20 @@ describe('isQuotaExceededError', () => {
     expect(isQuotaExceededError(undefined)).toBe(false);
   });
 });
+
+describe('decodeHtmlEntities (YouTube snippet unescaping)', () => {
+  it('decodes decimal, hex and named entities', async () => {
+    const { decodeHtmlEntities } = await import('./youtubeService');
+    expect(decodeHtmlEntities('Bernoulli&#39;s Principle')).toBe("Bernoulli's Principle");
+    expect(decodeHtmlEntities('Tom &amp; Jerry')).toBe('Tom & Jerry');
+    expect(decodeHtmlEntities('&quot;Quoted&quot; &lt;tag&gt;')).toBe('"Quoted" <tag>');
+    expect(decodeHtmlEntities('Tigrigna &#x27E;')).toBe('Tigrigna \u027E')
+  });
+
+  it('does not double-decode and passes clean text through', async () => {
+    const { decodeHtmlEntities } = await import('./youtubeService');
+    expect(decodeHtmlEntities('&amp;lt;')).toBe('&lt;');
+    expect(decodeHtmlEntities('Plain title')).toBe('Plain title');
+    expect(decodeHtmlEntities('')).toBe('');
+  });
+});

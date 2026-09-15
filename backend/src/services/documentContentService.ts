@@ -32,6 +32,23 @@ export interface DocumentExcerpt {
   isPremium: boolean;
 }
 
+// WHY extraction failed — surfaced so callers (and the UI) can respond
+// honestly instead of rendering a model apology as content. Bare null gave
+// no signal: a scanned PDF, a missing file and a Drive outage all looked
+// identical downstream.
+export type ExcerptUnavailableReason =
+  | 'invalid-id'
+  | 'no-file'
+  | 'unsupported-type'
+  | 'fetch-failed'
+  | 'parse-failed'
+  | 'no-text-layer';
+
+export interface ExcerptUnavailable {
+  unavailable: true;
+  reason: ExcerptUnavailableReason;
+}
+
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 50;
 // Full cached text cap: enough for summary + chat + quiz excerpts without
@@ -119,16 +136,17 @@ const normalizeText = (raw: string): string =>
     .trim();
 
 /**
- * Load a document's text excerpt. Returns null when content is unavailable
- * (no file, non-PDF, download/parse failure, disallowed host) — callers MUST
- * fall back to metadata-only prompts. Never throws.
+ * Load a document's text excerpt. Success returns the excerpt; failure
+ * returns { unavailable, reason } so callers can fall back AND explain why.
+ * Never throws and never returns bare null for real documents.
  */
 export const getDocumentExcerpt = async (
   documentId: string,
   maxChars = 12_000
-): Promise<DocumentExcerpt | null> => {
+): Promise<DocumentExcerpt | ExcerptUnavailable> => {
+  const fail = (reason: ExcerptUnavailableReason): ExcerptUnavailable => ({ unavailable: true, reason });
   try {
-    if (!documentId || !/^[0-9a-fA-F-]{8,36}$/.test(documentId)) return null;
+    if (!documentId || !/^[0-9a-fA-F-]{8,36}$/.test(documentId)) return fail('invalid-id');
 
     // Cache first (stores normalized full-ish text; excerpt sliced per call).
     const cached = cache.get(documentId);
@@ -151,23 +169,23 @@ export const getDocumentExcerpt = async (
       .select('id, title, file_type, file_url, is_premium')
       .eq('id', documentId)
       .maybeSingle();
-    if (error || !doc) return null;
-    if (!doc.file_url) return null;
+    if (error || !doc) return fail('fetch-failed');
+    if (!doc.file_url) return fail('no-file');
 
     // PDF-only for now: DOCX/PPT extraction is a separate library (mammoth)
     // and image PDFs need OCR. Metadata fallback covers those honestly.
     const fileType = String(doc.file_type || '').toUpperCase();
-    if (fileType && !['PDF'].includes(fileType)) return null;
+    if (fileType && !['PDF'].includes(fileType)) return fail('unsupported-type');
 
     const fileId = extractDriveFileId(String(doc.file_url));
     if (!fileId) {
-      // Non-Drive URL: only fetch allow-listed hosts (SSRF guard).
-      if (!isAllowedUrl(String(doc.file_url))) return null;
-      return null; // direct-URL PDFs: not yet supported, metadata fallback.
+      // Non-Drive URL: only fetch allow-listed hosts (SSRF guard), and even
+      // then direct-URL PDFs are not yet supported — metadata fallback.
+      return fail('unsupported-type');
     }
 
     const pdfBuffer = await downloadPdfBuffer(fileId);
-    if (!pdfBuffer) return null;
+    if (!pdfBuffer) return fail('fetch-failed');
 
     let rawText = '';
     try {
@@ -188,13 +206,13 @@ export const getDocumentExcerpt = async (
       }
     } catch (parseErr) {
       console.error(`[doc-content] PDF parse failed for ${documentId}:`, (parseErr as Error)?.message);
-      return null;
+      return fail('parse-failed');
     }
 
     const text = normalizeText(rawText);
     // Scanned PDFs have no text layer (extraction returns ~nothing). Say so
     // via null so the caller prompts honestly instead of summarizing garbage.
-    if (text.length < 200) return null;
+    if (text.length < 200) return fail('no-text-layer');
 
     const capped = text.slice(0, MAX_CACHED_CHARS);
     // LRU-ish eviction: drop oldest inserts when full.
@@ -219,7 +237,7 @@ export const getDocumentExcerpt = async (
     };
   } catch (err) {
     console.error('[doc-content] excerpt error:', (err as Error)?.message);
-    return null;
+    return fail('fetch-failed');
   }
 };
 

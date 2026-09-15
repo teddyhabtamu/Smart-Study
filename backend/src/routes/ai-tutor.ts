@@ -27,31 +27,38 @@ const FREE_DAILY_QUIZ_LIMIT = 1;
 // enough for real summaries/answers without torching shared Gemini quota.
 const DOC_EXCERPT_CHARS = 10_000;
 
-// Build the document-grounding block for a chat prompt. Best-effort: any
-// failure (or a premium doc requested by a non-premium user/guest) returns
-// null and the caller falls back to metadata-only prompts — never leaks
-// premium content, never 500s the chat over a slow Drive download.
+// Build the document-grounding block for a chat prompt. Best-effort:
+// failures (or a premium doc requested by a non-premium user/guest) yield
+// { context: null, grounded: false, reason } and the caller falls back to
+// metadata-only prompts — never leaks premium content, never 500s the chat
+// over a slow Drive download. The reason lets the reader render a designed
+// empty state instead of a model apology.
 const buildDocumentContext = async (
   documentId: string | undefined,
   requesterIsPremium: boolean
-): Promise<string | null> => {
-  if (!documentId) return null;
+): Promise<{ context: string | null; grounded: boolean; reason?: string }> => {
+  if (!documentId) return { context: null, grounded: false };
   try {
     const doc = await getDocumentExcerpt(documentId, DOC_EXCERPT_CHARS);
-    if (!doc) return null;
+    if ('unavailable' in doc) return { context: null, grounded: false, reason: doc.reason };
     // Premium gate: excerpt text stays server-side unless the requester is
     // entitled. Metadata-only fallback below reveals nothing.
-    if (doc.isPremium && !requesterIsPremium) return null;
-    return [
-      `Document context: "${doc.title}". The excerpt below is the actual document text — use it to answer.`,
-      `--- document excerpt (${doc.totalChars} chars${doc.truncated ? ', truncated' : ''}) ---`,
-      doc.excerpt,
-      `--- end of excerpt ---`,
-      `Ground your answer in the excerpt above. If the question covers content not in the excerpt, say so honestly and answer from general knowledge, clearly labeling which part is from the document vs general knowledge. Never invent quotes or page numbers not present in the excerpt.`,
-    ].join('\n');
+    if (doc.isPremium && !requesterIsPremium) {
+      return { context: null, grounded: false, reason: 'premium-gated' };
+    }
+    return {
+      context: [
+        `Document context: "${doc.title}". The excerpt below is the actual document text — use it to answer.`,
+        `--- document excerpt (${doc.totalChars} chars${doc.truncated ? ', truncated' : ''}) ---`,
+        doc.excerpt,
+        `--- end of excerpt ---`,
+        `Ground your answer in the excerpt above. If the question covers content not in the excerpt, say so honestly and answer from general knowledge, clearly labeling which part is from the document vs general knowledge. Never invent quotes or page numbers not present in the excerpt.`,
+      ].join('\n'),
+      grounded: true,
+    };
   } catch (err) {
     console.error('[ai-tutor] document context failed:', (err as Error)?.message);
-    return null;
+    return { context: null, grounded: false, reason: 'fetch-failed' };
   }
 };
 
@@ -500,11 +507,11 @@ router.post('/chat', [
     // actual excerpt so answers/summaries use the file — not the title.
     // Null (extraction failed / premium-gated) falls back to metadata-only
     // with an honesty guard instead of hallucinating specifics.
-    const docContext = await buildDocumentContext(documentId, !!req.user?.is_premium);
-    const groundedMessage = docContext
-      ? `${docContext}\n\nStudent question: ${message}`
+    const docResult = await buildDocumentContext(documentId, !!req.user?.is_premium);
+    const groundedMessage = docResult.context
+      ? `${docResult.context}\n\nStudent question: ${message}`
       : documentId
-        ? `Note: The full document text is unavailable (scan, unsupported format, or access-limited). Answer from the context below; if you cannot answer accurately, say you cannot access the full document rather than inventing specifics.\n\nStudent question: ${message}`
+        ? `Note: The full document text is unavailable (${docResult.reason || 'unknown reason'}). Answer from the context below; if you cannot answer accurately, say you cannot access the full document rather than inventing specifics.\n\nStudent question: ${message}`
         : message;
 
     // Generate AI response
@@ -550,7 +557,11 @@ router.post('/chat', [
       data: {
         response: reply,
         sessionId: currentSessionId,
-        ...(userId && { xpGained })
+        ...(userId && { xpGained }),
+        // Grounding signal for the reader: a summary request answered without
+        // the excerpt is not a document summary — the UI renders a designed
+        // empty state instead of the model's honesty fallback.
+        ...(documentId ? { grounded: docResult.grounded, ...(docResult.reason ? { unavailableReason: docResult.reason } : {}) } : {}),
       },
       message: 'AI response generated successfully'
     } as ApiResponse);
@@ -638,14 +649,14 @@ router.post('/chat/stream', [
     // Same document grounding as the non-streaming route (see above).
     // Session history keeps the ORIGINAL short message — the excerpt is
     // re-injected fresh each turn so stored sessions don't balloon.
-    const docContext = await buildDocumentContext(documentId, !!req.user?.is_premium);
-    const groundedMessage = docContext
-      ? `${docContext}\n\nStudent question: ${message}`
+    const docResult = await buildDocumentContext(documentId, !!req.user?.is_premium);
+    const groundedMessage = docResult.context
+      ? `${docResult.context}\n\nStudent question: ${message}`
       : documentId
-        ? `Note: The full document text is unavailable (scan, unsupported format, or access-limited). Answer from the context below; if you cannot answer accurately, say you cannot access the full document rather than inventing specifics.\n\nStudent question: ${message}`
+        ? `Note: The full document text is unavailable (${docResult.reason || 'unknown reason'}). Answer from the context below; if you cannot answer accurately, say you cannot access the full document rather than inventing specifics.\n\nStudent question: ${message}`
         : message;
 
-    console.log(`[tutor] prep done in ${elapsed()} (history: ${history.length} msgs, deep: ${!!deepThinking}, doc: ${docContext ? 'grounded' : documentId ? 'unavailable' : 'none'})`);
+    console.log(`[tutor] prep done in ${elapsed()} (history: ${history.length} msgs, deep: ${!!deepThinking}, doc: ${docResult.grounded ? 'grounded' : documentId ? `unavailable:${docResult.reason}` : 'none'})`);
     const tGen = Date.now();
     let full = '';
     let quotaExceeded = false;

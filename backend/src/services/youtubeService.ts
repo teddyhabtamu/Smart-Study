@@ -15,6 +15,22 @@ export const SUBJECTS = CONTENT_SUBJECTS;
 
 export const GRADES = [9, 10, 11, 12];
 
+// YouTube search snippets arrive HTML-escaped (Bernoulli&#39;s Principle,
+// Tom &amp; Jerry). Decode once at import so escaped text is never stored.
+// &amp; decodes LAST: `&amp;lt;` means literal "&lt;", and decoding & first
+// would wrongly cascade it into "<".
+export const decodeHtmlEntities = (text: string): string => {
+  if (!text) return text;
+  return String(text)
+    .replace(/&#(\d+);/g, (_m, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+};
+
 // YouTube API quota errors (403 quotaExceeded / rateLimitExceeded). When the
 // daily 10k-unit budget is gone, EVERY further search fails identically —
 // callers must stop early instead of burning the serverless time budget on
@@ -181,9 +197,9 @@ export class YouTubeService {
                     if (!videoId || !snippet) continue;
                     candidates.push({
                         videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-                        title: String(snippet.title || '').substring(0, 500),
-                        description: snippet.description,
-                        channelTitle: snippet.channelTitle,
+                        title: decodeHtmlEntities(String(snippet.title || '')).substring(0, 500),
+                        description: snippet.description ? decodeHtmlEntities(snippet.description) : snippet.description,
+                        channelTitle: snippet.channelTitle ? decodeHtmlEntities(snippet.channelTitle) : snippet.channelTitle,
                         thumbnail: snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
                     });
                 }

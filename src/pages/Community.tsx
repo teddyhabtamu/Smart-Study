@@ -644,7 +644,7 @@ const Community: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-1 text-xs text-zinc-500">
-                      <MessageSquare size={12} className="sm:w-3.5 sm:h-3.5" /> {post.comment_count || 0} comments
+                      <MessageSquare size={12} className="sm:w-3.5 sm:h-3.5" /> {post.comment_count || 0} {(post.comment_count || 0) === 1 ? 'comment' : 'comments'}
                     </div>
                   </div>
                 </div>

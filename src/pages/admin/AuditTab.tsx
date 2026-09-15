@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { adminAPI } from '../../services/api';
+import { decodeHtmlEntities } from '../../utils/textUtils';
 
 // Audit log tab (extracted from Admin.tsx, admin-only): who changed what,
 // with search, expandable before/after diffs, and pagination.
@@ -150,7 +151,7 @@ const AuditTab: React.FC = () => {
                             onClick={() => setAuditExpandedId(expanded ? null : id)}
                           >
                             <td className="px-4 sm:px-6 py-4 text-xs text-zinc-600 whitespace-nowrap">
-                              {row.created_at ? new Date(row.created_at).toLocaleString() : '-'}
+                              {row.created_at ? new Date(row.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}
                             </td>
                             <td className="px-4 sm:px-6 py-4">
                               <div className="text-zinc-900 font-medium">{row.actor_name || row.actor_email || 'Unknown'}</div>
@@ -161,7 +162,7 @@ const AuditTab: React.FC = () => {
                               <div>{row.target_type || '-'}</div>
                               <div className="font-mono text-[11px] text-zinc-400">{row.target_id || ''}</div>
                             </td>
-                            <td className="px-4 sm:px-6 py-4 text-zinc-700">{row.summary || '-'}</td>
+                            <td className="px-4 sm:px-6 py-4 text-zinc-700">{row.summary ? decodeHtmlEntities(row.summary) : '-'}</td>
                           </tr>
                           {expanded && (
                             <tr className="bg-zinc-50/50">

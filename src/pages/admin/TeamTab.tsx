@@ -51,7 +51,7 @@ const TeamTab: React.FC = () => {
   const formatMemberDate = (value?: string): string => {
     if (!value) return '—';
     const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   // Fetch admin team members
