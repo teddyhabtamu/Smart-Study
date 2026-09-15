@@ -715,7 +715,7 @@ const VideoWatch: React.FC = () => {
                         relatedVideos.map((rv) => (
                            <Link key={rv.id} to={`/video/${rv.id}`} className="flex gap-3 group">
                               <div className="relative w-28 aspect-video bg-zinc-200 rounded-lg overflow-hidden flex-shrink-0">
-                                 <img src={convertGoogleDriveImageUrl(rv.thumbnail)} alt={rv.title} className="w-full h-full object-cover" />
+                                 <img src={convertGoogleDriveImageUrl(rv.thumbnail)} alt={rv.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                  {((rv as any).isPremium ?? (rv as any).is_premium) && (
                                    <div className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-onink px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm shadow-sm">
                                      <Lock size={8} /> Premium

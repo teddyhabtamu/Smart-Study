@@ -37,6 +37,8 @@ const BookmarkCard: React.FC<{
             <img 
               src={imageUrl} 
               alt={item.title}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform" 
               onError={() => setImageError(true)}
             />

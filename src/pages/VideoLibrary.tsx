@@ -506,6 +506,8 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
             <img
               src={convertGoogleDriveImageUrl(video.thumbnail)}
               alt={decodeHtmlEntities(video.title)}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
             />
           ) : (

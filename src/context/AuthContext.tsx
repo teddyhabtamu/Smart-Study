@@ -43,17 +43,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check authentication on mount
   useEffect(() => {
     const checkAuth = async () => {
-      // Start with loading true - this ensures skeleton shows during retries
-      setIsLoading(true);
-      
       const token = localStorage.getItem('auth_token');
       const savedUser = localStorage.getItem('smartstudy_user');
 
+      // Stale-while-revalidate boot: a cached user renders instantly instead
+      // of gating first paint behind verify()+retries (up to ~7s on flaky
+      // networks). Verify still runs below in the background and corrects or
+      // evicts the session. No cache -> classic loading gate.
+      let renderedFromCache = false;
+      if (token && savedUser) {
+        try {
+          const cachedUser = JSON.parse(savedUser);
+          if (cachedUser && cachedUser.role) cachedUser.role = normalizeRole(cachedUser.role);
+          setUser(cachedUser);
+          renderedFromCache = true;
+        } catch {
+          // Corrupt cache — fall through to the verifying gate.
+        }
+      }
+      if (!renderedFromCache) {
+        // Start with loading true - this ensures skeleton shows during retries
+        setIsLoading(true);
+      }
+
       if (token) {
         try {
-          // Keep loading true during the entire verification process (including retries)
-          // The apiRequest will retry up to 3 times with delays (1s, 2s, 4s = ~7 seconds total)
-          // This keeps the loading skeleton visible during all retries
+          // Background revalidation (SWR): the apiRequest retries up to 3
+          // times (1s, 2s, 4s). With a warm cache the app is already
+          // rendered; without one the Loader gate above stays up throughout.
           const response = await authAPI.verify();
           const userData = response.user as any; // Backend user format
           // Transform snake_case fields to camelCase to match User interface
