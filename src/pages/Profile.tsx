@@ -39,6 +39,11 @@ const Profile: React.FC = () => {
   // Modal States
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Delete re-auth: password accounts confirm with their password;
+  // OAuth-only accounts (backend answers OAUTH_CONFIRM_EMAIL) type email.
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [deleteNeedsEmail, setDeleteNeedsEmail] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -249,13 +254,22 @@ const Profile: React.FC = () => {
   };
 
   const handleDeleteAccount = () => {
+    setDeletePassword('');
+    setDeleteConfirmEmail('');
+    setDeleteNeedsEmail(false);
     setShowDeleteConfirm(true);
   };
   
   const confirmDeleteAccount = async () => {
+    // Local flag, not state: the finally below closes over the render-time
+    // deleteNeedsEmail, so it would shut the modal just as the email step
+    // activates. This tracks intent within this single attempt instead.
+    let keepOpen = false;
     try {
       setIsLoading(true);
-      await usersAPI.deleteAccount();
+      await usersAPI.deleteAccount(
+        deleteNeedsEmail ? { confirmEmail: deleteConfirmEmail } : { password: deletePassword },
+      );
       addToast("Account deleted successfully.", "success");
       // Logout after successful deletion
       setTimeout(() => {
@@ -263,10 +277,17 @@ const Profile: React.FC = () => {
       }, 1000);
     } catch (error: any) {
       console.error('Delete account error:', error);
+      if (error?.code === 'OAUTH_CONFIRM_EMAIL') {
+        // Google-sign-in account: swap the password field for email confirm.
+        setDeleteNeedsEmail(true);
+        keepOpen = true;
+        addToast('This account uses Google sign-in — type your email to confirm', 'error');
+        return;
+      }
       addToast(error.message || 'Failed to delete account', 'error');
     } finally {
       setIsLoading(false);
-      setShowDeleteConfirm(false);
+      if (!keepOpen) setShowDeleteConfirm(false);
     }
   };
 
@@ -1281,7 +1302,31 @@ const Profile: React.FC = () => {
                 <AlertTriangle size={24} />
               </div>
               <h3 className="text-lg font-bold text-ink mb-2">Delete Account?</h3>
-              <p className="text-sm text-zinc-500 mb-6">This action is permanent and cannot be undone. All your data and progress will be lost.</p>
+              <p className="text-sm text-zinc-500 mb-4">This action is permanent and cannot be undone. All your data and progress will be lost.</p>
+
+              {/* Fresh re-auth (backend enforces it): password for password
+                  accounts, account-email confirm for Google-sign-in ones. */}
+              {!deleteNeedsEmail ? (
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteAccount(); }}
+                  placeholder="Enter your password to confirm"
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2.5 mb-4 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
+                />
+              ) : (
+                <input
+                  type="email"
+                  value={deleteConfirmEmail}
+                  onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteAccount(); }}
+                  placeholder="Type your account email to confirm"
+                  autoComplete="email"
+                  className="w-full px-3 py-2.5 mb-4 bg-surface border border-zinc-300 rounded-lg text-sm text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all"
+                />
+              )}
               
               <div className="flex gap-3">
                 <button 
@@ -1292,7 +1337,7 @@ const Profile: React.FC = () => {
                 </button>
                 <button 
                   onClick={confirmDeleteAccount}
-                  disabled={isLoading}
+                  disabled={isLoading || (!deleteNeedsEmail && !deletePassword) || (deleteNeedsEmail && !deleteConfirmEmail)}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (

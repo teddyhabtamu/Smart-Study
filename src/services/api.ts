@@ -519,9 +519,10 @@ export const usersAPI = {
       body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
     }),
 
-  deleteAccount: (): Promise<void> =>
+  deleteAccount: (reauth?: { password?: string; confirmEmail?: string }): Promise<void> =>
     apiRequest('/users/account', {
       method: 'DELETE',
+      body: JSON.stringify(reauth ?? {}),
     }),
 
   getLeaderboard: (limit?: number): Promise<{ id: string; name: string; xp: number; level: number; initial: string; avatar?: string; rank: number; isUser?: boolean }[]> =>

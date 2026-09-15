@@ -11,6 +11,48 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
+// ---------------------------------------------------------------------------
+// Account-deletion re-auth: a bare session token must not be enough to
+// irreversibly delete an account (stolen-token / unattended-device risk).
+// - Password accounts: must supply the current password (bcrypt-verified).
+// - OAuth-only accounts (no password_hash): must type their account email.
+// Pure + injected compare so it unit-tests without bcrypt or a database.
+// ---------------------------------------------------------------------------
+export interface DeletionPrincipal {
+  email: string;
+  password_hash: string | null;
+}
+
+export type DeletionVerdict =
+  | { allowed: true }
+  | { allowed: false; status: number; code: string; message: string };
+
+export async function authorizeAccountDeletion(
+  user: DeletionPrincipal | null,
+  body: { password?: unknown; confirmEmail?: unknown },
+  compare: (password: string, hash: string) => Promise<boolean>,
+): Promise<DeletionVerdict> {
+  if (!user) {
+    return { allowed: false, status: 404, code: 'USER_NOT_FOUND', message: 'User not found' };
+  }
+  if (user.password_hash) {
+    if (typeof body.password !== 'string' || body.password.length === 0) {
+      return { allowed: false, status: 400, code: 'PASSWORD_REQUIRED', message: 'Please enter your password to delete your account' };
+    }
+    const ok = await compare(body.password, user.password_hash);
+    if (!ok) {
+      return { allowed: false, status: 401, code: 'INCORRECT_PASSWORD', message: 'Incorrect password' };
+    }
+    return { allowed: true };
+  }
+  // OAuth-only account: no password exists, so the typed-email check proves
+  // intent + session together instead.
+  if (typeof body.confirmEmail !== 'string' || body.confirmEmail.toLowerCase() !== user.email.toLowerCase()) {
+    return { allowed: false, status: 400, code: 'OAUTH_CONFIRM_EMAIL', message: 'This account uses Google sign-in — type your account email to confirm deletion' };
+  }
+  return { allowed: true };
+}
+
 // Configure multer for memory storage (we'll upload directly to Supabase)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -697,12 +739,25 @@ router.delete('/account', authenticateToken, async (req: express.Request, res: e
   try {
     const userId = req.user!.id;
 
-    // Verify user exists
-    const user = await dbAdmin.findOne('users', (u: any) => u.id === userId);
+    // Verify user exists (id + email + hash only — never the full row).
+    const userResult = await query('SELECT id, email, password_hash FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0] as DeletionPrincipal | undefined;
     if (!user) {
       res.status(404).json({
         success: false,
+        code: 'USER_NOT_FOUND',
         message: 'User not found'
+      } as ApiResponse);
+      return;
+    }
+
+    // Fresh re-auth before anything irreversible (see authorizeAccountDeletion).
+    const verdict = await authorizeAccountDeletion(user, req.body || {}, bcrypt.compare);
+    if (!verdict.allowed) {
+      res.status(verdict.status).json({
+        success: false,
+        code: verdict.code,
+        message: verdict.message
       } as ApiResponse);
       return;
     }

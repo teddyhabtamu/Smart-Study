@@ -7,6 +7,7 @@ import { query, supabase } from '../database/config';
 import { config } from '../config';
 import { authenticateToken, generateToken, generateRefreshToken, hashRefreshToken, validateRequest, REFRESH_TOKEN_DAYS } from '../middleware/auth';
 import passport from '../middleware/googleAuth';
+import { loginLimiter } from '../middleware/rateLimit';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { EmailService } from '../services/emailService';
@@ -114,7 +115,7 @@ router.post('/register', [
 router.post('/login', [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').exists().withMessage('Password is required')
-], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+], validateRequest, loginLimiter, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { email, password }: LoginRequest = req.body;
 
