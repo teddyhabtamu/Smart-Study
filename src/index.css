@@ -138,6 +138,36 @@
   background-color: #d4d4d8;
 }
 
+/* Boot screen motion: breathing brand mark + sliding indeterminate bar.
+   Collapses to static under prefers-reduced-motion via the blanket above. */
+@keyframes bootMark {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.92;
+  }
+}
+
+@keyframes bootBar {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(310%);
+  }
+}
+
+.animate-boot-mark {
+  animation: bootMark 2.2s ease-in-out infinite;
+}
+
+.animate-boot-bar {
+  animation: bootBar 1.4s ease-in-out infinite;
+}
+
 /* Loader Animation Keyframes */
 @keyframes loaderRotate {
   0% {

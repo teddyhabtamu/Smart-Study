@@ -1,41 +1,32 @@
 import React from 'react';
+import { GraduationCap } from 'lucide-react';
 
+// Branded boot / suspense screen: brand mark + wordmark + a thin indeterminate
+// bar. Theme-aware throughout (page/ink/zinc/amber tokens) — the old version
+// hardcoded black dots that nearly vanished on dark themes and carried no
+// brand identity. Motion collapses under prefers-reduced-motion via the
+// global blanket in index.css.
 const Loader: React.FC = () => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 px-4">
-      <div className="relative h-[12px] w-[48px] flex items-center justify-center mb-4">
-        {/* Background gradients */}
-        <div 
-          className="absolute inset-0"
-          style={{
-            background: 'no-repeat radial-gradient(farthest-side, #000 90%, transparent) left, no-repeat radial-gradient(farthest-side, #000 90%, transparent) right',
-            backgroundSize: '25% 100%',
-          }}
-        />
-        
-        {/* First circle - rotates clockwise */}
-        <div 
-          className="absolute h-[12px] w-[12px] rounded-full bg-zinc-900"
-          style={{
-            transformOrigin: '-100% 50%',
-            animation: 'loaderRotate 1s infinite linear',
-          }}
-        />
-        
-        {/* Second circle - rotates counter-clockwise with delay */}
-        <div 
-          className="absolute h-[12px] w-[12px] rounded-full bg-zinc-900"
-          style={{
-            transformOrigin: '200% 50%',
-            animation: 'loaderRotateReverse 1s infinite linear -0.5s',
-          }}
-        />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[rgb(var(--page))] px-4">
+      <div className="w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center shadow-xl animate-boot-mark">
+        <GraduationCap size={28} className="text-amber-400" />
       </div>
-      
-      {/* Smart Study Text */}
-      <p className="text-sm sm:text-base text-zinc-400 font-medium tracking-wide">
-        Smart Study
+
+      <p className="mt-5 text-lg font-bold text-ink tracking-tight">
+        SmartStudy
       </p>
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+        AI Learning
+      </p>
+
+      <div
+        className="mt-6 h-1 w-40 overflow-hidden rounded-full bg-zinc-200"
+        role="status"
+        aria-label="Loading"
+      >
+        <div className="h-full w-1/3 rounded-full bg-amber-400 animate-boot-bar" />
+      </div>
     </div>
   );
 };
