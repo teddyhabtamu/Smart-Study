@@ -221,6 +221,9 @@ const Careers: React.FC = () => {
         size="3xl"
         zIndex={999}
       >
+        {/* Guarded: Dialog children evaluate eagerly even when closed, so an
+            unguarded detailPosition.title/department throws on page load. */}
+        {detailPosition ? (
             <div className="p-4 sm:p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -301,6 +304,7 @@ const Careers: React.FC = () => {
                 </div>
               </div>
             </div>
+        ) : null}
       </Dialog>
 
       {/* Application Modal */}
@@ -311,6 +315,8 @@ const Careers: React.FC = () => {
         size="lg"
         zIndex={999}
       >
+        {/* Same eager-children guard as the details modal above. */}
+        {selectedPosition ? (
             <div className="p-4 sm:p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-lg text-ink">Apply for {selectedPosition.title}</h3>
@@ -416,6 +422,7 @@ const Careers: React.FC = () => {
                 </div>
               </form>
             </div>
+        ) : null}
       </Dialog>
 
       <Footer />
