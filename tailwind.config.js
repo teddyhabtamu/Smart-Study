@@ -70,6 +70,11 @@ export default {
         'fade-in': 'fadeIn 0.5s ease-out',
         'fade-in-fast': 'fadeIn 0.2s ease-out',
         'slide-up': 'slideUp 0.5s ease-out',
+        // Anchored popovers (dropdowns, pickers, notification panel): the
+        // old opacity-only 0.2s pop read as aggressive next to the modals'
+        // slide-up entrances. A 4px settle + fade over 0.25s keeps dropdowns
+        // snappy while giving them the same smooth feel.
+        'popover': 'popover 0.25s ease-out',
         'loader-rotate': 'loaderRotate 1s infinite linear',
         'loader-rotate-reverse': 'loaderRotateReverse 1s infinite linear',
         'loader-rotate-reverse-delayed': 'loaderRotateReverse 1s infinite linear -0.5s',
@@ -81,6 +86,10 @@ export default {
         },
         slideUp: {
           '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        popover: {
+          '0%': { transform: 'translateY(-4px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
         loaderRotate: {

@@ -118,7 +118,7 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
       />
 
       {isOpen && (
-        <div className="absolute z-[999] mt-1.5 p-4 bg-surface border border-zinc-200 rounded-xl shadow-xl animate-fade-in-fast left-0 w-72">
+        <div className="absolute z-[999] mt-1.5 p-4 bg-surface border border-zinc-200 rounded-xl shadow-xl animate-popover left-0 w-72">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
              <button type="button" onClick={handlePrevMonth} className="p-1 hover:bg-zinc-100 rounded-full text-zinc-500 transition-colors">

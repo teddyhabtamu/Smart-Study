@@ -649,7 +649,7 @@ const AITutor: React.FC = () => {
               </button>
               
               {showSettings && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-surface border border-zinc-200 rounded-xl shadow-xl z-30 p-4 animate-fade-in-fast">
+                <div className="absolute right-0 top-full mt-2 w-64 bg-surface border border-zinc-200 rounded-xl shadow-xl z-30 p-4 animate-popover">
                    <div className="flex justify-between items-center mb-4">
                      <h3 className="font-bold text-sm text-ink">Tutor Settings</h3>
                      <button onClick={() => setShowSettings(false)} className="text-zinc-400 hover:text-ink"><X size={16} /></button>

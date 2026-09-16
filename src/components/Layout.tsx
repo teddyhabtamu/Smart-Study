@@ -492,7 +492,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                    {isNotificationsOpen && (notificationRef.current || mobileNotificationRef.current) && createPortal(
                      <div
                        data-notification-dropdown
-                       className={`fixed bg-surface border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in-fast overflow-hidden ${
+                       className={`fixed bg-surface border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-popover overflow-hidden ${
                          window.innerWidth < 1024 
                            ? 'w-[calc(100vw-2rem)] max-w-sm right-4 top-20' 
                            : 'w-96'

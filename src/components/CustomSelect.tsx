@@ -147,7 +147,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
         <div 
           ref={listRef}
           role="listbox"
-          className="absolute z-[999] w-full mt-1.5 bg-surface border border-zinc-200 rounded-lg shadow-xl max-h-60 overflow-y-auto animate-fade-in-fast focus:outline-none py-1.5 left-0"
+          className="absolute z-[999] w-full mt-1.5 bg-surface border border-zinc-200 rounded-lg shadow-xl max-h-60 overflow-y-auto animate-popover focus:outline-none py-1.5 left-0"
         >
           {options.map((option, index) => (
             <div
