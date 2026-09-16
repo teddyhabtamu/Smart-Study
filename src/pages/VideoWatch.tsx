@@ -11,6 +11,7 @@ import TTSButton from '../components/TTSButton';
 import { stripForSpeech, decodeHtmlEntities } from '../utils/textUtils';
 import { VideoWatchSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
+import { useSEO, videoSEO } from '../utils/seoUtils';
 
 const VideoWatch: React.FC = () => {
   const { user, toggleBookmark, refreshUser } = useAuth();
@@ -25,6 +26,22 @@ const VideoWatch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasLiked, setHasLiked] = useState(false);
   const viewRecordedRef = useRef<string | null>(null); // Track which video ID has had its view recorded
+  const { updateSEO } = useSEO();
+
+  // Per-video SEO: "{topic} — Grade {grade} {subject}" is the long-tail
+  // query this page can actually rank for; a generic site title cannot.
+  useEffect(() => {
+    if (!video || !id) return;
+    updateSEO(videoSEO({
+      id,
+      title: decodeHtmlEntities(video.title),
+      description: video.description,
+      subject: video.subject,
+      grade: video.grade,
+      image: video.thumbnail ? convertGoogleDriveImageUrl(video.thumbnail) : undefined,
+      createdAt: (video as any).created_at,
+    }));
+  }, [id, video, updateSEO]);
 
   // Fetch video and related videos on mount
   useEffect(() => {

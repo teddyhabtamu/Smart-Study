@@ -15,6 +15,7 @@ import TTSButton from '../components/TTSButton';
 import { stripForSpeech } from '../utils/textUtils';
 import { Document } from '../types';
 import { DocumentViewSkeleton } from '../components/Skeletons';
+import { useSEO, documentSEO } from '../utils/seoUtils';
 
 // Helper to determine cleaner preview URLs
 const getPreviewUrl = (url: string, fileType: string): string => {
@@ -48,6 +49,7 @@ const DocumentView: React.FC = () => {
   const { user, toggleBookmark } = useAuth();
   const { id } = useParams<{ id: string }>();
   const { addToast } = useToast();
+  const { updateSEO } = useSEO();
 
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +119,22 @@ const DocumentView: React.FC = () => {
   }, []);
 
   // --- DATA FETCHING ---
+  // Per-document SEO (title + LearningResource JSON-LD): the long-tail
+  // query this page can rank for is "{topic} — Grade {grade} {subject}".
+  useEffect(() => {
+    if (!doc || !id) return;
+    updateSEO(documentSEO({
+      id,
+      title: doc.title,
+      description: doc.description,
+      subject: doc.subject,
+      grade: doc.grade,
+      fileType: doc.file_type,
+      image: (doc as any).preview_image || undefined,
+      createdAt: (doc as any).created_at || (doc as any).uploadedAt,
+    }));
+  }, [id, doc, updateSEO]);
+
   useEffect(() => {
     const fetchDocument = async () => {
       if (!id) return;

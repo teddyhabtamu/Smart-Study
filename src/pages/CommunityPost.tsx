@@ -13,6 +13,7 @@ import { requestInstallPrompt } from '../components/PwaInstall';
 import { ForumPost } from '../types';
 import { CommunityPostDetailSkeleton } from '../components/Skeletons';
 import { formatRelativeTime } from '../utils/dateUtils';
+import { useSEO, communityPostSEO } from '../utils/seoUtils';
 
 const CommunityPost: React.FC = () => {
   const { id } = useParams();
@@ -20,6 +21,7 @@ const CommunityPost: React.FC = () => {
   const { forumPosts, updateForumPost, deleteForumPost } = useData();
   const { user, isLoading, refreshUser } = useAuth();
   const { addToast } = useToast();
+  const { updateSEO } = useSEO();
   
   const [fullPost, setFullPost] = useState<(ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[]; userVote?: number; userCommentVotes?: { [commentId: string]: number } }) | null>(null);
   const [loadingPost, setLoadingPost] = useState(true);
@@ -76,6 +78,20 @@ const CommunityPost: React.FC = () => {
     }
     return false;
   };
+
+  // Per-post SEO (title + DiscussionForumPosting JSON-LD) so shared
+  // question pages carry their own title instead of the generic site one.
+  useEffect(() => {
+    if (!post || !id) return;
+    updateSEO(communityPostSEO({
+      id,
+      title: post.title,
+      content: post.content || '',
+      author: (post as any).author,
+      createdAt: (post as any)?.createdAt ?? (post as any)?.created_at,
+      subject: (post as any)?.subject,
+    }));
+  }, [id, post, updateSEO]);
 
   useEffect(() => {
     // Fetch full post with comments when component mounts

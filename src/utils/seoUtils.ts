@@ -8,6 +8,10 @@ interface SEOProps {
   url?: string;
   canonical?: string;
   type?: 'website' | 'article' | 'profile';
+  /** Page-level structured data (VideoObject, LearningResource, …).
+      Reconciled on every call: passing none removes the previous page's
+      node, so navigating away from a video never leaves stale JSON-LD. */
+  jsonLd?: Record<string, unknown> | null;
 }
 
 export const useSEO = () => {
@@ -20,7 +24,8 @@ export const useSEO = () => {
     image,
     url,
     canonical,
-    type = 'website'
+    type = 'website',
+    jsonLd = null,
   }: SEOProps) => {
     // Update document title
     if (title) {
@@ -83,26 +88,42 @@ export const useSEO = () => {
       }
     }
 
-    // Update Twitter Card tags
+    // Update Twitter Card tags (spec requires name=, not property=)
     if (title) {
-      const twitterTitle = document.querySelector('meta[property="twitter:title"]');
+      const twitterTitle = document.querySelector('meta[name="twitter:title"]');
       if (twitterTitle) {
         twitterTitle.setAttribute('content', title);
       }
     }
 
     if (description) {
-      const twitterDescription = document.querySelector('meta[property="twitter:description"]');
+      const twitterDescription = document.querySelector('meta[name="twitter:description"]');
       if (twitterDescription) {
         twitterDescription.setAttribute('content', description);
       }
     }
 
     if (image) {
-      const twitterImage = document.querySelector('meta[property="twitter:image"]');
+      const twitterImage = document.querySelector('meta[name="twitter:image"]');
       if (twitterImage) {
         twitterImage.setAttribute('content', image);
       }
+    }
+
+    // Page-level JSON-LD: one managed node, replaced per page so structured
+    // data always describes the CURRENT page (stale VideoObject on an
+    // unrelated page reads as spam to Google).
+    const prev = document.getElementById('page-jsonld');
+    if (prev) prev.remove();
+    if (jsonLd) {
+      const script = document.createElement('script');
+      script.id = 'page-jsonld';
+      script.type = 'application/ld+json';
+      script.textContent = JSON.stringify({
+        '@context': 'https://schema.org',
+        ...jsonLd,
+      });
+      document.head.appendChild(script);
     }
   }, []);
 
@@ -111,65 +132,164 @@ export const useSEO = () => {
 
 // Page copy. Rules, learned the hard way: canonicals must be the LIVE host
 // (they once pointed at a dead Vercel slug, telling Google every page lived
-// elsewhere), and superlatives must be verifiable — no "leading", "largest",
-// "thousands", or "experienced instructors" for a 14-document, 2-post
-// library of curated YouTube lessons.
-const SITE = 'https://smartstudy.tewodroshabtamu.dev';
+// elsewhere — then at the old tewodroshabtamu.dev host after the move to
+// smartstudy.pro.et), and superlatives must be verifiable — no "leading",
+// "largest", "thousands", or "experienced instructors".
+// Keyword strategy: every title front-loads what Ethiopian students actually
+// type — grade level, subject, "Ethiopia", national-exam terms — then the
+// brand. Descriptions stay under ~160 chars so Google shows them whole.
+const SITE = 'https://smartstudy.pro.et';
+
+// Truncate display strings for title/description budgets without cutting
+// mid-word where avoidable.
+const clip = (text: string, max: number): string => {
+  const clean = (text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut}…`;
+};
 
 // Predefined SEO configurations for different pages
 export const pageSEO = {
   home: {
-    title: 'SmartStudy - AI-Powered Learning Platform for Ethiopian High School Students',
-    description: 'SmartStudy helps Ethiopian high school students study with a digital library, AI tutor, video lessons, and community support. Free to start, organized around the Ethiopian curriculum.',
-    keywords: 'Ethiopian education, smart study, education platform, Ethiopian high school, AI tutor, digital library, Ethiopian curriculum, high school learning, Ethiopian students',
+    title: 'SmartStudy Ethiopia | AI Tutor, Video Lessons & Exam Prep for Grades 9–12',
+    description: 'Study smarter for Ethiopian national exams: AI tutor, video lessons, textbooks, past papers & community for grades 9–12. Free to start.',
+    keywords: 'Ethiopian education, smart study Ethiopia, EGSECE preparation, Ethiopian high school, AI tutor, digital library, Ethiopian curriculum, grade 9, grade 10, grade 11, grade 12, national exam Ethiopia',
     canonical: `${SITE}/`
   },
   library: {
-    title: 'Digital Library - Textbooks & Study Materials | SmartStudy Ethiopia',
-    description: 'Browse textbooks, exam papers, and study materials for the Ethiopian high school curriculum. Free access to educational resources.',
-    keywords: 'digital library Ethiopia, textbooks Ethiopia, study materials, Ethiopian curriculum books, exam papers, educational resources',
+    title: 'Ethiopian Textbooks & Study Materials (Grades 9–12) | SmartStudy Library',
+    description: 'Free textbooks, exam papers & study materials for the Ethiopian high school curriculum, grades 9–12. Browse by subject and grade.',
+    keywords: 'Ethiopian textbooks, digital library Ethiopia, grade 9 textbook, grade 10 textbook, study materials Ethiopia, exam papers Ethiopia',
     canonical: `${SITE}/library`
   },
   aiTutor: {
-    title: 'AI Tutor - Help with Math, Physics & Chemistry | SmartStudy',
-    description: 'Get AI tutoring for Ethiopian high school subjects: explanations, step-by-step solutions, and homework help. Always cross-check critical facts with your textbooks.',
-    keywords: 'AI tutor Ethiopia, math help, physics tutor, chemistry help, homework assistance, Ethiopian education AI',
+    title: 'AI Tutor for Math, Physics & Chemistry | SmartStudy Ethiopia',
+    description: 'Stuck on homework? Get step-by-step AI explanations for Ethiopian high school math, physics, chemistry & more. Free to try.',
+    keywords: 'AI tutor Ethiopia, math help Ethiopia, physics tutor, chemistry help, homework help Ethiopia, EGSECE help',
     canonical: `${SITE}/ai-tutor`
   },
   videos: {
-    title: 'Video Lessons - Ethiopian High School Video Classroom | SmartStudy',
-    description: 'Watch curated video lessons for grades 9-12, organized around the national curriculum. Free to browse; Pro unlocks the full collection.',
-    keywords: 'video lessons Ethiopia, online classroom, Ethiopian teachers, high school videos, educational videos',
+    title: 'Video Lessons for Ethiopian High School (Grades 9–12) | SmartStudy',
+    description: 'Watch free video lessons for grades 9–12: math, physics, chemistry, biology & more, organized around the Ethiopian curriculum.',
+    keywords: 'Ethiopian video lessons, online classes Ethiopia, grade 9 videos, grade 12 physics, high school videos Ethiopia, study videos',
     canonical: `${SITE}/videos`
   },
   pastExams: {
-    title: 'Past Exam Papers - Practice with Previous Years\' Exams | SmartStudy',
-    description: 'Practice with past exam papers and tests for Ethiopian high school national exams. Prepare with real exam questions.',
-    keywords: 'past exams Ethiopia, exam papers, national exam preparation, Ethiopian high school exams, practice tests',
+    title: 'Ethiopian National Exam Past Papers (EGSECE) | SmartStudy',
+    description: 'Practice with past Ethiopian national exam papers for grades 10 & 12. Real questions with answers to prepare for EGSECE & EUEE.',
+    keywords: 'EGSECE past papers, Ethiopian national exam, EUEE past exams, grade 10 exam Ethiopia, grade 12 exam, past exam papers Ethiopia',
     canonical: `${SITE}/past-exams`
   },
   community: {
-    title: 'Study Community - Connect with Ethiopian Students | SmartStudy',
-    description: 'Join the study community for Ethiopian high school students. Share notes, ask questions, and study together with peers.',
-    keywords: 'study community Ethiopia, student forum, Ethiopian students, study groups, educational community',
+    title: 'Ethiopian Student Study Community & Forum | SmartStudy',
+    description: 'Ask questions, share notes & study with Ethiopian high school students. Get help with homework and national exam prep.',
+    keywords: 'Ethiopian student forum, study community Ethiopia, homework help Ethiopia, study groups Ethiopia',
     canonical: `${SITE}/community`
   },
   practice: {
-    title: 'Practice Center - Test Your Knowledge | SmartStudy Ethiopia',
-    description: 'Practice with interactive quizzes and tests designed for the Ethiopian high school curriculum. Track your progress and improve your grades.',
-    keywords: 'practice tests Ethiopia, quiz platform, Ethiopian curriculum practice, study assessment',
+    title: 'Practice Quizzes for Ethiopian Curriculum (Grades 9–12) | SmartStudy',
+    description: 'Test yourself with interactive quizzes for the Ethiopian high school curriculum. Track progress, earn XP & improve grades.',
+    keywords: 'Ethiopia practice tests, EGSECE quiz, grade 10 practice questions, Ethiopian curriculum quiz, online test Ethiopia',
     canonical: `${SITE}/practice`
   },
   about: {
-    title: 'About SmartStudy - Educational Platform for Ethiopia',
-    description: 'Learn about SmartStudy, an educational platform for Ethiopian high school students with AI tutoring, a digital library, and community support.',
-    keywords: 'about SmartStudy, Ethiopian education platform, educational technology Ethiopia',
+    title: 'About SmartStudy | Education Platform for Ethiopia',
+    description: 'SmartStudy helps Ethiopian high school students study with an AI tutor, video lessons, digital library & community. Learn our story.',
+    keywords: 'about SmartStudy, Ethiopian education platform, edtech Ethiopia',
     canonical: `${SITE}/about`
   },
   careers: {
-    title: 'Careers - Join the SmartStudy Team | Education Technology Ethiopia',
-    description: 'Explore career opportunities at SmartStudy. Help us improve education in Ethiopia by joining our team of educators and technologists.',
-    keywords: 'careers Ethiopia, education jobs, tech jobs Ethiopia, SmartStudy careers',
+    title: 'Careers at SmartStudy | Education Jobs in Ethiopia',
+    description: 'Join SmartStudy and help improve education in Ethiopia. See open roles for educators, engineers & content creators.',
+    keywords: 'SmartStudy careers, education jobs Ethiopia, edtech jobs Ethiopia',
     canonical: `${SITE}/careers`
   }
 };
+
+// --- Detail pages: the long tail. A generic "Video | SmartStudy" title can
+// never rank; "{topic} — Grade {grade} {subject}" can. ---------------------
+
+export interface DetailSEOInput {
+  id: string;
+  title: string;
+  description?: string;
+  subject?: string;
+  grade?: number;
+  image?: string;
+  createdAt?: string;
+}
+
+const gradeLabel = (grade?: number): string =>
+  grade && grade > 0 ? `Grade ${grade} ` : '';
+
+export const videoSEO = (video: DetailSEOInput) => {
+  const topic = clip(video.title, 52);
+  const gradeSubject = `${gradeLabel(video.grade)}${video.subject || 'Lesson'}`.trim();
+  return {
+    title: `${topic} — ${gradeSubject} Video Lesson | SmartStudy`,
+    description: clip(
+      video.description ||
+      `Watch "${video.title}" — a ${gradeSubject} video lesson for Ethiopian high school students on SmartStudy.`,
+      158
+    ),
+    canonical: `${SITE}/video/${video.id}`,
+    url: `${SITE}/video/${video.id}`,
+    image: video.image,
+    jsonLd: {
+      '@type': 'VideoObject',
+      name: video.title,
+      description: clip(video.description || video.title, 300),
+      thumbnailUrl: video.image ? [video.image] : undefined,
+      uploadDate: video.createdAt,
+      contentUrl: undefined,
+      inLanguage: 'en',
+      educationalLevel: video.grade && video.grade > 0 ? `Grade ${video.grade}` : undefined,
+      about: video.subject,
+    },
+  };
+};
+
+export const documentSEO = (doc: DetailSEOInput & { fileType?: string }) => {
+  const topic = clip(doc.title, 52);
+  const gradeSubject = `${gradeLabel(doc.grade)}${doc.subject || 'Study material'}`.trim();
+  const kind = doc.fileType ? `${doc.fileType} ` : '';
+  return {
+    title: `${topic} — ${gradeSubject} ${kind}Study Material | SmartStudy`.replace('  ', ' '),
+    description: clip(
+      doc.description ||
+      `Download "${doc.title}" — ${gradeSubject} study material for the Ethiopian curriculum on SmartStudy.`,
+      158
+    ),
+    canonical: `${SITE}/document/${doc.id}`,
+    url: `${SITE}/document/${doc.id}`,
+    image: doc.image,
+    jsonLd: {
+      '@type': 'LearningResource',
+      name: doc.title,
+      description: clip(doc.description || doc.title, 300),
+      url: `${SITE}/document/${doc.id}`,
+      inLanguage: 'en',
+      educationalLevel: doc.grade && doc.grade > 0 ? `Grade ${doc.grade}` : undefined,
+      teaches: doc.subject,
+    },
+  };
+};
+
+export const communityPostSEO = (
+  post: { id: string; title: string; content: string; author?: string; createdAt?: string; subject?: string }
+) => ({
+  title: `${clip(post.title, 60)} | SmartStudy Community`,
+  description: clip(post.content, 158),
+  canonical: `${SITE}/community/${post.id}`,
+  url: `${SITE}/community/${post.id}`,
+  jsonLd: {
+    '@type': 'DiscussionForumPosting',
+    headline: post.title,
+    text: clip(post.content, 500),
+    datePublished: post.createdAt,
+    inLanguage: 'en',
+    author: post.author ? { '@type': 'Person', name: post.author } : undefined,
+  },
+});

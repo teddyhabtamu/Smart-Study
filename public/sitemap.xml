@@ -1,86 +1,97 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Static-route fallback. At build time scripts/generate-sitemap.mjs
+     rewrites this file with the same static routes PLUS every public video
+     and document URL from the API. If the API is unreachable the build
+     keeps this file untouched, so deploys never ship an empty sitemap. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/library</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/library</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/ai-tutor</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/ai-tutor</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/videos</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/videos</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/past-exams</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/past-exams</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/practice</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/practice</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/community</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/community</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/login</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/login</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/register</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/register</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/about</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/about</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/careers</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/careers</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
 
   <url>
-    <loc> https://smartstudy.tewodroshabtamu.dev/privacy-policy</loc>
-    <lastmod>2026-05-22</lastmod>
+    <loc>https://smartstudy.pro.et/privacy-policy</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <url>
+    <loc>https://smartstudy.pro.et/terms-of-service</loc>
+    <lastmod>2026-09-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>

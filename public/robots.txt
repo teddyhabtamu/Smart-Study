@@ -20,8 +20,9 @@ Allow: /
 User-agent: YandexBot
 Allow: /
 
-# Sitemap location
-Sitemap: https://smartstudy.tewodroshabtamu.dev/sitemap.xml
+# Sitemap location (must be the live canonical host — Search Console
+# property is https://smartstudy.pro.et/)
+Sitemap: https://smartstudy.pro.et/sitemap.xml
 
 # Crawl delay (optional)
 Crawl-delay: 1
