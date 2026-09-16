@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/generate-sitemap.mjs && node scripts/validate-jsonld.mjs",
+    "prebuild": "node scripts/generate-sitemap.mjs && node scripts/validate-deploy.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

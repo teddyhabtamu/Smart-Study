@@ -1,9 +1,5 @@
 {
   "functions": {
-    // 60s is the Hobby-plan ceiling. The AI study-plan route is the hungriest
-    // endpoint (one big generation); its internal budgets are tuned to answer
-    // in <30s, but tail latency (cold start + slow upstream) needs headroom
-    // past the old 30s kill — which 504d healthy generations mid-stream.
     "api/index.ts": {
       "maxDuration": 60
     }
