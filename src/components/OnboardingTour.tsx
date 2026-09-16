@@ -332,7 +332,12 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
         isSpotlight
           ? 'fixed z-[410] w-[340px] max-w-[calc(100vw-2rem)] bg-zinc-900 text-white rounded-2xl shadow-2xl p-5 outline-none animate-slide-up'
           : isMobile
-            ? 'fixed z-[410] left-4 right-4 bottom-4 bg-zinc-900 text-white rounded-2xl shadow-2xl p-5 outline-none animate-slide-up'
+            // Bottom sheet: capped to the *dynamic* viewport with its own
+            // scroll (landscape phones / large text would otherwise push the
+            // nav buttons off-screen with no way to reach them), and parked
+            // above the home indicator via safe-area (same pattern as
+            // PwaInstall) instead of a fixed bottom-4.
+            ? 'fixed z-[410] left-4 right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-900 text-white rounded-2xl shadow-2xl p-5 outline-none animate-slide-up max-h-[calc(100dvh-2rem)] overflow-y-auto'
             : 'relative z-[410] w-[380px] max-w-[calc(100vw-2rem)] bg-zinc-900 text-white rounded-2xl shadow-2xl p-5 sm:p-6 outline-none animate-slide-up max-h-[calc(100vh-4rem)] overflow-y-auto'
       }
     >
@@ -345,7 +350,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
           {!isLast && (
             <button
               onClick={dismiss}
-              className="text-xs font-semibold text-zinc-400 hover:text-white transition-colors px-2 py-1"
+              className="text-xs font-semibold text-zinc-400 hover:text-white transition-colors px-2 py-2 min-h-[44px]"
             >
               Skip
             </button>
@@ -353,7 +358,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <button
             onClick={dismiss}
             aria-label="Close tour"
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg transition-colors"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-zinc-400 hover:text-white rounded-lg transition-colors"
           >
             <X size={16} />
           </button>
@@ -386,15 +391,15 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
       {/* Finale quick-link map */}
       {current.chips && (
         <div className="grid grid-cols-2 gap-2 my-4">
-          {current.chips.map((chip) => (
-            <button
-              key={chip.to + chip.label}
-              onClick={() => goTo(chip.to)}
-              className="px-3 py-2 bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-white hover:bg-white/20 transition-colors text-left"
-            >
-              {chip.label}
-            </button>
-          ))}
+              {current.chips.map((chip) => (
+                <button
+                  key={chip.to + chip.label}
+                  onClick={() => goTo(chip.to)}
+                  className="px-3 py-2 min-h-[44px] flex items-center bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-white hover:bg-white/20 transition-colors text-left"
+                >
+                  {chip.label}
+                </button>
+              ))}
         </div>
       )}
 
@@ -416,13 +421,13 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <div className="space-y-2">
             <button
               onClick={() => goTo('/register')}
-              className="w-full py-2.5 bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 min-h-[44px] bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2"
             >
               Create free account <ArrowRight size={15} />
             </button>
             <button
               onClick={() => goTo('/videos')}
-              className="w-full py-2.5 bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors"
+              className="w-full py-2.5 min-h-[44px] bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center"
             >
               Browse videos first
             </button>
@@ -431,13 +436,13 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <div className="space-y-2">
             <button
               onClick={() => goTo('/videos')}
-              className="w-full py-2.5 bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 min-h-[44px] bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2"
             >
               Explore videos <ArrowRight size={15} />
             </button>
             <button
               onClick={dismiss}
-              className="w-full py-2.5 bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors"
+              className="w-full py-2.5 min-h-[44px] bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center"
             >
               Back to dashboard
             </button>
@@ -448,13 +453,13 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <button
             onClick={() => setStep((s) => Math.max(0, s - 1))}
             disabled={step === 0}
-            className="flex-1 py-2.5 bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-2.5 min-h-[44px] bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ArrowLeft size={15} /> Back
           </button>
           <button
             onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
-            className="flex-1 py-2.5 bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+            className="flex-1 py-2.5 min-h-[44px] bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
           >
             {step === 0 ? 'Show me around' : 'Next'} <ArrowRight size={15} />
           </button>
