@@ -820,9 +820,17 @@ router.post('/generate-practice-quiz', [
     const { subject, grade, difficulty = 'Medium', count = 5 } = req.body;
     const userId = req.user!.id;
 
-    // Indexed lookup of only the column the daily gate reads (was a
-    // full-table fetch of every user row).
-    const userRows = await query('SELECT id, is_premium FROM users WHERE id = $1', [userId]);
+    // One indexed lookup for both the premium gate and the free daily gate
+    // (was two sequential SELECTs on the same row — on a 400ms/query link
+    // every round trip counts toward the client's abort timeout). The window
+    // math stays in SQL so day rollover still uses the DB date, not the
+    // server's timezone guess.
+    const userRows = await query(
+      `SELECT id, is_premium,
+        CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) ELSE 0 END AS used_today
+       FROM users WHERE id = $1`,
+      [userId]
+    );
     const user = userRows.rows[0];
 
     if (!user) {
@@ -836,12 +844,7 @@ router.post('/generate-practice-quiz', [
     // Server-side daily gate for free users. Postgres compares the window
     // date so day rollover needs no cron and no timezone guessing.
     if (!user.is_premium) {
-      const usedRes = await query(
-        `SELECT CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) ELSE 0 END AS used_today
-         FROM users WHERE id = $1`,
-        [userId]
-      );
-      const usedToday = Number(usedRes.rows[0]?.used_today || 0);
+      const usedToday = Number(user.used_today || 0);
       if (usedToday >= FREE_DAILY_QUIZ_LIMIT) {
         res.status(429).json({
           success: false,

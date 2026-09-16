@@ -172,9 +172,22 @@ if (config.server.nodeEnv === 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware
+// Request logging middleware + slow-response tripwire. AI routes do ~10
+// sequential DB round trips after ~6s of generation; on a high-latency link
+// (measured: 3.7s cold connect, 400ms warm query) that can approach the
+// client's abort timeout while the server is still working — the "backend
+// says ok but client timed out" mystery. Any response slower than 10s gets
+// one WARN line with its total time, so the next slow endpoint names itself
+// instead of needing stopwatch forensics from two log streams.
 app.use((req, res, next) => {
+  const start = Date.now();
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    if (ms > 10000) {
+      console.warn(`SLOW ${req.method} ${req.path} ${ms}ms -> ${res.statusCode}`);
+    }
+  });
   next();
 });
 

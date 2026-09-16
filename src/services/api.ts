@@ -933,7 +933,10 @@ export const aiTutorAPI = {
     apiRequest('/ai-tutor/generate-practice-quiz', {
       method: 'POST',
       body: JSON.stringify({ subject, grade, difficulty, count }),
-    }).then((data: any) => ({
+      // 60s like the study-plan route below: ~6s of generation plus ~10
+      // sequential DB round trips after it. On a high-latency link the 30s
+      // default aborted healthy responses that arrived seconds later.
+    }, true, 3, 1000, false, 60000).then((data: any) => ({
       // handleResponse unwraps one level: backend {success, data:{questions, xpGained}}
       data: data?.questions ?? [],
       xpGained: data?.xpGained ?? 0,
