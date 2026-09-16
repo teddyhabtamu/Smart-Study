@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle, MoreVertical } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle, MoreVertical, Lock } from 'lucide-react';
 import { UserRole, ForumComment } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { useData } from '../context/DataContext';
@@ -23,7 +23,7 @@ const CommunityPost: React.FC = () => {
   const { addToast } = useToast();
   const { updateSEO } = useSEO();
   
-  const [fullPost, setFullPost] = useState<(ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[]; userVote?: number; userCommentVotes?: { [commentId: string]: number } }) | null>(null);
+  const [fullPost, setFullPost] = useState<(ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[]; userVote?: number; userCommentVotes?: { [commentId: string]: number }; aiAnswer?: string | null; aiAnswerLocked?: boolean }) | null>(null);
   const [loadingPost, setLoadingPost] = useState(true);
 
   const post = fullPost || forumPosts.find(p => p.id === id);
@@ -243,9 +243,11 @@ const CommunityPost: React.FC = () => {
     setIsGeneratingAI(true);
     try {
       const result = await forumAPI.generateAIAnswer(post.id);
-      // Update the local post state with the AI answer
+      // Update the local post state with the AI answer. The generator just
+      // proved Pro entitlement, so unlock locally — the next refetch would
+      // say the same, but this avoids a flash of the teaser paywall.
       if (fullPost) {
-        setFullPost({ ...fullPost, aiAnswer: result.aiAnswer });
+        setFullPost({ ...fullPost, aiAnswer: result.aiAnswer, aiAnswerLocked: false });
       } else {
         // Fallback: refetch the post
         const refreshedPost = await forumAPI.getPost(post.id);
@@ -687,6 +689,35 @@ const CommunityPost: React.FC = () => {
                    </div>
 
                    {post.aiAnswer ? (
+                      (post as any).aiAnswerLocked ? (
+                      <div className="relative z-10">
+                         {/* Paywalled teaser: the server sent only a plain-text
+                             preview (never the full markdown), so there is
+                             nothing to "unblur" via devtools. Peer answers
+                             below stay free — only the AI analysis is gated. */}
+                         <div className="relative">
+                            <p className="text-sm text-inksoft leading-relaxed max-w-xl">
+                               {post.aiAnswer}
+                            </p>
+                            <div className="absolute inset-x-0 -bottom-1 h-10 bg-gradient-to-t from-[#fafafa] to-transparent pointer-events-none" aria-hidden="true" />
+                         </div>
+                         <div className="mt-3 bg-zinc-900 rounded-xl p-4 sm:p-5 text-onink flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                               <Lock size={18} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                               <p className="text-sm font-bold">Full AI analysis is a Pro feature</p>
+                               <p className="text-xs text-zinc-400 mt-0.5">Upgrade to unlock the complete step-by-step solution.</p>
+                            </div>
+                            <button
+                               onClick={() => navigate('/subscription', { state: { from: window.location.pathname } })}
+                               className="px-4 py-2 bg-white text-zinc-900 text-sm font-bold rounded-lg hover:bg-zinc-200 transition-colors whitespace-nowrap"
+                            >
+                               Upgrade to Pro
+                            </button>
+                         </div>
+                      </div>
+                      ) : (
                       <div className="relative z-10">
                          <div className="prose prose-sm prose-zinc text-ink mb-2">
                             <MarkdownRenderer content={post.aiAnswer} />
@@ -695,6 +726,7 @@ const CommunityPost: React.FC = () => {
                             <TTSButton text={post.aiAnswer} size={16} quality="high" className="text-zinc-400 hover:text-ink bg-surface shadow-sm" />
                          </div>
                       </div>
+                      )
                    ) : (
                       <div className="relative z-10">
                          <p className="text-sm text-inksoft mb-4 max-w-xl">

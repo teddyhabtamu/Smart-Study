@@ -2,7 +2,7 @@ import express from 'express';
 import { createHash } from 'crypto';
 import { body, query as queryValidator } from 'express-validator';
 import { db, dbAdmin, query } from '../database/config';
-import { authenticateToken, validateRequest } from '../middleware/auth';
+import { authenticateToken, optionalAuth, validateRequest } from '../middleware/auth';
 import { ApiResponse, ForumPost, ForumComment, User } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { awardXP } from '../services/xpService';
@@ -37,8 +37,47 @@ router.get('/test', (req: express.Request, res: express.Response): void => {
   res.json({ success: true, message: 'Forum API is working' });
 });
 
+// AI-answer paywall (READ-time redaction). Generating is Pro-only, but the
+// stored answer used to ship FULL to every reader — one Pro tap un-paywalled
+// it for all free users and guests forever. Now the API returns only a
+// teaser preview unless the VIEWER is entitled (Pro member, or staff who
+// need the text for moderation). Deliberately server-side, never a frontend
+// blur: the old video_url leak proved redaction must happen before JSON
+// leaves the server. Guests and Googlebot (both unauthenticated) receive the
+// identical teaser, so this is not cloaking.
+const AI_PREVIEW_MIN = 120;
+const AI_PREVIEW_MAX = 400;
+
+// Plain-text teaser: markdown is stripped BEFORE slicing (a cut mid-syntax
+// renders broken bold/fences), then ~25% of the text is kept within
+// [MIN, MAX] chars so tiny answers still tease and long ones stay gated.
+export const aiAnswerPreview = (full: string): string => {
+  const stripped = (full || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[*_~]{1,3}/g, '')
+    .replace(/^[\s]*[-*+]\s+/gm, '')
+    .replace(/^[\s]*\d+\.\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!stripped) return '';
+  const target = Math.min(Math.max(Math.floor(stripped.length * 0.25), AI_PREVIEW_MIN), AI_PREVIEW_MAX);
+  if (stripped.length <= target) return stripped;
+  const cut = stripped.slice(0, target);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${lastSpace > target * 0.5 ? cut.slice(0, lastSpace) : cut}…`;
+};
+
+export const canReadFullAiAnswer = (req: express.Request): boolean =>
+  !!req.user && (!!req.user.is_premium || req.user.role === 'ADMIN' || req.user.role === 'MODERATOR');
+
 // Get all forum posts with optional filtering
-router.get('/posts', async (req: express.Request, res: express.Response): Promise<void> => {
+// optionalAuth (not open): the AI-answer paywall below needs to know whether
+// the reader is Pro/staff. Guests still read everything else freely.
+router.get('/posts', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { subject, grade, search, limit = 20, offset = 0 } = req.query;
 
@@ -98,7 +137,10 @@ router.get('/posts', async (req: express.Request, res: express.Response): Promis
       tags: post.tags || [],
       is_solved: post.is_solved || false,
       is_edited: post.is_edited || false,
-      aiAnswer: post.ai_answer, // Convert snake_case to camelCase for frontend
+      // The list UI never renders AI answers — they ride along only as a
+      // 20-per-page payload tax and a paywall hole. Non-entitled readers get
+      // null; entitled readers keep the full text for shape stability.
+      aiAnswer: canReadFullAiAnswer(req) ? post.ai_answer : null,
       created_at: post.created_at,
       updated_at: post.updated_at,
       author: post.author,
@@ -129,7 +171,10 @@ router.get('/posts', async (req: express.Request, res: express.Response): Promis
 });
 
 // Get single forum post with comments
-router.get('/posts/:id', async (req: express.Request, res: express.Response): Promise<void> => {
+// optionalAuth (not open): same paywall reason as the list route — without
+// it every reader looks like a guest and Pro members would only ever see
+// teasers of answers they paid for.
+router.get('/posts/:id', optionalAuth, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id; // May be undefined for non-authenticated users
@@ -260,6 +305,7 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
       }
     }
 
+    const entitled = canReadFullAiAnswer(req);
     const enrichedPost = {
       id: post.id,
       title: post.title,
@@ -271,7 +317,11 @@ router.get('/posts/:id', async (req: express.Request, res: express.Response): Pr
       tags: post.tags || [],
       is_solved: post.is_solved || false,
       is_edited: post.is_edited || false,
-      aiAnswer: post.ai_answer, // Convert snake_case to camelCase for frontend
+      // Paywalled read: full text for Pro/staff, plain-text teaser for
+      // everyone else (see helper). aiAnswerLocked tells the UI to render
+      // the upsell instead of the markdown body.
+      aiAnswer: entitled ? post.ai_answer : (post.ai_answer ? aiAnswerPreview(post.ai_answer) : null),
+      aiAnswerLocked: !!post.ai_answer && !entitled,
       created_at: post.created_at,
       updated_at: post.updated_at,
       author: post.author,
