@@ -499,12 +499,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                        }`}
                        style={
                          window.innerWidth >= 1024 && notificationRef.current
-                           ? {
-                               bottom: `${window.innerHeight - notificationRef.current.getBoundingClientRect().top + 8}px`,
-                               left: `${notificationRef.current.getBoundingClientRect().right + 8}px`,
-                               maxHeight: `${Math.min(600, notificationRef.current.getBoundingClientRect().top - 16)}px`,
-                               minHeight: '200px'
-                             }
+                           ? (() => {
+                               // Anchored to the SIDEBAR edge (not the bell): the bell
+                               // lives inside the rail, so bell.right+8 sliced
+                               // through the nav. Sidebar is 260px open / 80px
+                               // collapsed — the panel now docks clear of both.
+                               // Capped at 480px tall: a dropdown, not a drawer.
+                               const rect = notificationRef.current.getBoundingClientRect();
+                               const left = (isCollapsed ? 80 : 260) + 12;
+                               return {
+                                 bottom: `${window.innerHeight - rect.top + 8}px`,
+                                 left: `${left}px`,
+                                 maxHeight: `${Math.max(200, Math.min(480, rect.top - 24))}px`,
+                                 minHeight: '200px',
+                               };
+                             })()
                            : {
                                maxHeight: 'calc(100vh - 6rem)',
                                minHeight: '200px'
