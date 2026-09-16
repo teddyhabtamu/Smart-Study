@@ -10,7 +10,7 @@ import rateLimit from 'express-rate-limit';
 import { ipKeyGenerator } from './middleware/rateLimit';
 import passport from './middleware/googleAuth';
 import { config } from './config';
-import { pool, getPoolStats } from './database/config';
+import { pool, getPoolStats, getPoolCheckoutDebug } from './database/config';
 import { SchedulerService } from './services/schedulerService';
 
 // Production guard: the direct Supabase db.* host is IPv6-only and
@@ -257,8 +257,11 @@ app.get('/api/health', async (req, res) => {
     db,
     // Pool gauges: total=max + idle=0 + waiting>0 under light traffic means
     // slots are LEAKED (checked out, never released); failures with healthy
-    // gauges mean the database itself is unreachable.
-    pool: getPoolStats(),
+    // gauges mean the database itself is unreachable. checkedOut cross-checks
+    // the gauges against the live checkout registry — it should equal
+    // total-idle, and holder stacks for any stuck checkout go to the server
+    // log via the pool-pressure warning (stacks never leave the server).
+    pool: { ...getPoolStats(), checkedOut: getPoolCheckoutDebug().checkedOut },
   });
 });
 

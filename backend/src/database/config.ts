@@ -155,8 +155,50 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
 };
 
 // Get a client from the pool (for multi-statement transactions)
+//
+// Live checkout registry: every checked-out client is tracked with the code
+// location that took it and the take timestamp. Added after the max-3 pool
+// was found wedged at 2/3 slots permanently checked out (frozen gauges for
+// minutes with zero traffic), funneling all bursty frontend traffic through
+// 1 slot into 10s acquire timeouts and 30s client aborts. pool.query borrows
+// are bounded internally and need no tracking — only explicit checkouts can
+// leak, and there is exactly one call site (xpService.awardXP).
+const checkedOut = new Map<object, { since: number; holder: string }>();
+
+// Counts for /api/health (public-safe: no stacks). Full holder stacks go to
+// the server log on the pressure warning below.
+export const getPoolCheckoutDebug = (): {
+  checkedOut: number;
+  holders: Array<{ heldMs: number; holder: string }>;
+} => ({
+  checkedOut: checkedOut.size,
+  holders: [...checkedOut.values()].map((v) => ({
+    heldMs: Date.now() - v.since,
+    holder: v.holder,
+  })),
+});
+
 export const getClient = async (): Promise<PoolClient> => {
+  const waitStart = Date.now();
   const client = await pool.connect();
+  const waitMs = Date.now() - waitStart;
+  const holder =
+    new Error('pool checkout').stack?.split('\n').slice(2, 6).join(' <- ') ?? 'unknown';
+  checkedOut.set(client, { since: Date.now(), holder });
+  // Fire exactly in the failure mode: acquiring had to queue, or the pool is
+  // one checkout from empty. The holders list then names the stuck code.
+  const maxSlots = pool.options.max ?? 3;
+  if (waitMs > 2000 || checkedOut.size >= maxSlots - 1) {
+    console.warn(
+      `pg pool pressure: acquire waited ${waitMs}ms, ${checkedOut.size}/${maxSlots} checked out:`,
+      JSON.stringify(getPoolCheckoutDebug())
+    );
+  }
+  const origRelease = client.release.bind(client);
+  client.release = (...args: any[]): any => {
+    checkedOut.delete(client);
+    return (origRelease as any)(...args);
+  };
   const wrappedQuery = client.query.bind(client);
   (client as any).query = async (text: string, p: any[] = []) => {
     return withRetry(() => wrappedQuery(text, p));
