@@ -508,7 +508,13 @@ export const withPlanTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> 
     }),
   ]);
 
-const PLAN_ATTEMPT_TIMEOUT_MS = 60_000;
+const PLAN_ATTEMPT_TIMEOUT_MS = 22_000;
+const PLAN_REPAIR_TIMEOUT_MS = 15_000;
+// Repair runs only when the first attempt failed FAST (a parse error, not a
+// stall): worst case stays ≈ auth + 10s + 15s, inside the frontend's 30s
+// abort and Vercel's kill. A stall skips repair — a sick upstream won't heal
+// in the next window, and two full waits back-to-back outlast both budgets.
+const PLAN_REPAIR_ELAPSED_BUDGET_MS = 10_000;
 
 export async function generateSmartPlan(
   userRequest: string,
@@ -535,10 +541,10 @@ Build their study schedule as JSON in EXACTLY this shape:
       "title": "Short specific session title",
       "type": "Revision",
       "guide": {
-        "howToComplete": ["4 concrete steps for THIS session"],
-        "guides": ["4 practical study tips"],
+        "howToComplete": ["3 concrete steps for THIS session"],
+        "guides": ["2 practical study tips"],
         "suggestions": "One encouraging sentence",
-        "motivation": ["3 short motivational lines"]
+        "motivation": ["2 short motivational lines"]
       }
     }
   ]
@@ -600,9 +606,12 @@ Rules — follow ALL of them:
 
   // Attempt 1: full plan with guides. Bounded by timeout — a hung upstream
   // must degrade to the skeleton below, never to a proxy-killed request.
+  // Output capped at 4096 tokens (slim guides above keep real plans near
+  // 2-3k): bigger caps only buy slower generations past the time budgets.
+  const t0 = Date.now();
   let attemptTimedOut = false;
   try {
-    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 8192), PLAN_ATTEMPT_TIMEOUT_MS);
+    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 4096), PLAN_ATTEMPT_TIMEOUT_MS);
     const parsed = parsePlan(raw);
     if (parsed) {
       console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
@@ -614,18 +623,17 @@ Rules — follow ALL of them:
     console.error('[study-plan] first attempt failed:', (err as Error)?.message);
   }
 
-  // Attempt 2: explicit repair — ask for the same JSON, stricter. Skipped
-  // after a timeout: a sick upstream won't heal in the next 60s, and two
-  // full waits back-to-back outlast most proxies. Straight to skeleton.
-  if (!attemptTimedOut) {
+  // Attempt 2: explicit repair — ask for the same JSON, stricter. Budget-
+  // gated (see constants): only a fast parse failure earns a retry.
+  if (!attemptTimedOut && Date.now() - t0 < PLAN_REPAIR_ELAPSED_BUDGET_MS) {
   try {
     const raw = await withPlanTimeout(complete(
       systemPrompt,
       `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever.`,
       [],
       0.2,
-      8192
-    ), PLAN_ATTEMPT_TIMEOUT_MS);
+      4096
+    ), PLAN_REPAIR_TIMEOUT_MS);
     const parsed = parsePlan(raw);
     if (parsed) {
       console.log(`[study-plan] smart plan ok on repair: ${parsed.length} days`);

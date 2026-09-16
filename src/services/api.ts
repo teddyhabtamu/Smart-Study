@@ -292,11 +292,15 @@ const apiRequest = async <T>(
   // the request (double-spending code attempts) or log the user out when the
   // refresh fails — all because of a typo.
   skipAuthRefresh: boolean = false,
+  // Per-call timeout (default 30s). Long AI generations (study plan) opt
+  // into 55s: the server answers those in <30s by budget, but thin mobile
+  // networks need the extra headroom past the 30s default.
+  timeoutMs: number = 30000,
 ): Promise<T> => {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  // Create timeout signal (30 seconds)
-  const timeoutSignal = createTimeoutSignal(30000);
+  // Create timeout signal (default 30 seconds)
+  const timeoutSignal = createTimeoutSignal(timeoutMs);
 
   // Merge signals if one already exists
   let finalSignal = timeoutSignal;
@@ -915,7 +919,7 @@ export const aiTutorAPI = {
     apiRequest('/ai-tutor/generate-study-plan', {
       method: 'POST',
       body: JSON.stringify({ prompt, ...(grade !== undefined ? { grade } : {}) }),
-    }),
+    }, true, 3, 1000, false, 55000),
 
   generatePracticeQuiz: (subject: string, grade: string, difficulty: string, count: number): Promise<{ data: any[]; xpGained: number }> =>
     apiRequest('/ai-tutor/generate-practice-quiz', {
