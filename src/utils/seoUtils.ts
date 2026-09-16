@@ -243,7 +243,6 @@ export const videoSEO = (video: DetailSEOInput) => {
       description: clip(video.description || video.title, 300),
       thumbnailUrl: video.image ? [video.image] : undefined,
       uploadDate: video.createdAt,
-      contentUrl: undefined,
       inLanguage: 'en',
       educationalLevel: video.grade && video.grade > 0 ? `Grade ${video.grade}` : undefined,
       about: video.subject,
