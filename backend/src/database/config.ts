@@ -163,48 +163,68 @@ const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500): 
 //   query(text, params) -> { rows, rowCount }
 // ---------------------------------------------------------------------------
 export const query = async (text: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> => {
-  // TEMPORARY hang forensics: log submit/settle per query to the trace file.
-  // Remove with the quiz trace once identified.
   const tag = text.trim().slice(0, 34).replace(/\s+/g, ' ');
-  try {
-    const fs = await import('fs');
-    fs.appendFileSync('/tmp/quiz-trace.log', `${new Date().toISOString()} q-submit: ${tag}\n`);
-  } catch { /* never break queries for tracing */ }
-  try {
-    // Positional form only: pg's object form ({text, values, query_timeout})
-    // crashed this pg version with "must have either text or a name" as an
-    // UNCAUGHT exception (killed the process mid-request). Timeouts stay at
-    // the pool level (verified: pg_sleep(35) dies at ~29s).
-    const res = (await withRetry(() => pool.query(text, params))) as {
-      rows: any[];
-      rowCount: number | null;
+  // Explicit lease (not pool.query): the client is OURS for the operation,
+  // so the watchdog below can destroy exactly the stuck one. pool.query's
+  // internal borrow is invisible and proved unrecoverable when wedged.
+  const run = async (): Promise<{ rows: any[]; rowCount: number }> => {
+    const client = await pool.connect();
+    checkedOut.set(client, { since: Date.now(), holder: `query: ${tag}` });
+    const origRelease = client.release.bind(client);
+    const release = (...args: any[]): void => {
+      checkedOut.delete(client);
+      (origRelease as any)(...args);
     };
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const fs = await import('fs');
-      fs.appendFileSync('/tmp/quiz-trace.log', `${new Date().toISOString()} q-settle-ok: ${tag}\n`);
-    } catch { /* never break queries for tracing */ }
-    return { rows: res.rows, rowCount: res.rowCount ?? 0 };
-  } catch (err) {
-    try {
-      const fs = await import('fs');
-      fs.appendFileSync(
-        '/tmp/quiz-trace.log',
-        `${new Date().toISOString()} q-settle-ERR: ${tag} :: ${String((err as any)?.message || err).slice(0, 90)}\n`
-      );
-    } catch { /* never break queries for tracing */ }
-    throw err;
-  }
+      const res = (await Promise.race([
+        client.query(text, params),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(leaseTimeoutError(tag)), LEASE_TIMEOUT_MS);
+          (timer as any)?.unref?.();
+        }),
+      ])) as { rows: any[]; rowCount: number | null };
+      release();
+      return { rows: res.rows, rowCount: res.rowCount ?? 0 };
+    } catch (err) {
+      // Timeout (or any failure) destroys the lease: a wedged client must
+      // never return to rotation to wedge the next borrower. Releasing with
+      // an error drops it from the pool; the pool opens a fresh one on
+      // demand. Normal (non-timeout) errors also destroy — a 3.7s reconnect
+      // is cheaper than ever trusting a suspect socket again.
+      try {
+        release(err);
+      } catch { /* already gone */ }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  // withRetry logs the failure with pool gauges before rethrowing.
+  return withRetry(run);
 };
 
-// Get a client from the pool (for multi-statement transactions)
+// Absolute per-operation ceiling, enforced by OUR OWN timer — not pg's.
+// Rationale: queries were observed stuck forever (submitted, executed
+// server-side, never settled, pg's readTimeout never fired) with a free
+// event loop, permanently leaking the leased slot until the 3-slot pool
+// wedged and every route 500'd. Whatever defeats pg's internal timer cannot
+// defeat an independent race: on expiry the waiter is rejected AND the
+// client is destroyed (released with error so the pool replaces it).
+const LEASE_TIMEOUT_MS = 20000;
+
+const leaseTimeoutError = (tag: string): any => {
+  const err: any = new Error(`pg lease timeout (20s): ${tag}`);
+  err.code = 'PG_LEASE_TIMEOUT';
+  return err;
+};
 //
-// Live checkout registry: every checked-out client is tracked with the code
-// location that took it and the take timestamp. Added after the max-3 pool
-// was found wedged at 2/3 slots permanently checked out (frozen gauges for
-// minutes with zero traffic), funneling all bursty frontend traffic through
-// 1 slot into 10s acquire timeouts and 30s client aborts. pool.query borrows
-// are bounded internally and need no tracking — only explicit checkouts can
-// leak, and there is exactly one call site (xpService.awardXP).
+// Live checkout registry: every leased pool client is tracked with the code
+// location that took it and the take timestamp. Added after slots were found
+// permanently checked out (frozen gauges for minutes with zero traffic),
+// funneling all bursty frontend traffic through 1 slot into 10s acquire
+// timeouts and client aborts. Both query() leases and getClient()
+// transactions register here; both delete on release/destroy.
 const checkedOut = new Map<object, { since: number; holder: string }>();
 
 // Counts for /api/health (public-safe: no stacks). Full holder stacks go to
