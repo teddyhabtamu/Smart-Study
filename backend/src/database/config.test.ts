@@ -110,3 +110,27 @@ describe('SQL identifier guard (column-name injection)', () => {
     expect(() => assertSafeIdent('1abc')).toThrow();
   });
 });
+
+// Pool budgets guard. A 14-row INSERT once rode a zombie pooler socket to
+// Vercel's 60s kill with zero log output: no statement/query timeout
+// existed, idle eviction was 120s, and retries stacked past the function
+// budget. Every wait must fail loud well inside it — this test fails the
+// build if anyone loosens a budget back into silent-kill territory.
+describe('buildPoolConfig (serverless fail-fast budgets)', () => {
+  it('bounds every DB wait below the function kill', async () => {
+    delete process.env.PG_POOL_MAX;
+    const { buildPoolConfig } = await load();
+    const cfg = buildPoolConfig();
+    expect(cfg.connectionTimeoutMillis).toBeLessThanOrEqual(10000);
+    expect(cfg.statement_timeout).toBeLessThanOrEqual(20000);
+    expect(cfg.query_timeout).toBeLessThanOrEqual(25000);
+    expect(cfg.idleTimeoutMillis).toBeLessThanOrEqual(30000);
+    expect(cfg.max).toBeLessThanOrEqual(5);
+  });
+
+  it('still honors the PG_POOL_MAX override', async () => {
+    process.env.PG_POOL_MAX = '8';
+    const { buildPoolConfig } = await load();
+    expect(buildPoolConfig().max).toBe(8);
+  });
+});

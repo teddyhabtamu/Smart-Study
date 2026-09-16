@@ -70,14 +70,23 @@ export const buildPoolConfig = () => {
   return {
     connectionString,
     ssl: { rejectUnauthorized: false },
-    // Small pool: each Vercel serverless instance gets its own pool, and the
-    // Supabase pooler caps total sessions. Transaction mode makes this cheap.
-    max: parseInt(process.env.PG_POOL_MAX || '5', 10),
-    // Long idle timeout: establishing a fresh pooler connection over a slow
-    // network costs 5s+ (TLS + auth to eu-west-2). Keeping warm connections
-    // avoids paying that on every request.
-    idleTimeoutMillis: 120000,
-    connectionTimeoutMillis: 25000,
+    // Serverless-sized pool with fail-fast budgets. Context: every Vercel
+    // instance holds its own pool against the shared Supabase pooler, and
+    // the old shape (max 5, 120s idle, 25s acquire, NO statement/query
+    // timeout) produced 60s silent kills: frozen instances hoarded pooler
+    // sessions until acquires queued, and half-open zombie sockets hung
+    // forever with zero log output — a 14-row INSERT rode one to the Vercel
+    // kill. Every wait below now fails loud well inside the function budget.
+    max: parseInt(process.env.PG_POOL_MAX || '3', 10),
+    // Short idle: evict half-open pooler sockets before a request draws one.
+    idleTimeoutMillis: 30000,
+    // Fail pool acquisition fast (a saturated pool must 500 with a log line,
+    // not burn half the function budget before the route even runs).
+    connectionTimeoutMillis: 10000,
+    // Kill runaway statements server-side…
+    statement_timeout: 20000,
+    // …and abandon stuck socket reads client-side (zombie connections).
+    query_timeout: 25000,
     // Pooler connections can be flaky over constrained networks; keep them lean.
     keepAlive: true,
   };
@@ -98,7 +107,10 @@ export const isTransientError = (err: any): boolean => {
   );
 };
 
-const withRetry = async <T>(fn: () => Promise<T>, retries = 2, delayMs = 1500): Promise<T> => {
+// One retry only (worst case ≈ acquire 10s + backoff + acquire 10s ≈ 22s,
+// inside the function budget). Two retries stacked past the Vercel kill —
+// a third attempt at a sick pooler helps no one and silences the failure.
+const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500): Promise<T> => {
   let lastError: any;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
