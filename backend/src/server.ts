@@ -209,6 +209,22 @@ app.use('/api/search', searchRoutes);
 app.use('/api/careers', careersRoutes);
 app.use('/api/cron', cronRoutes); // Vercel Cron (CRON_SECRET bearer) — the serverless scheduler
 
+// Version stamp: which code is actually running. Vercel injects
+// VERCEL_GIT_COMMIT_SHA at runtime automatically; locally it reports
+// 'local-dev'. No auth, no DB — answers even when everything else is sick,
+// so "is the fix deployed?" stops being a guessing game.
+const BOOT_TIME = new Date().toISOString();
+app.get('/api/version', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      commit: process.env.VERCEL_GIT_COMMIT_SHA || 'local-dev',
+      env: process.env.VERCEL_ENV || 'development',
+      bootTime: BOOT_TIME,
+    }
+  });
+});
+
 // Health check endpoint (includes DB reachability so deploy misconfig
 // like a missing PG_POOLER_URL shows up here instead of as 500s)
 app.get('/api/health', async (req, res) => {
