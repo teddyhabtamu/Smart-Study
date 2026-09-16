@@ -11,6 +11,7 @@ import {
   mentionedWeekdays,
   buildDateTable,
   findDeadlineMismatch,
+  candidateDatesForMentioned,
 } from './aiTutor';
 
 describe('AI error classifiers (model fallback routing)', () => {
@@ -212,5 +213,12 @@ describe('deadline date grounding (study-plan dates)', () => {
   it('checks nothing when the request names no weekday', () => {
     const plan = [entry({ title: 'Quiz', type: 'Exam', date: '2026-09-20' })];
     expect(findDeadlineMismatch(plan as any, 'help me study chemistry', WED)).toBeNull();
+  });
+
+  it('lists exact in-window candidate dates per mentioned weekday', () => {
+    expect(candidateDatesForMentioned(new Set(['Friday', 'Monday']), WED)).toBe(
+      'Monday: 2026-09-21, 2026-09-28; Friday: 2026-09-18, 2026-09-25'
+    );
+    expect(candidateDatesForMentioned(new Set(), WED)).toBe('');
   });
 });

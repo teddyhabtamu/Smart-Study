@@ -180,6 +180,11 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
   // on-screen element. Anything else (missing node, redesigned layout,
   // closed mobile drawer) degrades to a centered card.
   const isSpotlight = !isMobile && spot !== null && !!current.target;
+  const showCutout = spot !== null && !!current.target;
+  // The highlight cutout renders on mobile too — a fully-dimmed screen with
+  // a bottom sheet never shows WHICH component the step is about. Only the
+  // floating tooltip card stays desktop-only (no room beside full-width
+  // mobile cards); mobile keeps its bottom sheet under the cutout.
 
   // Fresh from step 0 every time it opens; capture the trigger for focus
   // return and lock background scroll while the tour owns the screen.
@@ -476,13 +481,14 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[400]">
-      {isSpotlight && spot ? (
+      {showCutout && spot ? (
         <>
           {/* Click-swallowing layer (transparent: the highlight's box-shadow
               does the dimming) so the tour keeps focus on the tooltip. */}
           <div className="absolute inset-0" />
           {/* Spotlight cutout: padded ring over the live element, everything
-              else dimmed. pointer-events-none — purely visual. */}
+              else dimmed. pointer-events-none — purely visual. On mobile the
+              bottom-sheet card renders under this same cutout. */}
           <div
             aria-hidden="true"
             className="absolute rounded-xl border-2 border-white shadow-[0_0_0_9999px_rgba(9,9,11,0.62)] motion-reduce:transition-none transition-all duration-300 pointer-events-none"

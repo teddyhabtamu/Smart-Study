@@ -683,6 +683,25 @@ const shiftDateStr = (dateStr: string, days: number): string => {
 const weekdayOf = (dateStr: string): string =>
   WEEKDAY_NAMES[new Date(`${dateStr}T00:00:00`).getDay()] ?? '';
 
+// Every in-window date for each mentioned weekday, e.g. from Wed 09-16:
+// "Friday: 2026-09-18, 2026-09-25; Monday: 2026-09-21, 2026-09-28".
+// Spelled out in the retry correction so even a weak model can't miss twice.
+export const candidateDatesForMentioned = (
+  mentioned: Set<string>,
+  todayStr: string
+): string =>
+  [...mentioned]
+    .sort((a, b) => WEEKDAY_NAMES.indexOf(a as never) - WEEKDAY_NAMES.indexOf(b as never))
+    .map((wd) => {
+      const dates: string[] = [];
+      for (let i = 0; i < 14; i++) {
+        const d = shiftDateStr(todayStr, i);
+        if (weekdayOf(d) === wd) dates.push(d);
+      }
+      return `${wd}: ${dates.join(', ')}`;
+    })
+    .join('; ');
+
 // Backstop for grounded dates: every Exam/Assignment must land on a weekday
 // the student named (when they named any) and inside the 14-day window.
 // Returns a correctable-feedback sentence or null when clean.
@@ -808,8 +827,11 @@ Rules — follow ALL of them:
       return first;
     }
     if (dateCorrection) {
+      const candidates = candidateDatesForMentioned(mentionedWeekdays(userRequest), todayStr);
       const second = await runAttempt(
-        `${userPrompt}\n\nCORRECTION NEEDED: ${dateCorrection}. Fix ONLY the dates, using the reference table above; keep titles, subjects and tips.`
+        `${userPrompt}\n\nCORRECTION NEEDED: ${dateCorrection}. ` +
+          `The ONLY acceptable dates for those weekdays in range are — ${candidates}. ` +
+          `Fix ONLY the dates, using the reference table above; keep titles, subjects and tips.`
       );
       if (second) {
         console.log(`[study-plan] smart plan ok on retry: ${second.length} days`);
