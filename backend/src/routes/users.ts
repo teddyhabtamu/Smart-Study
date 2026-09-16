@@ -159,6 +159,47 @@ router.get('/leaderboard', async (req: express.Request, res: express.Response): 
 });
 
 // Get user profile
+//
+// Profile query (exported for the regression test below). Shape: one row
+// for the user, bookmarks + latest-50 notifications aggregated via LATERAL
+// subqueries, exact unread count over ALL notification rows.
+//
+// Postgres gotcha this encoding exists for: NEVER GROUP BY the json_agg
+// alias (or any json expression). The `json` type has no equality operator,
+// so `GROUP BY nagg.notifications` throws
+// "could not identify an equality operator for type json" on EVERY database
+// — which is exactly how Batch 36 shipped a profile endpoint that 500d 100%
+// of the time while the app masked it with cached sessions. Both aggregates
+// live in single-row LATERALs, so no GROUP BY is needed at all.
+export const GET_PROFILE_SQL = `
+  SELECT u.id, u.name, u.email, u.role, u.is_premium, u.avatar, u.preferences,
+         u.xp, u.level, u.streak, u.last_active_date, u.unlocked_badges,
+         u.practice_attempts, u.grade, u.premium_since, u.created_at, u.updated_at,
+         (u.password_hash IS NOT NULL AND u.password_hash != $2) AS has_password,
+         COALESCE(bagg.bookmarks, ARRAY[]::text[]) as bookmarks,
+         COALESCE(nagg.notifications, '[]') as notifications,
+         COALESCE((SELECT COUNT(*) FROM notifications WHERE user_id = u.id AND is_read IS NOT TRUE), 0)::int as unread_count
+  FROM users u
+  LEFT JOIN LATERAL (
+    SELECT array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL) as bookmarks
+    FROM bookmarks b WHERE b.user_id = u.id
+  ) bagg ON true
+  LEFT JOIN LATERAL (
+    SELECT json_agg(json_build_object(
+             'id', n.id,
+             'title', n.title,
+             'message', n.message,
+             'type', n.type,
+             'isRead', n.is_read,
+             'date', n.created_at
+           ) ORDER BY n.created_at DESC) as notifications
+    FROM (SELECT id, title, message, type, is_read, created_at
+          FROM notifications WHERE user_id = u.id
+          ORDER BY created_at DESC LIMIT 50) n
+  ) nagg ON true
+  WHERE u.id = $1
+`;
+
 router.get('/profile', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
@@ -169,32 +210,7 @@ router.get('/profile', authenticateToken, async (req: express.Request, res: expr
     // (fetched on every bell open) without bound on old accounts.
     // unread_count is computed over ALL rows so the badge stays exact even
     // when unread items fall outside the 50-item window.
-    const userResult = await query(`
-      SELECT u.id, u.name, u.email, u.role, u.is_premium, u.avatar, u.preferences,
-             u.xp, u.level, u.streak, u.last_active_date, u.unlocked_badges,
-             u.practice_attempts, u.grade, u.premium_since, u.created_at, u.updated_at,
-             (u.password_hash IS NOT NULL AND u.password_hash != $2) AS has_password,
-             COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks,
-             COALESCE(nagg.notifications, '[]') as notifications,
-             COALESCE((SELECT COUNT(*) FROM notifications WHERE user_id = u.id AND is_read IS NOT TRUE), 0)::int as unread_count
-      FROM users u
-      LEFT JOIN bookmarks b ON u.id = b.user_id
-      LEFT JOIN LATERAL (
-        SELECT json_agg(json_build_object(
-                 'id', n.id,
-                 'title', n.title,
-                 'message', n.message,
-                 'type', n.type,
-                 'isRead', n.is_read,
-                 'date', n.created_at
-               ) ORDER BY n.created_at DESC) as notifications
-        FROM (SELECT id, title, message, type, is_read, created_at
-              FROM notifications WHERE user_id = u.id
-              ORDER BY created_at DESC LIMIT 50) n
-      ) nagg ON true
-      WHERE u.id = $1
-      GROUP BY u.id, nagg.notifications
-    `, [userId, OAUTH_PASSWORD_PLACEHOLDER]);
+    const userResult = await query(GET_PROFILE_SQL, [userId, OAUTH_PASSWORD_PLACEHOLDER]);
 
     if (userResult.rows.length === 0) {
       res.status(404).json({

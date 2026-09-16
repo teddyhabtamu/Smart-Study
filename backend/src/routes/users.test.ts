@@ -14,6 +14,7 @@ import {
   resolveCodeAttempt,
   maskEmail,
   DELETION_CODE_MAX_ATTEMPTS,
+  GET_PROFILE_SQL,
 } from './users';
 
 const compare = async (password: string, hash: string): Promise<boolean> =>
@@ -124,5 +125,32 @@ describe('maskEmail', () => {
 
   it('degrades gracefully without a domain', () => {
     expect(maskEmail('not-an-email')).toBe('your email');
+  });
+});
+
+// GET_PROFILE_SQL shape guard. Batch 36 grouped by the json_agg alias and
+// Postgres has no equality operator for `json`, so the profile endpoint
+// 500d on every database while cached sessions masked it. Both aggregates
+// now live in single-row LATERALs — this test fails the build if anyone
+// reintroduces a GROUP BY over an aggregate alias.
+describe('GET_PROFILE_SQL (profile query shape)', () => {
+  it('never GROUPs BY an aggregate alias', () => {
+    const groupBy =
+      GET_PROFILE_SQL.match(/GROUP\s+BY([\s\S]*?)(ORDER|LIMIT|OFFSET|;|$)/i)?.[1] || '';
+    expect(groupBy).not.toMatch(/nagg|bagg|notifications|bookmarks/i);
+  });
+
+  it('still selects every field the profile transform reads', () => {
+    for (const col of [
+      'is_premium',
+      'bookmarks',
+      'notifications',
+      'unread_count',
+      'has_password',
+      'premium_since',
+      'grade',
+    ]) {
+      expect(GET_PROFILE_SQL).toContain(col);
+    }
   });
 });
