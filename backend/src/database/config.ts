@@ -94,6 +94,19 @@ export const buildPoolConfig = () => {
 
 export const pool = new Pool(buildPoolConfig());
 
+// An idle client that dies (pooler reaps it, network blip) emits 'error' on
+// the pool. WITHOUT this listener that event is an uncaughtException and
+// takes down the whole process — including every in-flight request, which
+// then surfaces client-side as a bare timeout with committed DB effects and
+// zero server logs. Log and survive: the broken client is already removed
+// from rotation by pg-pool.
+pool.on('error', (err: any) => {
+  console.error(
+    'pg pool idle-client error (client removed, process surviving):',
+    (err as any)?.message || err
+  );
+});
+
 // Pool telemetry: total = slots owned, idle = free slots, waiting = queued
 // acquirers. The pair that matters: total=max + idle=0 + waiting>0 sustained
 // under light traffic = LEAKED slots (checked out, never released); connect
@@ -150,8 +163,35 @@ const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500): 
 //   query(text, params) -> { rows, rowCount }
 // ---------------------------------------------------------------------------
 export const query = async (text: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> => {
-  const res = await withRetry(() => pool.query(text, params));
-  return { rows: res.rows, rowCount: res.rowCount ?? 0 };
+  // TEMPORARY hang forensics: log submit/settle per query to the trace file.
+  // Remove with the quiz trace once identified.
+  const tag = text.trim().slice(0, 34).replace(/\s+/g, ' ');
+  try {
+    const fs = await import('fs');
+    fs.appendFileSync('/tmp/quiz-trace.log', `${new Date().toISOString()} q-submit: ${tag}\n`);
+  } catch { /* never break queries for tracing */ }
+  try {
+    // Explicit per-query timeout (not just pool-level): guarantees the
+    // client-side read cap is armed for THIS query regardless of which pool
+    // client serves it or how that client was configured.
+    const res = (await withRetry(() =>
+      pool.query({ text, values: params, query_timeout: 25000 } as any)
+    )) as { rows: any[]; rowCount: number | null };
+    try {
+      const fs = await import('fs');
+      fs.appendFileSync('/tmp/quiz-trace.log', `${new Date().toISOString()} q-settle-ok: ${tag}\n`);
+    } catch { /* never break queries for tracing */ }
+    return { rows: res.rows, rowCount: res.rowCount ?? 0 };
+  } catch (err) {
+    try {
+      const fs = await import('fs');
+      fs.appendFileSync(
+        '/tmp/quiz-trace.log',
+        `${new Date().toISOString()} q-settle-ERR: ${tag} :: ${String((err as any)?.message || err).slice(0, 90)}\n`
+      );
+    } catch { /* never break queries for tracing */ }
+    throw err;
+  }
 };
 
 // Get a client from the pool (for multi-statement transactions)
@@ -201,7 +241,8 @@ export const getClient = async (): Promise<PoolClient> => {
   };
   const wrappedQuery = client.query.bind(client);
   (client as any).query = async (text: string, p: any[] = []) => {
-    return withRetry(() => wrappedQuery(text, p));
+    // Same explicit per-query cap as query() above.
+    return withRetry(() => wrappedQuery({ text, values: p, query_timeout: 25000 } as any));
   };
   return client;
 };
