@@ -191,24 +191,30 @@ router.post('/events/batch', [
       title: string; subject: string; event_date: string; event_type: string; notes?: string;
     }> };
 
-    // Validate + normalize every item before touching the DB (all-or-nothing)
+    // Validate + normalize every item before touching the DB (all-or-nothing).
+    // Every rejection is warn-logged: 400s otherwise return silently and a
+    // failing Smart Schedule leaves no trace in the function logs.
+    const reject = (message: string) => {
+      console.warn(`Batch create study events rejected: ${message}`);
+      res.status(400).json({ success: false, message } as ApiResponse);
+    };
     const rows: Array<[string, string, string, string, string, string]> = [];
     for (const [i, e] of events.entries()) {
       if (!e || typeof e.title !== 'string' || !e.title.trim() || e.title.trim().length > 200) {
-        res.status(400).json({ success: false, message: `events[${i}].title is required (1-200 chars)` } as ApiResponse);
+        reject(`events[${i}].title is required (1-200 chars)`);
         return;
       }
       const normalizedSubject = normalizeSubject(e.subject);
       if (!normalizedSubject) {
-        res.status(400).json({ success: false, message: `events[${i}].subject "${e.subject}" is invalid` } as ApiResponse);
+        reject(`events[${i}].subject "${e.subject}" is invalid`);
         return;
       }
       if (typeof e.event_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.event_date.trim()) || isNaN(new Date(e.event_date).getTime())) {
-        res.status(400).json({ success: false, message: `events[${i}].event_date must be YYYY-MM-DD` } as ApiResponse);
+        reject(`events[${i}].event_date must be YYYY-MM-DD`);
         return;
       }
       if (!['Exam', 'Revision', 'Assignment'].includes(e.event_type)) {
-        res.status(400).json({ success: false, message: `events[${i}].event_type must be Exam/Revision/Assignment` } as ApiResponse);
+        reject(`events[${i}].event_type must be Exam/Revision/Assignment`);
         return;
       }
       rows.push([userId, e.title.trim(), normalizedSubject, e.event_date.trim(), e.event_type, (e.notes || '').trim()]);
@@ -232,6 +238,7 @@ router.post('/events/batch', [
       data: result.rows,
       message: `${result.rows.length} study events created successfully`
     } as ApiResponse);
+    console.log(`Batch create study events ok: ${result.rows.length} events for user ${userId}`);
   } catch (error) {
     console.error('Batch create study events error:', error);
     // No raw error in the body — pg messages can leak schema detail.

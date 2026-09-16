@@ -508,12 +508,14 @@ export const withPlanTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> 
     }),
   ]);
 
-const PLAN_ATTEMPT_TIMEOUT_MS = 22_000;
+const PLAN_ATTEMPT_TIMEOUT_MS = 32_000;
 const PLAN_REPAIR_TIMEOUT_MS = 15_000;
 // Repair runs only when the first attempt failed FAST (a parse error, not a
-// stall): worst case stays ≈ auth + 10s + 15s, inside the frontend's 30s
-// abort and Vercel's kill. A stall skips repair — a sick upstream won't heal
-// in the next window, and two full waits back-to-back outlast both budgets.
+// stall): worst case stays ≈ auth + 10s + 15s, inside the frontend's 55s
+// abort and Vercel's 60s kill. A stall skips repair — and the attempt bound
+// itself is sized from production data (healthy generations measured at
+// ~28s; a 22s bound abandoned them five seconds before success, burning
+// quota for skeleton plans). Worst case overall ≈ 35s: inside every budget.
 const PLAN_REPAIR_ELAPSED_BUDGET_MS = 10_000;
 
 export async function generateSmartPlan(
