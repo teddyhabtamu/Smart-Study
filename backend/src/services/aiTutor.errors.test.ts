@@ -8,6 +8,9 @@ import {
   withPlanTimeout,
   parseStudyPlanResponse,
   extractJsonValue,
+  mentionedWeekdays,
+  buildDateTable,
+  findDeadlineMismatch,
 } from './aiTutor';
 
 describe('AI error classifiers (model fallback routing)', () => {
@@ -141,5 +144,73 @@ describe('parseStudyPlanResponse (study-plan output shapes)', () => {
   it('returns null when every day is filtered out', () => {
     const raw = JSON.stringify({ days: [day({ date: '2020-01-01' })] });
     expect(parseStudyPlanResponse(raw, TODAY)).toBeNull();
+  });
+});
+
+// Deadline date grounding: the real failure was "math exam next Friday,
+// physics test next Monday" (from Wed 2026-09-16) coming back as a math
+// EXAM on Sunday 09-20 and a physics test on Friday 09-25 — both deadline
+// weekdays wrong, plan self-consistent around the wrong dates.
+describe('deadline date grounding (study-plan dates)', () => {
+  // Wednesday 2026-09-16: next Friday = 09-25, next Monday = 09-21.
+  const WED = '2026-09-16';
+  const REQUEST =
+    'I have math exam on Quadratic equation next Friday and physics test ' +
+    'on Newtons law of motion next Monday. I want to study 2 hours a day';
+
+  const entry = (over: Record<string, unknown> = {}) => ({
+    title: 'Session',
+    subject: 'Mathematics',
+    date: '2026-09-24',
+    type: 'Revision',
+    notes: '',
+    ...over,
+  });
+
+  it('extracts Friday + Monday from the request (no false positives)', () => {
+    expect(mentionedWeekdays(REQUEST)).toEqual(new Set(['Friday', 'Monday']));
+    expect(mentionedWeekdays('I have money and monthly mocks')).toEqual(new Set());
+    expect(mentionedWeekdays('quiz Fri, test mon')).toEqual(new Set(['Friday', 'Monday']));
+  });
+
+  it('builds a 14-row table starting today with matching weekday names', () => {
+    const table = buildDateTable(new Date(2026, 8, 16)).split('\n');
+    expect(table).toHaveLength(14);
+    expect(table[0]).toBe('Wednesday 2026-09-16 (today)');
+    expect(table[2]).toBe('Friday 2026-09-18');
+    expect(table[9]).toBe('Friday 2026-09-25');
+  });
+
+  it('rejects the exact observed failure (Sunday exam, Friday "Monday" test)', () => {
+    const bad = [
+      entry({ title: 'Quadratic equation exam', type: 'Exam', date: '2026-09-20' }),
+      entry({ title: 'Newtons law test', subject: 'Physics', type: 'Exam', date: '2026-09-25' }),
+    ];
+    const mismatch = findDeadlineMismatch(bad as any, REQUEST, WED);
+    expect(mismatch).toContain('2026-09-20');
+    expect(mismatch).toContain('Sunday');
+  });
+
+  it('accepts corrected dates (exam Friday 25th, test Monday 21st)', () => {
+    const good = [
+      entry({ title: 'Quadratic equation exam', type: 'Exam', date: '2026-09-25' }),
+      entry({ title: 'Newton revision', subject: 'Physics', date: '2026-09-20' }),
+      entry({ title: 'Newtons law test', subject: 'Physics', type: 'Exam', date: '2026-09-21' }),
+    ];
+    expect(findDeadlineMismatch(good as any, REQUEST, WED)).toBeNull();
+  });
+
+  it('ignores revisions on unmentioned weekdays, flags past/out-of-window deadlines', () => {
+    const sundayRevision = [entry({ date: '2026-09-20' })];
+    expect(findDeadlineMismatch(sundayRevision as any, REQUEST, WED)).toBeNull();
+    const past = [entry({ title: 'Old exam', type: 'Exam', date: '2026-09-10' })];
+    expect(findDeadlineMismatch(past as any, REQUEST, WED)).toContain('before today');
+    const far = [entry({ title: 'Far exam', type: 'Exam', date: '2026-10-20' })];
+    expect(findDeadlineMismatch(far as any, REQUEST, WED)).toContain('14-day');
+  });
+
+  it('checks nothing when the request names no weekday', () => {
+    const plan = [entry({ title: 'Quiz', type: 'Exam', date: '2026-09-20' })];
+    expect(findDeadlineMismatch(plan as any, 'help me study chemistry', WED)).toBeNull();
   });
 });

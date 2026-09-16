@@ -625,13 +625,99 @@ export const withPlanTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> 
 const PLAN_ATTEMPT_TIMEOUT_MS = 25_000;
 const PLAN_MAX_OUTPUT_TOKENS = 2048;
 
+// --- Deadline date grounding ------------------------------------------------
+// Observed failure: "math exam next Friday, physics test next Monday" (from
+// Wed Sep 16) came back as a math EXAM on Sunday Sep 20 and a physics test
+// on Friday Sep 25 — both deadline weekdays wrong, and the plan was
+// self-consistent around the wrong dates, so no downstream check could catch
+// it. Prose weekday rules don't stick; a deterministic date table plus a
+// code backstop does.
+
+const WEEKDAY_NAMES = [
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+] as const;
+
+// Weekday names the student actually wrote ("Friday", "fri", "Mon"…).
+// Word-boundary matched so "Monday" doesn't fire inside "money". Used only
+// to CHECK deadline weekdays, never to schedule.
+export const mentionedWeekdays = (request: string): Set<string> => {
+  const found = new Set<string>();
+  const padded = ` ${String(request || '').toLowerCase()} `;
+  const aliases: Record<string, string> = {
+    sunday: 'Sunday', sun: 'Sunday',
+    monday: 'Monday', mon: 'Monday',
+    tuesday: 'Tuesday', tue: 'Tuesday', tues: 'Tuesday',
+    wednesday: 'Wednesday', wed: 'Wednesday',
+    thursday: 'Thursday', thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday',
+    friday: 'Friday', fri: 'Friday',
+    saturday: 'Saturday', sat: 'Saturday',
+  };
+  for (const [alias, canonical] of Object.entries(aliases)) {
+    if (new RegExp(`[^a-z]${alias}[^a-z]`).test(padded)) found.add(canonical);
+  }
+  return found;
+};
+
+// 14-day reference table (local calendar dates — same convention as the
+// planner UI) injected into the prompt so the model looks dates up instead
+// of doing weekday arithmetic.
+export const buildDateTable = (now: Date): string => {
+  const rows: string[] = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const wd = d.toLocaleDateString('en-US', { weekday: 'long' });
+    rows.push(`${wd} ${iso}${i === 0 ? ' (today)' : ''}`);
+  }
+  return rows.join('\n');
+};
+
+const shiftDateStr = (dateStr: string, days: number): string => {
+  const [y = 0, m = 1, d = 1] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
+const weekdayOf = (dateStr: string): string =>
+  WEEKDAY_NAMES[new Date(`${dateStr}T00:00:00`).getDay()] ?? '';
+
+// Backstop for grounded dates: every Exam/Assignment must land on a weekday
+// the student named (when they named any) and inside the 14-day window.
+// Returns a correctable-feedback sentence or null when clean.
+export const findDeadlineMismatch = (
+  entries: StudyPlanEntry[],
+  request: string,
+  todayStr: string
+): string | null => {
+  const mentioned = mentionedWeekdays(request);
+  const maxDate = shiftDateStr(todayStr, 13);
+  for (const e of entries) {
+    if (e.type !== 'Exam' && e.type !== 'Assignment') continue;
+    if (e.date < todayStr) return `"${e.title}" is a ${e.type} dated ${e.date}, before today ${todayStr}`;
+    if (e.date > maxDate) return `"${e.title}" is a ${e.type} dated ${e.date}, outside the 14-day window`;
+    if (mentioned.size > 0) {
+      const wd = weekdayOf(e.date);
+      if (!mentioned.has(wd)) {
+        return `"${e.title}" is a ${e.type} on ${e.date} (${wd}) but the request names ${[...mentioned].join(' / ')}`;
+      }
+    }
+  }
+  return null;
+};
+
 export async function generateSmartPlan(
   userRequest: string,
   grade: number = 10
 ): Promise<StudyPlanEntry[]> {
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0] ?? '2026-01-01';
+  // Local calendar date (not UTC): must agree with `weekday` and the date
+  // table below — a UTC slice near midnight once labeled "today" wrong.
+  const todayStr =
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const dateTable = buildDateTable(now);
 
   const systemPrompt = `You are SmartStudy's expert study planner for Ethiopian secondary students (Grade ${grade}). You turn a student's plain-language description of upcoming deadlines into a concrete day-by-day study schedule.
 
@@ -640,6 +726,9 @@ Return ONLY valid JSON — no markdown fences, no commentary, no extra text. Kee
   const userPrompt = `Today is ${weekday}, ${todayStr}. Grade ${grade} student writes:
 
 "${userRequest}"
+
+Use ONLY these dates (look them up — never compute weekdays yourself):
+${dateTable}
 
 Build their study schedule as JSON in EXACTLY this shape:
 {
@@ -655,7 +744,12 @@ Build their study schedule as JSON in EXACTLY this shape:
 }
 
 Rules — follow ALL of them:
-1. DATES: resolve every relative date from today (${todayStr}). "tomorrow" = the next calendar day, "day after tomorrow" = +2, "next week" = the same weekday next week (7 days out) unless the student names a day. NEVER invent dates in the past. Every "date" must be >= today.
+1. DATES: resolve every relative date from the table above — never compute
+   weekdays yourself. "this <weekday>" = the nearest one (this week);
+   "next <weekday>" = the same weekday in the FOLLOWING week. Deadline
+   events (Exam/Assignment) MUST sit on the weekday the student named —
+   e.g. a "Friday" exam belongs on a Friday row of the table. NEVER invent
+   dates in the past. Every "date" must be >= today.
 2. TYPES (only these three, exactly spelled): "Exam" for exams/tests, "Assignment" for assignments, homework, projects, group work, presentations, "Revision" for everything else (study sessions, preparation, review).
 3. DEADLINE DAYS hold only the deadline event(s) themselves — e.g. {"title": "Physics Assignment", "type": "Assignment"}. No extra revision sessions on a deadline day.
 4. LOAD: at most 2 sessions per day, prefer 1. Spread subjects across days so each deadline gets preparation time. Closer deadlines get priority on shared days. Respect any daily study time the student states.
@@ -665,7 +759,8 @@ Rules — follow ALL of them:
 8. HONESTY — NEVER invent specifics the student didn't state. If they didn't name chapters/topics (e.g. they said "maths exam" with no topic), keep sessions at subject level ("review your class notes", "redo homework problems") — do NOT invent chapter names like "Algebra and Functions". Only use topics the student actually mentioned.
 9. TIPS must be concrete and grounded in that day ("your Physics assignment is tomorrow") — never generic filler repeated across days.
 10. Sort days chronologically by date.
-11. SUBJECTS must use exactly these canonical names: Mathematics, English, History, Chemistry, Physics, Biology, Civics, Geography, Economics, Business, ICT, Amharic, Afaan Oromoo, Tigrigna, Aptitude. Never "Maths", "Math", "Bio", "IT", etc. (these are the only names the planner accepts).`;
+11. SUBJECTS must use exactly these canonical names: Mathematics, English, History, Chemistry, Physics, Biology, Civics, Geography, Economics, Business, ICT, Amharic, Afaan Oromoo, Tigrigna, Aptitude. Never "Maths", "Math", "Bio", "IT", etc. (these are the only names the planner accepts).
+12. TIPS name the session's date ("Sep 24: ...") — never "today", "tomorrow" or "tonight", which read wrong on every other day the student views them.`;
 
   // Log the raw head on parse failure: "unparseable" without the output is
   // undebuggable (truncation vs prose vs wrong shape need different fixes).
@@ -682,17 +777,45 @@ Rules — follow ALL of them:
   // Thinking DISABLED (0): schedule-building is formatting work, and flash's
   // thinking tokens share the output budget — reasoning was eating most of
   // it and the JSON arrived cut mid-object after 30s of deliberation.
+  //
+  // Date errors get exactly ONE guided retry (same budgets, so worst case
+  // ≈ auth + 25s + 25s + award — still inside both kills): the validator
+  // below names the offending event and the named weekdays, which is
+  // correctable feedback rather than a blind second attempt.
+  let dateCorrection: string | null = null;
   try {
-    const raw = await withPlanTimeout(
-      complete(systemPrompt, userPrompt, [], 0.4, PLAN_MAX_OUTPUT_TOKENS, 0),
-      PLAN_ATTEMPT_TIMEOUT_MS
-    );
-    const parsed = parseStudyPlanResponse(raw, todayStr);
-    if (parsed) {
-      console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
+    const runAttempt = async (prompt: string): Promise<StudyPlanEntry[] | null> => {
+      const raw = await withPlanTimeout(
+        complete(systemPrompt, prompt, [], 0.4, PLAN_MAX_OUTPUT_TOKENS, 0),
+        PLAN_ATTEMPT_TIMEOUT_MS
+      );
+      const parsed = parseStudyPlanResponse(raw, todayStr);
+      if (!parsed) {
+        logRawHead('attempt unparseable', raw);
+        return null;
+      }
+      dateCorrection = findDeadlineMismatch(parsed, userRequest, todayStr);
+      if (dateCorrection) {
+        console.warn(`[study-plan] deadline mismatch: ${dateCorrection}`);
+        return null;
+      }
       return parsed;
+    };
+
+    const first = await runAttempt(userPrompt);
+    if (first) {
+      console.log(`[study-plan] smart plan ok: ${first.length} days`);
+      return first;
     }
-    logRawHead('attempt unparseable', raw);
+    if (dateCorrection) {
+      const second = await runAttempt(
+        `${userPrompt}\n\nCORRECTION NEEDED: ${dateCorrection}. Fix ONLY the dates, using the reference table above; keep titles, subjects and tips.`
+      );
+      if (second) {
+        console.log(`[study-plan] smart plan ok on retry: ${second.length} days`);
+        return second;
+      }
+    }
   } catch (err) {
     console.error('[study-plan] attempt failed:', (err as Error)?.message);
   }
