@@ -52,6 +52,22 @@ const typeDot = (type: string): string => {
   return 'bg-zinc-400';
 };
 
+// Stable subject accent colors (list dots, modal header). Hash-picked from a
+// curated palette so every subject reads distinct without clashing with the
+// zinc/red/amber/emerald status colors used elsewhere on this page.
+const SUBJECT_COLORS = [
+  'bg-sky-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
+  'bg-rose-500', 'bg-cyan-500', 'bg-lime-500', 'bg-fuchsia-500',
+  'bg-indigo-500', 'bg-teal-500', 'bg-yellow-500', 'bg-purple-500',
+];
+const subjectColor = (subject: string): string => {
+  let h = 0;
+  for (let i = 0; i < subject.length; i++) h = (h * 31 + subject.charCodeAt(i)) >>> 0;
+  return SUBJECT_COLORS[h % SUBJECT_COLORS.length] ?? 'bg-zinc-400';
+};
+
+const taskCount = (n: number): string => `${n} Task${n === 1 ? '' : 's'}`;
+
 
 const Planner: React.FC = () => {
   const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading, fetchDashboard } = useData();
@@ -80,88 +96,16 @@ const Planner: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
-  const eventRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
-  // Function to handle event click and show tooltip
-  const handleEventClick = (eventId: string, element: HTMLElement) => {
-    // If clicking the same event, close the tooltip
-    if (selectedEventId === eventId) {
-      setSelectedEventId(null);
-      setTooltipPosition(null);
-      return;
-    }
-    
-    const rect = element.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const scrollY = window.scrollY;
-    
-    // Responsive tooltip width - increased for better readability
-    const tooltipWidth = viewportWidth < 640 ? Math.min(viewportWidth - 32, 360) : 400;
-    // Use dynamic height based on viewport for better positioning calculations
-    const tooltipHeight = Math.min(500, viewportHeight * 0.8); // Max 500px or 80% of viewport
-    
-    // Calculate available space
-    const spaceOnRight = viewportWidth - rect.right;
-    const spaceOnLeft = rect.left;
-    const spaceBelow = viewportHeight - (rect.top - scrollY);
-    const spaceAbove = rect.top - scrollY;
-    
-    // Position horizontally: prefer right, fallback to left
-    let left: number;
-    if (spaceOnRight >= tooltipWidth + 16) {
-      left = rect.right + 12; // Right side
-    } else if (spaceOnLeft >= tooltipWidth + 16) {
-      left = rect.left - tooltipWidth - 12; // Left side
-    } else {
-      // Center if neither side has enough space (mobile)
-      left = Math.max(16, (viewportWidth - tooltipWidth) / 2);
-    }
-    
-    // Position vertically to ensure modal is always fully visible
-    let top: number;
-
-    if (viewportWidth < 640) {
-      // Mobile: Always center the modal vertically
-      top = scrollY + Math.max(16, (viewportHeight - 500) / 2);
-    } else {
-      // Desktop: Position near the clicked element but ensure full visibility
-      const modalHeight = Math.min(500, viewportHeight * 0.8);
-      const preferredTop = rect.bottom + scrollY + 8;
-
-      // Check if modal fits below the element
-      if (preferredTop + modalHeight <= scrollY + viewportHeight - 16) {
-        top = preferredTop; // Position below
-      } else {
-        // Position above if it fits
-        const aboveTop = rect.top + scrollY - modalHeight - 8;
-        if (aboveTop >= scrollY + 16) {
-          top = aboveTop; // Position above
-        } else {
-          // Center vertically as fallback
-          top = scrollY + Math.max(16, (viewportHeight - modalHeight) / 2);
-        }
-      }
-    }
-    
-    // Final adjustment to ensure modal stays within viewport bounds
-    const modalHeight = Math.min(500, viewportHeight * 0.8);
-    const maxTop = scrollY + viewportHeight - modalHeight - 16;
-    const minTop = scrollY + 16;
-
-    top = Math.max(minTop, Math.min(top, maxTop));
-
-    // Set position and event ID
-    setTooltipPosition({ top, left });
-    setSelectedEventId(eventId);
+  // Detail view is a centered modal (not an anchored tooltip): one toggle,
+  // no measuring, no viewport math, no reposition listeners.
+  const handleEventClick = (eventId: string) => {
+    setSelectedEventId((prev) => (prev === eventId ? null : eventId));
   };
-  
-  // Close tooltip function (memoized: two effects depend on it, and an
-  // inline closure would resubscribe their listeners on every render)
+
+  // Close detail modal (backdrop click and callers share this).
   const closeTooltip = useCallback(() => {
     setSelectedEventId(null);
-    setTooltipPosition(null);
   }, []);
 
   // Track if we've fetched events to prevent duplicate calls
@@ -187,41 +131,17 @@ const Planner: React.FC = () => {
     }
   }, [statusFilter, fetchStudyEvents]);
 
-  // Separate effect for click outside handler
+  // Esc dismisses the detail modal (backdrop click covers pointer users).
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (selectedEventId && !target.closest('[data-tooltip-container]') && !target.closest('[data-event-card]')) {
-        closeTooltip();
-      }
-    };
-
-    // The tooltip is a popover, not a Dialog — but Esc must still dismiss it
-    // for keyboard users (the mobile backdrop only helps touch/mouse).
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedEventId) closeTooltip();
+      if (e.key === 'Escape') setSelectedEventId(null);
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [selectedEventId]);
-
-  // Handle viewport changes (mobile keyboard, rotation)
-  useEffect(() => {
-    const handleResize = () => {
-      if (selectedEventId) {
-        // Close modal on viewport changes to prevent layout issues
-        closeTooltip();
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [selectedEventId, closeTooltip]);
+  }, []);
 
   // Manual Form State
   const [title, setTitle] = useState('');
@@ -513,144 +433,15 @@ const Planner: React.FC = () => {
           }
         }
       }
-    } catch (e) {
-      // Notes is not valid JSON, will use fallback
-    }
-    
-    // Fallback to generated guide if AI content not available. Reuses the
-    // module-level daysUntil() (same as the urgency pills) so the guide
-    // never disagrees with the badge next to the task.
-    const daysLeft = daysUntil(event.date);
-    const isUpcoming = daysLeft > 0;
-    const isToday = daysLeft === 0;
-    const isPast = daysLeft < 0;
-    const eventTitle = event.title.toLowerCase();
-    const subject = event.subject;
-
-    // Generate specific "how to complete" steps based on event
-    let howToCompleteSteps: string[] = [];
-    
-    if (event.type === 'Exam') {
-      if (isUpcoming && daysLeft >= 4) {
-        const day1End = Math.max(1, Math.floor(daysLeft * 0.3));
-        const day2Start = Math.max(2, day1End + 1);
-        const day2End = Math.max(2, Math.floor(daysLeft * 0.7));
-        const day3Start = Math.max(3, day2End + 1);
-
-        howToCompleteSteps = [
-          `Day 1-${day1End}: Review all ${subject} concepts. Focus on understanding fundamentals and key formulas.`,
-          `Day ${day2Start}-${day2End}: Practice ${subject} problems. Work on past exam questions and identify weak areas.`,
-          `Day ${day3Start}-${daysLeft - 1}: Intensive review. Focus on difficult topics and take timed practice tests.`,
-          `Day ${daysLeft} (Exam Day): Final review. Go through key formulas (30 min), get good sleep, and stay confident.`
-        ];
-      } else if (isUpcoming) {
-        // 1-3 days out the phased split above produces nonsense ranges
-        // (e.g. "Day 3-1"), so use a compact countdown instead.
-        howToCompleteSteps = [
-          `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''}: list the ${subject} topics most likely to appear and rank them by confidence.`,
-          `Drill past ${subject} questions on your weakest topics first, then review mistakes the same day.`,
-          `Do a final pass over ${subject} formulas and key facts, then rest — cramming all night hurts more than it helps.`
-        ];
-      } else if (isToday) {
-        howToCompleteSteps = [
-          `Do a quick 30-minute review of ${subject} formulas and main concepts this morning`,
-          `Stay calm and trust what you've learned. Take deep breaths if you feel nervous`,
-          `Read each question carefully during the exam. Watch your time and show your work clearly`,
-          `After the exam, think about what went well and what you could improve next time`
-        ];
-      } else {
-        howToCompleteSteps = [
-          `Review your ${subject} exam performance and identify strengths`,
-          `Note areas that need improvement for future ${subject} exams`,
-          `Update your study plan based on what you learned from this ${subject} exam`
-        ];
-      }
-    } else if (event.type === 'Assignment') {
-      howToCompleteSteps = [
-        `Step 1: Understand requirements. Read the ${subject} assignment brief carefully and note all deliverables and deadlines.`,
-        `Step 2: Research and gather. Collect ${subject} materials, textbooks, credible online resources, and examples.`,
-        `Step 3: Create outline. Organize your thoughts and structure your ${subject} assignment logically with main points.`,
-        `Step 4: Write systematically. Work on each section of your ${subject} assignment one at a time.`,
-        `Step 5: Review and refine. Check for errors, ensure all ${subject} requirements are met, and polish your work.`,
-        `Step 6: Final check. Double-check formatting, citations, and submit your ${subject} assignment before deadline.`
-      ];
-    } else {
-        howToCompleteSteps = [
-          `Get your ${subject} notes and materials ready for this study session`,
-          `Go through the ${eventTitle.includes('review') ? "topics you've covered before" : "new material"} and make sure you understand the main ideas`,
-          `Test yourself on ${subject} without looking at your notes to see what you really remember`,
-          `Try connecting what you're learning now to things you already know about ${subject}`,
-          `Make quick summary notes or a simple mind map to help you remember key points`,
-          `Do one final review to make sure everything sticks in your memory`
-        ];
+    } catch {
+      // Notes is not valid JSON (or not a guide) — no boilerplate below.
     }
 
-    if (event.type === 'Exam') {
-      return {
-        howToComplete: howToCompleteSteps,
-        guides: [
-          `Go through all the main ${subject} concepts and formulas in an organized way`,
-          `Try doing ${subject} practice questions with a timer to get used to the pace`,
-          `Make short summary notes that you can quickly review later`,
-          `Take full practice tests to see how you'll do under exam conditions`,
-          `Spend extra time on topics you find hard, but don't forget to review what you're good at too`
-        ],
-        suggestions: isUpcoming 
-          ? `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''} to get ready for your ${subject} exam. Start with a good review of everything, then spend time practicing problems. Make sure to give each topic the time it needs.`
-          : isToday
-          ? `It's your ${subject} exam today! Do a quick 30-minute review of your notes, drink plenty of water, get enough sleep, and go in feeling confident. You've got this!`
-          : `Think about how your ${subject} exam went. What did you do well? What would you change? Use this to do even better next time.`,
-        motivation: [
-          `You've been preparing for this ${subject} exam. Trust your preparation and stay calm!`,
-          `Every study session you've done has built your ${subject} knowledge. You're ready!`,
-          `Remember: exams test what you know, not who you are. Give your ${subject} exam your best effort!`
-        ]
-      };
-    } else if (event.type === 'Assignment') {
-      return {
-        howToComplete: howToCompleteSteps,
-        guides: [
-          `Break your ${subject} assignment into smaller tasks you can do each day`,
-          `Look up information from reliable sources to support your work`,
-          `Plan out your assignment structure before you start writing`,
-          `Work on one section at a time so you can focus and do your best`,
-          `Go through your work to make sure it's clear and correct`,
-          `Double-check that you've done everything the assignment asked for before you submit`
-        ],
-        suggestions: isUpcoming
-          ? `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''} to finish your ${subject} assignment. Start by making sure you understand what's needed and gathering your materials. Work on it a bit each day so you're not rushing at the end.`
-          : isToday
-          ? `Finish up your ${subject} assignment today! Check that you've met all the requirements, fix any mistakes, make sure the formatting looks good, and submit it feeling confident.`
-          : `Nice work finishing your ${subject} assignment! Think about what you learned and how you can use it going forward.`,
-        motivation: [
-          `You're making progress on your ${subject} assignment. Keep going, one step at a time!`,
-          `Quality ${subject} work takes time and effort. You're doing great - keep pushing forward!`,
-          `Every section you complete brings you closer to finishing your ${subject} assignment. You've got this!`
-        ]
-      };
-    } else {
-      return {
-        howToComplete: howToCompleteSteps,
-        guides: [
-          `Go through your ${subject} notes and materials in an organized way`,
-          `Try to really understand the ${subject} ideas, not just memorize them`,
-          `Test yourself on ${subject} topics without looking at your notes`,
-          `See how new ${subject} ideas connect to things you already know`,
-          `Make diagrams or mind maps to help visualize ${subject} concepts`,
-          `Try explaining ${subject} concepts to someone else or just out loud to yourself`
-        ],
-        suggestions: isUpcoming
-          ? `You have ${daysLeft} day${daysLeft > 1 ? 's' : ''} for this ${subject} study session. Use this time to build a solid understanding. Review your ${subject} materials regularly and make sure everything makes sense.`
-          : isToday
-          ? `Make today's ${subject} study session count! Set clear goals, find a quiet place to focus, and remember to take breaks when you need them.`
-          : `Great job finishing this ${subject} study session! Keep up the good work with your next study plan.`,
-        motivation: [
-          `Every ${subject} revision session strengthens your understanding. You're building knowledge that lasts!`,
-          `Consistent ${subject} study creates strong foundations. You're doing amazing work!`,
-          `Small daily efforts in ${subject} lead to big achievements. Keep going, you're on the right track!`
-        ]
-      };
-    }
+    // No boilerplate fallback: the old generated steps ("Get your X notes
+    // ready…") read as filler and cheapened real AI content. Events whose
+    // notes carry a structured AI guide render it; everything else shows its
+    // plain-text brief (or nothing) plus the actions below.
+    return null;
   };
 
   return (
@@ -695,15 +486,12 @@ const Planner: React.FC = () => {
               ) : upcomingEvents.length > 0 ? (
                 <div className="space-y-4">
                   {upcomingEvents.slice(0, 3).map(event => {
-                    const guide = getStudyGuide(event);
                     return (
                     <div 
                       key={event.id} 
-                      data-event-card
-                      ref={(el) => { if (el) eventRefs.current[event.id] = el; }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleEventClick(event.id, e.currentTarget);
+                        handleEventClick(event.id);
                       }}
                       className={`p-3 bg-zinc-50 rounded-lg border transition-all cursor-pointer ${
                         selectedEventId === event.id 
@@ -961,21 +749,18 @@ const Planner: React.FC = () => {
                <div key={dateKey} className="animate-slide-up">
                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 sticky top-0 bg-zinc-50/95 py-2 backdrop-blur-sm z-10 flex items-center justify-between">
                      {new Date(dateKey + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                    <span className="text-[10px] bg-zinc-100 px-2 py-0.5 rounded-full text-zinc-400 font-medium">
-                      {groupedEvents[dateKey].length} Tasks
-                    </span>
+                     <span className="text-[10px] bg-zinc-100 px-2 py-0.5 rounded-full text-zinc-400 font-medium">
+                       {taskCount(groupedEvents[dateKey].length)}
+                     </span>
                   </h3>
                   <div className="space-y-3">
                     {groupedEvents[dateKey].map(event => {
-                      const guide = getStudyGuide(event);
                       return (
                       <div
                         key={event.id}
-                        data-event-card
-                        ref={(el) => { if (el) eventRefs.current[event.id] = el; }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEventClick(event.id, e.currentTarget);
+                          handleEventClick(event.id);
                         }}
                         className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all cursor-pointer ${
                           event.isCompleted
@@ -1029,8 +814,9 @@ const Planner: React.FC = () => {
                                  );
                                })()}
                             </div>
-                            <p className="text-xs text-zinc-500 flex items-center gap-2">
-                               <span className="font-medium text-inksoft">{event.subject}</span>
+                             <p className="text-xs text-zinc-500 flex items-center gap-2">
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${subjectColor(event.subject)}`} aria-hidden />
+                                <span className="font-medium text-inksoft">{event.subject}</span>
                                {(() => {
                                  // Only show simple text notes, not JSON
                                  if (!event.notes) return null;
@@ -1263,150 +1049,198 @@ const Planner: React.FC = () => {
       </Dialog>
 
       {/* Study Guide Tooltip - Shows on click */}
-      {selectedEventId && tooltipPosition && (() => {
+      {selectedEventId && (() => {
         const event = studyEvents.find(e => e.id === selectedEventId);
         if (!event) return null;
-        
+
+        // Structured AI guide (JSON notes) or nothing — the boilerplate
+        // fallback is gone, so a missing guide renders no filler.
         const guide = getStudyGuide(event);
+        const hasGuide = !!guide && Array.isArray(guide.howToComplete) && guide.howToComplete.length > 0;
+        // Plain-text session brief = the real AI note. JSON guides hide
+        // their raw payload (it renders structured above instead).
+        const plainNotes = (() => {
+          if (!event.notes || typeof event.notes !== 'string') return null;
+          const t = event.notes.trim();
+          if (!t || (t.startsWith('{') && t.endsWith('}'))) return null;
+          return event.notes;
+        })();
+        const urgency = getUrgency(event.date);
+        const fullDate = (() => {
+          const d = new Date(String(event.date).slice(0, 10) + 'T00:00:00');
+          return isNaN(d.getTime())
+            ? null
+            : d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        })();
+        const busy = isCompletingEvent === event.id || isDeletingEvent === event.id || isArchivingEvent === event.id;
+
+        const handleDeleteFromModal = async () => {
+          setIsDeletingEvent(event.id);
+          try {
+            await deleteStudyEvent(event.id);
+            addToast('Study event deleted', 'success');
+            closeTooltip();
+          } catch {
+            addToast('Failed to delete event', 'error');
+          } finally {
+            setIsDeletingEvent(null);
+          }
+        };
         
-        // Show tooltip for all events (fallback guide is always generated)
-        if (!guide || !guide.howToComplete || !guide.guides || !guide.suggestions) {
-          return null; // Safety check - should rarely happen
-        }
-        
-        const randomMotivation = guide.motivation && Array.isArray(guide.motivation) && guide.motivation.length > 0
-          ? guide.motivation[Math.floor(Math.random() * guide.motivation.length)]
-          : "Keep up the great work!";
-        
-        // Responsive tooltip width - increased for better readability
-        const viewportWidth = window.innerWidth;
-        const tooltipWidth = viewportWidth < 640 ? Math.min(viewportWidth - 32, 360) : 400;
-        
+        // Centered dialog on every viewport: one backdrop, one panel, no
+        // measuring. Escape and backdrop clicks share closeTooltip.
         return createPortal(
-          <>
-            {/* Mobile backdrop */}
-            {viewportWidth < 640 && (
-              <div
-                className="fixed inset-0 bg-black/60 z-[9998]"
-                onClick={closeTooltip}
-              />
-            )}
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={event.title}
+          >
+            <div className="absolute inset-0 bg-black/60" onClick={closeTooltip} />
             <div
-              data-tooltip-container
-              className={`fixed z-[9999] ${
-                viewportWidth < 640
-                  ? 'inset-4 flex items-center justify-center'
-                  : 'inset-auto'
-              }`}
-              style={viewportWidth < 640 ? {} : {
-                top: `${tooltipPosition.top}px`,
-                left: `${tooltipPosition.left}px`,
-                width: `${tooltipWidth}px`,
-                maxWidth: 'calc(100vw - 32px)',
-                pointerEvents: 'auto'
-              }}
-              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar bg-surface rounded-2xl shadow-2xl border border-zinc-200"
+              style={{ animation: 'fadeIn 0.2s ease-out forwards' }}
             >
-            <div
-              className={`bg-surface rounded-xl shadow-2xl border border-zinc-200 overflow-y-auto custom-scrollbar pointer-events-auto ${
-                viewportWidth < 640 ? 'w-full max-h-[85vh]' : ''
-              }`}
-              style={{
-                animation: 'fadeIn 0.2s ease-out forwards',
-                opacity: 1,
-                maxHeight: viewportWidth < 640 ? '85vh' : '80vh'
-              }}>
               
-              {/* Header with brand colors and close button */}
-              <div className="p-4 sm:p-3 sm:p-4 rounded-t-xl bg-zinc-900 border-b border-zinc-800 relative">
+              {/* Header: identity + WHEN (the old panel never showed the date) */}
+              <div className="p-5 rounded-t-2xl bg-zinc-900 relative">
                 <button
                   onClick={closeTooltip}
-                  className="absolute top-4 right-4 sm:top-3 sm:right-3 sm:top-4 sm:right-4 p-2 sm:p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-onink transition-colors touch-manipulation"
-                  aria-label="Close tooltip"
+                  className="absolute top-4 right-4 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-onink transition-colors"
+                  aria-label="Close details"
                 >
-                  <X size={18} className="sm:w-4" />
+                  <X size={18} />
                 </button>
-                <div className="flex items-start gap-3 pr-12">
-                  <div className="p-2.5 sm:p-2 sm:p-2.5 rounded-lg bg-surface text-ink shadow-sm flex-shrink-0">
-                    {event.type === 'Exam' ? <Target size={20} className="sm:w-5 sm:h-5" /> :
-                     event.type === 'Assignment' ? <BookOpen size={20} className="sm:w-5 sm:h-5" /> :
-                     <TrendingUp size={20} className="sm:w-5 sm:h-5" />}
+                <div className="flex items-start gap-3 pr-10">
+                  <div className="p-2.5 rounded-xl bg-surface text-ink flex-shrink-0">
+                    {event.type === 'Exam' ? <Target size={20} /> :
+                     event.type === 'Assignment' ? <BookOpen size={20} /> :
+                     <TrendingUp size={20} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-onink text-base sm:text-sm sm:text-base mb-1 leading-tight">{event.title}</h4>
-                    <p className="text-sm font-medium text-zinc-400">{event.subject}</p>
-                    <span className="inline-block mt-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-800 text-zinc-200">
-                      {event.type}
-                    </span>
+                    <h4 className="font-bold text-onink text-lg leading-tight">{event.title}</h4>
+                    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-400">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${subjectColor(event.subject)}`} aria-hidden />
+                      <span className="font-medium">{event.subject}</span>
+                      <span aria-hidden>•</span>
+                      <span>{fullDate ?? 'No date set'}</span>
+                      {urgency && (
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${urgencyPill(urgency.tone)}`}>
+                          {urgency.label}
+                        </span>
+                      )}
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-200">
+                        {event.type}
+                      </span>
+                      {event.isCompleted && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300">
+                          Completed
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 sm:p-3 sm:p-4 space-y-4 sm:space-y-3 sm:space-y-4">
-                {/* How to Complete This Plan */}
-                <div>
-                  <div className="flex items-center gap-3 mb-3 sm:mb-2 sm:mb-3">
-                    <div className="p-2 bg-zinc-100 rounded-lg">
-                      <Target size={14} className="sm:w-3.5 sm:h-3.5 text-ink" />
-                    </div>
-                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-ink uppercase tracking-wider">How to Complete This Plan</h5>
+              <div className="p-5 space-y-5">
+                {/* Session brief: the event's own note (real AI content). */}
+                {plainNotes && (
+                  <div>
+                    <h5 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Session brief</h5>
+                    <p className="text-sm text-inksoft leading-relaxed bg-zinc-50 border border-zinc-200 rounded-xl p-3.5">
+                      <MarkdownInline content={plainNotes} />
+                    </p>
                   </div>
-                  <div className="space-y-2.5">
-                    {guide.howToComplete && Array.isArray(guide.howToComplete) && guide.howToComplete.map((step: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors touch-manipulation">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-onink text-[11px] font-bold flex items-center justify-center mt-0.5 shadow-sm">
-                          {idx + 1}
+                )}
+
+                {/* Structured AI guide — only when the notes carry one. */}
+                {hasGuide && (
+                  <div>
+                    <h5 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">How to complete this plan</h5>
+                    <div className="space-y-2">
+                      {guide.howToComplete.map((step: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-200">
+                          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-onink text-[11px] font-bold flex items-center justify-center mt-0.5">
+                            {idx + 1}
+                          </div>
+                          <p className="text-sm text-inksoft leading-relaxed flex-1"><MarkdownInline content={step} /></p>
                         </div>
-                        <p className="text-xs text-inksoft leading-relaxed flex-1 font-medium"><MarkdownInline content={step} /></p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quick Tips / Guides */}
-                <div>
-                  <div className="flex items-center gap-3 mb-3 sm:mb-2 sm:mb-3">
-                    <div className="p-2 bg-zinc-100 rounded-lg">
-                      <Lightbulb size={14} className="sm:w-3.5 sm:h-3.5 text-ink" />
-                    </div>
-                    <h5 className="text-xs sm:text-[10px] sm:text-xs font-bold text-ink uppercase tracking-wider">Quick Tips</h5>
-                  </div>
-                  <div className="space-y-2">
-                    {guide.guides && Array.isArray(guide.guides) && guide.guides.map((item: string, idx: number) => (
-                      <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-zinc-50 rounded-lg border border-zinc-200">
-                        <div className="flex-shrink-0 w-2 h-2 rounded-full bg-zinc-900 mt-2"></div>
-                        <p className="text-xs text-inksoft leading-relaxed flex-1"><MarkdownInline content={item} /></p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Suggestion */}
-                {guide.suggestions && (
-                  <div className="p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <span className="text-base flex-shrink-0">💡</span>
-                      <div>
-                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Suggestion</p>
-                        <p className="text-xs text-inksoft leading-relaxed font-medium"><MarkdownInline content={guide.suggestions} /></p>
-                      </div>
+                      ))}
                     </div>
                   </div>
                 )}
-
-                {/* Motivation */}
-                {randomMotivation && (
-                  <div className="pt-3 sm:pt-2 sm:pt-3 border-t border-zinc-200">
-                    <div className="flex items-start gap-3 sm:gap-2 sm:gap-2.5 p-3 sm:p-2.5 sm:p-2.5 bg-zinc-900 rounded-lg">
-                      <span className="text-lg sm:text-sm sm:text-base flex-shrink-0">✨</span>
-                      <p className="text-sm sm:text-[11px] sm:text-xs text-onink italic leading-relaxed flex-1 font-medium">{randomMotivation}</p>
+                {hasGuide && Array.isArray(guide.guides) && guide.guides.length > 0 && (
+                  <div>
+                    <h5 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Quick tips</h5>
+                    <div className="space-y-2">
+                      {guide.guides.map((item: string, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-zinc-50 rounded-xl border border-zinc-200">
+                          <Lightbulb size={14} className="flex-shrink-0 mt-0.5 text-amber-500" />
+                          <p className="text-sm text-inksoft leading-relaxed flex-1"><MarkdownInline content={item} /></p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
+                {hasGuide && typeof guide.suggestions === 'string' && guide.suggestions && (
+                  <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200">
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Suggestion</p>
+                    <p className="text-sm text-inksoft leading-relaxed"><MarkdownInline content={guide.suggestions} /></p>
+                  </div>
+                )}
+
+                {/* Actions: the list card has these — the detail view finally does too. */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-200">
+                  <button
+                    onClick={() => handleTaskToggle(event.id, event.isCompleted)}
+                    disabled={busy}
+                    className={`mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${
+                      event.isCompleted
+                        ? 'bg-zinc-100 text-inksoft hover:bg-zinc-200'
+                        : 'bg-zinc-900 text-onink hover:opacity-90'
+                    }`}
+                  >
+                    {isCompletingEvent === event.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : event.isCompleted ? (
+                      <Circle size={16} />
+                    ) : (
+                      <CheckCircle size={16} />
+                    )}
+                    {event.isCompleted ? 'Mark pending' : 'Mark complete'}
+                  </button>
+                  <button
+                    onClick={() => handleArchiveToggle(event.id, event.isArchived)}
+                    disabled={busy}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-zinc-100 text-inksoft hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                  >
+                    {isArchivingEvent === event.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : event.isArchived ? (
+                      <ArchiveRestore size={16} />
+                    ) : (
+                      <Archive size={16} />
+                    )}
+                    {event.isArchived ? 'Unarchive' : 'Archive'}
+                  </button>
+                  <button
+                    onClick={handleDeleteFromModal}
+                    disabled={busy}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 ml-auto"
+                  >
+                    {isDeletingEvent === event.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          </>,
+          </div>,
           document.body
         );
       })()}
