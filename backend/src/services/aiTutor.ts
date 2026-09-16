@@ -489,6 +489,27 @@ Return ONLY a valid JSON array in exactly this format, with no markdown fences a
 // daily load. The old regex-based extractor (split on "and", keyword match)
 // is gone — it mislabeled assignments as exams, ignored relative dates, and
 // spammed 3 sessions every day.
+
+// Race a promise against a timer so a hung upstream can't wedge the caller
+// forever. Express/proxies kill requests that produce no bytes, which
+// surfaces as a mystery client-side failure with no server log. Timing out
+// fast lets the plan flow fall through to its skeleton instead. Exported
+// for unit tests.
+export const withPlanTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`study-plan attempt timed out after ${ms}ms`)),
+        ms
+      );
+      // Don't hold the process open for the timer alone.
+      (timer as any)?.unref?.();
+    }),
+  ]);
+
+const PLAN_ATTEMPT_TIMEOUT_MS = 60_000;
+
 export async function generateSmartPlan(
   userRequest: string,
   grade: number = 10
@@ -577,9 +598,11 @@ Rules — follow ALL of them:
     }
   };
 
-  // Attempt 1: full plan with guides
+  // Attempt 1: full plan with guides. Bounded by timeout — a hung upstream
+  // must degrade to the skeleton below, never to a proxy-killed request.
+  let attemptTimedOut = false;
   try {
-    const raw = await complete(systemPrompt, userPrompt, [], 0.4, 8192);
+    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 8192), PLAN_ATTEMPT_TIMEOUT_MS);
     const parsed = parsePlan(raw);
     if (parsed) {
       console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
@@ -587,18 +610,22 @@ Rules — follow ALL of them:
     }
     console.warn('[study-plan] first attempt unparseable, retrying with repair prompt');
   } catch (err) {
+    attemptTimedOut = /timed out/i.test((err as Error)?.message || '');
     console.error('[study-plan] first attempt failed:', (err as Error)?.message);
   }
 
-  // Attempt 2: explicit repair — ask for the same JSON, stricter
+  // Attempt 2: explicit repair — ask for the same JSON, stricter. Skipped
+  // after a timeout: a sick upstream won't heal in the next 60s, and two
+  // full waits back-to-back outlast most proxies. Straight to skeleton.
+  if (!attemptTimedOut) {
   try {
-    const raw = await complete(
+    const raw = await withPlanTimeout(complete(
       systemPrompt,
       `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever.`,
       [],
       0.2,
       8192
-    );
+    ), PLAN_ATTEMPT_TIMEOUT_MS);
     const parsed = parsePlan(raw);
     if (parsed) {
       console.log(`[study-plan] smart plan ok on repair: ${parsed.length} days`);
@@ -606,6 +633,7 @@ Rules — follow ALL of them:
     }
   } catch (err) {
     console.error('[study-plan] repair attempt failed:', (err as Error)?.message);
+  }
   }
 
   // Last resort: honest deterministic skeleton (7 light revision days). The

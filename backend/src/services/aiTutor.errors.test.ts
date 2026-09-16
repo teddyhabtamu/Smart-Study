@@ -4,6 +4,7 @@ import {
   isModelGoneError,
   isOverloadedError,
   quotaRetryAfter,
+  withPlanTimeout,
 } from './aiTutor';
 
 describe('AI error classifiers (model fallback routing)', () => {
@@ -36,5 +37,22 @@ describe('AI error classifiers (model fallback routing)', () => {
     expect(quotaRetryAfter({ error: { details: [{ retryDelay: '32s' }] } })).toBe(32);
     expect(quotaRetryAfter(new Error('Quota exceeded'))).toBe(60);
     expect(quotaRetryAfter(null)).toBe(60);
+  });
+});
+
+// withPlanTimeout bounds the study-plan AI calls: a hung upstream must
+// reject (so the flow falls through to its skeleton plan) instead of
+// wedging the request until a proxy kills it with no server log.
+describe('withPlanTimeout (study-plan hang guard)', () => {
+  it('passes through fast resolutions untouched', async () => {
+    await expect(withPlanTimeout(Promise.resolve('ok'), 50)).resolves.toBe('ok');
+  });
+
+  it('passes through fast rejections untouched', async () => {
+    await expect(withPlanTimeout(Promise.reject(new Error('boom')), 50)).rejects.toThrow('boom');
+  });
+
+  it('rejects a hung promise instead of waiting forever', async () => {
+    await expect(withPlanTimeout(new Promise(() => {}), 20)).rejects.toThrow(/timed out/i);
   });
 });

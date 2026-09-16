@@ -410,6 +410,18 @@ router.post('/generate-study-plan', [
     return;
   } catch (error) {
     console.error('Generate study plan error:', error);
+    // Quota exhaustion is EXPECTED on a shared free-tier key — answer 429
+    // with a plain sentence (not the markdown quota block the chat UI
+    // renders; this surfaces in a toast). Every other AI route already does
+    // this; the plan route was the lone generic-500 holdout.
+    if (error instanceof AIQuotaExceededError) {
+      res.status(429).json({
+        success: false,
+        code: 'AI_QUOTA_EXCEEDED',
+        message: 'Daily AI limit reached — please try again later. Limits reset daily.'
+      } as ApiResponse);
+      return;
+    }
     res.status(500).json({
       success: false,
       message: 'Failed to generate study plan'
