@@ -915,7 +915,15 @@ export const aiTutorAPI = {
     return { text };
   },
 
-  generateStudyPlan: (prompt: string, grade?: number): Promise<{ plan: any[]; xpGained: number }> =>
+  generateStudyPlan: (prompt: string, grade?: number): Promise<{
+    plan: any[];
+    xpGained: number;
+    // Folded persist: the server inserts the plan in the same warm
+    // invocation and returns the created rows. Absent/false when the save
+    // didn't happen — the caller falls back to createEventsBatch.
+    persisted?: boolean;
+    events?: any[];
+  }> =>
     apiRequest('/ai-tutor/generate-study-plan', {
       method: 'POST',
       body: JSON.stringify({ prompt, ...(grade !== undefined ? { grade } : {}) }),

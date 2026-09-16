@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vite
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import type { BatchEventInput } from '../services/plannerBatch';
 
 // End-to-end (minus real DB/AI) coverage for POST /planner/events/batch —
 // the persist leg of Smart Schedule. The route, auth middleware, validators,
@@ -260,10 +261,9 @@ describe('POST /events/batch (DB failure)', () => {
 // without HTTP. The integration suite above pins the contract; these pin
 // the logic (boundaries, normalization, all-or-nothing indexing).
 describe('validateBatchEvents (pure validator)', () => {
-  let helpers: typeof import('./planner');
+  let helpers: typeof import('../services/plannerBatch');
   beforeAll(async () => {
-    setTestEnv();
-    helpers = await import('./planner');
+    helpers = await import('../services/plannerBatch');
   });
 
   const good = (over: Record<string, unknown> = {}) => ({
@@ -328,10 +328,9 @@ describe('validateBatchEvents (pure validator)', () => {
 });
 
 describe('buildBatchInsert (SQL builder)', () => {
-  let helpers: typeof import('./planner');
+  let helpers: typeof import('../services/plannerBatch');
   beforeAll(async () => {
-    setTestEnv();
-    helpers = await import('./planner');
+    helpers = await import('../services/plannerBatch');
   });
 
   it('builds one multi-row INSERT with sequential placeholders', () => {

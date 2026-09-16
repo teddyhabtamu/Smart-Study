@@ -8,6 +8,7 @@ import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
 import { getDocumentExcerpt } from '../services/documentContentService';
 import { awardXP, AI_GENERATION_XP_SOURCES, DAILY_AI_GENERATION_XP_CAP } from '../services/xpService';
+import { validateBatchEvents, buildBatchInsert } from '../services/plannerBatch';
 
 // Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
 // user-friendly message; everything else → 500.
@@ -399,11 +400,44 @@ router.post('/generate-study-plan', [
       console.error('Failed to award AI planner XP:', xpError);
     }
 
+    // Persist in THIS invocation, on the pool that just served auth + XP
+    // (already warm). The old flow made the client POST the plan back to
+    // /planner/events/batch — a second cold function + pool acquisition that
+    // died silently while generation succeeded, stranding every plan. Same
+    // validation + single INSERT as the batch route, no extra round trip.
+    // A persist failure still returns 200 with the plan: the client falls
+    // back to the standalone batch endpoint instead of losing the plan.
+    let createdEvents: any[] = [];
+    let persisted = false;
+    try {
+      const batchInputs = studyPlan.map((e) => ({
+        title: e.title,
+        subject: e.subject,
+        event_date: e.date,
+        event_type: e.type,
+        notes: e.notes,
+      }));
+      const verdict = validateBatchEvents(batchInputs, userId);
+      if (verdict.ok && verdict.rows.length > 0) {
+        const { text, values } = buildBatchInsert(verdict.rows);
+        const inserted = await query(text, values);
+        createdEvents = inserted.rows;
+        persisted = true;
+        console.log(`Study plan persisted inline: ${createdEvents.length} events for user ${userId}`);
+      } else if (!verdict.ok) {
+        console.warn(`Study plan not persisted (validation): ${verdict.message}`);
+      }
+    } catch (persistError) {
+      console.error('Study plan persist failed, returning plan unpersisted:', persistError);
+    }
+
     res.json({
       success: true,
       data: {
         plan: studyPlan,
-        xpGained: planXpGained
+        xpGained: planXpGained,
+        persisted,
+        events: createdEvents,
       },
       message: 'Study plan generated successfully'
     } as ApiResponse);

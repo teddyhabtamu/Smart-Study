@@ -54,7 +54,7 @@ const typeDot = (type: string): string => {
 
 
 const Planner: React.FC = () => {
-  const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading } = useData();
+  const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading, fetchDashboard } = useData();
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -395,6 +395,29 @@ const Planner: React.FC = () => {
       // The response already contains parsed JSON
       const plan = response.plan;
 
+      // Preferred path: the server persisted the plan in the same warm
+      // invocation and returned the created rows — no second round trip.
+      // A second cold function + pool acquisition is where saves used to
+      // die while generation succeeded, stranding every plan.
+      if (response.persisted && Array.isArray(response.events) && response.events.length > 0) {
+        await fetchStudyEvents();
+        // Same dashboard courtesy as the batch path below: today's plan
+        // feeds the progress ring on the Dashboard.
+        const today = new Date().toISOString().split('T')[0];
+        if (response.events.some((e: any) => String(e.event_date || '').slice(0, 10) === today)) {
+          await fetchDashboard();
+        }
+        addToast(`Study plan generated successfully! (${response.events.length} sessions scheduled)`, "success");
+        // Only dismiss + clear on success — a failure keeps the modal open
+        // with the prompt intact so the user can retry or rephrase.
+        setIsAIModalOpen(false);
+        setAiPrompt('');
+        return;
+      }
+
+      // Fallback path: server returned a plan it couldn't persist (or an
+      // older server without folded persist). Save via the standalone batch
+      // endpoint instead of losing the plan.
       // Batch-create all events in ONE request (not N sequential POSTs)
       const validItems = (plan || []).filter(
         (item: any) => item.title && item.subject && item.date && item.type
