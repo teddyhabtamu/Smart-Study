@@ -107,11 +107,12 @@ const OverviewTab: React.FC = () => {
            </div>
            )}
 
-           {/* AI usage (7 days): shared-key visibility. Hidden until the
-               backend ships ai_usage_7d (older backends omit it). Quota
-               errors > 0 turn the pill red — that is the "key exhausted"
-               signal, worth a look before users report 429s. */}
-           {!adminLoading && adminStats && Array.isArray(adminStats.ai_usage_7d) && adminStats.ai_usage_7d.length > 0 && (() => {
+           {/* AI usage (7 days): shared-key visibility. Shown whenever the
+               backend supports it — including the empty state, so "no panel"
+               never reads as "broken panel". Quota errors > 0 turn the pill
+               red — that is the "key exhausted" signal, worth a look before
+               users report 429s. */}
+           {!adminLoading && adminStats && Array.isArray(adminStats.ai_usage_7d) && (() => {
              const rows = adminStats.ai_usage_7d.map((r: any) => ({
                route: String(r.route || 'unknown'),
                calls: parseInt(r.calls || '0', 10) || 0,
@@ -121,6 +122,18 @@ const OverviewTab: React.FC = () => {
              }));
              const totalCalls = rows.reduce((n: number, r: any) => n + r.calls, 0);
              const totalQuota = rows.reduce((n: number, r: any) => n + r.quotaErrors, 0);
+             if (rows.length === 0) {
+               return (
+                 <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
+                   <h3 className="font-bold text-ink flex items-center gap-2">
+                     <Sparkles size={16} className="text-inksoft" /> AI usage · last 7 days
+                   </h3>
+                   <p className="text-xs text-zinc-500 mt-2">
+                     No AI generations logged yet — rows appear here after the first quiz, plan, or tutor chat.
+                   </p>
+                 </div>
+               );
+             }
              return (
                <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
                  <div className="flex items-center justify-between mb-1">
