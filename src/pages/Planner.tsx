@@ -68,6 +68,169 @@ const subjectColor = (subject: string): string => {
 
 const taskCount = (n: number): string => `${n} Task${n === 1 ? '' : 's'}`;
 
+interface EventCardProps {
+  event: StudyEvent;
+  selected: boolean;
+  /** True when the Archived filter is active (shows Unarchive instead). */
+  inArchivedView: boolean;
+  completingId: string | null;
+  archivingId: string | null;
+  deletingId: string | null;
+  onOpen: (id: string) => void;
+  onToggleComplete: (id: string, isCompleted: boolean) => void;
+  onToggleArchive: (id: string, isArchived: boolean) => void;
+  onDelete: (id: string) => void;
+}
+
+// One task row, shared by the list view and the calendar day section.
+// Extracted so both stay identical — the calendar used to force a round
+// trip back to List just to see a day's plans.
+const EventCard: React.FC<EventCardProps> = ({
+  event,
+  selected,
+  inArchivedView,
+  completingId,
+  archivingId,
+  deletingId,
+  onOpen,
+  onToggleComplete,
+  onToggleArchive,
+  onDelete,
+}) => (
+  <div
+    onClick={(e) => {
+      e.stopPropagation();
+      onOpen(event.id);
+    }}
+    className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all cursor-pointer ${
+      event.isCompleted
+        ? 'bg-zinc-50 border-zinc-100 opacity-60'
+        : selected
+        ? 'bg-surface border-zinc-900 shadow-lg'
+        : 'bg-surface border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md'
+    }`}
+  >
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggleComplete(event.id, event.isCompleted);
+      }}
+      disabled={completingId === event.id}
+      className={`relative flex-shrink-0 transition-colors p-1 after:absolute after:-inset-2 after:content-[''] ${
+        event.isCompleted
+          ? 'text-emerald-500'
+          : 'text-zinc-300 hover:text-emerald-500'
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
+      title={event.isCompleted ? "Mark as pending" : "Complete task"}
+    >
+      {completingId === event.id ? (
+        <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
+      ) : event.isCompleted ? (
+        <CheckCircle size={20} className="sm:w-6 sm:h-6 fill-current" />
+      ) : (
+        <Circle size={20} className="sm:w-6 sm:h-6" />
+      )}
+    </button>
+
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 mb-1">
+        <h4 className={`font-bold text-ink truncate text-sm sm:text-base ${event.isCompleted ? 'line-through text-zinc-500' : ''}`}>
+          {event.title}
+        </h4>
+        {event.type === 'Exam' && (
+          <span className="text-[10px] sm:text-[11px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold flex-shrink-0">EXAM</span>
+        )}
+        {event.type === 'Assignment' && (
+          <span className="text-[10px] sm:text-[11px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ASSIGNMENT</span>
+        )}
+        {!event.isCompleted && (() => {
+          const u = getUrgency(event.date);
+          if (!u) return null;
+          return (
+            <span className={`text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
+              {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-surface animate-pulse mr-1 align-middle" />}
+              {u.label}
+            </span>
+          );
+        })()}
+      </div>
+      <p className="text-xs text-zinc-500 flex items-center gap-2">
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${subjectColor(event.subject)}`} aria-hidden />
+        <span className="font-medium text-inksoft">{event.subject}</span>
+        {(() => {
+          // Only show simple text notes, not JSON
+          if (!event.notes) return null;
+          try {
+            // Check if notes is JSON
+            const trimmed = event.notes.trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+              // It's JSON, don't display it - the detail modal shows it on open
+              return null;
+            }
+            // It's plain text, show it
+            return <span className="hidden sm:inline">• {event.notes}</span>;
+          } catch {
+            // Not JSON, show it
+            return <span className="hidden sm:inline">• {event.notes}</span>;
+          }
+        })()}
+      </p>
+    </div>
+
+    {/* Hover-reveal on desktop; always visible on touch (no hover) + keyboard focus */}
+    <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+      {inArchivedView ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleArchive(event.id, event.isArchived);
+          }}
+          disabled={archivingId === event.id}
+          className="p-1.5 sm:p-2 text-zinc-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          title="Unarchive"
+        >
+          {archivingId === event.id ? (
+            <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+          ) : (
+            <ArchiveRestore size={16} className="sm:w-[18px] sm:h-[18px]" />
+          )}
+        </button>
+      ) : event.isCompleted ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleArchive(event.id, event.isArchived);
+          }}
+          disabled={archivingId === event.id}
+          className="p-1.5 sm:p-2 text-zinc-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          title="Archive"
+        >
+          {archivingId === event.id ? (
+            <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+          ) : (
+            <Archive size={16} className="sm:w-[18px] sm:h-[18px]" />
+          )}
+        </button>
+      ) : null}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(event.id);
+        }}
+        disabled={deletingId === event.id}
+        className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+        title="Delete"
+      >
+        {deletingId === event.id ? (
+          <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+        ) : (
+          <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+        )}
+      </button>
+    </div>
+  </div>
+);
+
 
 const Planner: React.FC = () => {
   const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading, fetchDashboard } = useData();
@@ -251,6 +414,22 @@ const Planner: React.FC = () => {
       addToast("Failed to update archive status", "error");
     } finally {
       setIsArchivingEvent(null);
+    }
+  };
+
+  // Single delete path for list cards, the calendar day section, and the
+  // detail modal (which closes itself when its event disappears).
+  const handleDeleteEvent = async (id: string) => {
+    setIsDeletingEvent(id);
+    try {
+      await deleteStudyEvent(id);
+      addToast("Study event deleted", "success");
+      if (selectedEventId === id) setSelectedEventId(null);
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      addToast("Failed to delete event", "error");
+    } finally {
+      setIsDeletingEvent(null);
     }
   };
 
@@ -662,8 +841,9 @@ const Planner: React.FC = () => {
                  </div>
                ))}
              </div>
-           ) : plannerView === 'calendar' ? (
-             <div className="bg-surface border border-zinc-200 rounded-xl shadow-sm p-3 sm:p-4 animate-fade-in">
+            ) : plannerView === 'calendar' ? (
+              <>
+              <div className="bg-surface border border-zinc-200 rounded-xl shadow-sm p-3 sm:p-4 animate-fade-in">
                {/* Month navigation */}
                <div className="flex items-center justify-between mb-3">
                  <button
@@ -741,10 +921,45 @@ const Planner: React.FC = () => {
                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Exam</span>
                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Assignment</span>
                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-zinc-400" /> Revision</span>
-                 <span className="ml-auto hidden sm:inline">Tap a day to filter below</span>
+                 <span className="ml-auto hidden sm:inline">Tap a day to see its plans below</span>
                </div>
              </div>
-           ) : Object.keys(groupedEvents).length > 0 ? (
+             {/* Selected day's plans, inline: no more round-tripping to List. */}
+             {selectedDate && (
+               <div className="mt-4 animate-fade-in">
+                 <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+                   Plans for {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                   <span className="text-[10px] bg-zinc-100 px-2 py-0.5 rounded-full text-zinc-400 font-medium">
+                     {taskCount((groupedEvents[selectedDate] ?? []).length)}
+                   </span>
+                 </h3>
+                 {(groupedEvents[selectedDate] ?? []).length > 0 ? (
+                   <div className="space-y-3">
+                     {(groupedEvents[selectedDate] ?? []).map(event => (
+                       <EventCard
+                         key={event.id}
+                         event={event}
+                         selected={selectedEventId === event.id}
+                         inArchivedView={statusFilter === 'archived'}
+                         completingId={isCompletingEvent}
+                         archivingId={isArchivingEvent}
+                         deletingId={isDeletingEvent}
+                         onOpen={handleEventClick}
+                         onToggleComplete={handleTaskToggle}
+                         onToggleArchive={handleArchiveToggle}
+                         onDelete={handleDeleteEvent}
+                       />
+                     ))}
+                   </div>
+                 ) : (
+                   <p className="text-sm text-zinc-400 bg-surface border border-dashed border-zinc-200 rounded-xl px-4 py-6 text-center">
+                     No tasks on this day.
+                   </p>
+                 )}
+               </div>
+             )}
+              </>
+            ) : Object.keys(groupedEvents).length > 0 ? (
              visibleDateKeys.map(dateKey => (
                <div key={dateKey} className="animate-slide-up">
                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 sticky top-0 bg-zinc-50/95 py-2 backdrop-blur-sm z-10 flex items-center justify-between">
@@ -754,150 +969,21 @@ const Planner: React.FC = () => {
                      </span>
                   </h3>
                   <div className="space-y-3">
-                    {groupedEvents[dateKey].map(event => {
-                      return (
-                      <div
+                    {groupedEvents[dateKey].map(event => (
+                      <EventCard
                         key={event.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEventClick(event.id);
-                        }}
-                        className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all cursor-pointer ${
-                          event.isCompleted
-                            ? 'bg-zinc-50 border-zinc-100 opacity-60'
-                            : selectedEventId === event.id
-                            ? 'bg-surface border-zinc-900 shadow-lg'
-                            : 'bg-surface border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md'
-                        }`}
-                      >
-                         <button
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             handleTaskToggle(event.id, event.isCompleted);
-                           }}
-                           disabled={isCompletingEvent === event.id}
-                           className={`relative flex-shrink-0 transition-colors p-1 after:absolute after:-inset-2 after:content-[''] ${
-                             event.isCompleted
-                               ? 'text-emerald-500'
-                               : 'text-zinc-300 hover:text-emerald-500'
-                           } disabled:opacity-50 disabled:cursor-not-allowed`}
-                            title={event.isCompleted ? "Mark as pending" : "Complete task"}
-                         >
-                           {isCompletingEvent === event.id ? (
-                             <Loader2 size={20} className="sm:w-6 sm:h-6 animate-spin" />
-                           ) : event.isCompleted ? (
-                             <CheckCircle size={20} className="sm:w-6 sm:h-6 fill-current" />
-                           ) : (
-                             <Circle size={20} className="sm:w-6 sm:h-6" />
-                           )}
-                         </button>
-
-                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                               <h4 className={`font-bold text-ink truncate text-sm sm:text-base ${event.isCompleted ? 'line-through text-zinc-500' : ''}`}>
-                                 {event.title}
-                               </h4>
-                               {event.type === 'Exam' && (
-                                 <span className="text-[10px] sm:text-[11px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold flex-shrink-0">EXAM</span>
-                               )}
-                               {event.type === 'Assignment' && (
-                                 <span className="text-[10px] sm:text-[11px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ASSIGNMENT</span>
-                               )}
-                               {!event.isCompleted && (() => {
-                                 const u = getUrgency(event.date);
-                                 if (!u) return null;
-                                 return (
-                                   <span className={`text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${urgencyPill(u.tone)}`}>
-                                     {u.tone === 'today' && <span className="inline-block w-1 h-1 rounded-full bg-surface animate-pulse mr-1 align-middle" />}
-                                     {u.label}
-                                   </span>
-                                 );
-                               })()}
-                            </div>
-                             <p className="text-xs text-zinc-500 flex items-center gap-2">
-                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${subjectColor(event.subject)}`} aria-hidden />
-                                <span className="font-medium text-inksoft">{event.subject}</span>
-                               {(() => {
-                                 // Only show simple text notes, not JSON
-                                 if (!event.notes) return null;
-                                 try {
-                                   // Check if notes is JSON
-                                   const trimmed = event.notes.trim();
-                                   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                                     // It's JSON, don't display it - tooltip will show it on hover
-                                     return null;
-                                   }
-                                   // It's plain text, show it
-                                   return <span className="hidden sm:inline">• {event.notes}</span>;
-                                 } catch {
-                                   // Not JSON, show it
-                                   return <span className="hidden sm:inline">• {event.notes}</span>;
-                                 }
-                               })()}
-                            </p>
-                         </div>
-
-                        {/* Hover-reveal on desktop; always visible on touch (no hover) + keyboard focus */}
-                        <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
-                          {statusFilter === 'archived' ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleArchiveToggle(event.id, event.isArchived);
-                              }}
-                              disabled={isArchivingEvent === event.id}
-                              className="p-1.5 sm:p-2 text-zinc-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                              title="Unarchive"
-                            >
-                              {isArchivingEvent === event.id ? (
-                                <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
-                              ) : (
-                                <ArchiveRestore size={16} className="sm:w-[18px] sm:h-[18px]" />
-                              )}
-                            </button>
-                          ) : event.isCompleted ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleArchiveToggle(event.id, event.isArchived);
-                              }}
-                              disabled={isArchivingEvent === event.id}
-                              className="p-1.5 sm:p-2 text-zinc-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                              title="Archive"
-                            >
-                              {isArchivingEvent === event.id ? (
-                                <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
-                              ) : (
-                                <Archive size={16} className="sm:w-[18px] sm:h-[18px]" />
-                              )}
-                            </button>
-                          ) : null}
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              setIsDeletingEvent(event.id);
-                              try {
-                                await deleteStudyEvent(event.id);
-                                addToast("Study event deleted", "success");
-                              } catch (error) {
-                                console.error('Failed to delete event:', error);
-                                addToast("Failed to delete event", "error");
-                              } finally {
-                                setIsDeletingEvent(null);
-                              }
-                            }}
-                            disabled={isDeletingEvent === event.id}
-                            className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                          >
-                            {isDeletingEvent === event.id ? (
-                              <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
-                            ) : (
-                              <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    )})}
+                        event={event}
+                        selected={selectedEventId === event.id}
+                        inArchivedView={statusFilter === 'archived'}
+                        completingId={isCompletingEvent}
+                        archivingId={isArchivingEvent}
+                        deletingId={isDeletingEvent}
+                        onOpen={handleEventClick}
+                        onToggleComplete={handleTaskToggle}
+                        onToggleArchive={handleArchiveToggle}
+                        onDelete={handleDeleteEvent}
+                      />
+                    ))}
                   </div>
                </div>
              ))
@@ -1073,19 +1159,6 @@ const Planner: React.FC = () => {
             : d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
         })();
         const busy = isCompletingEvent === event.id || isDeletingEvent === event.id || isArchivingEvent === event.id;
-
-        const handleDeleteFromModal = async () => {
-          setIsDeletingEvent(event.id);
-          try {
-            await deleteStudyEvent(event.id);
-            addToast('Study event deleted', 'success');
-            closeTooltip();
-          } catch {
-            addToast('Failed to delete event', 'error');
-          } finally {
-            setIsDeletingEvent(null);
-          }
-        };
         
         // Centered dialog on every viewport: one backdrop, one panel, no
         // measuring. Escape and backdrop clicks share closeTooltip.
@@ -1096,10 +1169,9 @@ const Planner: React.FC = () => {
             aria-modal="true"
             aria-label={event.title}
           >
-            <div className="absolute inset-0 bg-black/60" onClick={closeTooltip} />
+            <div className="absolute inset-0 bg-black/60 animate-fade-in" onClick={closeTooltip} />
             <div
-              className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar bg-surface rounded-2xl shadow-2xl border border-zinc-200"
-              style={{ animation: 'fadeIn 0.2s ease-out forwards' }}
+              className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar bg-surface rounded-2xl shadow-2xl border border-zinc-200 animate-slide-up"
             >
               
               {/* Header: identity + WHEN (the old panel never showed the date) */}
@@ -1226,7 +1298,7 @@ const Planner: React.FC = () => {
                     {event.isArchived ? 'Unarchive' : 'Archive'}
                   </button>
                   <button
-                    onClick={handleDeleteFromModal}
+                    onClick={() => handleDeleteEvent(event.id)}
                     disabled={busy}
                     className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 ml-auto"
                   >
