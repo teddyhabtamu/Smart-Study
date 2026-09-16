@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Crown, FileText, MessageSquare } from 'lucide-react';
+import { Users, Crown, FileText, MessageSquare, Sparkles } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { adminAPI } from '../../services/api';
 import { StatsCardSkeleton, RecentActivitySkeleton } from './skeletons';
@@ -104,10 +104,60 @@ const OverviewTab: React.FC = () => {
                 </div>
               </>
             )}
-          </div>
-          )}
+           </div>
+           )}
 
-          {/* Recent Activity */}
+           {/* AI usage (7 days): shared-key visibility. Hidden until the
+               backend ships ai_usage_7d (older backends omit it). Quota
+               errors > 0 turn the pill red — that is the "key exhausted"
+               signal, worth a look before users report 429s. */}
+           {!adminLoading && adminStats && Array.isArray(adminStats.ai_usage_7d) && adminStats.ai_usage_7d.length > 0 && (() => {
+             const rows = adminStats.ai_usage_7d.map((r: any) => ({
+               route: String(r.route || 'unknown'),
+               calls: parseInt(r.calls || '0', 10) || 0,
+               failures: parseInt(r.failures || '0', 10) || 0,
+               quotaErrors: parseInt(r.quota_errors || '0', 10) || 0,
+               avgMs: r.avg_ms === null || r.avg_ms === undefined ? null : Number(r.avg_ms),
+             }));
+             const totalCalls = rows.reduce((n: number, r: any) => n + r.calls, 0);
+             const totalQuota = rows.reduce((n: number, r: any) => n + r.quotaErrors, 0);
+             return (
+               <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
+                 <div className="flex items-center justify-between mb-1">
+                   <h3 className="font-bold text-ink flex items-center gap-2">
+                     <Sparkles size={16} className="text-inksoft" /> AI usage · last 7 days
+                   </h3>
+                   {totalQuota > 0 ? (
+                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                       {totalQuota} quota error{totalQuota === 1 ? '' : 's'}
+                     </span>
+                   ) : (
+                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                       key healthy
+                     </span>
+                   )}
+                 </div>
+                 <p className="text-xs text-zinc-500 mb-4">
+                   {totalCalls.toLocaleString()} generations across {rows.length} route{rows.length === 1 ? '' : 's'}
+                 </p>
+                 <div className="space-y-2">
+                   {rows.map((r: any) => (
+                     <div key={r.route} className="flex items-center justify-between py-2 border-b border-zinc-50 last:border-0 text-sm">
+                       <span className="font-medium text-ink font-mono text-xs">{r.route}</span>
+                       <span className="text-xs text-zinc-500">
+                         {r.calls.toLocaleString()} calls
+                         {r.failures > 0 && <span className="text-amber-600"> · {r.failures} failed</span>}
+                         {r.quotaErrors > 0 && <span className="text-red-600 font-semibold"> · {r.quotaErrors} quota</span>}
+                         {r.avgMs !== null && <span> · ~{Math.round(r.avgMs)}ms</span>}
+                       </span>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             );
+           })()}
+
+           {/* Recent Activity */}
           {adminLoading ? (
             <RecentActivitySkeleton />
           ) : !adminStats ? (

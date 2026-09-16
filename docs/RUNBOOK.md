@@ -28,9 +28,31 @@ Local: `http://localhost:5000`. Prod: `https://smart-study-ncwi.vercel.app`.
 
 ## Single AI feature 429s with AI_QUOTA_EXCEEDED
 
-The shared Gemini key's daily budget is spent. Limits reset daily. If this
-is chronic, see "AI quota economics" below — per-user metering is the fix,
-not a bigger key.
+The shared Gemini key's daily budget is spent. Limits reset daily. Check
+how bad it is before acting:
+
+- Admin dashboard → "AI usage · last 7 days" (calls, failures, quota errors
+  per route, avg latency). Missing panel = backend predates the `ai_usage`
+  table or the migration hasn't run (see below).
+- Public aggregate: `GET /api/ai-tutor/usage-status` (24h totals, no PII).
+- The `ai-quota-watch` workflow checks twice daily and files a tracked
+  `ai-quota` issue past the threshold (default 10 quota errors/24h).
+
+If chronic, the levers in order: per-user daily generation caps (exists for
+XP, extend to raw calls) → usage metering review (who burns the key?) →
+Pro users bring their own key → paid tier via Chapa funds it.
+
+## Database migrations
+
+Migrations live in `backend/src/database/migrations/` (idempotent
+`IF NOT EXISTS` style) and run via `npm run db:migrate` in `backend/`.
+The server does NOT auto-migrate — after deploying a migration commit:
+
+1. Local: `cd backend && npm run db:migrate` (uses `.env`).
+2. Prod: run the same command with the production `DATABASE_URL`
+   (never commit prod credentials; export it for the one command).
+3. Verify: the feature that needs the table stops logging its soft-fail
+   (e.g. admin `/stats` without `ai_usage_7d` means the table is missing).
 
 ## Backend exits and nodemon parks (`app crashed - waiting for file changes`)
 
@@ -78,9 +100,11 @@ buckets, plan windows) use `Africa/Addis_Ababa`, never server UTC:
 
 ## AI quota economics (when 429s become chronic)
 
-- Watch for `AIQuotaExceededError` / `DAILY_AI_GENERATION_XP_CAP` hits in logs.
+- Metering is live: `ai_usage` rows per generation, admin widget
+  ("AI usage · last 7 days"), public `/api/ai-tutor/usage-status` (24h),
+  twice-daily `ai-quota-watch` workflow with a tracked `ai-quota` issue.
 - Levers, cheapest first: per-user daily generation caps (exists for XP,
-  extend to raw calls) → usage metering per user (who burns the key?) →
+  extend to raw calls) → metering review (who burns the key?) →
   Pro users bring their own key → paid tier via Chapa funds it.
 
 ## Deploy checklist

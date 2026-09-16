@@ -209,6 +209,48 @@ describe('POST /generate-study-plan (folded persist)', () => {
     expect(res.body.code).toBe('AI_QUOTA_EXCEEDED');
   });
 
+  it('meters every outcome to ai_usage (success, quota, fallback)', async () => {
+    const usageInserts = () =>
+      mockQuery.mock.calls.filter(([sql]: any[]) => String(sql).includes('INSERT INTO ai_usage'));
+
+    // Success.
+    mockGenerateSmartPlan.mockResolvedValue({ plan: aiPlan(), fallback: false });
+    let app = await loadApp();
+    await postPlan(app);
+    expect(usageInserts()).toHaveLength(1);
+    expect(usageInserts()[0][1][1]).toBe('generate-study-plan');
+    expect(usageInserts()[0][1][2]).toBe(true);
+
+    // Quota failure.
+    const { AIQuotaExceededError } = await import('../services/aiTutor');
+    mockGenerateSmartPlan.mockRejectedValue(new AIQuotaExceededError('spent', 60));
+    app = await loadApp();
+    await postPlan(app);
+    const quotaRows = usageInserts().filter(([, params]: any[]) => params[3] === 'AI_QUOTA_EXCEEDED');
+    expect(quotaRows).toHaveLength(1);
+
+    // Fallback skeleton.
+    mockGenerateSmartPlan.mockResolvedValue({ plan: [], fallback: true });
+    app = await loadApp();
+    await postPlan(app);
+    const fallbackRows = usageInserts().filter(([, params]: any[]) => params[3] === 'AI_FALLBACK');
+    expect(fallbackRows).toHaveLength(1);
+  });
+
+  it('serves aggregate-only usage status without auth', async () => {
+    mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
+      if (text.includes('FROM ai_usage')) {
+        return { rows: [{ calls: '12', failures: '3', quota_errors: '2' }], rowCount: 1 };
+      }
+      return baseQueryMock(text, params);
+    });
+    const app = await loadApp();
+    const res = await request(app).get('/api/ai-tutor/usage-status');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ calls24h: 12, failures24h: 3, quotaErrors24h: 2 });
+    expect(JSON.stringify(res.body)).not.toContain('user-1');
+  });
+
   it('dedupes a retried plan: inserts only the missing event', async () => {
     // First attempt aborted client-side AFTER inserting event 1 — the retry
     // must not create it twice.

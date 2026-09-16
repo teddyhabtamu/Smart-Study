@@ -9,6 +9,7 @@ import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
 import { getDocumentExcerpt } from '../services/documentContentService';
 import { awardXP, AI_GENERATION_XP_SOURCES, DAILY_AI_GENERATION_XP_CAP } from '../services/xpService';
+import { logAiUsage } from '../services/aiUsage';
 import { validateBatchEvents, buildBatchInsert, buildRecentDuplicatesSelect, splitNewVsExisting } from '../services/plannerBatch';
 
 // Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
@@ -360,6 +361,9 @@ router.post('/generate-study-plan', [
     const { prompt } = req.body;
     const userId = req.user!.id;
     const userGrade = req.user!.grade ?? 10;
+    // Metering clock: every outcome below (success, fallback, quota, error)
+    // logs one ai_usage row so the shared key stops being a black box.
+    const planT0 = Date.now();
 
     // Fail fast on a missing AI key with 503, not the generic 500 below.
     // A 500 here once sent us hunting for a code bug when the preview
@@ -367,6 +371,7 @@ router.post('/generate-study-plan', [
     // attempt died with "Failed to generate study plan" and zero signal.
     if (!process.env.GEMINI_API_KEY) {
       console.error('Generate study plan: GEMINI_API_KEY is not configured');
+      await logAiUsage({ route: 'generate-study-plan', userId, ok: false, errorCode: 'AI_NOT_CONFIGURED', latencyMs: Date.now() - planT0 });
       res.status(503).json({
         success: false,
         code: 'AI_NOT_CONFIGURED',
@@ -462,6 +467,13 @@ router.post('/generate-study-plan', [
         ? 'Study plan generation had trouble — showing a starter outline instead'
         : 'Study plan generated successfully'
     } as ApiResponse);
+    await logAiUsage({
+      route: 'generate-study-plan',
+      userId,
+      ok: !planFallback,
+      errorCode: planFallback ? 'AI_FALLBACK' : null,
+      latencyMs: Date.now() - planT0,
+    });
     return;
   } catch (error) {
     console.error('Generate study plan error:', error);
@@ -470,6 +482,7 @@ router.post('/generate-study-plan', [
     // renders; this surfaces in a toast). Every other AI route already does
     // this; the plan route was the lone generic-500 holdout.
     if (error instanceof AIQuotaExceededError) {
+      await logAiUsage({ route: 'generate-study-plan', userId: req.user?.id, ok: false, errorCode: 'AI_QUOTA_EXCEEDED' });
       res.status(429).json({
         success: false,
         code: 'AI_QUOTA_EXCEEDED',
@@ -477,6 +490,7 @@ router.post('/generate-study-plan', [
       } as ApiResponse);
       return;
     }
+    await logAiUsage({ route: 'generate-study-plan', userId: req.user?.id, ok: false, errorCode: 'AI_ERROR' });
     res.status(500).json({
       success: false,
       message: 'Failed to generate study plan'
@@ -555,6 +569,9 @@ router.post('/chat', [
   body('sessionId').optional().isUUID().withMessage('Session ID must be a valid UUID'),
   body('documentId').optional().isUUID().withMessage('Document ID must be a valid UUID')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  // Metering clock (see generate-study-plan): one ai_usage row per outcome.
+  // Guests included (userId null) — quota burns the same key either way.
+  const chatT0 = Date.now();
   try {
     const { message, subject, grade, sessionId, documentId } = req.body;
     const userId = req.user?.id;
@@ -658,10 +675,18 @@ router.post('/chat', [
       },
       message: 'AI response generated successfully'
     } as ApiResponse);
+    await logAiUsage({ route: 'chat', userId, ok: true, latencyMs: Date.now() - chatT0 });
     return;
   } catch (error) {
     console.error('AI chat error:', error);
     const { status, message } = aiErrorResponse(error);
+    await logAiUsage({
+      route: 'chat',
+      userId: req.user?.id,
+      ok: false,
+      errorCode: error instanceof AIQuotaExceededError ? 'AI_QUOTA_EXCEEDED' : 'AI_ERROR',
+      latencyMs: Date.now() - chatT0,
+    });
     res.status(status).json({
       success: false,
       message
@@ -837,6 +862,8 @@ router.post('/generate-practice-quiz', [
   body('difficulty').optional().isIn(['Easy', 'Medium', 'Hard']).withMessage('Difficulty must be Easy, Medium, or Hard'),
   body('count').optional().isInt({ min: 1, max: 10 }).toInt().withMessage('Count must be between 1 and 10')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  // Metering clock (see generate-study-plan): one ai_usage row per outcome.
+  const quizT0 = Date.now();
   try {
     const { subject, grade, difficulty = 'Medium', count = 5 } = req.body;
     const userId = req.user!.id;
@@ -905,13 +932,48 @@ router.post('/generate-practice-quiz', [
       success: true,
       data: { questions, xpGained: award.xpGained }
     } as ApiResponse);
+    await logAiUsage({ route: 'generate-practice-quiz', userId, ok: true, latencyMs: Date.now() - quizT0 });
   } catch (error) {
     console.error('Generate practice quiz error:', error);
     const { status, message } = aiErrorResponse(error);
+    await logAiUsage({
+      route: 'generate-practice-quiz',
+      userId: req.user?.id,
+      ok: false,
+      errorCode: error instanceof AIQuotaExceededError ? 'AI_QUOTA_EXCEEDED' : 'AI_ERROR',
+      latencyMs: Date.now() - quizT0,
+    });
     res.status(status).json({
       success: false,
       message
     } as ApiResponse);
+  }
+});
+
+// Public AI usage status (aggregate counts only — no users, no prompts).
+// Exists so the unattended quota watcher can ask "is the shared key
+// exhausted?" without credentials. Coarse by design: 24h totals only.
+router.get('/usage-status', async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const r = await query(
+      `SELECT COUNT(*) AS calls,
+              COUNT(*) FILTER (WHERE ok IS NOT TRUE) AS failures,
+              COUNT(*) FILTER (WHERE error_code = 'AI_QUOTA_EXCEEDED') AS quota_errors
+       FROM ai_usage WHERE created_at >= NOW() - INTERVAL '24 hours'`
+    );
+    const row = r.rows[0] || {};
+    res.json({
+      success: true,
+      data: {
+        calls24h: Number(row.calls || 0),
+        failures24h: Number(row.failures || 0),
+        quotaErrors24h: Number(row.quota_errors || 0),
+      },
+    } as ApiResponse);
+  } catch (error) {
+    // Table missing (migration not run) or DB down: report unknown, not 500
+    // noise — the health endpoint already covers DB reachability.
+    res.json({ success: true, data: { calls24h: 0, failures24h: 0, quotaErrors24h: 0, unknown: true } } as ApiResponse);
   }
 });
 

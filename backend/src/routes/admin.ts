@@ -162,6 +162,25 @@ router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Re
     // Get recent activity
     const recentActivity = await getRecentActivity();
 
+    // AI usage, last 7 EAT days (shared-key visibility). Soft-fail: a missing
+    // ai_usage table (migration not run yet) must not break the whole panel.
+    let aiUsage7d: any[] = [];
+    try {
+      const aiRows = await dbQuery(
+        `SELECT route,
+                COUNT(*) AS calls,
+                COUNT(*) FILTER (WHERE ok IS NOT TRUE) AS failures,
+                COUNT(*) FILTER (WHERE error_code = 'AI_QUOTA_EXCEEDED') AS quota_errors,
+                ROUND(AVG(latency_ms)) AS avg_ms
+         FROM ai_usage
+         WHERE created_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'
+         GROUP BY route ORDER BY calls DESC`
+      );
+      aiUsage7d = aiRows.rows;
+    } catch (aiErr) {
+      console.error('AI usage aggregate failed (non-fatal, table may predate migration):', (aiErr as any)?.message || aiErr);
+    }
+
     const stats = {
       total_users: users.length,
       premium_users: users.filter((u: any) => u.is_premium).length,
@@ -170,7 +189,8 @@ router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Re
       total_videos: videos.length,
       premium_videos: videos.filter((v: any) => v.is_premium).length,
       total_forum_posts: forumPosts.length,
-      recent_activity: recentActivity
+      recent_activity: recentActivity,
+      ai_usage_7d: aiUsage7d
     };
 
     res.json({

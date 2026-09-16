@@ -1,0 +1,89 @@
+name: AI quota watch
+
+# Twice daily, ask the public aggregate status whether the shared Gemini key
+# is exhausting. No credentials needed (aggregate counts only, no PII).
+# Sustained quota errors mean every AI feature is 429ing — file one tracked
+# issue instead of discovering it from users. See docs/RUNBOOK.md
+# ("AI quota economics").
+on:
+  schedule:
+    - cron: '0 6,18 * * *'
+  workflow_dispatch:
+
+# The failure step files/comments on the tracking issue.
+permissions:
+  issues: write
+
+jobs:
+  watch:
+    name: Check shared-key quota errors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read 24h quota errors
+        id: quota
+        uses: actions/github-script@v7
+        env:
+          BACKEND_URL: https://smart-study-ncwi.vercel.app
+          AI_QUOTA_ALERT_THRESHOLD: '10'
+        with:
+          script: |
+            const base = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+            const threshold = parseInt(process.env.AI_QUOTA_ALERT_THRESHOLD || '10', 10);
+            let data;
+            try {
+              const res = await fetch(`${base}/api/ai-tutor/usage-status`);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              data = (await res.json())?.data ?? {};
+            } catch (err) {
+              // Backend unreachable is the health-ping's beat, not quota's —
+              // say so explicitly instead of filing a misleading quota issue.
+              core.setOutput('reason', 'unreachable');
+              throw new Error(`usage-status unreachable: ${err.message} (see health-ping, not quota)`);
+            }
+            const quota = Number(data.quotaErrors24h || 0);
+            const calls = Number(data.calls24h || 0);
+            core.info(`24h AI calls=${calls} quotaErrors=${quota} (threshold=${threshold})`);
+            core.setOutput('quota', String(quota));
+            core.setOutput('calls', String(calls));
+            core.setOutput('reason', 'quota');
+            if (quota >= threshold) {
+              throw new Error(`${quota} quota errors in 24h (threshold ${threshold})`);
+            }
+
+      - name: File or refresh tracking issue on sustained quota errors
+        if: failure() && steps.quota.outcome == 'failure' && steps.quota.outputs.reason == 'quota'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const TITLE = '🔑 Shared AI key exhausting (quota errors)';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['ai-quota'],
+            });
+            const quota = '${{ steps.quota.outputs.quota }}';
+            const calls = '${{ steps.quota.outputs.calls }}';
+            const body = [
+              `Shared Gemini key hit quota ${quota} times in the last 24h (${calls} total AI calls).`,
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'Response: docs/RUNBOOK.md (“AI quota economics”). Short term the key resets daily; sustained hits need metering review, per-user caps, or BYOK/funding.',
+            ].join('\n');
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: TITLE,
+                body,
+                labels: ['ai-quota'],
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues[0].number,
+                body: `Still exhausting at ${new Date().toISOString()} — ${quota} quota errors / ${calls} calls in 24h.`,
+              });
+            }
