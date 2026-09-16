@@ -494,7 +494,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                        data-notification-dropdown
                        className={`fixed bg-surface border border-zinc-200 rounded-xl shadow-2xl z-[9999] flex flex-col animate-popover overflow-hidden ${
                          window.innerWidth < 1024 
-                           ? 'w-[calc(100vw-2rem)] max-w-sm right-4 top-20' 
+                           // Bottom sheet on mobile: thumb-reachable, clear of
+                           // the home indicator, never a floating mid-screen
+                           // box. Matches the tour sheet + PWA prompt.
+                           ? 'left-4 right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] top-auto'
                            : 'w-96'
                        }`}
                        style={
@@ -515,7 +518,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                };
                              })()
                            : {
-                               maxHeight: 'calc(100vh - 6rem)',
+                               maxHeight: '75dvh',
                                minHeight: '200px'
                              }
                        }
