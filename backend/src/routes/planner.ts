@@ -19,7 +19,7 @@ export {
   buildBatchInsert,
 } from '../services/plannerBatch';
 export type { BatchEventInput, BatchEventRow } from '../services/plannerBatch';
-import { normalizeSubject, validateBatchEvents, buildBatchInsert } from '../services/plannerBatch';
+import { normalizeSubject, validateBatchEvents, buildBatchInsert, buildRecentDuplicatesSelect, splitNewVsExisting } from '../services/plannerBatch';
 import type { BatchEventInput } from '../services/plannerBatch';
 
 // Get user's study events
@@ -174,17 +174,33 @@ router.post('/events/batch', [
       return;
     }
 
-    const { text, values } = buildBatchInsert(verdict.rows);
     // Tripwire 2/3: proves execution reached the DB call.
     console.log(`Batch create: inserting ${verdict.rows.length} events`);
+    // Idempotent persist (same guard as the generate route): a retried batch
+    // inserts only what's new, so an aborted-then-retried save can never
+    // duplicate events. A fully-duplicate batch 201s with the existing rows.
+    const dupSelect = buildRecentDuplicatesSelect(userId, verdict.rows);
+    const dupRes = await query(dupSelect.text, dupSelect.values);
+    const { fresh, existingRows } = splitNewVsExisting(verdict.rows, dupRes.rows);
+    if (fresh.length === 0) {
+      console.log(`Batch create: all ${existingRows.length} events already present (retry deduped) for user ${userId}`);
+      res.status(201).json({
+        success: true,
+        data: existingRows,
+        message: `${existingRows.length} study events already exist`
+      } as ApiResponse);
+      return;
+    }
+    const { text, values } = buildBatchInsert(fresh);
     const result = await query(text, values);
     // Tripwire 3/3: proves the INSERT returned.
     console.log(`Batch create: insert returned ${result.rowCount} rows`);
 
+    const allRows = [...existingRows, ...result.rows];
     res.status(201).json({
       success: true,
-      data: result.rows,
-      message: `${result.rows.length} study events created successfully`
+      data: allRows,
+      message: `${result.rows.length} study events created successfully${existingRows.length > 0 ? ` (${existingRows.length} already existed)` : ''}`
     } as ApiResponse);
     console.log(`Batch create study events ok: ${result.rows.length} events for user ${userId}`);
   } catch (error) {

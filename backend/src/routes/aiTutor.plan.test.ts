@@ -192,4 +192,34 @@ describe('POST /generate-study-plan (folded persist)', () => {
     expect(res.status).toBe(429);
     expect(res.body.code).toBe('AI_QUOTA_EXCEEDED');
   });
+
+  it('dedupes a retried plan: inserts only the missing event', async () => {
+    // First attempt aborted client-side AFTER inserting event 1 — the retry
+    // must not create it twice.
+    mockGenerateSmartPlan.mockResolvedValue(aiPlan());
+    mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
+      if (text.includes('FROM users')) return baseQueryMock(text, params);
+      if (text.includes('created_at > NOW()')) {
+        return {
+          rows: [{ id: 'e0', title: 'Quadratic equation Exam', event_date: '2026-09-24' }],
+          rowCount: 1,
+        };
+      }
+      if (text.startsWith('INSERT INTO study_events')) return baseQueryMock(text, params);
+      return { rows: [{ ok: 1 }], rowCount: 1 };
+    });
+    const app = await loadApp();
+    const res = await postPlan(app);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.persisted).toBe(true);
+    // 1 already-present + 1 freshly inserted, no duplicates.
+    expect(res.body.data.events).toHaveLength(2);
+    const insertCall = mockQuery.mock.calls.find(([sql]: any[]) =>
+      String(sql).startsWith('INSERT INTO study_events')
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toHaveLength(7);
+    expect(insertCall![1][1]).toBe('Newton revision');
+  });
 });

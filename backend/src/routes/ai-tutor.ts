@@ -8,7 +8,7 @@ import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
 import { getDocumentExcerpt } from '../services/documentContentService';
 import { awardXP, AI_GENERATION_XP_SOURCES, DAILY_AI_GENERATION_XP_CAP } from '../services/xpService';
-import { validateBatchEvents, buildBatchInsert } from '../services/plannerBatch';
+import { validateBatchEvents, buildBatchInsert, buildRecentDuplicatesSelect, splitNewVsExisting } from '../services/plannerBatch';
 
 // Map AI errors to HTTP responses: quota exhaustion → 429 with a clear,
 // user-friendly message; everything else → 500.
@@ -419,11 +419,22 @@ router.post('/generate-study-plan', [
       }));
       const verdict = validateBatchEvents(batchInputs, userId);
       if (verdict.ok && verdict.rows.length > 0) {
-        const { text, values } = buildBatchInsert(verdict.rows);
-        const inserted = await query(text, values);
-        createdEvents = inserted.rows;
-        persisted = true;
-        console.log(`Study plan persisted inline: ${createdEvents.length} events for user ${userId}`);
+        // Idempotent persist: a client that aborted the first attempt
+        // (timeout toast) retries the SAME plan — insert only what's new.
+        const dupSelect = buildRecentDuplicatesSelect(userId, verdict.rows);
+        const dupRes = await query(dupSelect.text, dupSelect.values);
+        const { fresh, existingRows } = splitNewVsExisting(verdict.rows, dupRes.rows);
+        if (fresh.length === 0) {
+          createdEvents = existingRows;
+          persisted = true;
+          console.log(`Study plan already persisted (retry deduped): ${createdEvents.length} events for user ${userId}`);
+        } else {
+          const { text, values } = buildBatchInsert(fresh);
+          const inserted = await query(text, values);
+          createdEvents = [...existingRows, ...inserted.rows];
+          persisted = true;
+          console.log(`Study plan persisted inline: ${inserted.rows.length} events for user ${userId}${existingRows.length > 0 ? ` (${existingRows.length} already present, deduped)` : ''}`);
+        }
       } else if (!verdict.ok) {
         console.warn(`Study plan not persisted (validation): ${verdict.message}`);
       }

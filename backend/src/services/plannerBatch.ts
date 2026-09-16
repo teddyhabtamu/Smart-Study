@@ -123,3 +123,56 @@ export const buildBatchInsert = (rows: BatchEventRow[]): { text: string; values:
     values,
   };
 };
+
+// --- Retry dedup (idempotent persist) --------------------------------------
+// Observed failure: the client aborts a slow generate (timeout toast) AFTER
+// the server already INSERTed — refresh shows the plan, and a retry would
+// create it a second time. So every persist first asks "did I just write
+// these?" Same user + same title + same calendar date + created within the
+// last DEDUP_WINDOW_MINUTES = a retry of THIS plan, not a new plan the user
+// deliberately made (those are days apart or differently titled). The INSERT
+// itself stays atomic (all-or-nothing), this only decides what still needs
+// inserting.
+export const DEDUP_WINDOW_MINUTES = 30;
+
+// Identity of one row for dedup: trimmed title + calendar date. pg returns
+// DATE columns as YYYY-MM-DD strings (see database/config type parser), so
+// DB rows key identically to validated input rows.
+export const batchRowKey = (title: unknown, eventDate: unknown): string =>
+  `${String(title ?? '')}|||${String(eventDate ?? '').slice(0, 10)}`;
+
+// SELECT full rows the user created in the last N minutes matching any of
+// the candidate (title, date) pairs. One round trip regardless of batch size.
+export const buildRecentDuplicatesSelect = (
+  userId: string,
+  rows: BatchEventRow[],
+  withinMinutes: number = DEDUP_WINDOW_MINUTES
+): { text: string; values: any[] } => {
+  const values: any[] = [userId, withinMinutes];
+  const pairs = rows.map((r) => {
+    values.push(r[1], r[3]);
+    const t = values.length - 1;
+    return `(title = $${t} AND event_date = $${t + 1})`;
+  });
+  return {
+    text: `SELECT * FROM study_events WHERE user_id = $1 AND created_at > NOW() - MAKE_INTERVAL(mins => $2) AND (${pairs.join(' OR ')})`,
+    values,
+  };
+};
+
+// Split candidates into still-needed vs already-present. Returns the fresh
+// rows for INSERT and the matching DB rows (so callers can return a complete
+// event list either way — retry responses look exactly like first attempts).
+export const splitNewVsExisting = (
+  rows: BatchEventRow[],
+  existingDbRows: any[]
+): { fresh: BatchEventRow[]; existingRows: any[] } => {
+  const seen = new Set(
+    (existingDbRows || []).map((r) => batchRowKey(r?.title, r?.event_date))
+  );
+  const existingRows = (existingDbRows || []).filter((r) =>
+    rows.some((row) => batchRowKey(row[1], row[3]) === batchRowKey(r?.title, r?.event_date))
+  );
+  const fresh = rows.filter((row) => !seen.has(batchRowKey(row[1], row[3])));
+  return { fresh, existingRows };
+};

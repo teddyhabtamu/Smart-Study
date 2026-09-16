@@ -67,6 +67,11 @@ beforeEach(() => {
       }
       return { rows, rowCount: rows.length };
     }
+    // Retry-dedup pre-check: no recent duplicates by default. Individual
+    // tests override with mockQuery.mockImplementationOnce for dup cases.
+    if (text.includes('FROM study_events') && text.includes('created_at > NOW()')) {
+      return { rows: [], rowCount: 0 };
+    }
     throw new Error(`unexpected query in test: ${String(text).slice(0, 80)}`);
   });
 });
@@ -343,5 +348,111 @@ describe('buildBatchInsert (SQL builder)', () => {
     expect(text).toContain('($1, $2, $3, $4, $5, $6, $7), ($8, $9, $10, $11, $12, $13, $14)');
     expect(values).toHaveLength(14);
     expect(values.slice(0, 7)).toEqual(['user-1', 'A', 'Physics', '2026-09-20', 'Revision', false, 'n1']);
+  });
+});
+
+// Retry dedup: abort-then-retry must never duplicate events.
+describe('retry dedup (pure helpers)', () => {
+  let helpers: typeof import('../services/plannerBatch');
+  beforeAll(async () => {
+    helpers = await import('../services/plannerBatch');
+  });
+
+  it('keys rows by title + calendar date (time portion ignored)', () => {
+    expect(helpers.batchRowKey('A', '2026-09-24')).toBe('A|||2026-09-24');
+    expect(helpers.batchRowKey('A', '2026-09-24T21:00:00.000Z')).toBe('A|||2026-09-24');
+  });
+
+  it('builds one parameterized SELECT covering every candidate pair', () => {
+    const { text, values } = helpers.buildRecentDuplicatesSelect('user-1', [
+      ['user-1', 'A', 'Physics', '2026-09-20', 'Revision', 'n1'],
+      ['user-1', 'B', 'Physics', '2026-09-21', 'Exam', 'n2'],
+    ]);
+    expect(text).toContain('FROM study_events WHERE user_id = $1');
+    expect(text).toContain('MAKE_INTERVAL');
+    expect(text).toContain('(title = $3 AND event_date = $4) OR (title = $5 AND event_date = $6)');
+    expect(values).toEqual(['user-1', 30, 'A', '2026-09-20', 'B', '2026-09-21']);
+  });
+
+  it('splits fresh vs already-present rows', () => {
+    const rows: Array<[string, string, string, string, string, string]> = [
+      ['user-1', 'A', 'Physics', '2026-09-20', 'Revision', 'n1'],
+      ['user-1', 'B', 'Physics', '2026-09-21', 'Exam', 'n2'],
+    ];
+    const { fresh, existingRows } = helpers.splitNewVsExisting(rows, [
+      { id: 'old', title: 'A', event_date: '2026-09-20' },
+      { id: 'unrelated', title: 'Z', event_date: '2026-09-20' },
+    ]);
+    expect(fresh.map((r) => r[1])).toEqual(['B']);
+    expect(existingRows.map((r: any) => r.id)).toEqual(['old']);
+  });
+});
+
+describe('POST /events/batch (retry dedup)', () => {
+  it('returns 201 with existing rows and no INSERT when all are duplicates', async () => {
+    const app = await loadApp();
+    mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
+      if (text.includes('FROM users')) {
+        return {
+          rows: [{ id: 'user-1', role: 'STUDENT', status: 'Active', is_premium: true, bookmarks: [] }],
+          rowCount: 1,
+        };
+      }
+      if (text.includes('created_at > NOW()')) {
+        return {
+          rows: [
+            { id: 'e0', title: 'Quadratic equation Exam', event_date: '2026-09-24' },
+            { id: 'e1', title: 'Newton revision', event_date: '2026-09-25' },
+          ],
+          rowCount: 2,
+        };
+      }
+      throw new Error('INSERT should not run for a fully-duplicate batch');
+    });
+    const res = await request(app)
+      .post('/api/planner/events/batch')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send(validBody());
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveLength(2);
+    expect(
+      mockQuery.mock.calls.some(([sql]: any[]) => String(sql).startsWith('INSERT INTO study_events'))
+    ).toBe(false);
+  });
+
+  it('inserts only the fresh rows on a partial duplicate', async () => {
+    const app = await loadApp();
+    mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
+      if (text.includes('FROM users')) {
+        return {
+          rows: [{ id: 'user-1', role: 'STUDENT', status: 'Active', is_premium: true, bookmarks: [] }],
+          rowCount: 1,
+        };
+      }
+      if (text.includes('created_at > NOW()')) {
+        return {
+          rows: [{ id: 'e0', title: 'Quadratic equation Exam', event_date: '2026-09-24' }],
+          rowCount: 1,
+        };
+      }
+      if (text.startsWith('INSERT INTO study_events')) {
+        return { rows: [{ id: 'new-1', title: params[1] }], rowCount: 1 };
+      }
+      throw new Error(`unexpected query in test: ${String(text).slice(0, 80)}`);
+    });
+    const res = await request(app)
+      .post('/api/planner/events/batch')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send(validBody());
+    expect(res.status).toBe(201);
+    // 1 pre-existing + 1 freshly inserted.
+    expect(res.body.data).toHaveLength(2);
+    const insertCall = mockQuery.mock.calls.find(([sql]: any[]) =>
+      String(sql).startsWith('INSERT INTO study_events')
+    );
+    // 7 params = exactly one row inserted (the non-duplicate).
+    expect(insertCall![1]).toHaveLength(7);
+    expect(insertCall![1][1]).toBe('Newton revision');
   });
 });
