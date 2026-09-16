@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -253,5 +253,96 @@ describe('POST /events/batch (DB failure)', () => {
     expect(res.status).toBe(500);
     expect(res.body.message).toBe('Failed to create study events');
     expect(JSON.stringify(res.body)).not.toContain('relation');
+  });
+});
+
+// Pure validator + SQL builder: millisecond tests that pin every rule
+// without HTTP. The integration suite above pins the contract; these pin
+// the logic (boundaries, normalization, all-or-nothing indexing).
+describe('validateBatchEvents (pure validator)', () => {
+  let helpers: typeof import('./planner');
+  beforeAll(async () => {
+    setTestEnv();
+    helpers = await import('./planner');
+  });
+
+  const good = (over: Record<string, unknown> = {}) => ({
+    title: 'Quadratic equation Exam',
+    subject: 'Mathematics',
+    event_date: '2026-09-24',
+    event_type: 'Exam',
+    notes: 'Today.',
+    ...over,
+  });
+
+  it('accepts valid items, trims, and normalizes subjects', () => {
+    const verdict = helpers.validateBatchEvents(
+      [good({ title: '  spaced  ', subject: '  Maths ' })],
+      'user-1'
+    );
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) {
+      expect(verdict.rows[0]).toEqual(
+        ['user-1', 'spaced', 'Mathematics', '2026-09-24', 'Exam', 'Today.']
+      );
+    }
+  });
+
+  it('rejects null/blank/overlong titles with the item index', () => {
+    for (const title of [null, '', '   ', 'x'.repeat(201)]) {
+      const verdict = helpers.validateBatchEvents([good({ title }) as any], 'user-1');
+      expect(verdict.ok).toBe(false);
+      if (!verdict.ok) expect(verdict.message).toContain('events[0].title');
+    }
+    const ok = helpers.validateBatchEvents([good({ title: 'x'.repeat(200) })], 'user-1');
+    expect(ok.ok).toBe(true);
+  });
+
+  it('rejects unknown subjects and impossible dates', () => {
+    const badSubject = helpers.validateBatchEvents([good({ subject: 'Klingon' })], 'user-1');
+    expect(badSubject.ok).toBe(false);
+    const badDate = helpers.validateBatchEvents([good({ event_date: '2026-13-40' })], 'user-1');
+    expect(badDate.ok).toBe(false);
+    if (!badDate.ok) expect(badDate.message).toContain('events[0].event_date');
+  });
+
+  it('rejects wrong-cased event types (strict enum, matches the route)', () => {
+    const verdict = helpers.validateBatchEvents([good({ event_type: 'exam' })], 'user-1');
+    expect(verdict.ok).toBe(false);
+  });
+
+  it('fails the whole batch on the first bad item, reporting its index', () => {
+    const verdict = helpers.validateBatchEvents(
+      [good(), good({ event_type: 'Party' }), good({ title: '' })],
+      'user-1'
+    );
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(verdict.message).toContain('events[1].event_type');
+  });
+
+  it('coerces non-string notes instead of throwing', () => {
+    const verdict = helpers.validateBatchEvents([good({ notes: 5 }) as any], 'user-1');
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) expect(verdict.rows[0][5]).toBe('5');
+  });
+});
+
+describe('buildBatchInsert (SQL builder)', () => {
+  let helpers: typeof import('./planner');
+  beforeAll(async () => {
+    setTestEnv();
+    helpers = await import('./planner');
+  });
+
+  it('builds one multi-row INSERT with sequential placeholders', () => {
+    const { text, values } = helpers.buildBatchInsert([
+      ['user-1', 'A', 'Physics', '2026-09-20', 'Revision', 'n1'],
+      ['user-1', 'B', 'Physics', '2026-09-21', 'Exam', 'n2'],
+    ]);
+    expect(text).toContain('INSERT INTO study_events');
+    expect(text).toContain('RETURNING *');
+    expect(text).toContain('($1, $2, $3, $4, $5, $6, $7), ($8, $9, $10, $11, $12, $13, $14)');
+    expect(values).toHaveLength(14);
+    expect(values.slice(0, 7)).toEqual(['user-1', 'A', 'Physics', '2026-09-20', 'Revision', false, 'n1']);
   });
 });

@@ -179,59 +179,113 @@ router.post('/events', [
   }
 });
 
+// --- Batch payload validation (pure, unit-tested) ---------------------------
+// Batch-create used to validate inline in the route: untestable without HTTP
+// and every branch edit risked the contract. These helpers own all of it;
+// the route below only wires HTTP ↔ DB.
+
+export interface BatchEventInput {
+  title: unknown;
+  subject: unknown;
+  event_date: unknown;
+  event_type: unknown;
+  notes?: unknown;
+}
+
+// One validated row, column-ordered for the multi-row INSERT:
+// [user_id, title, subject, event_date, event_type, notes]
+export type BatchEventRow = [string, string, string, string, string, string];
+
+const BATCH_EVENT_TYPES: readonly string[] = ['Exam', 'Revision', 'Assignment'];
+
+export const validateBatchEvent = (
+  event: BatchEventInput | null | undefined,
+  index: number,
+  userId: string
+): { ok: true; row: BatchEventRow } | { ok: false; message: string } => {
+  if (!event || typeof event.title !== 'string' || !event.title.trim() || event.title.trim().length > 200) {
+    return { ok: false, message: `events[${index}].title is required (1-200 chars)` };
+  }
+  const normalizedSubject = normalizeSubject(event.subject as string);
+  if (!normalizedSubject) {
+    return { ok: false, message: `events[${index}].subject "${(event as BatchEventInput)?.subject}" is invalid` };
+  }
+  if (
+    typeof event.event_date !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(event.event_date.trim()) ||
+    isNaN(new Date(event.event_date).getTime())
+  ) {
+    return { ok: false, message: `events[${index}].event_date must be YYYY-MM-DD` };
+  }
+  if (!BATCH_EVENT_TYPES.includes(event.event_type as string)) {
+    return { ok: false, message: `events[${index}].event_type must be Exam/Revision/Assignment` };
+  }
+  return {
+    ok: true,
+    row: [
+      userId,
+      (event.title as string).trim(),
+      normalizedSubject,
+      (event.event_date as string).trim(),
+      event.event_type as string,
+      String((event as BatchEventInput).notes ?? '').trim(),
+    ],
+  };
+};
+
+// Every item validated before anything touches the DB (all-or-nothing: the
+// first failure rejects the whole batch, so a half-written schedule is
+// impossible).
+export const validateBatchEvents = (
+  events: Array<BatchEventInput | null | undefined>,
+  userId: string
+): { ok: true; rows: BatchEventRow[] } | { ok: false; message: string } => {
+  const rows: BatchEventRow[] = [];
+  for (const [i, e] of events.entries()) {
+    const verdict = validateBatchEvent(e, i, userId);
+    if (!verdict.ok) return verdict;
+    rows.push(verdict.row);
+  }
+  return { ok: true, rows };
+};
+
+// Parameterized multi-row INSERT for validated rows (single round trip).
+export const buildBatchInsert = (rows: BatchEventRow[]): { text: string; values: any[] } => {
+  const values: any[] = [];
+  const valueGroups = rows.map((r) => {
+    const start = values.length + 1;
+    values.push(r[0], r[1], r[2], r[3], r[4], false, r[5]);
+    return `($${start}, $${start + 1}, $${start + 2}, $${start + 3}, $${start + 4}, $${start + 5}, $${start + 6})`;
+  });
+  return {
+    text: `INSERT INTO study_events (user_id, title, subject, event_date, event_type, is_completed, notes) VALUES ${valueGroups.join(', ')} RETURNING *`,
+    values,
+  };
+};
+
 // Batch-create study events (used by AI schedule generation — one round trip
-// instead of N sequential POSTs)
+// instead of N sequential POSTs). Thin by design: validation + SQL building
+// live in the pure helpers above; this handler only wires HTTP ↔ DB and
+// never leaks pg internals.
 router.post('/events/batch', [
   authenticateToken,
   body('events').isArray({ min: 1, max: 31 }).withMessage('events must be an array of 1-31 items'),
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { events } = req.body as { events: Array<{
-      title: string; subject: string; event_date: string; event_type: string; notes?: string;
-    }> };
+    const { events } = req.body as { events: BatchEventInput[] };
 
-    // Validate + normalize every item before touching the DB (all-or-nothing).
-    // Every rejection is warn-logged: 400s otherwise return silently and a
-    // failing Smart Schedule leaves no trace in the function logs.
-    const reject = (message: string) => {
-      console.warn(`Batch create study events rejected: ${message}`);
-      res.status(400).json({ success: false, message } as ApiResponse);
-    };
-    const rows: Array<[string, string, string, string, string, string]> = [];
-    for (const [i, e] of events.entries()) {
-      if (!e || typeof e.title !== 'string' || !e.title.trim() || e.title.trim().length > 200) {
-        reject(`events[${i}].title is required (1-200 chars)`);
-        return;
-      }
-      const normalizedSubject = normalizeSubject(e.subject);
-      if (!normalizedSubject) {
-        reject(`events[${i}].subject "${e.subject}" is invalid`);
-        return;
-      }
-      if (typeof e.event_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.event_date.trim()) || isNaN(new Date(e.event_date).getTime())) {
-        reject(`events[${i}].event_date must be YYYY-MM-DD`);
-        return;
-      }
-      if (!['Exam', 'Revision', 'Assignment'].includes(e.event_type)) {
-        reject(`events[${i}].event_type must be Exam/Revision/Assignment`);
-        return;
-      }
-      rows.push([userId, e.title.trim(), normalizedSubject, e.event_date.trim(), e.event_type, (e.notes || '').trim()]);
+    const verdict = validateBatchEvents(events, userId);
+    if (!verdict.ok) {
+      // Warn-logged: 400s otherwise return silently and a failing Smart
+      // Schedule leaves no trace in the function logs.
+      console.warn(`Batch create study events rejected: ${verdict.message}`);
+      res.status(400).json({ success: false, message: verdict.message } as ApiResponse);
+      return;
     }
 
-    // Single multi-row INSERT
-    const values: any[] = [];
-    const valueGroups = rows.map((r) => {
-      const start = values.length + 1;
-      values.push(r[0], r[1], r[2], r[3], r[4], false, r[5]);
-      return `($${start}, $${start + 1}, $${start + 2}, $${start + 3}, $${start + 4}, $${start + 5}, $${start + 6})`;
-    });
-
-    const result = await query(
-      `INSERT INTO study_events (user_id, title, subject, event_date, event_type, is_completed, notes) VALUES ${valueGroups.join(', ')} RETURNING *`,
-      values
-    );
+    const { text, values } = buildBatchInsert(verdict.rows);
+    const result = await query(text, values);
 
     res.status(201).json({
       success: true,
