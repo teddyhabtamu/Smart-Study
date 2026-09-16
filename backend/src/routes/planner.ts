@@ -1,6 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { dbAdmin, query } from '../database/config';
+import { EAT_TODAY_SQL } from '../utils/dates';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, StudyEvent, User } from '../types';
 import { NotificationService } from '../services/notificationService';
@@ -348,15 +349,15 @@ router.get('/stats', authenticateToken, async (req: express.Request, res: expres
     const userId = req.user!.id;
 
     // Aggregated in SQL over idx_study_events_user (was: fetch every
-    // study_events row, count in JS). Date buckets use CURRENT_DATE, which
-    // matches the old JS rule (today counts as upcoming, not overdue).
+    // study_events row, count in JS). Date buckets use the Ethiopian day,
+    // not UTC: today counts as upcoming, not overdue, on the student's clock.
     // Actionable buckets ignore archived tasks, same as the dashboard.
     const [aggRows, subjRows] = await Promise.all([
       query(
         `SELECT COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE is_completed IS TRUE) AS completed,
-                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date >= CURRENT_DATE) AS upcoming,
-                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date < CURRENT_DATE) AS overdue,
+                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date >= ${EAT_TODAY_SQL}) AS upcoming,
+                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date < ${EAT_TODAY_SQL}) AS overdue,
                 COUNT(*) FILTER (WHERE event_type = 'Exam') AS exam,
                 COUNT(*) FILTER (WHERE event_type = 'Revision') AS revision,
                 COUNT(*) FILTER (WHERE event_type = 'Assignment') AS assignment

@@ -923,6 +923,9 @@ export const aiTutorAPI = {
     // didn't happen — the caller falls back to createEventsBatch.
     persisted?: boolean;
     events?: any[];
+    // Fallback skeleton (AI failed): nothing was saved and nothing should
+    // be — the caller shows retry instead of success.
+    fallback?: boolean;
   }> =>
     apiRequest('/ai-tutor/generate-study-plan', {
       method: 'POST',

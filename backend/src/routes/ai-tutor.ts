@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { body } from 'express-validator';
 import { dbAdmin, query } from '../database/config';
+import { EAT_TODAY_SQL } from '../utils/dates';
 import { authenticateToken, optionalAuth, validateRequest, requirePremium } from '../middleware/auth';
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
@@ -378,7 +379,7 @@ router.post('/generate-study-plan', [
     const { generateSmartPlan } = await import('../services/aiTutor');
 
     // Generate structured study plan
-    const studyPlan = await generateSmartPlan(prompt, userGrade);
+    const { plan: studyPlan, fallback: planFallback } = await generateSmartPlan(prompt, userGrade);
 
     // Award XP for using AI planner — through the shared helper (level
     // math, badges, history, level-up notification). Previously inline with
@@ -407,8 +408,11 @@ router.post('/generate-study-plan', [
     // validation + single INSERT as the batch route, no extra round trip.
     // A persist failure still returns 200 with the plan: the client falls
     // back to the standalone batch endpoint instead of losing the plan.
+    // Fallback skeletons are NEVER persisted: a failed generation that saves
+    // 7 generic tasks creates cleanup work, not value.
     let createdEvents: any[] = [];
     let persisted = false;
+    if (!planFallback) {
     try {
       const batchInputs = studyPlan.map((e) => ({
         title: e.title,
@@ -441,6 +445,9 @@ router.post('/generate-study-plan', [
     } catch (persistError) {
       console.error('Study plan persist failed, returning plan unpersisted:', persistError);
     }
+    } else {
+      console.warn(`Study plan fallback skeleton for user ${userId}: not persisted, client should offer retry`);
+    }
 
     res.json({
       success: true,
@@ -449,8 +456,11 @@ router.post('/generate-study-plan', [
         xpGained: planXpGained,
         persisted,
         events: createdEvents,
+        fallback: planFallback,
       },
-      message: 'Study plan generated successfully'
+      message: planFallback
+        ? 'Study plan generation had trouble — showing a starter outline instead'
+        : 'Study plan generated successfully'
     } as ApiResponse);
     return;
   } catch (error) {
@@ -838,7 +848,7 @@ router.post('/generate-practice-quiz', [
     // server's timezone guess.
     const userRows = await query(
       `SELECT id, is_premium,
-        CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) ELSE 0 END AS used_today
+        CASE WHEN daily_quiz_date = ${EAT_TODAY_SQL} THEN COALESCE(daily_quiz_count, 0) ELSE 0 END AS used_today
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -884,8 +894,8 @@ router.post('/generate-practice-quiz', [
     });
     await query(
       `UPDATE users
-       SET daily_quiz_count = CASE WHEN daily_quiz_date = CURRENT_DATE THEN COALESCE(daily_quiz_count, 0) + 1 ELSE 1 END,
-           daily_quiz_date = CURRENT_DATE,
+       SET daily_quiz_count = CASE WHEN daily_quiz_date = ${EAT_TODAY_SQL} THEN COALESCE(daily_quiz_count, 0) + 1 ELSE 1 END,
+           daily_quiz_date = ${EAT_TODAY_SQL},
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [userId]

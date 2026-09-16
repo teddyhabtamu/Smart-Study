@@ -1,4 +1,5 @@
 import { query, getClient } from '../database/config';
+import { EAT_TODAY_SQL } from '../utils/dates';
 import { NotificationService } from './notificationService';
 import { EmailService } from './emailService';
 import { BADGE_DEFINITIONS } from '../constants';
@@ -99,7 +100,7 @@ export const awardXP = async (
       const capSources = opts.dailyCapSources ?? [opts.source];
       const usedRes = await client.query(
         `SELECT COALESCE(SUM(amount), 0) AS used FROM xp_history
-         WHERE user_id = $1 AND source = ANY($2) AND created_at >= CURRENT_DATE`,
+         WHERE user_id = $1 AND source = ANY($2) AND created_at >= ${EAT_TODAY_SQL}`,
         [userId, capSources]
       );
       const usedToday = Number(usedRes.rows[0]?.used || 0);

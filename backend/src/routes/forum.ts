@@ -2,6 +2,7 @@ import express from 'express';
 import { createHash } from 'crypto';
 import { body, query as queryValidator } from 'express-validator';
 import { db, dbAdmin, query } from '../database/config';
+import { EAT_TODAY_SQL } from '../utils/dates';
 import { authenticateToken, optionalAuth, validateRequest } from '../middleware/auth';
 import { ApiResponse, ForumPost, ForumComment, User } from '../types';
 import { NotificationService } from '../services/notificationService';
@@ -362,12 +363,13 @@ router.post('/posts', [
     const { title, content, subject, grade, tags = [] } = req.body;
     const author_id = req.user!.id;
 
-    // Free accounts get 1 question per day (server date); Pro is unlimited.
+    // Free accounts get 1 question per Ethiopian day (server date is UTC —
+    // a UTC slice would steal the last evening hours); Pro is unlimited.
     // The gate lives here — not just in the UI — so it can't be bypassed.
     if (!req.user!.is_premium) {
       const todayCount = await query(
         `SELECT COUNT(*) as count FROM forum_posts
-         WHERE author_id = $1 AND created_at >= CURRENT_DATE`,
+         WHERE author_id = $1 AND created_at >= ${EAT_TODAY_SQL}`,
         [author_id]
       );
       if (parseInt(todayCount.rows[0]?.count || '0', 10) >= 1) {

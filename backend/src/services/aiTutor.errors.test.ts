@@ -175,7 +175,7 @@ describe('deadline date grounding (study-plan dates)', () => {
   });
 
   it('builds a 14-row table starting today with matching weekday names', () => {
-    const table = buildDateTable(new Date(2026, 8, 16)).split('\n');
+    const table = buildDateTable('2026-09-16').split('\n');
     expect(table).toHaveLength(14);
     expect(table[0]).toBe('Wednesday 2026-09-16 (today)');
     expect(table[2]).toBe('Friday 2026-09-18');

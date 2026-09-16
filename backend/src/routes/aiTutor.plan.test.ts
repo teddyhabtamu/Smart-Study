@@ -126,7 +126,7 @@ const postPlan = (app: any, body: any = { prompt: 'math exam next Friday' }) =>
 
 describe('POST /generate-study-plan (folded persist)', () => {
   it('persists the generated plan inline and returns the created events', async () => {
-    mockGenerateSmartPlan.mockResolvedValue(aiPlan());
+    mockGenerateSmartPlan.mockResolvedValue({ plan: aiPlan(), fallback: false });
     const app = await loadApp();
     const res = await postPlan(app);
 
@@ -153,7 +153,7 @@ describe('POST /generate-study-plan (folded persist)', () => {
   });
 
   it('skips the INSERT for an empty plan without failing', async () => {
-    mockGenerateSmartPlan.mockResolvedValue([]);
+    mockGenerateSmartPlan.mockResolvedValue({ plan: [], fallback: true });
     const app = await loadApp();
     const res = await postPlan(app);
 
@@ -165,8 +165,24 @@ describe('POST /generate-study-plan (folded persist)', () => {
     ).toBe(false);
   });
 
+  it('flags fallback skeletons so the client offers retry instead of saving', async () => {
+    mockGenerateSmartPlan.mockResolvedValue({ plan: aiPlan(), fallback: true });
+    const app = await loadApp();
+    const res = await postPlan(app);
+
+    // A failed generation must not save anything — not even a valid-looking
+    // plan. The client shows retry on fallback:true.
+    expect(res.status).toBe(200);
+    expect(res.body.data.fallback).toBe(true);
+    expect(res.body.data.persisted).toBe(false);
+    expect(res.body.data.events).toEqual([]);
+    expect(
+      mockQuery.mock.calls.some(([sql]: any[]) => String(sql).startsWith('INSERT INTO study_events'))
+    ).toBe(false);
+  });
+
   it('returns the plan unpersisted (200, not 500) when the INSERT blows up', async () => {
-    mockGenerateSmartPlan.mockResolvedValue(aiPlan());
+    mockGenerateSmartPlan.mockResolvedValue({ plan: aiPlan(), fallback: false });
     mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
       if (text.includes('FROM users')) return baseQueryMock(text, params);
       if (text.startsWith('INSERT INTO study_events')) throw new Error('db down');
@@ -196,7 +212,7 @@ describe('POST /generate-study-plan (folded persist)', () => {
   it('dedupes a retried plan: inserts only the missing event', async () => {
     // First attempt aborted client-side AFTER inserting event 1 — the retry
     // must not create it twice.
-    mockGenerateSmartPlan.mockResolvedValue(aiPlan());
+    mockGenerateSmartPlan.mockResolvedValue({ plan: aiPlan(), fallback: false });
     mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
       if (text.includes('FROM users')) return baseQueryMock(text, params);
       if (text.includes('created_at > NOW()')) {

@@ -3,6 +3,11 @@
 // and the three dead geminiService* variants.
 
 import { GoogleGenAI } from '@google/genai';
+import {
+  eatTodayStr,
+  weekdayOfDateStr,
+  shiftDateStr,
+} from '../utils/dates';
 
 // --- Client -------------------------------------------------------------
 let ai: GoogleGenAI | null = null;
@@ -658,30 +663,17 @@ export const mentionedWeekdays = (request: string): Set<string> => {
   return found;
 };
 
-// 14-day reference table (local calendar dates — same convention as the
+// 14-day reference table (Ethiopian calendar dates — same convention as the
 // planner UI) injected into the prompt so the model looks dates up instead
 // of doing weekday arithmetic.
-export const buildDateTable = (now: Date): string => {
+export const buildDateTable = (todayStr: string): string => {
   const rows: string[] = [];
   for (let i = 0; i < 14; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const wd = d.toLocaleDateString('en-US', { weekday: 'long' });
-    rows.push(`${wd} ${iso}${i === 0 ? ' (today)' : ''}`);
+    const iso = shiftDateStr(todayStr, i);
+    rows.push(`${weekdayOfDateStr(iso)} ${iso}${i === 0 ? ' (today)' : ''}`);
   }
   return rows.join('\n');
 };
-
-const shiftDateStr = (dateStr: string, days: number): string => {
-  const [y = 0, m = 1, d = 1] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-};
-
-const weekdayOf = (dateStr: string): string =>
-  WEEKDAY_NAMES[new Date(`${dateStr}T00:00:00`).getDay()] ?? '';
 
 // Every in-window date for each mentioned weekday, e.g. from Wed 09-16:
 // "Friday: 2026-09-18, 2026-09-25; Monday: 2026-09-21, 2026-09-28".
@@ -696,7 +688,7 @@ export const candidateDatesForMentioned = (
       const dates: string[] = [];
       for (let i = 0; i < 14; i++) {
         const d = shiftDateStr(todayStr, i);
-        if (weekdayOf(d) === wd) dates.push(d);
+        if (weekdayOfDateStr(d) === wd) dates.push(d);
       }
       return `${wd}: ${dates.join(', ')}`;
     })
@@ -717,7 +709,7 @@ export const findDeadlineMismatch = (
     if (e.date < todayStr) return `"${e.title}" is a ${e.type} dated ${e.date}, before today ${todayStr}`;
     if (e.date > maxDate) return `"${e.title}" is a ${e.type} dated ${e.date}, outside the 14-day window`;
     if (mentioned.size > 0) {
-      const wd = weekdayOf(e.date);
+      const wd = weekdayOfDateStr(e.date);
       if (!mentioned.has(wd)) {
         return `"${e.title}" is a ${e.type} on ${e.date} (${wd}) but the request names ${[...mentioned].join(' / ')}`;
       }
@@ -729,14 +721,14 @@ export const findDeadlineMismatch = (
 export async function generateSmartPlan(
   userRequest: string,
   grade: number = 10
-): Promise<StudyPlanEntry[]> {
+): Promise<{ plan: StudyPlanEntry[]; fallback: boolean }> {
   const now = new Date();
-  // Local calendar date (not UTC): must agree with `weekday` and the date
-  // table below — a UTC slice near midnight once labeled "today" wrong.
-  const todayStr =
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
-  const dateTable = buildDateTable(now);
+  // Ethiopian calendar day: every daily rule, window, and deadline runs on
+  // the student's day (UTC midnight = 3am EAT — a UTC slice steals the last
+  // hours of every evening and once labeled "today" wrong).
+  const todayStr = eatTodayStr(now);
+  const weekday = weekdayOfDateStr(todayStr);
+  const dateTable = buildDateTable(todayStr);
 
   const systemPrompt = `You are SmartStudy's expert study planner for Ethiopian secondary students (Grade ${grade}). You turn a student's plain-language description of upcoming deadlines into a concrete day-by-day study schedule.
 
@@ -824,7 +816,7 @@ Rules — follow ALL of them:
     const first = await runAttempt(userPrompt);
     if (first) {
       console.log(`[study-plan] smart plan ok: ${first.length} days`);
-      return first;
+      return { plan: first, fallback: false };
     }
     if (dateCorrection) {
       const candidates = candidateDatesForMentioned(mentionedWeekdays(userRequest), todayStr);
@@ -835,7 +827,7 @@ Rules — follow ALL of them:
       );
       if (second) {
         console.log(`[study-plan] smart plan ok on retry: ${second.length} days`);
-        return second;
+        return { plan: second, fallback: false };
       }
     }
   } catch (err) {
@@ -844,21 +836,21 @@ Rules — follow ALL of them:
 
   // Last resort: honest deterministic skeleton (7 light revision days). The
   // frontend tooltip generates fallback guidance for plain-text notes, so
-  // these still render usefully.
+  // these still render usefully. Flagged as fallback: the route must NOT
+  // persist these (a failure that saves 7 generic tasks creates cleanup
+  // work), and the client shows retry instead of success.
   console.warn('[study-plan] AI planning failed — returning skeleton schedule');
   const skeleton: StudyPlanEntry[] = [];
   const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English'];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
     const subject: string = subjects[i % subjects.length] ?? 'Mathematics';
     skeleton.push({
       title: `${subject} revision`,
       subject,
-      date: d.toISOString().split('T')[0] ?? todayStr,
+      date: shiftDateStr(todayStr, i),
       type: 'Revision',
       notes: `Light revision session for ${subject}. Open your textbook, review recent topics, and solve a few practice problems.`,
     });
   }
-  return skeleton;
+  return { plan: skeleton, fallback: true };
 }

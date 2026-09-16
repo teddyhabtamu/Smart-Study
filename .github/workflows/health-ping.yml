@@ -1,0 +1,68 @@
+name: Prod health ping
+
+# Every 15 minutes, prove the production API serves healthy responses.
+# Failures open (or refresh) a single tracked issue instead of spamming —
+# see docs/RUNBOOK.md "Production down" for the response checklist.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# The failure step files/comments on the tracking issue.
+permissions:
+  issues: write
+
+jobs:
+  ping:
+    name: Ping production API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run health check
+        id: healthcheck
+        run: node backend/scripts/healthcheck.mjs
+        env:
+          BACKEND_URL: https://smart-study-ncwi.vercel.app
+          HEALTH_MAX_DB_MS: '8000'
+        continue-on-error: true
+
+      - name: File or refresh tracking issue on failure
+        if: steps.healthcheck.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const TITLE = '🚨 Prod API health check failing';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'health-alert',
+            });
+            const body = [
+              `The scheduled ping failed at ${new Date().toISOString()}.`,
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'Response checklist: docs/RUNBOOK.md (“Production down”).',
+            ].join('\n');
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: TITLE,
+                body,
+                labels: ['health-alert'],
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues[0].number,
+                body: `Still failing at ${new Date().toISOString()} ([run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})).`,
+              });
+            }
+
+      - name: Fail the run when unhealthy
+        if: steps.healthcheck.outcome == 'failure'
+        run: exit 1

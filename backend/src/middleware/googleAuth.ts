@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { config } from '../config';
 import { supabase } from '../database/config';
 import { EmailService } from '../services/emailService';
+import { eatTodayStr } from '../utils/dates';
 
 // OAuth accounts have no password: password_hash is NOT NULL in the schema,
 // so Google sign-ups store this placeholder. Anything that branches on
@@ -253,9 +254,8 @@ passport.use(new GoogleStrategy({
       user.bookmarks = bookmarks.map(row => row.item_id);
     }
 
-    // Update last active date and streak
-    const todayISO = new Date().toISOString();
-    const today = todayISO.split('T')[0] || todayISO.substring(0, 10);
+    // Update last active date and streak (Ethiopian day — see auth.ts).
+    const today = eatTodayStr();
     const todayDate = new Date(today);
     if (user.last_active_date !== today) {
       const lastActive = user.last_active_date ? new Date(user.last_active_date) : todayDate;

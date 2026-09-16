@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { body } from 'express-validator';
 import { query, supabase } from '../database/config';
+import { eatTodayStr } from '../utils/dates';
 import { config } from '../config';
 import { authenticateToken, generateToken, generateRefreshToken, hashRefreshToken, validateRequest, REFRESH_TOKEN_DAYS } from '../middleware/auth';
 import passport from '../middleware/googleAuth';
@@ -173,8 +174,9 @@ router.post('/login', [
       return;
     }
 
-    // Update last active date and streak
-    const today = new Date().toISOString().split('T')[0];
+    // Update last active date and streak. "Today" is the Ethiopian day —
+    // a UTC slice flips at 9pm EAT and would break streaks every evening.
+    const today = eatTodayStr();
     const todayDate = new Date(today as string);
     if (user.last_active_date !== today) {
       const lastActive = user.last_active_date ? new Date(user.last_active_date) : todayDate;

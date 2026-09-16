@@ -494,6 +494,14 @@ const Planner: React.FC = () => {
       // The response already contains parsed JSON
       const plan = response.plan;
 
+      // Fallback skeleton (AI failed): never saved — persisting 7 generic
+      // tasks would create cleanup work, not value. Keep the modal open with
+      // the prompt intact so one more click retries the real generation.
+      if (response.fallback) {
+        addToast("Couldn't generate your plan just now — nothing was saved. Try again in a moment.", "warning");
+        return;
+      }
+
       // Preferred path: the server persisted the plan in the same warm
       // invocation and returned the created rows — no second round trip.
       // A second cold function + pool acquisition is where saves used to

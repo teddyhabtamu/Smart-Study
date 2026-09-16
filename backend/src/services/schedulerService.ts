@@ -1,4 +1,5 @@
 import { dbAdmin, query } from '../database/config';
+import { eatTodayStr } from '../utils/dates';
 import { NotificationService } from './notificationService';
 
 export class SchedulerService {
@@ -163,7 +164,8 @@ export class SchedulerService {
         // abandoned accounts accrued ghost streaks daily forever (with
         // milestone emails to inactive users), and the reset branch below
         // restarted the ghost cycle by fabricating today's activity.
-        if (lastActive !== new Date().toISOString().split('T')[0]) {
+        // "Today" is the Ethiopian day (login paths agree).
+        if (lastActive !== eatTodayStr()) {
           // User wasn't active yesterday, reset streak if it's been more than 1 day
           const lastActiveDate = new Date(lastActive);
           const daysSinceActive = Math.floor((new Date().getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
