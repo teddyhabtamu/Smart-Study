@@ -430,7 +430,19 @@ const Planner: React.FC = () => {
         navigate('/subscription', { state: { from: location.pathname } });
         return;
       }
-      addToast("Failed to generate study plan. Your prompt is preserved — please try again.", "error");
+      // Surface the server's message when it's a real sentence (e.g. the
+      // 503 "AI study generation is unavailable…"), not a transport artifact
+      // ("HTTP 500", "fetch failed"). The old always-generic toast hid a
+      // missing-API-key outage behind "please try again" for days.
+      const serverMsg = (error as any)?.message || '';
+      const isTransportNoise = !serverMsg || /^HTTP \d/i.test(serverMsg) ||
+        /fetch failed|failed to fetch|network|timeout|abort/i.test(serverMsg);
+      addToast(
+        isTransportNoise
+          ? 'Failed to generate study plan. Your prompt is preserved — please try again.'
+          : serverMsg,
+        'error'
+      );
     } finally {
       clearInterval(timer);
       setIsGenerating(false);

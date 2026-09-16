@@ -359,6 +359,20 @@ router.post('/generate-study-plan', [
     const userId = req.user!.id;
     const userGrade = req.user!.grade ?? 10;
 
+    // Fail fast on a missing AI key with 503, not the generic 500 below.
+    // A 500 here once sent us hunting for a code bug when the preview
+    // deployment simply had no GEMINI_API_KEY set — every Smart Schedule
+    // attempt died with "Failed to generate study plan" and zero signal.
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('Generate study plan: GEMINI_API_KEY is not configured');
+      res.status(503).json({
+        success: false,
+        code: 'AI_NOT_CONFIGURED',
+        message: 'AI study generation is unavailable right now — please try again later'
+      } as ApiResponse);
+      return;
+    }
+
     // Import the smart schedule planner (single AI call, full structured plan)
     const { generateSmartPlan } = await import('../services/aiTutor');
 
