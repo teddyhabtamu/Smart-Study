@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Brain, Users, PlayCircle, CheckCircle2, Star, HelpCircle, FileText, Briefcase } from 'lucide-react';
 import Footer from '../components/Footer';
+import OnboardingTour from '../components/OnboardingTour';
 import { useSEO, pageSEO } from '../utils/seoUtils';
 import { careersAPI } from '../services/api';
 
@@ -16,6 +17,9 @@ const Landing: React.FC = () => {
   // the promo simply doesn't render — a careers fetch must never break or
   // delay the landing page.
   const [openRoles, setOpenRoles] = useState<any[] | null>(null);
+  // First-run tour dialog (guests open it manually — no auto-popup on a
+  // marketing page).
+  const [tourOpen, setTourOpen] = useState(false);
   useEffect(() => {
     let cancelled = false;
     careersAPI.getPositions()
@@ -58,6 +62,15 @@ const Landing: React.FC = () => {
             <Link to="/library" className="h-11 sm:h-12 px-6 sm:px-8 bg-surface text-ink border border-zinc-200 rounded-full font-medium hover:bg-zinc-50 transition-all flex items-center justify-center hover:border-zinc-300 text-sm sm:text-base">
               Browse Library
             </Link>
+          </div>
+
+          <div className="mt-4 animate-slide-up" style={{ animationDelay: '0.25s' }}>
+            <button
+              onClick={() => setTourOpen(true)}
+              className="text-sm font-medium text-zinc-500 hover:text-ink underline underline-offset-4 decoration-zinc-300 hover:decoration-ink transition-colors"
+            >
+              New here? Take a 1-minute tour
+            </button>
           </div>
 
           {/* Hiring pill — the careers page is footer-only, so open roles
@@ -325,6 +338,13 @@ const Landing: React.FC = () => {
 
       {/* Reusable Footer */}
       <Footer />
+
+      <OnboardingTour
+        open={tourOpen}
+        onClose={() => setTourOpen(false)}
+        mode="guest"
+        userId={null}
+      />
       
     </div>
   );

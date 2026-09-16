@@ -53,8 +53,13 @@ const VideoLibrary: React.FC = () => {
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [topVideos, setTopVideos] = useState<VideoLesson[]>([]);
-  const [topVideosLoading, setTopVideosLoading] = useState(true);
+  // Landing strips: "New This Week" (newest 8, everyone) + "Saved for Later"
+  // (bookmarked 8, members with saves only). Previously a single strip
+  // flipped between the two, so members with bookmarks never saw new videos.
+  const [newVideos, setNewVideos] = useState<VideoLesson[]>([]);
+  const [newVideosLoading, setNewVideosLoading] = useState(true);
+  const [savedVideos, setSavedVideos] = useState<VideoLesson[]>([]);
+  const [savedVideosLoading, setSavedVideosLoading] = useState(false);
 
   const observerTarget = useRef<HTMLDivElement>(null);
   const prevLocationRef = useRef<string>('');
@@ -84,23 +89,52 @@ const VideoLibrary: React.FC = () => {
   };
 
   const isLandingMode = selectedGrade === 'All' && !searchTerm.trim() && !showSavedOnly;
-  const hasBookmarks = user && user.bookmarks && user.bookmarks.length > 0;
+  const bookmarkCount = user?.bookmarks?.length ?? 0;
+  const hasBookmarks = !!user && bookmarkCount > 0;
 
-  // Fetch top videos for landing page
+  // New arrivals for the landing page: newest 8, same query for guests and
+  // members. Lock badges depend on membership, so refetch when it flips.
   useEffect(() => {
     if (!isLandingMode) return;
-    setTopVideosLoading(true);
+    let cancelled = false;
+    setNewVideosLoading(true);
 
-    // Saved-only landing picks: bookmarked filter is a first-class API param
-    const params: any = { limit: 8 };
-    if (hasBookmarks) params.bookmarked = true;
-
-    videosAPI.getAll(params).then((res: any) => {
+    videosAPI.getAll({ limit: 8 }).then((res: any) => {
+      if (cancelled) return;
       const data = res.videos || res.data || [];
-      setTopVideos(data);
-    }).catch((err: any) => console.error('Failed to load top videos:', err))
-      .finally(() => setTopVideosLoading(false));
-  }, [isLandingMode, user]);
+      setNewVideos(data);
+    }).catch((err: any) => {
+      if (!cancelled) console.error('Failed to load new videos:', err);
+    }).finally(() => {
+      if (!cancelled) setNewVideosLoading(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLandingMode, user?.isPremium]);
+
+  // Saved strip: members with bookmarks only. Clears immediately when the
+  // last bookmark is removed so a stale strip never lingers.
+  useEffect(() => {
+    if (!isLandingMode || !hasBookmarks) {
+      setSavedVideos([]);
+      setSavedVideosLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSavedVideosLoading(true);
+
+    videosAPI.getAll({ limit: 8, bookmarked: true }).then((res: any) => {
+      if (cancelled) return;
+      const data = res.videos || res.data || [];
+      setSavedVideos(data);
+    }).catch((err: any) => {
+      if (!cancelled) console.error('Failed to load saved videos:', err);
+    }).finally(() => {
+      if (!cancelled) setSavedVideosLoading(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLandingMode, hasBookmarks, bookmarkCount]);
 
   // Fetch filtered videos for drill-down mode
   useEffect(() => {
@@ -293,32 +327,73 @@ const VideoLibrary: React.FC = () => {
             </div>
           </section>
 
-          {/* Saved / New Arrivals strip — below grade cards */}
-          <section>
+          {/* Saved for Later — members with bookmarks only, above New so
+              resume-watching stays one swipe away */}
+          {hasBookmarks && (
+          <section aria-label="Saved for later">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-ink flex items-center gap-2 text-[15px]">
-                <Compass size={16} className="text-zinc-500" />
-                {hasBookmarks ? 'Saved for Later' : 'New This Week'}
+                <Bookmark size={16} className="text-zinc-500" />
+                Saved for Later
               </h2>
+              <button
+                onClick={() => setShowSavedOnly(true)}
+                className="text-xs font-semibold text-zinc-500 hover:text-ink transition-colors"
+              >
+                View all
+              </button>
             </div>
 
             {/* Horizontal scrolling strip */}
             <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 hide-scrollbar -mx-4 px-4 sm:-mx-1 sm:px-1 snap-x snap-mandatory">
-              {topVideosLoading ? (
+              {savedVideosLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="w-[75vw] sm:w-72 flex-shrink-0 snap-start">
                     <VideoCardSkeleton />
                   </div>
                 ))
-              ) : topVideos.length > 0 ? (
-                topVideos.map(video => (
+              ) : savedVideos.length > 0 ? (
+                savedVideos.map(video => (
                   <div key={video.id} className="w-[75vw] sm:w-72 flex-shrink-0 snap-start">
                     <VideoCard video={video} compact />
                   </div>
                 ))
               ) : (
                 <div className="w-full py-8 text-center text-zinc-500 text-sm border border-dashed border-zinc-200 rounded-xl">
-                  {hasBookmarks ? 'Your saved videos will appear here.' : 'No videos yet.'}
+                  Your saved videos will appear here.
+                </div>
+              )}
+            </div>
+          </section>
+          )}
+
+          {/* New arrivals — everyone, including members with saves (they
+              previously lost this strip entirely once they bookmarked) */}
+          <section aria-label="New this week">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-ink flex items-center gap-2 text-[15px]">
+                <Compass size={16} className="text-zinc-500" />
+                New This Week
+              </h2>
+            </div>
+
+            {/* Horizontal scrolling strip */}
+            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 hide-scrollbar -mx-4 px-4 sm:-mx-1 sm:px-1 snap-x snap-mandatory">
+              {newVideosLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="w-[75vw] sm:w-72 flex-shrink-0 snap-start">
+                    <VideoCardSkeleton />
+                  </div>
+                ))
+              ) : newVideos.length > 0 ? (
+                newVideos.map(video => (
+                  <div key={video.id} className="w-[75vw] sm:w-72 flex-shrink-0 snap-start">
+                    <VideoCard video={video} compact />
+                  </div>
+                ))
+              ) : (
+                <div className="w-full py-8 text-center text-zinc-500 text-sm border border-dashed border-zinc-200 rounded-xl">
+                  No videos yet.
                 </div>
               )}
             </div>

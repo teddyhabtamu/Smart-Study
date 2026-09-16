@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { StudyEvent } from '../types';
 import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
+import OnboardingTour, { hasSeenOnboarding } from '../components/OnboardingTour';
 
 // Bookmark card component with image error handling
 const BookmarkCard: React.FC<{
@@ -76,6 +77,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [greeting, setGreeting] = useState('');
   const [quickQuestion, setQuickQuestion] = useState('');
+  const [tourOpen, setTourOpen] = useState(false);
 
   // Track last dashboard fetch to prevent duplicate calls
   const lastDashboardFetchRef = React.useRef<number>(0);
@@ -140,6 +142,17 @@ const Dashboard: React.FC = () => {
   }, [user]);
 
 
+  // First-run tour: new accounts get the guided walkthrough once, after
+  // first paint (never blocking the dashboard). Any dismissal persists,
+  // so this effect is a one-shot per account.
+  useEffect(() => {
+    if (!user) return;
+    if (hasSeenOnboarding(user.id)) return;
+    const t = setTimeout(() => setTourOpen(true), 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   // Set greeting based on time
   useEffect(() => {
     const hour = new Date().getHours();
@@ -193,6 +206,12 @@ const Dashboard: React.FC = () => {
                 <>Ready to make some progress? You have <span className="font-semibold text-ink">{totalToday - completedToday} tasks</span> remaining today.</>
               )}
             </p>
+            <button
+              onClick={() => setTourOpen(true)}
+              className="mt-1.5 text-xs font-medium text-zinc-400 hover:text-ink inline-flex items-center gap-1 transition-colors"
+            >
+              <Sparkles size={12} /> New here? Take the quick tour
+            </button>
          </div>
          <div className="flex items-center gap-2 sm:gap-3 bg-surface p-2 rounded-xl border border-zinc-200 shadow-sm w-full md:w-auto justify-center md:justify-start">
             <div className="px-2 sm:px-3 py-1 sm:py-1.5 bg-zinc-100 text-inksoft rounded-lg flex items-center gap-1 sm:gap-2 font-bold text-xs sm:text-sm" title="Daily Streak">
@@ -452,10 +471,17 @@ const Dashboard: React.FC = () => {
              </div>
            )}
 
-        </div>
-      </div>
-    </div>
-  );
-};
+         </div>
+       </div>
+
+       <OnboardingTour
+         open={tourOpen}
+         onClose={() => setTourOpen(false)}
+         mode="member"
+         userId={user?.id ?? null}
+       />
+     </div>
+   );
+ };
 
 export default Dashboard;
