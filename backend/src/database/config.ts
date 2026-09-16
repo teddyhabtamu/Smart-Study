@@ -171,12 +171,14 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
     fs.appendFileSync('/tmp/quiz-trace.log', `${new Date().toISOString()} q-submit: ${tag}\n`);
   } catch { /* never break queries for tracing */ }
   try {
-    // Explicit per-query timeout (not just pool-level): guarantees the
-    // client-side read cap is armed for THIS query regardless of which pool
-    // client serves it or how that client was configured.
-    const res = (await withRetry(() =>
-      pool.query({ text, values: params, query_timeout: 25000 } as any)
-    )) as { rows: any[]; rowCount: number | null };
+    // Positional form only: pg's object form ({text, values, query_timeout})
+    // crashed this pg version with "must have either text or a name" as an
+    // UNCAUGHT exception (killed the process mid-request). Timeouts stay at
+    // the pool level (verified: pg_sleep(35) dies at ~29s).
+    const res = (await withRetry(() => pool.query(text, params))) as {
+      rows: any[];
+      rowCount: number | null;
+    };
     try {
       const fs = await import('fs');
       fs.appendFileSync('/tmp/quiz-trace.log', `${new Date().toISOString()} q-settle-ok: ${tag}\n`);
@@ -241,8 +243,7 @@ export const getClient = async (): Promise<PoolClient> => {
   };
   const wrappedQuery = client.query.bind(client);
   (client as any).query = async (text: string, p: any[] = []) => {
-    // Same explicit per-query cap as query() above.
-    return withRetry(() => wrappedQuery({ text, values: p, query_timeout: 25000 } as any));
+    return withRetry(() => wrappedQuery(text, p));
   };
   return client;
 };
