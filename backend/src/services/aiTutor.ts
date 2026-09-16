@@ -483,7 +483,9 @@ export const extractJsonValue = (raw: string): { json: string | null; truncated:
 
 // Pure parser for the study-plan JSON (exported for unit tests): shape +
 // per-day validation. `todayStr` is a parameter (YYYY-MM-DD) so tests don't
-// depend on the wall clock. Returns null when nothing usable survives.
+// depend on the wall clock. Days carry a single plain-text `tip` (the
+// planner UI renders fallback guidance for plain-text notes). Returns null
+// when nothing usable survives.
 export const parseStudyPlanResponse = (raw: string, todayStr: string): StudyPlanEntry[] | null => {
   try {
     const { json } = extractJsonValue(raw);
@@ -504,18 +506,12 @@ export const parseStudyPlanResponse = (raw: string, todayStr: string): StudyPlan
       const title = String((d as any).title || '').trim();
       if (!subject || !title) continue;
       const type = validTypes.has((d as any).type) ? (d as any).type : 'Revision';
-      const g = (d as any).guide && typeof (d as any).guide === 'object' ? (d as any).guide : {};
       entries.push({
         title: title.slice(0, 200),
         subject: subject.slice(0, 100),
         date,
         type,
-        notes: JSON.stringify({
-          howToComplete: Array.isArray(g.howToComplete) ? g.howToComplete.slice(0, 6).map(String) : [],
-          guides: Array.isArray(g.guides) ? g.guides.slice(0, 6).map(String) : [],
-          suggestions: String(g.suggestions || ''),
-          motivation: Array.isArray(g.motivation) ? g.motivation.slice(0, 5).map(String) : [],
-        }),
+        notes: String((d as any).tip || '').slice(0, 500),
       });
     }
     return entries.length > 0 ? entries : null;
@@ -597,15 +593,8 @@ export const withPlanTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> 
     }),
   ]);
 
-const PLAN_ATTEMPT_TIMEOUT_MS = 32_000;
-const PLAN_REPAIR_TIMEOUT_MS = 15_000;
-// Repair runs only when the first attempt failed FAST (a parse error, not a
-// stall): worst case stays ≈ auth + 10s + 15s, inside the frontend's 55s
-// abort and Vercel's 60s kill. A stall skips repair — and the attempt bound
-// itself is sized from production data (healthy generations measured at
-// ~28s; a 22s bound abandoned them five seconds before success, burning
-// quota for skeleton plans). Worst case overall ≈ 35s: inside every budget.
-const PLAN_REPAIR_ELAPSED_BUDGET_MS = 10_000;
+const PLAN_ATTEMPT_TIMEOUT_MS = 25_000;
+const PLAN_MAX_OUTPUT_TOKENS = 2048;
 
 export async function generateSmartPlan(
   userRequest: string,
@@ -617,7 +606,7 @@ export async function generateSmartPlan(
 
   const systemPrompt = `You are SmartStudy's expert study planner for Ethiopian secondary students (Grade ${grade}). You turn a student's plain-language description of upcoming deadlines into a concrete day-by-day study schedule.
 
-Return ONLY valid JSON — no markdown fences, no commentary, no extra text.`;
+Return ONLY valid JSON — no markdown fences, no commentary, no extra text. Keep the whole reply SHORT.`;
 
   const userPrompt = `Today is ${weekday}, ${todayStr}. Grade ${grade} student writes:
 
@@ -631,12 +620,7 @@ Build their study schedule as JSON in EXACTLY this shape:
       "subject": "Physics",
       "title": "Short specific session title",
       "type": "Revision",
-      "guide": {
-        "howToComplete": ["3 concrete steps for THIS session"],
-        "guides": ["2 practical study tips"],
-        "suggestions": "One encouraging sentence",
-        "motivation": ["2 short motivational lines"]
-      }
+      "tip": "One concrete sentence for THIS session"
     }
   ]
 }
@@ -645,12 +629,12 @@ Rules — follow ALL of them:
 1. DATES: resolve every relative date from today (${todayStr}). "tomorrow" = the next calendar day, "day after tomorrow" = +2, "next week" = the same weekday next week (7 days out) unless the student names a day. NEVER invent dates in the past. Every "date" must be >= today.
 2. TYPES (only these three, exactly spelled): "Exam" for exams/tests, "Assignment" for assignments, homework, projects, group work, presentations, "Revision" for everything else (study sessions, preparation, review).
 3. DEADLINE DAYS hold only the deadline event(s) themselves — e.g. {"title": "Physics Assignment", "type": "Assignment"}. No extra revision sessions on a deadline day.
-4. LOAD: at most 2 sessions per day, prefer 1. Spread subjects across days so each deadline gets preparation time. Closer deadlines get priority on shared days.
+4. LOAD: at most 2 sessions per day, prefer 1. Spread subjects across days so each deadline gets preparation time. Closer deadlines get priority on shared days. Respect any daily study time the student states.
 5. The day BEFORE a deadline is light: revision for that subject only, focused on readiness and confidence.
 6. LENGTH: at most 14 days total. If deadlines stretch further, cover the first 14 days starting today.
 7. TITLES are human and specific ("Physics: forces practice problems"), never mechanical ("Physics Day 3 - 5 days to exam").
-8. HONESTY — NEVER invent specifics the student didn't state. If they didn't name chapters/topics (e.g. they said "maths exam" with no topic), keep guides at subject level ("review your class notes", "redo homework problems") — do NOT invent chapter names like "Algebra and Functions" or "Calculus and Vectors". Only use topics the student actually mentioned.
-9. GUIDES must be concrete and grounded: reference the student's real deadline ("your Physics assignment is tomorrow"), their grade level, and actionable steps — never generic filler repeated across days ("open your textbook" every day is forbidden). Each day's guide must feel written for THAT day.
+8. HONESTY — NEVER invent specifics the student didn't state. If they didn't name chapters/topics (e.g. they said "maths exam" with no topic), keep sessions at subject level ("review your class notes", "redo homework problems") — do NOT invent chapter names like "Algebra and Functions". Only use topics the student actually mentioned.
+9. TIPS must be concrete and grounded in that day ("your Physics assignment is tomorrow") — never generic filler repeated across days.
 10. Sort days chronologically by date.
 11. SUBJECTS must use exactly these canonical names: Mathematics, English, History, Chemistry, Physics, Biology, Civics, Geography, Economics, Business, ICT, Amharic, Afaan Oromoo, Tigrigna, Aptitude. Never "Maths", "Math", "Bio", "IT", etc. (these are the only names the planner accepts).`;
 
@@ -662,58 +646,32 @@ Rules — follow ALL of them:
     console.warn(`[study-plan] ${label} (raw ${raw.length} chars${truncated ? ', TRUNCATED mid-JSON' : ''}): ${raw.slice(0, 400)}`);
   };
 
-  // Attempt 1: full plan with guides. Bounded by timeout — a hung upstream
-  // must degrade to the skeleton below, never to a proxy-killed request.
-  // Output cap 6144: slim guides keep real plans near 2-3k tokens, and the
-  // headroom means a verbose model truncates rarely instead of always.
+  // Single attempt, bounded. The compact contract above keeps real outputs
+  // near ~1k tokens (≈ 5-10s), so one shot plus the honest skeleton below is
+  // the whole strategy — no repair ladder. Worst case ≈ auth + 25s + award:
+  // inside the frontend's 55s abort and Vercel's 60s kill with wide margin.
   // Thinking DISABLED (0): schedule-building is formatting work, and flash's
-  // thinking tokens share the output budget — reasoning was eating ~4k of it
-  // and the JSON arrived cut mid-object after 30s of deliberation.
-  const t0 = Date.now();
-  let attemptTimedOut = false;
+  // thinking tokens share the output budget — reasoning was eating most of
+  // it and the JSON arrived cut mid-object after 30s of deliberation.
   try {
-    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 6144, 0), PLAN_ATTEMPT_TIMEOUT_MS);
+    const raw = await withPlanTimeout(
+      complete(systemPrompt, userPrompt, [], 0.4, PLAN_MAX_OUTPUT_TOKENS, 0),
+      PLAN_ATTEMPT_TIMEOUT_MS
+    );
     const parsed = parseStudyPlanResponse(raw, todayStr);
     if (parsed) {
       console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
       return parsed;
     }
-    logRawHead('first attempt unparseable', raw);
+    logRawHead('attempt unparseable', raw);
   } catch (err) {
-    attemptTimedOut = /timed out/i.test((err as Error)?.message || '');
-    console.error('[study-plan] first attempt failed:', (err as Error)?.message);
-  }
-
-  // Attempt 2: explicit repair — ask for the same JSON, stricter. Budget-
-  // gated (see constants): only a fast parse failure earns a retry. When the
-  // first output was truncated, fewer days are requested so the retry fits.
-  if (!attemptTimedOut && Date.now() - t0 < PLAN_REPAIR_ELAPSED_BUDGET_MS) {
-  try {
-    const raw = await withPlanTimeout(complete(
-      systemPrompt,
-      `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever. If your previous reply was cut off, reply with FEWER days (at most 7) so it fits.`,
-      [],
-      0.2,
-      6144,
-      0
-    ), PLAN_REPAIR_TIMEOUT_MS);
-    const parsed = parseStudyPlanResponse(raw, todayStr);
-    if (parsed) {
-      console.log(`[study-plan] smart plan ok on repair: ${parsed.length} days`);
-      return parsed;
-    }
-    logRawHead('repair attempt unparseable', raw);
-  } catch (err) {
-    console.error('[study-plan] repair attempt failed:', (err as Error)?.message);
-  }
-  } else if (attemptTimedOut) {
-    console.warn('[study-plan] skipping repair: first attempt stalled, straight to skeleton');
+    console.error('[study-plan] attempt failed:', (err as Error)?.message);
   }
 
   // Last resort: honest deterministic skeleton (7 light revision days). The
   // frontend tooltip generates fallback guidance for plain-text notes, so
   // these still render usefully.
-  console.warn('[study-plan] AI planning failed twice — returning skeleton schedule');
+  console.warn('[study-plan] AI planning failed — returning skeleton schedule');
   const skeleton: StudyPlanEntry[] = [];
   const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English'];
   for (let i = 0; i < 7; i++) {

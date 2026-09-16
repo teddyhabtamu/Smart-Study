@@ -69,7 +69,7 @@ describe('parseStudyPlanResponse (study-plan output shapes)', () => {
     subject: 'Physics',
     title: 'Physics: forces practice problems',
     type: 'Revision',
-    guide: { howToComplete: ['a'], guides: ['b'], suggestions: 'c', motivation: ['d'] },
+    tip: 'Redo the worked examples from class, then try five fresh problems.',
     ...over,
   });
 
@@ -78,7 +78,7 @@ describe('parseStudyPlanResponse (study-plan output shapes)', () => {
     const entries = parseStudyPlanResponse(raw, TODAY);
     expect(entries).toHaveLength(2);
     expect(entries![0]).toMatchObject({ subject: 'Physics', date: '2026-09-20', type: 'Revision' });
-    expect(() => JSON.parse(entries![0].notes)).not.toThrow();
+    expect(entries![0].notes).toContain('worked examples');
   });
 
   it('accepts a bare top-level day array', () => {
@@ -118,6 +118,15 @@ describe('parseStudyPlanResponse (study-plan output shapes)', () => {
     const entries = parseStudyPlanResponse(raw, TODAY);
     expect(entries).toHaveLength(1);
     expect(entries![0].title).toContain('{a}');
+  });
+
+  it('caps an overlong tip instead of dropping the day', () => {
+    const entries = parseStudyPlanResponse(
+      JSON.stringify({ days: [day({ tip: 'x'.repeat(2000) })] }),
+      TODAY
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries![0].notes.length).toBeLessThanOrEqual(500);
   });
 
   it('returns null when every day is filtered out', () => {
