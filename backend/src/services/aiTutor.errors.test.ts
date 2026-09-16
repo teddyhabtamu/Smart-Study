@@ -5,6 +5,8 @@ import {
   isOverloadedError,
   quotaRetryAfter,
   withPlanTimeout,
+  parseStudyPlanResponse,
+  extractJsonValue,
 } from './aiTutor';
 
 describe('AI error classifiers (model fallback routing)', () => {
@@ -54,5 +56,72 @@ describe('withPlanTimeout (study-plan hang guard)', () => {
 
   it('rejects a hung promise instead of waiting forever', async () => {
     await expect(withPlanTimeout(new Promise(() => {}), 20)).rejects.toThrow(/timed out/i);
+  });
+});
+
+// parseStudyPlanResponse: the study-plan parser, exercised against the
+// shapes Gemini actually emits (fences, prose, bare arrays, truncation).
+// A fixed `today` keeps these deterministic regardless of wall clock.
+describe('parseStudyPlanResponse (study-plan output shapes)', () => {
+  const TODAY = '2026-09-16';
+  const day = (over: Record<string, unknown> = {}) => ({
+    date: '2026-09-20',
+    subject: 'Physics',
+    title: 'Physics: forces practice problems',
+    type: 'Revision',
+    guide: { howToComplete: ['a'], guides: ['b'], suggestions: 'c', motivation: ['d'] },
+    ...over,
+  });
+
+  it('parses a fenced plan with surrounding prose', () => {
+    const raw = `Here is your schedule:\n\`\`\`json\n${JSON.stringify({ days: [day(), day({ date: '2026-09-21' })] })}\n\`\`\`\nGood luck!`;
+    const entries = parseStudyPlanResponse(raw, TODAY);
+    expect(entries).toHaveLength(2);
+    expect(entries![0]).toMatchObject({ subject: 'Physics', date: '2026-09-20', type: 'Revision' });
+    expect(() => JSON.parse(entries![0].notes)).not.toThrow();
+  });
+
+  it('accepts a bare top-level day array', () => {
+    const entries = parseStudyPlanResponse(JSON.stringify([day()]), TODAY);
+    expect(entries).toHaveLength(1);
+  });
+
+  it('rejects truncated JSON (and flags it as truncated)', () => {
+    const full = JSON.stringify({ days: [day(), day()] });
+    const cut = full.slice(0, Math.floor(full.length / 2));
+    expect(parseStudyPlanResponse(cut, TODAY)).toBeNull();
+    expect(extractJsonValue(cut).truncated).toBe(true);
+  });
+
+  it('rejects prose with no JSON at all', () => {
+    expect(parseStudyPlanResponse('I am sorry, I cannot help with that.', TODAY)).toBeNull();
+    expect(extractJsonValue('no braces here').truncated).toBe(false);
+  });
+
+  it('filters bad days but keeps the good ones', () => {
+    const raw = JSON.stringify({
+      days: [
+        day(),
+        day({ date: '2026-09-01' }), // past
+        day({ date: 'next Friday' }), // not a date
+        day({ title: '' }), // no title
+        day({ type: 'Party', date: '2026-09-22' }), // unknown type -> Revision
+      ],
+    });
+    const entries = parseStudyPlanResponse(raw, TODAY);
+    expect(entries).toHaveLength(2);
+    expect(entries![1].type).toBe('Revision');
+  });
+
+  it('ignores braces inside strings and trailing prose with braces', () => {
+    const raw = `${JSON.stringify({ days: [day({ title: 'Learn {a} and } brace' })] })} hope this { helps }`;
+    const entries = parseStudyPlanResponse(raw, TODAY);
+    expect(entries).toHaveLength(1);
+    expect(entries![0].title).toContain('{a}');
+  });
+
+  it('returns null when every day is filtered out', () => {
+    const raw = JSON.stringify({ days: [day({ date: '2020-01-01' })] });
+    expect(parseStudyPlanResponse(raw, TODAY)).toBeNull();
   });
 });

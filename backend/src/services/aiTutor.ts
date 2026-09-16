@@ -435,6 +435,87 @@ export interface StudyPlanEntry {
   notes: string;
 }
 
+// Pull the first complete JSON value ({...} or [...]) out of model output,
+// tolerating fences and surrounding prose. Returns the substring plus
+// whether the value was cut off (depth never closed = truncated generation,
+// not garbage — the caller can ask for a shorter retry instead of failing).
+export const extractJsonValue = (raw: string): { json: string | null; truncated: boolean } => {
+  const cleaned = (raw || '').replace(/```json\n?/g, '').replace(/```\n?/g, '');
+  let start = -1;
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (ch === '{' || ch === '[') {
+      start = i;
+      break;
+    }
+  }
+  if (start === -1) return { json: null, truncated: false };
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) {
+        return { json: cleaned.substring(start, i + 1), truncated: false };
+      }
+    }
+  }
+  return { json: null, truncated: true };
+};
+
+// Pure parser for the study-plan JSON (exported for unit tests): shape +
+// per-day validation. `todayStr` is a parameter (YYYY-MM-DD) so tests don't
+// depend on the wall clock. Returns null when nothing usable survives.
+export const parseStudyPlanResponse = (raw: string, todayStr: string): StudyPlanEntry[] | null => {
+  try {
+    const { json } = extractJsonValue(raw);
+    if (!json) return null;
+    const parsed = JSON.parse(json);
+    // Models sometimes emit the day array bare instead of {"days": [...]}.
+    const days = Array.isArray(parsed) ? parsed : parsed?.days;
+    if (!Array.isArray(days) || days.length === 0) return null;
+
+    const validTypes = new Set(['Exam', 'Assignment', 'Revision']);
+    const entries: StudyPlanEntry[] = [];
+    for (const d of days.slice(0, 14)) {
+      if (!d || typeof d !== 'object') continue;
+      const date = String((d as any).date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (date < todayStr) continue; // no past days, ever
+      const subject = String((d as any).subject || '').trim();
+      const title = String((d as any).title || '').trim();
+      if (!subject || !title) continue;
+      const type = validTypes.has((d as any).type) ? (d as any).type : 'Revision';
+      const g = (d as any).guide && typeof (d as any).guide === 'object' ? (d as any).guide : {};
+      entries.push({
+        title: title.slice(0, 200),
+        subject: subject.slice(0, 100),
+        date,
+        type,
+        notes: JSON.stringify({
+          howToComplete: Array.isArray(g.howToComplete) ? g.howToComplete.slice(0, 6).map(String) : [],
+          guides: Array.isArray(g.guides) ? g.guides.slice(0, 6).map(String) : [],
+          suggestions: String(g.suggestions || ''),
+          motivation: Array.isArray(g.motivation) ? g.motivation.slice(0, 5).map(String) : [],
+        }),
+      });
+    }
+    return entries.length > 0 ? entries : null;
+  } catch {
+    return null;
+  }
+};
+
 // --- Practice quiz generation --------------------------------------------
 export async function generatePracticeQuiz(
   subject: string,
@@ -565,85 +646,56 @@ Rules — follow ALL of them:
 10. Sort days chronologically by date.
 11. SUBJECTS must use exactly these canonical names: Mathematics, English, History, Chemistry, Physics, Biology, Civics, Geography, Economics, Business, ICT, Amharic, Afaan Oromoo, Tigrigna, Aptitude. Never "Maths", "Math", "Bio", "IT", etc. (these are the only names the planner accepts).`;
 
-  const parsePlan = (raw: string): StudyPlanEntry[] | null => {
-    try {
-      let cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const start = cleaned.indexOf('{');
-      const end = cleaned.lastIndexOf('}');
-      if (start === -1 || end <= start) return null;
-      cleaned = cleaned.substring(start, end + 1);
-      const parsed = JSON.parse(cleaned);
-      if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) return null;
-
-      const validTypes = new Set(['Exam', 'Assignment', 'Revision']);
-      const entries: StudyPlanEntry[] = [];
-      for (const d of parsed.days.slice(0, 14)) {
-        if (!d || typeof d !== 'object') continue;
-        const date = String(d.date || '');
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-        if (date < todayStr) continue; // no past days, ever
-        const subject = String(d.subject || '').trim();
-        const title = String(d.title || '').trim();
-        if (!subject || !title) continue;
-        const type = validTypes.has(d.type) ? d.type : 'Revision';
-        const g = d.guide && typeof d.guide === 'object' ? d.guide : {};
-        entries.push({
-          title: title.slice(0, 200),
-          subject: subject.slice(0, 100),
-          date,
-          type,
-          notes: JSON.stringify({
-            howToComplete: Array.isArray(g.howToComplete) ? g.howToComplete.slice(0, 6).map(String) : [],
-            guides: Array.isArray(g.guides) ? g.guides.slice(0, 6).map(String) : [],
-            suggestions: String(g.suggestions || ''),
-            motivation: Array.isArray(g.motivation) ? g.motivation.slice(0, 5).map(String) : [],
-          }),
-        });
-      }
-      return entries.length > 0 ? entries : null;
-    } catch {
-      return null;
-    }
+  // Log the raw head on parse failure: "unparseable" without the output is
+  // undebuggable (truncation vs prose vs wrong shape need different fixes).
+  // Capped at 400 chars — enough to see the failure mode, never a full dump.
+  const logRawHead = (label: string, raw: string) => {
+    const { truncated } = extractJsonValue(raw);
+    console.warn(`[study-plan] ${label} (raw ${raw.length} chars${truncated ? ', TRUNCATED mid-JSON' : ''}): ${raw.slice(0, 400)}`);
   };
 
   // Attempt 1: full plan with guides. Bounded by timeout — a hung upstream
   // must degrade to the skeleton below, never to a proxy-killed request.
-  // Output capped at 4096 tokens (slim guides above keep real plans near
-  // 2-3k): bigger caps only buy slower generations past the time budgets.
+  // Output cap 6144: slim guides keep real plans near 2-3k tokens, and the
+  // headroom means a verbose model truncates rarely instead of always.
   const t0 = Date.now();
   let attemptTimedOut = false;
   try {
-    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 4096), PLAN_ATTEMPT_TIMEOUT_MS);
-    const parsed = parsePlan(raw);
+    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 6144), PLAN_ATTEMPT_TIMEOUT_MS);
+    const parsed = parseStudyPlanResponse(raw, todayStr);
     if (parsed) {
       console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
       return parsed;
     }
-    console.warn('[study-plan] first attempt unparseable, retrying with repair prompt');
+    logRawHead('first attempt unparseable', raw);
   } catch (err) {
     attemptTimedOut = /timed out/i.test((err as Error)?.message || '');
     console.error('[study-plan] first attempt failed:', (err as Error)?.message);
   }
 
   // Attempt 2: explicit repair — ask for the same JSON, stricter. Budget-
-  // gated (see constants): only a fast parse failure earns a retry.
+  // gated (see constants): only a fast parse failure earns a retry. When the
+  // first output was truncated, fewer days are requested so the retry fits.
   if (!attemptTimedOut && Date.now() - t0 < PLAN_REPAIR_ELAPSED_BUDGET_MS) {
   try {
     const raw = await withPlanTimeout(complete(
       systemPrompt,
-      `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever.`,
+      `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever. If your previous reply was cut off, reply with FEWER days (at most 7) so it fits.`,
       [],
       0.2,
-      4096
+      6144
     ), PLAN_REPAIR_TIMEOUT_MS);
-    const parsed = parsePlan(raw);
+    const parsed = parseStudyPlanResponse(raw, todayStr);
     if (parsed) {
       console.log(`[study-plan] smart plan ok on repair: ${parsed.length} days`);
       return parsed;
     }
+    logRawHead('repair attempt unparseable', raw);
   } catch (err) {
     console.error('[study-plan] repair attempt failed:', (err as Error)?.message);
   }
+  } else if (attemptTimedOut) {
+    console.warn('[study-plan] skipping repair: first attempt stalled, straight to skeleton');
   }
 
   // Last resort: honest deterministic skeleton (7 light revision days). The
