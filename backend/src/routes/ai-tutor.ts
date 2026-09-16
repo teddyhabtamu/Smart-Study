@@ -838,9 +838,24 @@ router.post('/chat/stream', [
     }
 
     send('done', { sessionId: currentSessionId, xpGained });
+    await logAiUsage({
+      route: 'chat-stream',
+      userId,
+      ok: !quotaExceeded,
+      errorCode: quotaExceeded ? 'AI_QUOTA_EXCEEDED' : null,
+      latencyMs: Date.now() - t0,
+    });
   } catch (error) {
     console.error('AI chat stream error:', error);
-    if (error instanceof AIQuotaExceededError) {
+    const streamQuotaErr = error instanceof AIQuotaExceededError;
+    await logAiUsage({
+      route: 'chat-stream',
+      userId,
+      ok: false,
+      errorCode: streamQuotaErr ? 'AI_QUOTA_EXCEEDED' : 'AI_ERROR',
+      latencyMs: Date.now() - t0,
+    });
+    if (streamQuotaErr) {
       // No content was streamed (partial content would have returned normally).
       // Send the quota message as content so the user sees an explanation,
       // not a blank bubble.

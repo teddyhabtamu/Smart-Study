@@ -112,7 +112,16 @@ const OverviewTab: React.FC = () => {
                never reads as "broken panel". Quota errors > 0 turn the pill
                red — that is the "key exhausted" signal, worth a look before
                users report 429s. */}
-           {!adminLoading && adminStats && Array.isArray(adminStats.ai_usage_7d) && (() => {
+           {adminLoading ? (
+             <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6 animate-pulse" aria-hidden="true">
+               <div className="h-4 bg-zinc-200 rounded w-48 mb-4"></div>
+               <div className="space-y-2">
+                 <div className="h-3 bg-zinc-100 rounded w-full"></div>
+                 <div className="h-3 bg-zinc-100 rounded w-5/6"></div>
+                 <div className="h-3 bg-zinc-100 rounded w-4/6"></div>
+               </div>
+             </div>
+           ) : adminStats && Array.isArray(adminStats.ai_usage_7d) && (() => {
              const rows = adminStats.ai_usage_7d.map((r: any) => ({
                route: String(r.route || 'unknown'),
                calls: parseInt(r.calls || '0', 10) || 0,

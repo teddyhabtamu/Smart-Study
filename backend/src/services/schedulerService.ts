@@ -137,6 +137,11 @@ export class SchedulerService {
       // Clean up old read notifications (keep only last 100 per user)
       await this.cleanupOldNotifications();
 
+      // Trim AI usage metering (90-day retention: aggregates for the admin
+      // widget and quota alerts read 7d/24h windows; raw rows older than
+      // that are dead weight on a table that grows per AI call).
+      await this.cleanupOldAiUsage();
+
     } catch (error) {
       console.error('Error running daily tasks:', error);
     }
@@ -207,6 +212,24 @@ export class SchedulerService {
       }
     } catch (error) {
       console.error('Error cleaning up old notifications:', error);
+    }
+  }
+
+  /**
+   * Trim AI usage rows older than 90 days. See runDailyTasks for why.
+   * Guarded for old databases: if the ai_usage table predates the migration
+   * the DELETE errors, logs once, and daily tasks continue.
+   */
+  private static async cleanupOldAiUsage(): Promise<void> {
+    try {
+      const result = await query(
+        `DELETE FROM ai_usage WHERE created_at < NOW() - INTERVAL '90 days'`
+      );
+      if ((result.rowCount ?? 0) > 0) {
+        console.log(`Cleaned up ${result.rowCount} old AI usage rows`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up old AI usage:', error);
     }
   }
 
