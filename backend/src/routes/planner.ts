@@ -274,6 +274,9 @@ router.post('/events/batch', [
   try {
     const userId = req.user!.id;
     const { events } = req.body as { events: BatchEventInput[] };
+    // Tripwire 1/3: proves the request reached the handler (vs dying in
+    // middleware, proxy queueing, or a frozen function that never starts).
+    console.log(`Batch create: entered handler, ${Array.isArray(events) ? events.length : '?'} events`);
 
     const verdict = validateBatchEvents(events, userId);
     if (!verdict.ok) {
@@ -285,7 +288,11 @@ router.post('/events/batch', [
     }
 
     const { text, values } = buildBatchInsert(verdict.rows);
+    // Tripwire 2/3: proves execution reached the DB call.
+    console.log(`Batch create: inserting ${verdict.rows.length} events`);
     const result = await query(text, values);
+    // Tripwire 3/3: proves the INSERT returned.
+    console.log(`Batch create: insert returned ${result.rowCount} rows`);
 
     res.status(201).json({
       success: true,
