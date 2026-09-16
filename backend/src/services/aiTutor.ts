@@ -91,6 +91,13 @@ export const isModelGoneError = (err: any): boolean => {
   );
 };
 
+// An invalid-argument rejection (400). Distinct from quota/gone/overloaded:
+// the request SHAPE is wrong for this model, not the model itself.
+export const isInvalidArgumentError = (err: any): boolean => {
+  const msg = String(err?.message || '').toLowerCase();
+  return (err as any)?.status === 400 || msg.includes('invalid_argument') || msg.includes('invalid argument');
+};
+
 // An overloaded model (503 UNAVAILABLE) is transient and capacity-specific —
 // the next model in the chain will usually serve fine.
 export const isOverloadedError = (err: any): boolean => {
@@ -222,6 +229,10 @@ const toContents = (
   return contents;
 };
 
+// Models that reject thinkingConfig (400 INVALID_ARGUMENT) — remembered so
+// later calls skip straight to the supported shape (mirrors deadModels).
+const noThinkingModels = new Set<string>();
+
 // --- Core non-streaming completion --------------------------------------
 const complete = async (
   systemPrompt: string,
@@ -242,22 +253,40 @@ const complete = async (
   const contents = toContents(history, userPrompt);
 
   return withModelFallback(async (model) => {
-    const response = await client.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature,
-        maxOutputTokens,
-        ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
-      },
-    });
+    // One model (observed: gemini-3.5-flash-lite) rejects thinkingConfig with
+    // 400 INVALID_ARGUMENT while its siblings accept it. Rather than an
+    // allowlist, degrade per model: retry the same model without the field,
+    // then remember the verdict so later calls skip straight to the working
+    // shape (mirrors deadModels above).
+    const sendThinking = thinkingBudget !== undefined && !noThinkingModels.has(model);
+    const run = async (withThinking: boolean) => {
+      const response = await client.models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature,
+          maxOutputTokens,
+          ...(withThinking ? { thinkingConfig: { thinkingBudget: thinkingBudget! } } : {}),
+        },
+      });
 
-    const text = response.text;
-    if (!text) {
-      throw new Error('Empty response from Gemini');
+      const text = response.text;
+      if (!text) {
+        throw new Error('Empty response from Gemini');
+      }
+      return text;
+    };
+    try {
+      return await run(sendThinking);
+    } catch (err) {
+      if (sendThinking && isInvalidArgumentError(err)) {
+        console.warn(`[tutor] model ${model} rejects thinkingConfig, retrying without it`);
+        noThinkingModels.add(model);
+        return await run(false);
+      }
+      throw err;
     }
-    return text;
   });
 };
 

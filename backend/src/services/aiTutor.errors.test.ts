@@ -3,6 +3,7 @@ import {
   isQuotaError,
   isModelGoneError,
   isOverloadedError,
+  isInvalidArgumentError,
   quotaRetryAfter,
   withPlanTimeout,
   parseStudyPlanResponse,
@@ -24,6 +25,14 @@ describe('AI error classifiers (model fallback routing)', () => {
     expect(isModelGoneError(new Error('This model models/gemini-2.0-flash is no longer available'))).toBe(true);
     expect(isModelGoneError(new Error('404 model foo NOT_FOUND'))).toBe(true);
     expect(isModelGoneError(new Error('Quota exceeded'))).toBe(false);
+  });
+
+  it('detects invalid-argument rejections (wrong request shape, not a dead model)', () => {
+    expect(isInvalidArgumentError({ status: 400, message: 'x' })).toBe(true);
+    expect(isInvalidArgumentError(new Error('Request contains an invalid argument'))).toBe(true);
+    expect(isInvalidArgumentError(new Error('INVALID_ARGUMENT'))).toBe(true);
+    expect(isInvalidArgumentError(new Error('Quota exceeded'))).toBe(false);
+    expect(isInvalidArgumentError({ status: 404, message: 'x' })).toBe(false);
   });
 
   it('detects overloaded models', () => {
