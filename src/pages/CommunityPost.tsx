@@ -696,10 +696,13 @@ const CommunityPost: React.FC = () => {
                              nothing to "unblur" via devtools. Peer answers
                              below stay free — only the AI analysis is gated. */}
                          <div className="relative">
-                            <p className="text-sm text-inksoft leading-relaxed max-w-xl">
+                            {/* Theme-agnostic fade: mask-image dissolves the
+                                text itself instead of overlaying a hard-coded
+                                surface color (a --fafafa-- gradient drew a
+                                white bar on dark themes). */}
+                            <p className="text-sm text-inksoft leading-relaxed max-w-xl [mask-image:linear-gradient(to_bottom,black_55%,transparent_98%)] [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_98%)]">
                                {post.aiAnswer}
                             </p>
-                            <div className="absolute inset-x-0 -bottom-1 h-10 bg-gradient-to-t from-[#fafafa] to-transparent pointer-events-none" aria-hidden="true" />
                          </div>
                          <div className="mt-3 bg-zinc-900 rounded-xl p-4 sm:p-5 text-onink flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
