@@ -248,7 +248,7 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 space-y-6 lg:space-y-8">
           
           {/* Hero / Quick AI */}
-          <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 lg:p-8 text-onink relative overflow-hidden shadow-xl shadow-zinc-900/10">
+          <div data-tour="ai-assistant" className="bg-zinc-900 rounded-2xl p-4 sm:p-6 lg:p-8 text-onink relative overflow-hidden shadow-xl shadow-zinc-900/10">
              <div className="absolute top-0 right-0 w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] bg-zinc-800/50 rounded-full blur-3xl -mr-10 -mt-10 sm:-mr-20 sm:-mt-20"></div>
              <div className="absolute bottom-0 left-0 w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] bg-zinc-700/30 rounded-full blur-3xl -ml-6 -mb-6 sm:-ml-10 sm:-mb-10"></div>
 
@@ -309,7 +309,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Continue Learning (Saved Items) */}
-          <div>
+          <div data-tour="continue-learning">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-ink flex items-center gap-2">
                 <PlayCircle size={20} className="text-ink" /> Continue Learning
@@ -349,8 +349,8 @@ const Dashboard: React.FC = () => {
         {/* RIGHT COLUMN (Sidebar) */}
         <div className="space-y-6 lg:space-y-8">
            
-           {/* Daily Progress Card */}
-           <div className="bg-surface rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm">
+            {/* Daily Progress Card */}
+            <div data-tour="daily-goal" className="bg-surface rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4 sm:mb-6">
                  <h3 className="font-bold text-ink flex items-center gap-2">
                     <Target size={18} className="text-ink" /> Daily Goal
