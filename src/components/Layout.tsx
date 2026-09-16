@@ -589,7 +589,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         </div>
                         
                         {/* Notifications List */}
-                        <div className="overflow-y-auto flex-1 overscroll-contain">
+                        <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain">
                            {filteredNotifications.length > 0 ? (
                              <div className="p-2 space-y-3">
                                {Object.entries(groupedNotifications).map(([groupKey, groupNotifs]) => (
