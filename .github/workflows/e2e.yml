@@ -1,0 +1,59 @@
+name: E2E
+
+# Full journeys (register → plan → complete → XP) against the real stack.
+# Needs a database + backend env, so it only runs when DATABASE_URL is
+# configured; without secrets the job skips instead of failing. AI calls are
+# stubbed at the network layer (no quota burn, deterministic); everything
+# else — auth, routes, DB writes — runs for real. See docs/RUNBOOK.md (E2E).
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  e2e:
+    name: Playwright journeys
+    if: secrets.DATABASE_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Run E2E suite
+        run: npx playwright test
+        env:
+          CI: 'true'
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ci-dummy
+          GOOGLE_CLIENT_SECRET: ci-dummy
+          FRONTEND_URL: http://localhost:5173
+          BACKEND_URL: http://localhost:5000
+          GEMINI_API_KEY: ci-dummy
+
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

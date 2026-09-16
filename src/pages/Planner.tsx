@@ -219,7 +219,7 @@ const EventCard: React.FC<EventCardProps> = ({
         }}
         disabled={deletingId === event.id}
         className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-        title="Delete"
+        title="Delete task"
       >
         {deletingId === event.id ? (
           <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />

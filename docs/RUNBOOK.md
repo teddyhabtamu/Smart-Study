@@ -107,6 +107,27 @@ buckets, plan windows) use `Africa/Addis_Ababa`, never server UTC:
   extend to raw calls) → metering review (who burns the key?) →
   Pro users bring their own key → paid tier via Chapa funds it.
 
+## E2E journeys (Playwright)
+
+`e2e/` drives the real stack (Vite + Express + Supabase): auth
+(register → verify → login → logout), planner CRUD + XP toast, and Smart
+Schedule with the AI leg stubbed at the network layer (deterministic, no
+quota burn). Each spec seeds its own verified premium user and deletes it
+through the app's delete-account endpoint; `e2e/teardown.ts` purges any
+orphans by the same path.
+
+- Local: `npm run test:e2e` (boots servers if not running; needs
+  `backend/.env` with DB access and Playwright's chromium — if system libs
+  are missing and you have no sudo, the runbook of record is
+  `apt-get download libnspr4 libnss3` + `dpkg -x` + `LD_LIBRARY_PATH`).
+- CI (`.github/workflows/e2e.yml`): runs on push/PR but ONLY when the
+  `DATABASE_URL` secret exists, otherwise skips. Required secrets:
+  `DATABASE_URL` (pooler URL), `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `JWT_SECRET`. Everything else is dummy/localhost in the workflow.
+- Long term: point CI at a staging database instead of the shared one —
+  today a red run can leave orphan `e2e.*@example.com` rows (teardown
+  purges them, but only when it gets to run).
+
 ## Deploy checklist
 
 1. `git log --oneline -1` == commit in prod `/api/version`. If not, redeploy.
@@ -124,6 +145,9 @@ npm run dev
 
 # Backend: typecheck + full suite
 npx tsc --noEmit -p tsconfig.json && npx vitest run
+
+# E2E journeys (needs both dev servers OR boots them; needs DB — see below)
+npm run test:e2e
 
 # Health ping (local or prod)
 node backend/scripts/healthcheck.mjs
