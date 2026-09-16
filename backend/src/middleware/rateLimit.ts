@@ -1,12 +1,17 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator as _ipKeyGenerator } from 'express-rate-limit';
+import type { Request } from 'express';
 
-// Shared IP key generator: strips port suffixes some proxies append
-// (IP:PORT format). Trust-proxy is enabled in server.ts so req.ip already
-// reflects X-Forwarded-For.
-export const ipKeyGenerator = (req: any): string => {
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  return String(ip).replace(/:\d+[^:]*$/, '');
-};
+// Request-scoped wrapper around the LIBRARY helper. Why not use the helper
+// directly or a hand-rolled parser? (1) express-rate-limit v8's keyGenerator
+// option wants (req, res) => string while the helper takes (ip: string) —
+// direct use fails TypeScript. (2) A hand-rolled req.ip parser trips the
+// v8 IPv6 validation (ERR_ERL_KEY_GEN_IPV6 boot noise) and risks mangling
+// IPv6. This wrapper satisfies both: the `_ipKeyGenerator` call keeps the
+// exact `ipKeyGenerator` token in this function's source (what the runtime
+// validator checks — verified: zero warnings) with proper subnet handling.
+// Under trust-proxy (server.ts) req.ip already reflects X-Forwarded-For.
+export const ipKeyGenerator = (req: Request): string =>
+  _ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? 'unknown');
 
 const rateLimitValidate = {
   xForwardedForHeader: false, // Handled via trust proxy + ipKeyGenerator

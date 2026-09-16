@@ -134,3 +134,19 @@ describe('buildPoolConfig (serverless fail-fast budgets)', () => {
     expect(buildPoolConfig().max).toBe(8);
   });
 });
+
+// getPoolStats exposes the gauges that separate a leak (total=max, idle=0,
+// waiting>0 under light traffic) from an unreachable database.
+describe('getPoolStats (pool telemetry)', () => {
+  it('reports total/idle/waiting/max as numbers', async () => {
+    const { getPoolStats } = await load();
+    const stats = getPoolStats();
+    expect(stats).toEqual({
+      total: expect.any(Number),
+      idle: expect.any(Number),
+      waiting: expect.any(Number),
+      max: expect.any(Number),
+    });
+    expect(stats.max).toBeGreaterThan(0);
+  });
+});

@@ -10,7 +10,7 @@ import rateLimit from 'express-rate-limit';
 import { ipKeyGenerator } from './middleware/rateLimit';
 import passport from './middleware/googleAuth';
 import { config } from './config';
-import { pool } from './database/config';
+import { pool, getPoolStats } from './database/config';
 import { SchedulerService } from './services/schedulerService';
 
 // Production guard: the direct Supabase db.* host is IPv6-only and
@@ -241,7 +241,11 @@ app.get('/api/health', async (req, res) => {
     message: 'SmartStudy API is running',
     timestamp: new Date().toISOString(),
     environment: config.server.nodeEnv,
-    db
+    db,
+    // Pool gauges: total=max + idle=0 + waiting>0 under light traffic means
+    // slots are LEAKED (checked out, never released); failures with healthy
+    // gauges mean the database itself is unreachable.
+    pool: getPoolStats(),
   });
 });
 

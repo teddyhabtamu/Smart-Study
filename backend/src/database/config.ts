@@ -94,6 +94,18 @@ export const buildPoolConfig = () => {
 
 export const pool = new Pool(buildPoolConfig());
 
+// Pool telemetry: total = slots owned, idle = free slots, waiting = queued
+// acquirers. The pair that matters: total=max + idle=0 + waiting>0 sustained
+// under light traffic = LEAKED slots (checked out, never released); connect
+// errors with idle>0 or low totals = the DATABASE is unreachable, not the
+// pool. Logged on every pool failure so the next outage names its cause.
+export const getPoolStats = (): { total: number; idle: number; waiting: number; max: number } => ({
+  total: pool.totalCount,
+  idle: pool.idleCount,
+  waiting: pool.waitingCount,
+  max: parseInt(process.env.PG_POOL_MAX || '3', 10),
+});
+
 // Retry helper for transient connection errors (pooler cold starts, timeouts)
 export const isTransientError = (err: any): boolean => {
   const msg = String(err?.message || err || '').toLowerCase();
@@ -121,6 +133,11 @@ const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500): 
         await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
         continue;
       }
+      const s = getPoolStats();
+      console.error(
+        `pg pool failure (total=${s.total} idle=${s.idle} waiting=${s.waiting} max=${s.max}):`,
+        (err as any)?.message || err
+      );
       throw err;
     }
   }
