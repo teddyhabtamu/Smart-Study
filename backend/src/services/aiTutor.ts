@@ -228,7 +228,14 @@ const complete = async (
   userPrompt: string,
   history: { role: string; text: string }[] = [],
   temperature = 0.3,
-  maxOutputTokens = 4096
+  maxOutputTokens = 4096,
+  // Optional thinking budget override. gemini-2.5-flash reasons with
+  // thinking tokens that SHARE maxOutputTokens: on heavy planning tasks the
+  // reasoning eats ~4k of a 6144 cap and the visible JSON is cut mid-object
+  // (slowly — thinking is also where the 30s latency goes). Pass 0 for
+  // formatting-heavy calls that need output, not deliberation. Undefined =
+  // model default (chat keeps thinking).
+  thinkingBudget?: number
 ): Promise<string> => {
   const client = getClient();
 
@@ -242,6 +249,7 @@ const complete = async (
         systemInstruction: systemPrompt,
         temperature,
         maxOutputTokens,
+        ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
       },
     });
 
@@ -658,10 +666,13 @@ Rules — follow ALL of them:
   // must degrade to the skeleton below, never to a proxy-killed request.
   // Output cap 6144: slim guides keep real plans near 2-3k tokens, and the
   // headroom means a verbose model truncates rarely instead of always.
+  // Thinking DISABLED (0): schedule-building is formatting work, and flash's
+  // thinking tokens share the output budget — reasoning was eating ~4k of it
+  // and the JSON arrived cut mid-object after 30s of deliberation.
   const t0 = Date.now();
   let attemptTimedOut = false;
   try {
-    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 6144), PLAN_ATTEMPT_TIMEOUT_MS);
+    const raw = await withPlanTimeout(complete(systemPrompt, userPrompt, [], 0.4, 6144, 0), PLAN_ATTEMPT_TIMEOUT_MS);
     const parsed = parseStudyPlanResponse(raw, todayStr);
     if (parsed) {
       console.log(`[study-plan] smart plan ok: ${parsed.length} days`);
@@ -683,7 +694,8 @@ Rules — follow ALL of them:
       `${userPrompt}\n\nYour previous reply was not valid JSON. Reply again with ONLY the JSON object in the exact shape specified — no other text whatsoever. If your previous reply was cut off, reply with FEWER days (at most 7) so it fits.`,
       [],
       0.2,
-      6144
+      6144,
+      0
     ), PLAN_REPAIR_TIMEOUT_MS);
     const parsed = parseStudyPlanResponse(raw, todayStr);
     if (parsed) {
