@@ -2,7 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { config } from '../config';
 import { supabase } from '../database/config';
-import { EmailService } from '../services/emailService';
+import { EmailService, isNewLoginFingerprint } from '../services/emailService';
 import { eatTodayStr } from '../utils/dates';
 
 // OAuth accounts have no password: password_hash is NOT NULL in the schema,
@@ -11,12 +11,15 @@ import { eatTodayStr } from '../utils/dates';
 // value as absent — import this constant instead of re-stating the string.
 export const OAUTH_PASSWORD_PLACEHOLDER = 'oauth_user_no_password';
 
-// Configure Google OAuth Strategy
+// Configure Google OAuth Strategy (passReqToCallback so the verify step
+// sees the request: IP + user-agent feed the login fingerprint, exactly
+// like password logins — OAuth sign-ins used to email on every login).
 passport.use(new GoogleStrategy({
   clientID: config.google.clientId!,
   clientSecret: config.google.clientSecret!,
-  callbackURL: `${config.server.backendUrl}/api/auth/google/callback`
-}, async (accessToken: string, refreshToken: string, profile: any, done: any) => {
+  callbackURL: `${config.server.backendUrl}/api/auth/google/callback`,
+  passReqToCallback: true
+}, async (req: any, accessToken: string, refreshToken: string, profile: any, done: any) => {
   try {
     const { id, displayName, emails, photos } = profile;
     // Google verifies inbox control before issuing a profile, so a Google
@@ -146,14 +149,39 @@ passport.use(new GoogleStrategy({
         timeZoneName: 'short'
       });
       
-      // For OAuth, we don't have request object, so use simplified device info
-      const deviceInfo = 'Google OAuth Login';
-      const location = 'OAuth Authentication';
-      
-      console.log('📧 Triggering login success email for OAuth user:', { email: user.email, name: user.name });
-      EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
-        console.error('❌ Failed to send login success email for OAuth user:', error);
-      });
+      // Login-success emails fire on new device/IP only, same rule as
+      // password logins (first OAuth sign-in always notifies). req comes
+      // from passReqToCallback; fall back to the old constants if absent.
+      const rawUa = req?.headers?.['user-agent'];
+      const userAgent = typeof rawUa === 'string' && rawUa ? rawUa : '';
+      const deviceInfo = userAgent
+        ? (userAgent.length > 100 ? userAgent.substring(0, 100) + '...' : userAgent)
+        : 'Google OAuth Login';
+      const rawIp = req?.ip || req?.socket?.remoteAddress || null;
+      const ip = rawIp || 'OAuth Authentication';
+      const location = rawIp ? `IP: ${rawIp}` : 'OAuth Authentication';
+
+      if (isNewLoginFingerprint({ ip: user.last_login_ip, device: user.last_login_device }, ip, deviceInfo)) {
+        console.log('📧 Triggering login success email for OAuth user:', { email: user.email, name: user.name });
+        EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
+          console.error('❌ Failed to send login success email for OAuth user:', error);
+        });
+      } else {
+        console.log('📧 OAuth login email skipped (known device) for user:', { email: user.email });
+      }
+      // Persist the fingerprint best-effort (never fails the login; a missed
+      // write just re-notifies next time). Tolerates pre-migration schemas
+      // missing the columns.
+      supabase
+        .from('users')
+        .update({ last_login_ip: String(ip), last_login_device: deviceInfo })
+        .eq('id', user.id)
+        .then(
+          ({ error }: any) => {
+            if (error) console.warn('Failed to persist OAuth login fingerprint:', error.message || error);
+          },
+          () => undefined
+        );
 
       // Try to update google_id if user doesn't have it
       if (!user.google_id) {
