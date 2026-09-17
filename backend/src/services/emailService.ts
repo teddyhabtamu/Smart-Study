@@ -34,6 +34,31 @@ export const isTestRecipient = (to: string): boolean => {
 };
 
 /**
+ * Normalize an IP for fingerprint comparison: IPv4-mapped IPv6 (`::ffff:1.2.3.4`,
+ * which Node produces depending on stack) must equal its plain IPv4 form or
+ * every login looks "new" (observed both forms for localhost in one session).
+ */
+export const normalizeIp = (ip: unknown): string =>
+  String(ip || '').trim().toLowerCase().replace(/^::ffff:/, '');
+
+/**
+ * Should this sign-in trigger a login-success email? True on first login
+ * (nothing stored — safe direction) or when IP or device changed. Pure:
+ * the route reads the stored pair, compares, and persists the new pair.
+ */
+export const isNewLoginFingerprint = (
+  stored: { ip?: string | null; device?: string | null } | null | undefined,
+  ip: unknown,
+  device: unknown
+): boolean => {
+  if (!stored || !stored.ip || !stored.device) return true;
+  return (
+    normalizeIp(stored.ip) !== normalizeIp(ip) ||
+    String(stored.device || '').trim() !== String(device || '').trim()
+  );
+};
+
+/**
  * Email Service - Handles sending email notifications via Brevo
  */
 export class EmailService {

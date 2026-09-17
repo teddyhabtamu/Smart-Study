@@ -11,7 +11,7 @@ import passport from '../middleware/googleAuth';
 import { loginLimiter } from '../middleware/rateLimit';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
-import { EmailService } from '../services/emailService';
+import { EmailService, isNewLoginFingerprint } from '../services/emailService';
 
 const router = express.Router();
 
@@ -122,7 +122,7 @@ router.post('/login', [
 
     // Find user
     const result = await query(`
-      SELECT id, name, email, password_hash, role, status, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at
+      SELECT id, name, email, password_hash, role, status, email_verified, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, last_login_ip, last_login_device, created_at, updated_at
       FROM users WHERE email = $1
     `, [email]);
 
@@ -246,8 +246,11 @@ router.post('/login', [
 
     const { token, refreshToken } = await issueTokenPair(user);
 
-    // Send login success email (non-blocking, security notification)
-    // Note: Login notifications are security-related, so we send them even if user has email notifications disabled
+    // Login-success emails fire on new device/IP only (first login always
+    // notifies — the stored pair starts empty). The stored pair is refreshed
+    // on every login regardless, so only actual changes notify. Untracked
+    // and non-blocking: email must never slow or fail a sign-in. Security
+    // notifications bypass the email-preference toggle, as before.
     const loginTime = new Date().toLocaleString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -266,11 +269,22 @@ router.post('/login', [
     const ip = req.ip || req.socket.remoteAddress || 'Unknown';
     const location = `IP: ${ip}`; // Simplified - you can enhance this with geolocation API
 
-    console.log('📧 Triggering login success email for user:', { email: user.email, name: user.name });
-    EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
-      console.error('❌ Failed to send login success email:', error);
-      // Don't fail login if email fails
-    });
+    // Never leak the fingerprint internals to the client (see SELECT above).
+    const storedFingerprint = { ip: user.last_login_ip, device: user.last_login_device };
+    delete user.last_login_ip;
+    delete user.last_login_device;
+
+    if (isNewLoginFingerprint(storedFingerprint, ip, deviceInfo)) {
+      console.log('📧 Triggering login success email for user:', { email: user.email, name: user.name });
+      EmailService.sendLoginSuccessEmail(user.email, user.name, loginTime, deviceInfo, location).catch(error => {
+        console.error('❌ Failed to send login success email:', error);
+        // Don't fail login if email fails
+      });
+    } else {
+      console.log('📧 Login email skipped (known device) for user:', { email: user.email });
+    }
+    query('UPDATE users SET last_login_ip = $1, last_login_device = $2 WHERE id = $3', [String(ip), deviceInfo, user.id])
+      .catch(() => undefined);
 
     res.json({
       success: true,

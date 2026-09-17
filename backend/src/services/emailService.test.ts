@@ -74,6 +74,40 @@ describe('isTestRecipient (quota guard)', () => {
   });
 });
 
+describe('login fingerprint gating (new device/IP only)', () => {
+  it('notifies on first login (nothing stored)', async () => {
+    const { isNewLoginFingerprint } = await loadService();
+    expect(isNewLoginFingerprint(null, '1.2.3.4', 'UA')).toBe(true);
+    expect(isNewLoginFingerprint({}, '1.2.3.4', 'UA')).toBe(true);
+    expect(isNewLoginFingerprint({ ip: null, device: null }, '1.2.3.4', 'UA')).toBe(true);
+  });
+
+  it('stays quiet for the same device and IP', async () => {
+    const { isNewLoginFingerprint } = await loadService();
+    expect(
+      isNewLoginFingerprint({ ip: '1.2.3.4', device: 'Mozilla/5.0' }, '1.2.3.4', 'Mozilla/5.0')
+    ).toBe(false);
+  });
+
+  it('notifies on IP or device change', async () => {
+    const { isNewLoginFingerprint } = await loadService();
+    expect(
+      isNewLoginFingerprint({ ip: '1.2.3.4', device: 'Mozilla/5.0' }, '5.6.7.8', 'Mozilla/5.0')
+    ).toBe(true);
+    expect(
+      isNewLoginFingerprint({ ip: '1.2.3.4', device: 'Mozilla/5.0' }, '1.2.3.4', 'Chrome/120')
+    ).toBe(true);
+  });
+
+  it('treats IPv4-mapped IPv6 as the same address', async () => {
+    const { isNewLoginFingerprint, normalizeIp } = await loadService();
+    expect(normalizeIp('::ffff:127.0.0.1')).toBe('127.0.0.1');
+    expect(
+      isNewLoginFingerprint({ ip: '127.0.0.1', device: 'UA' }, '::ffff:127.0.0.1', 'UA')
+    ).toBe(false);
+  });
+});
+
 describe('sendTemplateEmail (quota + failure contract)', () => {
   it('suppresses test recipients without touching Brevo, returns true', async () => {
     const { EmailService } = await loadService();
