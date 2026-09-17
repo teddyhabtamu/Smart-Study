@@ -7,6 +7,7 @@ import CustomSelect, { Option } from '../components/CustomSelect';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { VideoCardSkeleton } from '../components/Skeletons';
+import Rail from '../components/Rail';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 import { decodeHtmlEntities } from '../utils/textUtils';
 import { useSEO, pageSEO } from '../utils/seoUtils';
@@ -345,7 +346,7 @@ const VideoLibrary: React.FC = () => {
             </div>
 
             {/* Horizontal scrolling strip */}
-            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 hide-scrollbar -mx-4 px-4 sm:-mx-1 sm:px-1 snap-x snap-mandatory">
+            <Rail label="Saved videos" className="flex gap-3 sm:gap-4 pb-3 -mx-4 px-4 sm:-mx-1 sm:px-1 snap-x snap-mandatory">
               {savedVideosLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="w-[75vw] sm:w-72 flex-shrink-0 snap-start">
@@ -363,7 +364,7 @@ const VideoLibrary: React.FC = () => {
                   Your saved videos will appear here.
                 </div>
               )}
-            </div>
+            </Rail>
           </section>
           )}
 
@@ -378,7 +379,7 @@ const VideoLibrary: React.FC = () => {
             </div>
 
             {/* Horizontal scrolling strip */}
-            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 hide-scrollbar -mx-4 px-4 sm:-mx-1 sm:px-1 snap-x snap-mandatory">
+            <Rail label="New videos" className="flex gap-3 sm:gap-4 pb-3 -mx-4 px-4 sm:-mx-1 sm:px-1 snap-x snap-mandatory">
               {newVideosLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="w-[75vw] sm:w-72 flex-shrink-0 snap-start">
@@ -396,7 +397,7 @@ const VideoLibrary: React.FC = () => {
                   No videos yet.
                 </div>
               )}
-            </div>
+            </Rail>
           </section>
 
         </div>
@@ -405,7 +406,7 @@ const VideoLibrary: React.FC = () => {
         <div className="space-y-5 animate-fade-in">
 
           {/* Subject Pills Row */}
-          <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar -mx-1 px-1">
+          <Rail label="Subjects" className="flex gap-2 pb-1 -mx-1 px-1">
             <button
               onClick={() => setSelectedSubject('All')}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap border transition-all flex-shrink-0 ${selectedSubject === 'All'
@@ -431,7 +432,7 @@ const VideoLibrary: React.FC = () => {
                 {subject}
               </button>
             ))}
-          </div>
+          </Rail>
 
           {/* Secondary Controls Row */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">

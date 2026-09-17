@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import Rail from '../components/Rail';
 
 import { FileText, Shield, Users, MessageSquare, BarChart3, Briefcase, ScrollText } from 'lucide-react';
 import { UserRole } from '../types';
@@ -64,7 +65,7 @@ const Admin: React.FC = () => {
           </div>
 
           {/* Main Tabs - Mobile Optimized */}
-          <div className="flex p-1 bg-zinc-100 rounded-lg overflow-x-auto hide-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
+          <Rail label="Admin sections" className="flex p-1 bg-zinc-100 rounded-lg -mx-2 px-2 sm:mx-0 sm:px-0">
             <div className="flex gap-1 min-w-max">
               {[
                 ...(isModerator ? [] : [{ id: 'overview', label: 'Overview', icon: BarChart3 }]),
@@ -93,7 +94,7 @@ const Admin: React.FC = () => {
                 </button>
               ))}
             </div>
-          </div>
+          </Rail>
         </div>
       </div>
 

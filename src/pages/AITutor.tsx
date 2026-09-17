@@ -3,6 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Dialog from '../components/Dialog';
+import Rail from '../components/Rail';
 import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -783,7 +784,7 @@ const AITutor: React.FC = () => {
         <div className="p-3 sm:p-4 bg-surface border-t border-zinc-100">
           <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4">
             {!isBusy && messages.length < 3 && !limitReached && (
-              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 hide-scrollbar">
+              <Rail label="Suggested prompts" className="flex gap-1.5 sm:gap-2 pb-2">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
@@ -794,7 +795,7 @@ const AITutor: React.FC = () => {
                     {s.label}
                   </button>
                 ))}
-              </div>
+              </Rail>
             )}
 
             {limitReached ? (

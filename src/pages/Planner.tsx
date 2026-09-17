@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Dialog from '../components/Dialog';
+import Rail from '../components/Rail';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -793,7 +794,7 @@ const Planner: React.FC = () => {
              )}
            </div>
            {/* Filters */}
-           <div className="flex items-center gap-2 pb-2 overflow-x-auto hide-scrollbar">
+           <Rail label="Task filters" className="flex items-center gap-2 pb-2">
              <button
                onClick={() => setStatusFilter('all')}
                className={`px-3 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
@@ -834,7 +835,7 @@ const Planner: React.FC = () => {
              >
                Archived
              </button>
-           </div>
+           </Rail>
 
            {loading.studyEvents ? (
              <div className="space-y-6">
