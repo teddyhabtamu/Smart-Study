@@ -48,6 +48,21 @@ const OverviewTab: React.FC = () => {
 
   const adminLoading = statsLoading;
 
+  // Never render raw backend/API text ("Access token required", "HTTP 500"):
+  // expired sessions redirect via the session-expired broadcast, and
+  // everything else gets a human sentence. Details stay in the console.
+  const friendlyStatsError = (): string => {
+    const m = (statsError || '').toLowerCase();
+    if (!m) return 'Please check your connection and try again.';
+    if (m.includes('token') || m.includes('unauthorized') || m.includes(' 401') || m.includes('session') || m.includes('sign in') || m.includes('log in')) {
+      return 'Your session ended — please sign in again.';
+    }
+    if (m.includes('timeout') || m.includes('network') || m.includes('fetch failed') || m.includes('500') || m.includes('failed to fetch')) {
+      return 'Please check your connection and try again.';
+    }
+    return 'Something went wrong loading stats.';
+  };
+
   return (
         <div className="space-y-4 sm:space-y-8 animate-fade-in">
               {/* Stats Cards (no growth pills: we store no historical
@@ -55,7 +70,7 @@ const OverviewTab: React.FC = () => {
           {statsError && !adminStats && !statsLoading ? (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
               <p className="text-red-800 font-medium text-sm">Failed to load system stats</p>
-              <p className="text-red-600 text-xs mt-1">{statsError}</p>
+              <p className="text-red-600 text-xs mt-1">{friendlyStatsError()}</p>
               <button
                 onClick={fetchAdminStats}
                 className="mt-4 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
@@ -184,7 +199,7 @@ const OverviewTab: React.FC = () => {
             <RecentActivitySkeleton />
           ) : !adminStats ? (
             <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6 text-center py-8 text-zinc-500">
-              <p className="text-sm">{statsError || 'No recent activity to display'}</p>
+              <p className="text-sm">{statsError ? friendlyStatsError() : 'No recent activity to display'}</p>
             </div>
           ) : (
             <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">

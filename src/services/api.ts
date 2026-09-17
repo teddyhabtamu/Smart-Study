@@ -48,6 +48,29 @@ const clearCredentials = (): void => {
   localStorage.removeItem('smartstudy_user');
 };
 
+// The UI can believe it is logged in (stored user) while holding no usable
+// token: multi-tab logout, evicted storage, or a refresh that died. Any 401
+// in that state is a dead session, not a message to display.
+const hasStoredSession = (): boolean => {
+  try {
+    return !!localStorage.getItem('smartstudy_user');
+  } catch {
+    return false;
+  }
+};
+
+// Single choke point for "the session is definitively dead": clear + tell
+// the app to explain and preserve the return URL. The layout's
+// SessionExpiredHandler throttles repeat broadcasts, so concurrent 401s
+// can't stack toasts or bounce off the login page. Exported so AuthContext's
+// own 401 sniffing (verify/refresh paths) uses the same channel instead of
+// clearing silently — a silent clear races this broadcast, wins, and strands
+// the user on `/` with no message (the stamp never gets set).
+export const broadcastSessionExpired = (): void => {
+  clearCredentials();
+  window.dispatchEvent(new CustomEvent('session-expired'));
+};
+
 // Helper function to create headers
 const getHeaders = (includeAuth: boolean = true): HeadersInit => {
   const headers: HeadersInit = {
@@ -106,6 +129,22 @@ const isNetworkError = (error: any): boolean => {
   );
 };
 
+// Last-resort display mapping for technical error text. Runs ONLY on the
+// human-facing message — error.code / error.status / error.data (which
+// AuthContext, Planner, Community and others branch on) pass through
+// untouched. Deliberately narrow: auth texts ('401', 'Invalid token',
+// 'Access token required', …) are sniffed elsewhere for session cleanup and
+// must never be rewritten here. Backend's own friendly sentences ("Daily AI
+// limit reached…") pass through byte-identical.
+const sanitizeTechnicalMessage = (message: string): string => {
+  const m = (message || '').trim();
+  if (!m) return 'Something went wrong. Please try again.';
+  if (/^HTTP 5\d\d\b/i.test(m) || /^internal server error\b/i.test(m)) {
+    return 'Something went wrong on our side. Please try again in a moment.';
+  }
+  return m;
+};
+
 // Helper function to get user-friendly error message
 const getUserFriendlyErrorMessage = (error: any, endpoint: string): string => {
   if (isConnectionTimeoutError(error)) {
@@ -134,7 +173,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       errorData = await response.json();
     } catch {
       // If JSON parsing fails, create a basic error
-      const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const error = new Error(sanitizeTechnicalMessage(`HTTP ${response.status}: ${response.statusText}`));
       // 500+ errors usually indicate backend/database connection issues
       if (is500Error) {
         (error as any).isNetworkError = true;
@@ -153,7 +192,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 
     // Handle general error messages
     if (errorData.message) {
-      const error = new Error(errorData.message);
+      const error = new Error(sanitizeTechnicalMessage(errorData.message));
       if (errorData.code) {
         (error as any).code = errorData.code;
       }
@@ -189,7 +228,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
       throw error;
     }
 
-    const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const error = new Error(sanitizeTechnicalMessage(`HTTP ${response.status}: ${response.statusText}`));
     // 500+ errors usually indicate backend/database connection issues
     if (response.status >= 500) {
       (error as any).isNetworkError = true;
@@ -218,7 +257,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 
     // Handle general error messages
     if (data.message) {
-      const error = new Error(data.message);
+      const error = new Error(sanitizeTechnicalMessage(data.message));
       // Carry machine-readable backend codes (e.g. FREE_LIMIT_REACHED) so
       // callers can branch instead of string-matching messages.
       if (data.code) {
@@ -335,19 +374,29 @@ const apiRequest = async <T>(
         headers: getHeaders(includeAuth), // re-read token (may have been refreshed)
       });
 
-      // On 401 with an auth token: try refreshing once, then retry.
-      // Skipped for endpoints with application-level 401s (see param).
-      if (response.status === 401 && includeAuth && getAuthToken() && !refreshed401 && !skipAuthRefresh) {
-        refreshed401 = true;
-        const refreshStatus = await refreshAccessToken();
-        if (refreshStatus === 'ok') {
-          continue; // retry with the fresh token
-        }
-        if (refreshStatus === 'rejected') {
-          // Definitive: the session is dead (not a network blip). Clear and
-          // broadcast so the app can explain + preserve the return URL.
-          clearCredentials();
-          window.dispatchEvent(new CustomEvent('session-expired'));
+      // On 401: repair the session when possible, otherwise end it loudly.
+      // Skipped for endpoints with application-level 401s (see param) —
+      // a wrong deletion password must never log the user out.
+      // Three terminal states, all broadcast: no token but a stored user
+      // (multi-tab logout, evicted storage), refresh definitively rejected,
+      // or a refreshed token rejected again. Guests (no stored user) and
+      // offline blips ('unreachable') keep the old quiet behavior.
+      if (response.status === 401 && includeAuth && !skipAuthRefresh) {
+        const hadSession = hasStoredSession();
+        if (!getAuthToken()) {
+          if (hadSession) broadcastSessionExpired();
+        } else if (!refreshed401) {
+          refreshed401 = true;
+          const refreshStatus = await refreshAccessToken();
+          if (refreshStatus === 'ok') {
+            continue; // retry with the fresh token
+          }
+          if (refreshStatus === 'rejected' && hadSession) {
+            broadcastSessionExpired();
+          }
+        } else if (hadSession) {
+          // The refreshed token was rejected too: definitively dead.
+          broadcastSessionExpired();
         }
       }
 
@@ -827,7 +876,12 @@ export const aiTutorAPI = {
           if (response.status === 401 && authRetry && getAuthToken()) {
             const refreshStatus = await refreshAccessToken();
             if (refreshStatus === 'ok') return doFetch(false);
-            if (refreshStatus === 'rejected') clearCredentials();
+            // Same dead-session rule as apiRequest: broadcast only when the
+            // UI believes it is logged in; otherwise just clear.
+            if (refreshStatus === 'rejected') {
+              if (hasStoredSession()) broadcastSessionExpired();
+              else clearCredentials();
+            }
           }
           return response;
         });

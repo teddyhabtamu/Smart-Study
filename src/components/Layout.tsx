@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import SearchPalette from './SearchPalette';
 import { OfflineBanner, InstallPrompt, InstallAppRow } from './PwaInstall';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
+import { wasRecentSessionExpiredNav } from '../utils/sessionNav';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -93,8 +94,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // 1. Still loading
     // 2. User is authenticated
     // 3. Path is public content page (accessible without authentication)
+    // 4. A session just expired: that flow owns the redirect (→ /login?next
+    //    with an explanation toast). Without this yield it wins the race and
+    //    the user strands on `/` with no message and no return URL.
 
-    if (!isLoading && !user && !isPublicContentPage) {
+    if (!isLoading && !user && !isPublicContentPage && !wasRecentSessionExpiredNav()) {
       console.log('Redirecting to home from:', location.pathname);
       navigate("/");
     }

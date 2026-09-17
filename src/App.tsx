@@ -1,6 +1,7 @@
 
 import React, { Suspense } from 'react';
 import { lazyWithRetry } from './utils/lazyWithRetry';
+import { markSessionExpiredNav } from './utils/sessionNav';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Loader from './components/Loader';
@@ -60,21 +61,36 @@ let lastExpiredToast = 0;
 const SessionExpiredHandler: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { logout } = useAuth();
   React.useEffect(() => {
     const onExpired = () => {
       const now = Date.now();
       if (now - lastExpiredToast < 60_000) return;
       lastExpiredToast = now;
       const path = window.location.pathname;
-      if (!path.startsWith('/login') && !path.startsWith('/register')) {
-        addToast('Your session expired — please sign in again.', 'warning');
-        const next = path + window.location.search;
-        navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
-      }
+      // Stamp first: Layout's guest rule (→ `/`) reacts to the same
+      // setUser(null) and would otherwise win this race, stranding the
+      // expired user on landing with no explanation and no return URL.
+      markSessionExpiredNav();
+      // Reset in-memory auth too: the broadcast already cleared storage,
+      // but without setUser(null) guards keep seeing a logged-in user while
+      // every request 401s — the app drifts instead of redirecting.
+      void (async () => {
+        try {
+          await logout();
+        } catch {
+          // Best-effort: revocation failing must not block the redirect.
+        }
+        if (!path.startsWith('/login') && !path.startsWith('/register')) {
+          addToast('Your session expired — please sign in again.', 'warning');
+          const next = path + window.location.search;
+          navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
+        }
+      })();
     };
     window.addEventListener('session-expired', onExpired);
     return () => window.removeEventListener('session-expired', onExpired);
-  }, [navigate, addToast]);
+  }, [navigate, addToast, logout]);
   return null;
 };
 

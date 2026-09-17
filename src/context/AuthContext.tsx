@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, NotificationItem, UserRole } from '../types';
-import { authAPI, usersAPI } from '../services/api';
+import { authAPI, usersAPI, broadcastSessionExpired } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -146,10 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                                    !error?.message?.toLowerCase().includes('authentication failed'); // "Authentication failed" from 500 is not a real auth error
           
           if (isRealAuthError) {
-            // Real auth error - clear everything
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('refresh_token');
-            localStorage.removeItem('smartstudy_user');
+            // Real auth error — same channel as the api layer's 401 handling
+            // (single broadcast: stamp + clear + toast + return URL). Never
+            // clear silently here: that path wins the race against the
+            // broadcast and strands the user on `/` with no explanation.
+            broadcastSessionExpired();
             profileRequestRef.current = null;
             lastProfileFetchRef.current = null;
             setUser(null);
@@ -199,9 +200,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsLoading(false);
         }
       } else if (savedUser) {
-        // If there's no token but a cached user exists, clear it (user logged out)
-        // Don't restore user without a valid token
-        localStorage.removeItem('smartstudy_user');
+        // Token gone but a cached user remains (multi-tab logout, evicted
+        // storage): a dead session the UI still believes in. Same broadcast
+        // channel as every other 401 path — toast + return URL — never a
+        // silent clear (which strands the user on `/` with no explanation).
+        broadcastSessionExpired();
         setUser(null);
         setIsLoading(false);
       } else {
@@ -624,11 +627,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Refresh user error:', error);
       // If refresh fails due to auth error, the account is gone/blocked —
-      // clear everything, mirroring the boot path (token + refresh + cache).
+      // same broadcast channel as above (never a silent clear).
       if (error?.message?.includes('401') || error?.message?.includes('403') || error?.message?.includes('Unauthorized')) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('smartstudy_user');
+        broadcastSessionExpired();
         setUser(null);
       } else if (error?.isTimeout || error?.isNetworkError) {
         // For timeout/network errors, keep existing user data and don't throw
