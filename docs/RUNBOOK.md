@@ -53,6 +53,10 @@ The server does NOT auto-migrate — after deploying a migration commit:
    (never commit prod credentials; export it for the one command).
 3. Verify: the feature that needs the table stops logging its soft-fail
    (e.g. admin `/stats` without `ai_usage_7d` means the table is missing).
+4. Ordering matters for column-adding migrations (e.g. `channel_id` /
+   `duration_secs` on videos): migrate BEFORE the code that inserts those
+   columns deploys, or every insert fails until you do. When in doubt,
+   migrate first — `IF NOT EXISTS` makes re-runs safe.
 
 ## Backend exits and nodemon parks (`app crashed - waiting for file changes`)
 

@@ -1,22 +1,174 @@
 import { describe, it, expect } from 'vitest';
+import {
+  buildSearchQuery,
+  parseDurationSecs,
+  scoreCandidateVideo,
+  MIN_ACCEPT_SCORE,
+  isQuotaExceededError,
+  type VideoSignals,
+} from './youtubeService';
 
-// Quota detection drives the syncAll early-abort: a 403 quotaExceeded must
-// stop the whole run, while generic 500s stay per-subject. These shape
-// checks guard that contract against YouTube API error-shape drift.
-import { isQuotaExceededError } from './youtubeService';
+// (Restored quota + entity tests below — they guard the syncAll early-abort
+// and snippet-unescaping contracts. They predate the quality gate.)
 
-const quotaErr = () => ({
-  response: {
-    status: 403,
-    data: {
-      error: {
-        errors: [{ reason: 'quotaExceeded', message: 'The request cannot be completed because you have exceeded your quota.' }],
-      },
-    },
-  },
+// The import gate: unquoted topical query inside the Education category,
+// then score every candidate. Fixtures below are REAL rows from the library
+// audit (Sep 2026) — the left column is what used to get imported blind.
+const base = (over: Partial<VideoSignals> = {}): VideoSignals => ({
+  title: 'Quadratic Equations - Full Chapter',
+  description: 'Learn quadratic equations step by step with practice problems.',
+  channelTitle: 'Math Academy',
+  subject: 'Mathematics',
+  topic: 'quadratic equations',
+  grade: 10,
+  durationSecs: 900,
+  categoryId: '27',
+  embeddable: true,
+  viewCount: 50000,
+  likeCount: 2000,
+  ...over,
 });
 
-describe('isQuotaExceededError', () => {
+describe('buildSearchQuery (unquoted topical search)', () => {
+  it('quotes only the topic, leaves subject loose for recall', () => {
+    expect(buildSearchQuery('Physics', 'newton laws of motion')).toBe(
+      '"newton laws of motion" Physics tutorial lesson'
+    );
+  });
+
+  it('degrades gracefully without a topic', () => {
+    expect(buildSearchQuery('Biology', null)).toBe('Biology tutorial lesson');
+  });
+
+  it('never bakes in the old exclusion operators or quoted locale terms', () => {
+    const q = buildSearchQuery('Mathematics', 'quadratic equations');
+    expect(q).not.toContain('Ethiopia');
+    expect(q).not.toContain('grade');
+    expect(q).not.toContain('-shorts');
+  });
+});
+
+describe('parseDurationSecs (ISO 8601)', () => {
+  it('parses standard durations, null on live/unknown', () => {
+    expect(parseDurationSecs('PT15M33S')).toBe(933);
+    expect(parseDurationSecs('PT1H2M3S')).toBe(3723);
+    expect(parseDurationSecs('PT45S')).toBe(45);
+    expect(parseDurationSecs('P0D')).toBe(0);
+    expect(parseDurationSecs(null)).toBeNull();
+    expect(parseDurationSecs('garbage')).toBeNull();
+  });
+});
+
+describe('scoreCandidateVideo (import gate)', () => {
+  it('accepts a genuine tutorial well above the bar', () => {
+    const v = scoreCandidateVideo(base());
+    expect(v.accept).toBe(true);
+    expect(v.score).toBeGreaterThan(MIN_ACCEPT_SCORE);
+  });
+
+  it('rejects trivia gameshows (observed: "10 toughest General | trivia 10 #GK")', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: '10 toughest General | trivia 10 #GK | quiz time | #quizgame',
+        description: 'Fun quiz challenge!',
+        channelTitle: 'Faith With Mekdes',
+        subject: 'Biology',
+        topic: 'cells',
+        grade: 10,
+        durationSecs: 600,
+        viewCount: 500,
+        likeCount: 10,
+      })
+    );
+    expect(v.accept).toBe(false);
+    expect(v.reasons.join(' ')).toContain('trivia-gameshow');
+  });
+
+  it('rejects hashtag-stuffed keyword spam below the bar', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'biology Question #Grade10 #biology #Questionsbiology Ethiopi',
+        description: 'questions',
+        channelTitle: 'Faith With Mekdes',
+        subject: 'Biology',
+        topic: 'cells',
+        grade: 10,
+        durationSecs: 300,
+        viewCount: 200,
+        likeCount: 2,
+      })
+    );
+    expect(v.accept).toBe(false);
+    expect(v.reasons.join(' ')).toContain('hashtag-stuffing');
+  });
+
+  it('rejects exam answer keys and Shorts regardless of topic match', () => {
+    const leak = scoreCandidateVideo(
+      base({ title: 'Grade 12 exam LEAKED answers 2024', description: 'full answer key' })
+    );
+    expect(leak.accept).toBe(false);
+    const shorts = scoreCandidateVideo(
+      base({ title: 'Quadratic equations #shorts', durationSecs: 45 })
+    );
+    expect(shorts.accept).toBe(false);
+    expect(shorts.reasons.join(' ')).toMatch(/short/);
+  });
+
+  it('rejects non-embeddable and non-education categories (music, gaming)', () => {
+    expect(scoreCandidateVideo(base({ embeddable: false })).accept).toBe(false);
+    expect(scoreCandidateVideo(base({ categoryId: '10' })).accept).toBe(false);
+    expect(scoreCandidateVideo(base({ categoryId: '20' })).accept).toBe(false);
+  });
+
+  it('tolerates miscategorized local lessons (People & Blogs is not a reject)', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'Grade 10 Math Introduction to polynomial functions 8, in Amharic',
+        description: 'Polynomial functions full lesson in Amharic',
+        channelTitle: 'Tilet Academy',
+        topic: 'polynomial functions',
+        categoryId: '22',
+        viewCount: 5000,
+        likeCount: 200,
+      })
+    );
+    expect(v.accept).toBe(true);
+  });
+
+  it('treats "Maths" as Mathematics (synonym map)', () => {
+    const v = scoreCandidateVideo(
+      base({ title: 'Maths revision: algebra basics', description: 'maths practice', topic: null })
+    );
+    expect(v.reasons.join(' ')).toContain('subject');
+  });
+
+  it('does not gate on grade mentions (Khan-style titles lack them)', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'Quadratic Equations - Full Chapter',
+        description: 'A complete lesson with examples.',
+        channelTitle: 'Khan Academy',
+        topic: 'quadratic equations',
+      })
+    );
+    // No "grade 9/10" anywhere, still comfortably accepted.
+    expect(v.accept).toBe(true);
+    expect(v.reasons.join(' ')).not.toContain('grade');
+  });
+});
+
+describe('isQuotaExceededError (sync early-abort contract)', () => {
+  const quotaErr = () => ({
+    response: {
+      status: 403,
+      data: {
+        error: {
+          errors: [{ reason: 'quotaExceeded', message: 'The request cannot be completed because you have exceeded your quota.' }],
+        },
+      },
+    },
+  });
+
   it('detects quotaExceeded 403s', () => {
     expect(isQuotaExceededError(quotaErr())).toBe(true);
   });
@@ -41,7 +193,7 @@ describe('decodeHtmlEntities (YouTube snippet unescaping)', () => {
     expect(decodeHtmlEntities('Bernoulli&#39;s Principle')).toBe("Bernoulli's Principle");
     expect(decodeHtmlEntities('Tom &amp; Jerry')).toBe('Tom & Jerry');
     expect(decodeHtmlEntities('&quot;Quoted&quot; &lt;tag&gt;')).toBe('"Quoted" <tag>');
-    expect(decodeHtmlEntities('Tigrigna &#x27E;')).toBe('Tigrigna \u027E')
+    expect(decodeHtmlEntities('Tigrigna &#x27E;')).toBe('Tigrigna \u027E');
   });
 
   it('does not double-decode and passes clean text through', async () => {
