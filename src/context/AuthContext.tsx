@@ -594,8 +594,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unreadCount: userData.unread_count ?? userData.unreadCount,
         hasPassword: userData.has_password ?? userData.hasPassword
       };
-      setUser(transformedUser);
-      localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
+      // Skip identical updates: the 60s notification poll (and every other
+      // refreshUser caller) mints a fresh object identity per fetch, which
+      // re-fires every [user]-keyed effect app-wide (the AI chat session
+      // list refetched in a loop this way). Compared against the persisted
+      // snapshot — same bytes, no state update, no rerender cascade.
+      // Anything actually changed still flows through untouched.
+      let identical = false;
+      try {
+        identical = JSON.stringify(transformedUser) === localStorage.getItem('smartstudy_user');
+      } catch {
+        // Storage unavailable (private mode): always update state.
+      }
+      if (!identical) {
+        setUser(transformedUser);
+        try {
+          localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
+        } catch {
+          // ignore private-mode write failures
+        }
+      }
       // Update last fetch time after successful fetch
       lastProfileFetchRef.current = new Date();
       // Returned (not just set) so the notification poll can diff the FRESH

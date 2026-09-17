@@ -12,12 +12,10 @@ import StudentsTab from './admin/StudentsTab';
 import AuditTab from './admin/AuditTab';
 import TeamTab from './admin/TeamTab';
 import { PrivacyPolicyManager, TermsOfServiceManager, usePolicyDocuments } from './admin/PolicyManagers';
-import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 
 const Admin: React.FC = () => {
-  const { fetchUsers, fetchDocuments, fetchVideos, fetchForumPosts } = useData();
   const { addToast } = useToast();
   const { user } = useAuth();
   const isModerator = user?.role === UserRole.MODERATOR || String(user?.role) === 'MODERATOR';
@@ -30,18 +28,9 @@ const Admin: React.FC = () => {
     }
   }, [isModerator, activeTab]);
 
-  useEffect(() => {
-    // Fetch initial data (fetch functions handle their own loading states)
-    fetchDocuments();
-    fetchVideos();
-
-    // Only fetch these for admins, not moderators
-    if (!isModerator) {
-      fetchForumPosts();
-      fetchUsers();
-    }
-  }, [fetchDocuments, fetchVideos, fetchForumPosts, fetchUsers, isModerator]);
-
+  // Each tab fetches its own data on mount (OverviewTab stats, StudentsTab
+  // pages, ContentTab below, …) — the old mount-everything effect fired four
+  // full-table fetches for tabs the user might never open.
   // Policy documents (privacy + terms) via shared hook
   const {
     privacyPolicy, privacyPolicyLoading, privacyPolicyRefreshTrigger, updatePrivacyPolicy,

@@ -60,85 +60,59 @@ const convertGoogleDriveUrl = (url: string): string => {
 
 // Get recent activity
 const getRecentActivity = async () => {
-  const activities = [];
-  const now = new Date();
-
+  // Bounded SQL throughout (was: three FULL-table fetches filtered in JS —
+  // every admin dashboard view moved megabytes). Shapes below are
+  // byte-identical to the old output.
   try {
-    // Get recent user registrations (last 7 days)
-    const users = await dbAdmin.get('users');
-    const recentUsers = users
-      .filter((u: any) => {
-        const userDate = new Date(u.created_at);
-        const diffTime = now.getTime() - userDate.getTime();
-        const diffDays = diffTime / (1000 * 3600 * 24);
-        return diffDays <= 7;
-      })
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5)
-      .map((u: any) => ({
+    const [recentUsers, recentPremium, recentDocs, recentVids] = await Promise.all([
+      dbQuery(
+        `SELECT id, name, email, created_at FROM users
+         WHERE created_at >= NOW() - INTERVAL '7 days'
+         ORDER BY created_at DESC LIMIT 5`
+      ),
+      dbQuery(
+        `SELECT id, name, email, COALESCE(premium_since, created_at) AS ts FROM users
+         WHERE is_premium IS TRUE AND COALESCE(premium_since, created_at) >= NOW() - INTERVAL '7 days'
+         ORDER BY ts DESC LIMIT 3`
+      ),
+      dbQuery(
+        `SELECT id, title, created_at FROM documents
+         WHERE created_at >= NOW() - INTERVAL '7 days'
+         ORDER BY created_at DESC LIMIT 3`
+      ),
+      dbQuery(
+        `SELECT id, title, created_at FROM videos
+         WHERE created_at >= NOW() - INTERVAL '7 days'
+         ORDER BY created_at DESC LIMIT 3`
+      ),
+    ]);
+
+    const activities = [
+      ...recentUsers.rows.map((u: any) => ({
         type: 'user_registration',
         message: `New user "${u.name || u.email}" joined`,
         timestamp: u.created_at,
-        user: { id: u.id, name: u.name, email: u.email }
-      }));
-
-    activities.push(...recentUsers);
-
-    // Get recent premium subscriptions (last 7 days)
-    const premiumUsers = users
-      .filter((u: any) => {
-        if (!u.is_premium) return false;
-        // Assuming we have a premium_since field, otherwise we'll use created_at
-        const premiumDate = u.premium_since ? new Date(u.premium_since) : new Date(u.created_at);
-        const diffTime = now.getTime() - premiumDate.getTime();
-        const diffDays = diffTime / (1000 * 3600 * 24);
-        return diffDays <= 7;
-      })
-      .slice(0, 3)
-      .map((u: any) => ({
+        user: { id: u.id, name: u.name, email: u.email },
+      })),
+      ...recentPremium.rows.map((u: any) => ({
         type: 'premium_subscription',
         message: `User "${u.name || u.email}" upgraded to Premium`,
-        timestamp: u.premium_since || u.created_at,
-        user: { id: u.id, name: u.name, email: u.email }
-      }));
-
-    activities.push(...premiumUsers);
-
-    // Get recent content uploads (last 7 days)
-    const documents = await dbAdmin.get('documents');
-    const videos = await dbAdmin.get('videos');
-
-    const recentDocuments = documents
-      .filter((d: any) => {
-        const docDate = new Date(d.created_at);
-        const diffTime = now.getTime() - docDate.getTime();
-        const diffDays = diffTime / (1000 * 3600 * 24);
-        return diffDays <= 7;
-      })
-      .slice(0, 3)
-      .map((d: any) => ({
+        timestamp: u.ts,
+        user: { id: u.id, name: u.name, email: u.email },
+      })),
+      ...recentDocs.rows.map((d: any) => ({
         type: 'content_upload',
         message: `Document "${d.title}" was uploaded`,
         timestamp: d.created_at,
-        content: { id: d.id, title: d.title, type: 'document' }
-      }));
-
-    const recentVideos = videos
-      .filter((v: any) => {
-        const vidDate = new Date(v.created_at);
-        const diffTime = now.getTime() - vidDate.getTime();
-        const diffDays = diffTime / (1000 * 3600 * 24);
-        return diffDays <= 7;
-      })
-      .slice(0, 3)
-      .map((v: any) => ({
+        content: { id: d.id, title: d.title, type: 'document' },
+      })),
+      ...recentVids.rows.map((v: any) => ({
         type: 'content_upload',
         message: `Video "${v.title}" was uploaded`,
         timestamp: v.created_at,
-        content: { id: v.id, title: v.title, type: 'video' }
-      }));
-
-    activities.push(...recentDocuments, ...recentVideos);
+        content: { id: v.id, title: v.title, type: 'video' },
+      })),
+    ];
 
     // Sort by timestamp (most recent first)
     activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -154,10 +128,21 @@ const getRecentActivity = async () => {
 // Get admin dashboard statistics (ADMIN and MODERATOR)
 router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const users = await dbAdmin.get('users');
-    const documents = await dbAdmin.get('documents');
-    const videos = await dbAdmin.get('videos');
-    const forumPosts = await dbAdmin.get('forum_posts');
+    // Single aggregate round trip (was: four FULL-table fetches counted in
+    // JS — every admin dashboard view moved the whole users/documents/
+    // videos/forum tables over the wire). Shape unchanged (COUNT arrives
+    // as text — parsed, like the old .length numbers).
+    const toCount = (v: any): number => parseInt(v ?? '0', 10) || 0;
+    const counts = await dbQuery(
+      `SELECT (SELECT COUNT(*) FROM users) AS total_users,
+              (SELECT COUNT(*) FROM users WHERE is_premium IS TRUE) AS premium_users,
+              (SELECT COUNT(*) FROM documents) AS total_documents,
+              (SELECT COUNT(*) FROM documents WHERE is_premium IS TRUE) AS premium_documents,
+              (SELECT COUNT(*) FROM videos) AS total_videos,
+              (SELECT COUNT(*) FROM videos WHERE is_premium IS TRUE) AS premium_videos,
+              (SELECT COUNT(*) FROM forum_posts) AS total_forum_posts`
+    );
+    const c = counts.rows[0] || {};
 
     // Get recent activity
     const recentActivity = await getRecentActivity();
@@ -182,13 +167,13 @@ router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Re
     }
 
     const stats = {
-      total_users: users.length,
-      premium_users: users.filter((u: any) => u.is_premium).length,
-      total_documents: documents.length,
-      premium_documents: documents.filter((d: any) => d.is_premium).length,
-      total_videos: videos.length,
-      premium_videos: videos.filter((v: any) => v.is_premium).length,
-      total_forum_posts: forumPosts.length,
+      total_users: toCount(c.total_users),
+      premium_users: toCount(c.premium_users),
+      total_documents: toCount(c.total_documents),
+      premium_documents: toCount(c.premium_documents),
+      total_videos: toCount(c.total_videos),
+      premium_videos: toCount(c.premium_videos),
+      total_forum_posts: toCount(c.total_forum_posts),
       recent_activity: recentActivity,
       ai_usage_7d: aiUsage7d
     };

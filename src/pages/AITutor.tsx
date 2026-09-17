@@ -108,6 +108,8 @@ const AITutor: React.FC = () => {
   const hasProcessedInitialPrompt = useRef(false);
 
   // Load chat sessions from backend (for users) and usage count (for guests)
+  // Keyed on account id, NOT the user object: every background refresh mints
+  // a new object identity, and keying on it re-fired this fetch in a loop.
   useEffect(() => {
     const loadData = async () => {
       if (user) {
@@ -138,7 +140,8 @@ const AITutor: React.FC = () => {
     };
 
     loadData();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Load the student's school grade.
   // Priority: explicit grade from profile/register > legacy XP-level heuristic

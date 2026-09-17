@@ -22,6 +22,18 @@ const ContentTab: React.FC = () => {
     return () => setMounted(false);
   }, []);
 
+  // Self-sufficient data: Admin.tsx no longer bulk-fetches for tabs you may
+  // never open. Load on first mount only when empty (already-loaded data
+  // from elsewhere is reused, never refetched).
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    if (documents.length === 0) fetchDocuments();
+    if (videos.length === 0) fetchVideos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [contentCategory, setContentCategory] = useState<'documents' | 'videos' | 'past-exams'>('documents');
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
