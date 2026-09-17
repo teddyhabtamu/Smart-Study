@@ -33,6 +33,20 @@ jobs:
         run: npm test
         # No database needed: unit tests cover pure logic only
         # (serialization, error classifiers, connection-string handling)
+        # Dummy env satisfies config validation at import time (locally this
+        # comes from backend/.env, which is gitignored and absent in CI).
+        # Nothing connects: pools/clients are lazy, the DB layer is mocked.
+        # DATABASE_URL is a dummy for the same reason: `new Pool()` at module
+        # load needs a URL string, but never opens a socket for it.
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-anon-key
+          JWT_SECRET: test-secret
+          GOOGLE_CLIENT_ID: test-google-id
+          GOOGLE_CLIENT_SECRET: test-google-secret
+          FRONTEND_URL: http://localhost:5173
+          BACKEND_URL: http://localhost:5000
 
   frontend:
     name: Frontend (typecheck + build)
