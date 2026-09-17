@@ -9,6 +9,7 @@ import { useData } from '../context/DataContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import TTSButton from '../components/TTSButton';
 import { stripForSpeech, decodeHtmlEntities } from '../utils/textUtils';
+import { formatCompact } from '../utils/format';
 import { VideoWatchSkeleton } from '../components/Skeletons';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 import { useSEO, videoSEO } from '../utils/seoUtils';
@@ -416,27 +417,41 @@ const VideoWatch: React.FC = () => {
       addToast('Please sign in to like videos', 'error');
       return;
     }
-
+    // Optimistic: flip instantly, sync in the background (YouTube-grade
+    // responsiveness on slow links). Rolls back only if the server refuses.
+    if (isLiking) return;
+    const newLikedState = !hasLiked;
+    const previousLikes = typeof video.likes === 'number' ? video.likes : 0;
     setIsLiking(true);
+    setHasLiked(newLikedState);
+    setVideo((prev: any) => ({
+      ...prev,
+      likes: previousLikes + (newLikedState ? 1 : -1),
+      user_has_liked: newLikedState
+    }));
     try {
-      const newLikedState = !hasLiked;
       const response = await videosAPI.like(video.id, newLikedState);
 
-      // Update local state with server response
+      // Reconcile with the server count (source of truth under racing taps).
       if (response) {
         setVideo((prev: any) => ({
           ...prev,
           likes: response.likes,
           user_has_liked: newLikedState
         }));
-        setHasLiked(newLikedState);
-        // Also update the video in the list
         updateVideoStats(video.id, { likes: response.likes });
         addToast(newLikedState ? 'Video liked!' : 'Video unliked', 'success');
       }
     } catch (error: any) {
       console.error('Failed to like video:', error);
-      addToast(error.message || 'Failed to like video', 'error');
+      // Roll back the optimistic flip so the UI never lies.
+      setHasLiked(!newLikedState);
+      setVideo((prev: any) => ({
+        ...prev,
+        likes: previousLikes,
+        user_has_liked: !newLikedState
+      }));
+      addToast('Couldn\'t update like. Please try again.', 'error');
     } finally {
       setIsLiking(false);
     }
@@ -661,17 +676,13 @@ const VideoWatch: React.FC = () => {
                    <div className="flex items-center gap-2 relative">
                       <button
                         onClick={handleLike}
-                        disabled={isLiking}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          hasLiked ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-zinc-100 text-inksoft hover:bg-zinc-200'
+                        title={hasLiked ? 'Unlike' : 'Like'}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          hasLiked ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-zinc-100 text-inksoft hover:bg-zinc-200'
                         }`}
                       >
-                         {isLiking ? (
-                           <Loader2 size={16} className="animate-spin" />
-                         ) : (
-                           <ThumbsUp size={16} className={hasLiked ? "fill-current text-blue-600" : ""} />
-                         )}
-                         {video.likes}
+                         <ThumbsUp size={16} className={hasLiked ? "fill-current text-emerald-600" : ""} />
+                         {formatCompact(video.likes)}
                       </button>
                       <button
                         onClick={handleShare}

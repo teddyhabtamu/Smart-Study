@@ -10,6 +10,7 @@ import { VideoCardSkeleton } from '../components/Skeletons';
 import Rail from '../components/Rail';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 import { decodeHtmlEntities } from '../utils/textUtils';
+import { formatCompact } from '../utils/format';
 import { useSEO, pageSEO } from '../utils/seoUtils';
 import { videosAPI } from '../services/api';
 
@@ -639,10 +640,10 @@ const VideoCard: React.FC<{ video: VideoLesson; compact?: boolean }> = ({ video,
             <div className="flex items-center gap-2.5 text-[10px] sm:text-[11px] text-zinc-400 font-medium">
               <span className="flex items-center gap-1">
                 <PlayCircle size={10} className="sm:w-3 sm:h-3" />
-                {video.views.toLocaleString()}
+                {formatCompact(video.views)}
               </span>
               <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
-              <span>{video.likes} likes</span>
+              <span>{formatCompact(video.likes)} likes</span>
             </div>
             <span className="text-[10px] sm:text-xs font-semibold text-ink flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
               Watch <PlayCircle size={11} className="sm:w-3 sm:h-3" />
