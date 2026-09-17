@@ -27,3 +27,17 @@ export const stripForSpeech = (text: string): string =>
     .replace(/[*_#>`|-]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+// True when a body excerpt merely repeats the title (case/punctuation/
+// whitespace-insensitive). Post cards then skip the duplicate lines instead
+// of showing the same sentence twice.
+export const sameText = (a: string | null | undefined, b: string | null | undefined): boolean => {
+  const norm = (s: string | null | undefined): string =>
+    String(s ?? '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const na = norm(a);
+  return na.length > 0 && na === norm(b);
+};

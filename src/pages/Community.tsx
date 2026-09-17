@@ -12,6 +12,7 @@ import { useToast } from '../context/ToastContext';
 import { usersAPI, forumAPI } from '../services/api';
 import { ForumPostSkeleton, LeaderboardItemSkeleton } from '../components/Skeletons';
 import { formatRelativeTime } from '../utils/dateUtils';
+import { sameText } from '../utils/textUtils';
 import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const Community: React.FC = () => {
@@ -306,7 +307,7 @@ const Community: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Sidebar */}
-        <div className="lg:col-span-1 space-y-4 sm:space-y-6">
+        <div className="lg:col-span-1 space-y-4 sm:space-y-6 lg:sticky lg:top-4 self-start">
           {/* Filters - Desktop */}
           <div className="hidden lg:block bg-surface p-4 rounded-xl border border-zinc-200 shadow-sm">
             <h3 className="font-bold text-ink mb-4 flex items-center gap-2">
@@ -327,15 +328,18 @@ const Community: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">Subject</label>
-                <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                {/* Chip grid (no inner scroll): all ~15 subjects visible at a
+                    glance, same language as the mobile filter modal. The old
+                    256px scroll box hid options behind a scrollbar. */}
+                <div className="flex flex-wrap gap-1.5">
                   {SUBJECTS.map(sub => (
                     <button
                       key={sub}
                       onClick={() => setSelectedSubject(sub)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         selectedSubject === sub
-                          ? 'bg-zinc-100 text-ink font-medium'
-                          : 'text-inksoft hover:bg-zinc-50'
+                          ? 'bg-zinc-900 text-onink'
+                          : 'bg-zinc-50 text-inksoft hover:bg-zinc-100'
                       }`}
                     >
                       {sub === 'All' ? 'All Topics' : sub}
@@ -618,8 +622,10 @@ const Community: React.FC = () => {
                     </Link>
                   </h3>
 
-                  <p className="text-inksoft text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
-
+                  {/* Excerpt hidden when it merely repeats the title */}
+                  {!sameText(post.content, post.title) && (
+                    <p className="text-inksoft text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
+                  )}
                   <div className="flex items-center justify-between border-t border-zinc-50 pt-3 sm:pt-4">
                     <div className="flex items-center gap-2">
                       <div
