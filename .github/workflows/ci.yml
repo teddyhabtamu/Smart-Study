@@ -67,6 +67,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Production build
         run: npx vite build
         env:

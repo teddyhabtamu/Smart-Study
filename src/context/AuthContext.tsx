@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, NotificationItem, UserRole } from '../types';
 import { authAPI, usersAPI, broadcastSessionExpired } from '../services/api';
+import { diffNotifications, snapshotNotifications, type NotifLite } from '../utils/notifications';
 
 interface AuthContextType {
   user: User | null;
@@ -14,7 +15,7 @@ interface AuthContextType {
   deleteNotification: (notificationId: string) => Promise<void>;
   // force=true bypasses the 30s profile cache — required after any mutation
   // (XP awards, mark-read) or the UI would show pre-mutation state.
-  refreshUser: (force?: boolean) => Promise<void>;
+  refreshUser: (force?: boolean) => Promise<User | undefined>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -222,7 +223,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let isPolling = false;
     let pollTimeout: ReturnType<typeof setTimeout>;
-    const shownNotifications = new Set<string>(); // Track notifications that have been shown
+    // Stable snapshot of the last SEEN list (id -> isRead), owned by this
+    // account (the effect re-runs on account switch, which reseeds it).
+    // Every poll diffs the FRESH fetch against this — never against the
+    // render closure, which freezes at login time.
+    let prevSnapshot: Map<string, boolean> | null = null;
 
     const pollNotifications = async () => {
       // Prevent concurrent polls
@@ -230,59 +235,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isPolling = true;
 
       try {
-        // Check if we need fresh data (more than 60 seconds since last fetch)
-        const now = new Date();
-        const shouldFetchFresh = !lastProfileFetchRef.current || 
-          (now.getTime() - lastProfileFetchRef.current.getTime()) > 60000; // 60 seconds
-        
-        const currentNotifications = user.notifications || [];
-        let newNotifications = currentNotifications;
-        
-        if (shouldFetchFresh) {
-          // Use refreshUser which has built-in caching and request deduplication
-          // This prevents multiple simultaneous API calls
-          try {
-            await refreshUser(false); // false = use cache if available
-            // Note: refreshUser updates user state via setUser, but we can't access it synchronously here
-            // The updated notifications will be available in the next poll cycle
-            // For now, keep using current notifications to avoid stale comparisons
-            newNotifications = currentNotifications;
-          } catch (error) {
-            // If refresh fails, use existing notifications
-            console.warn('Failed to refresh user during notification poll:', error);
-            newNotifications = currentNotifications;
-          }
-        }
+        // Forced: the poll IS the refresh cadence (60s > the 30s profile
+        // cache), and refreshUser now RETURNS the fresh user — no more
+        // comparing a stale closure against itself.
+        const fresh = await refreshUser(true);
+        const freshList = ((fresh?.notifications ?? []) as NotifLite[]);
+        if (prevSnapshot === null) {
+          // First poll seeds the baseline silently: everything already on
+          // screen is "known", so login doesn't detonate a toast burst.
+          prevSnapshot = snapshotNotifications(freshList);
+        } else {
+          const { trulyNew: trulyNewNotifications, newlyRead: newlyReadNotifications } =
+            diffNotifications(prevSnapshot, freshList);
+          prevSnapshot = snapshotNotifications(freshList);
 
-        // Get current notification IDs for comparison
-        const currentIds = new Set(currentNotifications.map(n => n.id));
-        const newIds = new Set(newNotifications.map(n => n.id));
-        
-        // Find truly new notifications (not just updated) AND not already shown
-        const trulyNewNotifications = newNotifications.filter(n => 
-          !currentIds.has(n.id) && !shownNotifications.has(n.id)
-        );
-        
-        // Find newly read notifications (for better UX)
-        const newlyReadNotifications = currentNotifications
-          .filter(cn => !cn.isRead)
-          .map(cn => {
-            const updated = newNotifications.find(nn => nn.id === cn.id);
-            return updated && updated.isRead ? updated : null;
-          })
-          .filter(Boolean);
-
-        // Update user with new notifications
-        if (trulyNewNotifications.length > 0 || newlyReadNotifications.length > 0) {
-          setUser(prev => prev ? { ...prev, notifications: newNotifications } : null);
-
-          // Show browser notification for new unread notifications
+          // Notify for arrivals (refreshUser already merged the fresh list
+          // into state, so no setUser needed here).
           if (trulyNewNotifications.length > 0) {
             const unreadNew = trulyNewNotifications.filter(n => !n.isRead);
-            
+
             if (unreadNew.length > 0 && 'Notification' in window) {
-              // Mark these notifications as shown
-              unreadNew.forEach(n => shownNotifications.add(n.id));
+              // No shown-set needed: the snapshot above already records these
+              // ids, so a repeat can never re-toast.
 
               // Request permission if not granted
               if ((window as any).Notification.permission === 'default') {
@@ -624,6 +598,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('smartstudy_user', JSON.stringify(transformedUser));
       // Update last fetch time after successful fetch
       lastProfileFetchRef.current = new Date();
+      // Returned (not just set) so the notification poll can diff the FRESH
+      // list instead of the render closure's stale one.
+      return transformedUser;
     } catch (error: any) {
       console.error('Refresh user error:', error);
       // If refresh fails due to auth error, the account is gone/blocked —
