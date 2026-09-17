@@ -350,12 +350,13 @@ const Community: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-500 mb-1.5 uppercase tracking-wider">Grade</label>
-                <div className="flex flex-wrap gap-1.5">
+                {/* Fixed 5-column grid: All/G9-G12 always fit one row, no orphan. */}
+                <div className="grid grid-cols-5 gap-1.5">
                   {['All', '9', '10', '11', '12'].map(g => (
                     <button
                       key={g}
                       onClick={() => setSelectedGrade(g)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-colors text-center ${
                         selectedGrade === g
                           ? 'bg-zinc-900 text-onink'
                           : 'bg-zinc-50 text-inksoft hover:bg-zinc-100'
@@ -544,7 +545,7 @@ const Community: React.FC = () => {
         </div>
 
         {/* Posts List */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="lg:col-span-3 space-y-4 max-w-[800px]">
           {/* Error State */}
           {errors.forumPosts && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
@@ -571,14 +572,17 @@ const Community: React.FC = () => {
             const createdAt = post?.createdAt ?? post?.created_at;
             const authorRole = post?.authorRole ?? post?.author_role;
             const isSolved = post?.isSolved ?? post?.is_solved ?? false;
+            // Cards without a distinct excerpt collapse their padding: no
+            // dead air between title and meta.
+            const hasExcerpt = !!post.content?.trim() && !sameText(post.content, post.title);
             return (
             <article
               key={post.id}
-              className="block bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group"
+              className="block bg-surface p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm hover:border-zinc-300 hover:shadow-md transition-all group"
             >
               <div className="flex items-start gap-3 sm:gap-4">
                 {/* Vote Section */}
-                <div className="flex flex-col items-center gap-1 min-w-[2.5rem] sm:min-w-[3rem]">
+                <div className="flex flex-col items-center gap-0.5 min-w-[2.5rem] sm:min-w-[3rem]">
                   <button
                     onClick={(e) => handleVote(post.id, e)}
                     disabled={votingPosts.has(post.id)}
@@ -586,12 +590,12 @@ const Community: React.FC = () => {
                     className="relative text-zinc-400 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center p-1 after:absolute after:-inset-2 after:content-['']"
                   >
                     {votingPosts.has(post.id) ? (
-                      <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
+                      <Loader2 size={18} className="sm:w-5 sm:h-5 animate-spin" />
                     ) : (
-                      <ThumbsUp size={16} className="sm:w-[18px] sm:h-[18px]" />
+                      <ThumbsUp size={18} className="sm:w-5 sm:h-5" />
                     )}
                   </button>
-                  <span className="font-bold text-ink text-sm">{post.votes}</span>
+                  <span className="font-extrabold text-ink text-sm sm:text-base">{post.votes}</span>
                 </div>
 
                 {/* Post Content */}
@@ -623,10 +627,11 @@ const Community: React.FC = () => {
                   </h3>
 
                   {/* Excerpt hidden when it merely repeats the title */}
-                  {!sameText(post.content, post.title) && (
+                  {hasExcerpt && (
                     <p className="text-inksoft text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
                   )}
-                  <div className="flex items-center justify-between border-t border-zinc-50 pt-3 sm:pt-4">
+
+                  <div className={`flex items-center justify-between ${hasExcerpt ? 'border-t border-zinc-50 pt-3 sm:pt-4' : 'pt-1'}`}>
                     <div className="flex items-center gap-2">
                       <div
                         className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-onink ${
