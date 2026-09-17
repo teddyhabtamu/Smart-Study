@@ -32,18 +32,17 @@ const base = (over: Partial<VideoSignals> = {}): VideoSignals => ({
 describe('buildSearchQuery (unquoted topical search)', () => {
   it('quotes only the topic, leaves subject loose for recall', () => {
     expect(buildSearchQuery('Physics', 'newton laws of motion')).toBe(
-      '"newton laws of motion" Physics tutorial lesson'
+      '"newton laws of motion" Physics tutorial lesson Ethiopia'
     );
   });
 
   it('degrades gracefully without a topic', () => {
-    expect(buildSearchQuery('Biology', null)).toBe('Biology tutorial lesson');
+    expect(buildSearchQuery('Biology', null)).toBe('Biology tutorial lesson Ethiopia');
   });
 
-  it('never bakes in the old exclusion operators or quoted locale terms', () => {
+  it('never quotes locale terms (the old quoted version excluded educators)', () => {
     const q = buildSearchQuery('Mathematics', 'quadratic equations');
-    expect(q).not.toContain('Ethiopia');
-    expect(q).not.toContain('grade');
+    expect(q).not.toMatch(/"Ethiopia"|"grade/i);
     expect(q).not.toContain('-shorts');
   });
 });
@@ -154,6 +153,36 @@ describe('scoreCandidateVideo (import gate)', () => {
     // No "grade 9/10" anywhere, still comfortably accepted.
     expect(v.accept).toBe(true);
     expect(v.reasons.join(' ')).not.toContain('grade');
+  });
+
+  it('ranks Ethiopian educators up without letting local spam through', () => {
+    // Real Tilet Academy lesson: topic + subject + Amharic script.
+    const local = scoreCandidateVideo(
+      base({
+        title: 'Grade 10 Math Introduction to polynomial functions 8, in Amharic',
+        description: 'Polynomial functions full lesson in Amharic',
+        channelTitle: 'Tilet Academy - ጥለት አካዳሚ',
+        topic: 'polynomial functions',
+        categoryId: '22',
+        viewCount: 5000,
+        likeCount: 200,
+      })
+    );
+    expect(local.accept).toBe(true);
+    const reasons = local.reasons.join(' ');
+    expect(reasons).toMatch(/amharic-script|ethiopian/);
+
+    // Same Ethiopian signals on trivia bait must NOT save it: hard gates
+    // run before any bonus is even considered.
+    const localSpam = scoreCandidateVideo(
+      base({
+        title: 'Ethiopia Grade 10 trivia quiz answers!',
+        description: 'Join telegram for more',
+        channelTitle: 'Ethio Quiz Time',
+        topic: 'quadratic equations',
+      })
+    );
+    expect(localSpam.accept).toBe(false);
   });
 });
 

@@ -76,11 +76,23 @@ const SUBJECT_SYNONYMS: Record<string, string[]> = {
 };
 
 // Quoted topic (precision) + loose subject (recall): spammers can stuff the
-// topic phrase, but then still face the scorer below.
-export const buildSearchQuery = (subject: string, topic: string | null): string =>
-    topic && topic.trim()
+// topic phrase, but then still face the scorer below. A bare `Ethiopia`
+// biases relevance ranking toward local creators WITHOUT excluding global
+// ones (unquoted = soft signal, not a requirement — the old quoted version
+// is what systematically excluded every quality educator).
+export const buildSearchQuery = (subject: string, topic: string | null): string => {
+    const core = topic && topic.trim()
         ? `"${topic.trim()}" ${subject} tutorial lesson`
         : `${subject} tutorial lesson`;
+    return `${core} Ethiopia`;
+};
+
+// Ethiopian-context signals: channel names, titles and descriptions
+// referencing the local ecosystem, plus Ge'ez script itself (Amharic,
+// Tigrigna, Afaan Oromoo titles). Bonuses only — global quality still
+// passes on its own merits; this just ranks locals up.
+const ETHIO_SIGNALS = /ethiop|ethio|amhar|afaan|oromo|oromoo|tigr|habesha|addis|egsece|euee/i;
+const ETHIOPIC_SCRIPT = /[\u1200-\u137F]/;
 
 const tokenize = (text: string): string[] =>
     String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -199,6 +211,20 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     if (/academy|school|tutor|professor|education|learning|class|institute|college|university|science|math/i.test(s.channelTitle || '')) {
         score += 1;
         reasons.push('educator-channel');
+    }
+    // Ethiopian priority: local creators first, global quality as the floor.
+    // A local lesson matching topic+subject outranks an equivalent US one;
+    // a local spammer still dies on the gates above (trivia, answer keys).
+    // Only the CHANNEL counts as identity here — title/description text is
+    // cheap talk (spammers stuff "Ethiopia" too), except Ge'ez script,
+    // which impersonators essentially never produce.
+    if (ETHIO_SIGNALS.test(s.channelTitle || '')) {
+        score += 2;
+        reasons.push('ethiopian-educator');
+    }
+    if (ETHIOPIC_SCRIPT.test(`${title}\n${s.description || ''}\n${s.channelTitle || ''}`)) {
+        score += 1;
+        reasons.push('amharic-script');
     }
     // Soft penalties (suspicious, not disqualifying — local academies
     // legitimately use Telegram and hashtags, so these only weigh down).
