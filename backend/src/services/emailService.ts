@@ -16,6 +16,24 @@ export interface EmailNotificationData {
 }
 
 /**
+ * True for addresses that can never receive mail: RFC 2606 reservations
+ * (example.com/org/net) plus test TLDs. Exported for unit tests — keep in
+ * sync with e2e user addresses.
+ */
+export const isTestRecipient = (to: string): boolean => {
+  const domain = String(to || '').trim().toLowerCase().split('@')[1] || '';
+  const reserved = ['example.com', 'example.org', 'example.net'];
+  return (
+    reserved.includes(domain) ||
+    reserved.some((r) => domain.endsWith(`.${r}`)) ||
+    domain === 'localhost' ||
+    domain.endsWith('.test') ||
+    domain.endsWith('.invalid') ||
+    domain.endsWith('.localhost')
+  );
+};
+
+/**
  * Email Service - Handles sending email notifications via Brevo
  */
 export class EmailService {
@@ -42,7 +60,7 @@ export class EmailService {
       if (!apiKey.startsWith('xkeysib-')) {
         console.warn('⚠️ WARNING: API key format may be incorrect. REST API keys should start with "xkeysib-"');
       }
-      
+
       this.apiInstance = new brevo.TransactionalEmailsApi();
       this.apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, apiKey);
     }
@@ -58,17 +76,26 @@ export class EmailService {
     params: Record<string, any> = {}
   ): Promise<boolean> {
     try {
-      console.log('📧 sendTemplateEmail called:', { to, templateId, params });
-      
+      // Test recipients never reach Brevo: RFC-reserved domains can receive
+      // nothing, but every attempt still burns free-tier quota. This also
+      // keeps E2E traffic (always @example.com) out of the mail logs and
+      // lets tests run with no BREVO_API_KEY at all. Returns true so all
+      // registration/login/verify flows behave exactly as if delivered.
+      if (isTestRecipient(to)) {
+        console.log(`📧 Email suppressed (test recipient ${to}, template ${templateId})`);
+        return true;
+      }
+
       if (!config.email.brevo.apiKey) {
         console.warn('⚠️ BREVO_API_KEY not configured. Email sending disabled.');
         console.warn('⚠️ Check your .env file for BREVO_API_KEY');
         return false;
       }
 
-      console.log('✅ BREVO_API_KEY is configured');
-      const apiInstance = this.getApiInstance();
-      
+      // Validates key presence/format (throws when unusable); the template
+      // path below sends via axios directly for serverless timeout control.
+      this.getApiInstance();
+
       const sendSmtpEmail = new brevo.SendSmtpEmail();
       sendSmtpEmail.to = [{ email: to }];
       sendSmtpEmail.templateId = templateId;
@@ -78,18 +105,11 @@ export class EmailService {
         name: config.email.sender.name
       };
 
-      console.log('📧 Sending email via Brevo API:', {
-        to,
-        templateId,
-        sender: sendSmtpEmail.sender,
-        paramsCount: Object.keys(params).length
-      });
-
       // Use direct axios call for better serverless control (timeout + keep-alive disabled)
       // Brevo SDK doesn't expose HTTP client configuration needed for serverless
       const TIMEOUT_MS = 25000; // 25 seconds - Brevo recommends ≥20s for serverless
       const startTime = Date.now();
-      
+
       // Create HTTPS agent with keep-alive disabled (critical for serverless)
       // Keep-alive sockets cause "socket hang up" errors on Vercel
       const httpsAgent = new https.Agent({
@@ -97,8 +117,6 @@ export class EmailService {
         rejectUnauthorized: true
       });
 
-      console.log(`⏱️ Starting Brevo API call with ${TIMEOUT_MS}ms timeout (keep-alive disabled for serverless)...`);
-      
       // Use direct axios call instead of SDK for better control
       const payload = {
         to: sendSmtpEmail.to,
@@ -122,34 +140,19 @@ export class EmailService {
       );
 
       const elapsed = Date.now() - startTime;
-      console.log(`✅ Brevo API call completed in ${elapsed}ms`);
-      
+
       // Transform axios response to match SDK response format
       const response = {
         body: axiosResponse.data,
         messageId: axiosResponse.data?.messageId
       } as any;
-      
+
       // Extract messageId from response (it's in response.body.messageId)
       const messageId = (response as any).body?.messageId || (response as any).messageId || 'N/A';
-      
-      // Log response details for debugging (but not the full response object which is huge)
-      if (messageId !== 'N/A') {
-        console.log('📧 Brevo API Response - Message ID:', messageId);
-      } else {
-        console.log('📧 Brevo API Response:', {
-          hasBody: !!(response as any).body,
-          bodyKeys: (response as any).body ? Object.keys((response as any).body) : [],
-          responseKeys: Object.keys(response || {})
-        });
-      }
-      
-      console.log('✅ Email sent successfully:', {
-        messageId: messageId,
-        to,
-        templateId
-      });
-      
+
+      // One line per send (was six): failures below keep full detail.
+      console.log(`📧 Email sent to ${to} (template ${templateId}, ${elapsed}ms, id ${messageId})`);
+
       return true;
     } catch (error: any) {
       const statusCode = error.statusCode || error.status || error.response?.status;
@@ -218,13 +221,20 @@ export class EmailService {
    */
   static async sendEmail(emailData: EmailNotificationData): Promise<boolean> {
     try {
+      // Same test-recipient guard as sendTemplateEmail (see above).
+      if (isTestRecipient(emailData.to)) {
+        console.log(`📧 Email suppressed (test recipient ${emailData.to}, custom HTML)`);
+        return true;
+      }
       if (!config.email.brevo.apiKey) {
         console.warn('⚠️ BREVO_API_KEY not configured. Email sending disabled.');
         return false;
       }
 
+      // Validates key presence/format (throws when unusable); the custom-HTML
+      // path below sends through the SDK instance.
       const apiInstance = this.getApiInstance();
-      
+
       const sendSmtpEmail = new brevo.SendSmtpEmail();
       sendSmtpEmail.to = [{ email: emailData.to }];
       sendSmtpEmail.subject = emailData.subject;
