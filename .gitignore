@@ -38,4 +38,6 @@ backend/.env.local
 # (Previously *.md / *.sql were blanket-ignored — fixed 2026-09-09)
 # Playwright E2E artifacts (traces, screenshots, reports)
 test-results/
+# Purge backups contain production data — never commit them.
+backend/backups/
 playwright-report/
