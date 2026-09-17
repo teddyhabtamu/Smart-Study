@@ -243,6 +243,47 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     return { accept: true, score, reasons };
 };
 
+// Row mapper: videos.views/likes are IN-APP counters (start at 0, owned by
+// the watch/like recounts) — platform stats live in youtube_* and must
+// never touch the in-app columns, or the first watch visibly destroys them
+// (observed: 11M -> 1). Unit-tested below: this mapping is the contract.
+export interface GatedVideoCandidate {
+    videoUrl: string;
+    title: string;
+    description: string | null | undefined;
+    channelTitle: string;
+    channelId: string | null;
+    thumbnail: string | null | undefined;
+    durationSecs: number | null;
+    viewCount: number;
+    likeCount: number;
+}
+
+export const toVideoRow = (
+    c: GatedVideoCandidate,
+    subject: string,
+    grade: number,
+    topic: string | null,
+    adminUserId: string | null
+): Record<string, any> => ({
+    title: c.title,
+    description: c.description,
+    subject,
+    grade,
+    chapter: topic, // This maps to the topic found from JSON
+    video_url: c.videoUrl,
+    thumbnail: c.thumbnail,
+    instructor: c.channelTitle,
+    channel_id: c.channelId,
+    duration_secs: c.durationSecs,
+    views: 0,
+    likes: 0,
+    youtube_views: c.viewCount,
+    youtube_likes: c.likeCount,
+    is_premium: false,
+    uploaded_by: adminUserId,
+});
+
 export class YouTubeService {
     private static getApiKey(): string {
         const apiKey = process.env.YOUTUBE_API_KEY;
@@ -494,22 +535,7 @@ export class YouTubeService {
                     if (existingUrls.has(c.videoUrl)) continue;
 
                     // If chapter column wasn't added successfully and this throws, you must migrate
-                    await dbAdmin.insert('videos', {
-                        title: c.title,
-                        description: c.description,
-                        subject: subject,
-                        grade: grade,
-                        chapter: topic, // This maps to the topic found from JSON
-                        video_url: c.videoUrl,
-                        thumbnail: c.thumbnail,
-                        instructor: c.channelTitle,
-                        channel_id: c.channelId,
-                        duration_secs: c.durationSecs,
-                        views: c.viewCount,
-                        likes: c.likeCount,
-                        is_premium: false,
-                        uploaded_by: adminUserId
-                    });
+                    await dbAdmin.insert('videos', toVideoRow(c, subject, grade, topic, adminUserId));
 
                     addedCount++;
                 }

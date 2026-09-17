@@ -5,6 +5,7 @@ import {
   scoreCandidateVideo,
   MIN_ACCEPT_SCORE,
   isQuotaExceededError,
+  toVideoRow,
   type VideoSignals,
 } from './youtubeService';
 
@@ -230,5 +231,45 @@ describe('decodeHtmlEntities (YouTube snippet unescaping)', () => {
     expect(decodeHtmlEntities('&amp;lt;')).toBe('&lt;');
     expect(decodeHtmlEntities('Plain title')).toBe('Plain title');
     expect(decodeHtmlEntities('')).toBe('');
+  });
+});
+
+describe('toVideoRow (counter-separation contract)', () => {
+  const candidate = {
+    videoUrl: 'https://www.youtube.com/watch?v=abc123DEF45',
+    title: 'Quadratic Equations - Full Chapter',
+    description: 'A complete lesson.',
+    channelTitle: 'Math Academy',
+    channelId: 'UCxxxx',
+    thumbnail: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+    durationSecs: 900,
+    viewCount: 11320701,
+    likeCount: 163631,
+  };
+
+  it('starts in-app counters at zero while preserving platform stats aside', () => {
+    const row = toVideoRow(candidate, 'Mathematics', 10, 'quadratic equations', 'admin-1');
+    // THE contract that broke in prod (11M -> 1 on first watch): in-app
+    // columns must never carry platform stats.
+    expect(row.views).toBe(0);
+    expect(row.likes).toBe(0);
+    expect(row.youtube_views).toBe(11320701);
+    expect(row.youtube_likes).toBe(163631);
+  });
+
+  it('carries identity, taxonomy and attribution through', () => {
+    const row = toVideoRow(candidate, 'Mathematics', 10, 'quadratic equations', 'admin-1');
+    expect(row).toMatchObject({
+      title: candidate.title,
+      subject: 'Mathematics',
+      grade: 10,
+      chapter: 'quadratic equations',
+      video_url: candidate.videoUrl,
+      instructor: 'Math Academy',
+      channel_id: 'UCxxxx',
+      duration_secs: 900,
+      is_premium: false,
+      uploaded_by: 'admin-1',
+    });
   });
 });
