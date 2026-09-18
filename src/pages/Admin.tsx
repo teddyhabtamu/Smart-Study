@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import Rail from '../components/Rail';
 
-import { FileText, Shield, Users, MessageSquare, BarChart3, Briefcase, ScrollText } from 'lucide-react';
+import { FileText, Shield, Users, MessageSquare, BarChart3, Briefcase, ScrollText, KeyRound } from 'lucide-react';
 import { UserRole } from '../types';
 import OverviewTab from './admin/OverviewTab';
+import AiKeysTab from './admin/AiKeysTab';
 import CommunityTab from './admin/CommunityTab';
 import ContentTab from './admin/ContentTab';
 import CareersTab from './admin/CareersTab';
@@ -19,7 +20,7 @@ const Admin: React.FC = () => {
   const { addToast } = useToast();
   const { user } = useAuth();
   const isModerator = user?.role === UserRole.MODERATOR || String(user?.role) === 'MODERATOR';
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'students' | 'community' | 'team' | 'audit' | 'careers' | 'privacy-policy' | 'terms-of-service'>(isModerator ? 'content' : 'overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'ai-keys' | 'content' | 'students' | 'community' | 'team' | 'audit' | 'careers' | 'privacy-policy' | 'terms-of-service'>(isModerator ? 'content' : 'overview');
 
   // Prevent moderators from accessing restricted tabs
   useEffect(() => {
@@ -58,6 +59,7 @@ const Admin: React.FC = () => {
             <div className="flex gap-1 min-w-max">
               {[
                 ...(isModerator ? [] : [{ id: 'overview', label: 'Overview', icon: BarChart3 }]),
+                ...(isModerator ? [] : [{ id: 'ai-keys', label: 'AI Keys', icon: KeyRound }]),
                 { id: 'content', label: 'Content', icon: FileText },
                 ...(isModerator ? [] : [
                   { id: 'students', label: 'Students', icon: Users },
@@ -89,6 +91,9 @@ const Admin: React.FC = () => {
 
       {/* --- OVERVIEW TAB --- */}
       {activeTab === 'overview' && <OverviewTab />}
+
+      {/* --- AI KEYS TAB (ADMIN ONLY) --- */}
+      {activeTab === 'ai-keys' && !isModerator && <AiKeysTab />}
 
       {/* --- AUDIT LOG TAB (ADMIN ONLY) --- */}
       {activeTab === 'audit' && !isModerator && <AuditTab />}

@@ -1665,4 +1665,38 @@ router.get('/audit-logs', requireRole(['ADMIN', 'MODERATOR']), [
   }
 });
 
+// --- Gemini key-ring observability (admin AI-keys tab) ----------------------
+// Live rotation state: which key serves next, which are cooling/retired,
+// per-key serve/quota counters. ADMIN-only, and the payload carries key
+// fingerprints (last 4 chars) — never key material. Counters are
+// per-instance memory (serverless): they reset on deploy/cold start, so
+// the tab labels them "since boot" rather than pretending global truth.
+router.get('/ai-keys', requireRole(['ADMIN']), async (_req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { getKeyRingStatus } = await import('../services/aiTutor');
+    res.json({ success: true, data: getKeyRingStatus() } as ApiResponse);
+  } catch (err) {
+    console.error('Get AI key status error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch AI key status' } as ApiResponse);
+  }
+});
+
+// Zero-spend credential check for one ring key (models.list burns no
+// tokens). Let an admin confirm a newly added key without spending quota.
+router.post('/ai-keys/:index/validate', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const index = parseInt(req.params.index, 10);
+    if (!Number.isInteger(index) || index < 0) {
+      res.status(400).json({ success: false, message: 'Key index must be a non-negative integer' } as ApiResponse);
+      return;
+    }
+    const { validateRingKey } = await import('../services/aiTutor');
+    const result = await validateRingKey(index);
+    res.json({ success: true, data: result } as ApiResponse);
+  } catch (err) {
+    console.error('Validate AI key error:', err);
+    res.status(500).json({ success: false, message: 'Failed to validate AI key' } as ApiResponse);
+  }
+});
+
 export default router;

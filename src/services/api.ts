@@ -1277,6 +1277,31 @@ export const plannerAPI = {
 
 // Admin API
 export const adminAPI = {
+  getAiKeyRing: (): Promise<{
+    ringSize: number;
+    cursor: number;
+    bootedAt: string;
+    preferredModel: string | null;
+    deadModels: string[];
+    keys: Array<{
+      index: number;
+      fingerprint: string;
+      state: 'next' | 'idle' | 'cooling' | 'retired';
+      cooldownEndsInSec: number | null;
+      served: number;
+      quotaHits: number;
+      invalidHits: number;
+      otherErrors: number;
+      lastOkAt: string | null;
+      lastErrorAt: string | null;
+      lastErrorKind: 'quota' | 'invalid' | 'other' | null;
+    }>;
+  }> =>
+    apiRequest('/admin/ai-keys'),
+
+  validateAiKey: (index: number): Promise<{ ok: boolean; message: string }> =>
+    apiRequest(`/admin/ai-keys/${index}/validate`, { method: 'POST' }),
+
   getStats: (): Promise<{
     total_users: number;
     premium_users: number;

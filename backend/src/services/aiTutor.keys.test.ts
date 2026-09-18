@@ -4,8 +4,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // budget. GoogleGenAI is faked at the module boundary; the mock routes by
 // the apiKey each client was constructed with, so tests observe exactly
 // which key serves each attempt.
-const { mockGenerateContent } = vi.hoisted(() => ({
+const { mockGenerateContent, mockList } = vi.hoisted(() => ({
   mockGenerateContent: vi.fn(),
+  mockList: vi.fn(),
 }));
 
 vi.mock('@google/genai', () => ({
@@ -15,6 +16,7 @@ vi.mock('@google/genai', () => ({
       const key: string = opts.apiKey;
       this.models = {
         generateContent: (...args: any[]) => mockGenerateContent(key, ...args),
+        list: (...args: any[]) => mockList(key, ...args),
       };
     }
   },
@@ -26,6 +28,8 @@ import {
   isInvalidKeyError,
   withKeyAndModelFallback,
   AIQuotaExceededError,
+  getKeyRingStatus,
+  validateRingKey,
   __resetTutorKeysForTests,
 } from './aiTutor';
 
@@ -40,6 +44,7 @@ const invalidKeyErr = () =>
 beforeEach(() => {
   __resetTutorKeysForTests();
   mockGenerateContent.mockReset();
+  mockList.mockReset();
   delete process.env.GEMINI_API_KEYS;
   delete process.env.GEMINI_API_KEY;
 });
@@ -142,5 +147,93 @@ describe('withKeyAndModelFallback (rotation)', () => {
 
   it('throws the not-configured error with no keys at all', async () => {
     await expect(via()).rejects.toThrow('GEMINI_API_KEY is not configured');
+  });
+});
+
+describe('getKeyRingStatus (admin observability)', () => {
+  const via = () =>
+    withKeyAndModelFallback(async (client) => {
+      const r: any = await client.models.generateContent({});
+      return r.text;
+    });
+
+  it('reports next/idle with masked fingerprints and never leaks key material', async () => {
+    process.env.GEMINI_API_KEYS = `${K1},${K2}`;
+    mockGenerateContent.mockImplementation(async (key: string) => ({ text: `from ${key}` }));
+    await via();
+    const status = getKeyRingStatus();
+    expect(status.ringSize).toBe(2);
+    expect(status.cursor).toBe(1);
+    expect(status.keys[0].state).toBe('idle');
+    expect(status.keys[0].served).toBe(1);
+    expect(status.keys[1].state).toBe('next');
+    expect(status.keys[0].fingerprint).toBe(`••••${K1.slice(-4)}`);
+    expect(status.keys[0].lastOkAt).not.toBeNull();
+    // The whole payload must be safe to ship to an admin browser:
+    const leaked = JSON.stringify(status);
+    expect(leaked).not.toContain(K1);
+    expect(leaked).not.toContain(K2);
+    expect(leaked).toContain(K1.slice(-4));
+  });
+
+  it('marks a quota-hit key cooling with a countdown and reroutes next', async () => {
+    process.env.GEMINI_API_KEYS = `${K1},${K2}`;
+    mockGenerateContent.mockImplementation(async (key: string) => {
+      if (key === K1) throw quotaErr();
+      return { text: `from ${key}` };
+    });
+    await via();
+    const status = getKeyRingStatus();
+    const k1 = status.keys[0];
+    expect(k1.state).toBe('cooling');
+    expect(k1.quotaHits).toBeGreaterThan(0);
+    expect(k1.lastErrorKind).toBe('quota');
+    expect(k1.cooldownEndsInSec).toBeGreaterThan(0);
+    expect(status.keys[1].state).toBe('next');
+  });
+
+  it('marks an invalid key retired', async () => {
+    process.env.GEMINI_API_KEYS = `${K1},${K2}`;
+    mockGenerateContent.mockImplementation(async (key: string) => {
+      if (key === K1) throw invalidKeyErr();
+      return { text: `from ${key}` };
+    });
+    await via();
+    const status = getKeyRingStatus();
+    expect(status.keys[0].state).toBe('retired');
+    expect(status.keys[0].invalidHits).toBe(1);
+    expect(status.keys[0].lastErrorKind).toBe('invalid');
+  });
+
+  it('reports an empty ring without throwing', () => {
+    const status = getKeyRingStatus();
+    expect(status.ringSize).toBe(0);
+    expect(status.keys).toEqual([]);
+  });
+});
+
+describe('validateRingKey (zero-spend credential check)', () => {
+  it('confirms a live key without spending quota', async () => {
+    process.env.GEMINI_API_KEYS = `${K1},${K2}`;
+    mockList.mockResolvedValue({ models: [] });
+    const r = await validateRingKey(1);
+    expect(r.ok).toBe(true);
+    expect(mockList.mock.calls[0][0]).toBe(K2);
+  });
+
+  it('retires a rejected key and says so', async () => {
+    process.env.GEMINI_API_KEYS = `${K1},${K2}`;
+    mockList.mockRejectedValue(invalidKeyErr());
+    const r = await validateRingKey(0);
+    expect(r.ok).toBe(false);
+    const status = getKeyRingStatus();
+    expect(status.keys[0].state).toBe('retired');
+  });
+
+  it('rejects an out-of-range index without touching the API', async () => {
+    process.env.GEMINI_API_KEYS = K1;
+    const r = await validateRingKey(7);
+    expect(r.ok).toBe(false);
+    expect(mockList).not.toHaveBeenCalled();
   });
 });

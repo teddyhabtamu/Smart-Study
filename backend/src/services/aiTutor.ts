@@ -21,14 +21,48 @@ const geminiClients = new Map<string, GoogleGenAI>();
 let keyCursor = 0;
 // key -> timestamp (ms) until which it is skipped.
 const keyCooldownUntil = new Map<string, number>();
+// key -> why it is cooling ('invalid' retires an hour, quota rejoins soon).
+const keyCooldownReason = new Map<string, 'quota' | 'invalid'>();
 const KEY_COOLDOWN_CAP_MS = 10 * 60 * 1000;
 const BAD_KEY_COOLDOWN_MS = 60 * 60 * 1000;
+const bootedAt = Date.now();
+
+// Per-key lifetime counters (in-memory only). Surfaced read-only on the
+// admin AI-keys tab; full keys NEVER leave this module (see fingerprint).
+interface KeyStats {
+  served: number;
+  quotaHits: number;
+  invalidHits: number;
+  otherErrors: number;
+  lastOkAt: number | null;
+  lastErrorAt: number | null;
+  lastErrorKind: 'quota' | 'invalid' | 'other' | null;
+}
+const keyStats = new Map<string, KeyStats>();
+const statsFor = (key: string): KeyStats => {
+  let s = keyStats.get(key);
+  if (!s) {
+    s = { served: 0, quotaHits: 0, invalidHits: 0, otherErrors: 0, lastOkAt: null, lastErrorAt: null, lastErrorKind: null };
+    keyStats.set(key, s);
+  }
+  return s;
+};
+const noteError = (key: string, kind: 'quota' | 'invalid' | 'other'): void => {
+  const s = statsFor(key);
+  s.lastErrorAt = Date.now();
+  s.lastErrorKind = kind;
+  if (kind === 'quota') s.quotaHits += 1;
+  else if (kind === 'invalid') s.invalidHits += 1;
+  else s.otherErrors += 1;
+};
 
 // Visible for tests (lets suites reset module state between cases).
 export const __resetTutorKeysForTests = (): void => {
   geminiClients.clear();
   keyCursor = 0;
   keyCooldownUntil.clear();
+  keyCooldownReason.clear();
+  keyStats.clear();
 };
 
 export const parseKeyRing = (env: NodeJS.ProcessEnv = process.env): string[] => {
@@ -70,10 +104,12 @@ const keyOrder = (ring: string[]): string[] => {
 const markKeyExhausted = (key: string, retryAfterSec: number): void => {
   const ms = Math.min(Math.max(retryAfterSec, 1), KEY_COOLDOWN_CAP_MS / 1000) * 1000;
   keyCooldownUntil.set(key, Date.now() + ms);
+  keyCooldownReason.set(key, 'quota');
 };
 
 const markKeyInvalid = (key: string): void => {
   keyCooldownUntil.set(key, Date.now() + BAD_KEY_COOLDOWN_MS);
+  keyCooldownReason.set(key, 'invalid');
 };
 
 export const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -238,6 +274,9 @@ export const withKeyAndModelFallback = async <T>(
         // Rotate on success so consecutive requests spread across the ring
         // instead of camping on key #1 until it 429s.
         keyCursor = (ring.indexOf(key) + 1) % ring.length;
+        const st = statsFor(key);
+        st.served += 1;
+        st.lastOkAt = Date.now();
         console.log(`[tutor] ${label} model ${model} ok in ${Date.now() - tStart}ms`);
         return result;
       } catch (err) {
@@ -245,6 +284,7 @@ export const withKeyAndModelFallback = async <T>(
         if (isInvalidKeyError(err)) {
           console.warn(`[tutor] ${label} invalid, retiring it for an hour...`);
           markKeyInvalid(key);
+          noteError(key, 'invalid');
           break;
         }
         if (isQuotaError(err)) {
@@ -253,6 +293,7 @@ export const withKeyAndModelFallback = async <T>(
           const wait = quotaRetryAfter(err);
           retryAfter = Math.max(retryAfter, wait);
           markKeyExhausted(key, wait);
+          noteError(key, 'quota');
           continue;
         }
         if (isModelGoneError(err)) {
@@ -264,6 +305,7 @@ export const withKeyAndModelFallback = async <T>(
           console.warn(`[tutor] model ${model} overloaded, trying fallback...`);
           continue;
         }
+        noteError(key, 'other');
         throw err;
       }
     }
@@ -272,6 +314,99 @@ export const withKeyAndModelFallback = async <T>(
     'Daily AI limit reached. Please try again later — limits reset daily.',
     retryAfter
   );
+};
+
+// --- Ring observability (admin AI-keys tab) --------------------------------
+// Everything the dashboard needs, nothing it must not have: keys are
+// identified by their last 4 characters ONLY. The full key material never
+// leaves this module — grep the response and you will find no key.
+export type KeyRingKeyState = 'next' | 'idle' | 'cooling' | 'retired';
+
+export interface KeyRingKeyStatus {
+  index: number;
+  /** Masked identity (•••• + last 4) for matching against AI Studio. */
+  fingerprint: string;
+  state: KeyRingKeyState;
+  /** Seconds until it rejoins rotation (cooling/retired only). */
+  cooldownEndsInSec: number | null;
+  served: number;
+  quotaHits: number;
+  invalidHits: number;
+  otherErrors: number;
+  lastOkAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorKind: 'quota' | 'invalid' | 'other' | null;
+}
+
+export interface KeyRingStatus {
+  ringSize: number;
+  /** Rotation cursor: index serving the next request. */
+  cursor: number;
+  bootedAt: string;
+  preferredModel: string | null;
+  deadModels: string[];
+  keys: KeyRingKeyStatus[];
+}
+
+export const keyFingerprint = (key: string): string => `••••${key.slice(-4)}`;
+
+export const getKeyRingStatus = (): KeyRingStatus => {
+  const ring = parseKeyRing();
+  const now = Date.now();
+  // 'next' is whoever would actually serve now (post-cooldown-skip), not
+  // the raw cursor — the cursor can rest on a cooling key.
+  const order = keyOrder(ring);
+  const nextKey = order.length > 0 ? order[0] : null;
+  return {
+    ringSize: ring.length,
+    cursor: ring.length === 0 ? 0 : keyCursor % ring.length,
+    bootedAt: new Date(bootedAt).toISOString(),
+    preferredModel,
+    deadModels: [...deadModels.keys()],
+    keys: ring.map((key, index) => {
+      const s = statsFor(key);
+      const until = keyCooldownUntil.get(key) || 0;
+      const cooling = until > now;
+      const reason = keyCooldownReason.get(key);
+      return {
+        index,
+        fingerprint: keyFingerprint(key),
+        state: (cooling && reason === 'invalid'
+          ? 'retired'
+          : cooling ? 'cooling' : key === nextKey ? 'next' : 'idle') as KeyRingKeyState,
+        cooldownEndsInSec: cooling ? Math.ceil((until - now) / 1000) : null,
+        served: s.served,
+        quotaHits: s.quotaHits,
+        invalidHits: s.invalidHits,
+        otherErrors: s.otherErrors,
+        lastOkAt: s.lastOkAt ? new Date(s.lastOkAt).toISOString() : null,
+        lastErrorAt: s.lastErrorAt ? new Date(s.lastErrorAt).toISOString() : null,
+        lastErrorKind: s.lastErrorKind,
+      };
+    }),
+  };
+};
+
+// Zero-spend credential check for the admin tab: models.list costs no
+// tokens, so validating a newly added key burns no quota. A confirmed-dead
+// key retires immediately; transient failures report without retiring.
+export const validateRingKey = async (
+  index: number
+): Promise<{ ok: boolean; message: string }> => {
+  const ring = parseKeyRing();
+  const key = ring[index];
+  if (!key) return { ok: false, message: `No key at index ${index} (ring has ${ring.length})` };
+  try {
+    await clientFor(key).models.list();
+    return { ok: true, message: `${keyFingerprint(key)} answered — credential live` };
+  } catch (err: any) {
+    if (isInvalidKeyError(err)) {
+      markKeyInvalid(key);
+      noteError(key, 'invalid');
+      return { ok: false, message: `${keyFingerprint(key)} rejected — check the value in Vercel env` };
+    }
+    return { ok: false, message: `Validation inconclusive (${String(err?.message || err).slice(0, 100)}) — key kept in rotation` };
+  }
 };
 
 export const AI_QUOTA_MESSAGE =
@@ -539,6 +674,9 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
       if (gotChunk || emitted) {
         preferredModel = model;
         keyCursor = (ring.indexOf(key) + 1) % ring.length;
+        const st = statsFor(key);
+        st.served += 1;
+        st.lastOkAt = Date.now();
         console.log(`[tutor] stream ${label} ${model} ok in ${Date.now() - tStart}ms`);
         return emitted;
       }
@@ -548,6 +686,7 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
       if (isInvalidKeyError(err)) {
         console.warn(`[tutor] stream ${label} invalid, retiring it for an hour...`);
         markKeyInvalid(key);
+        noteError(key, 'invalid');
         keyQuotaHit = true;
         break;
       }
@@ -556,6 +695,7 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
         lastQuotaError = err;
         lastRetryAfter = Math.max(lastRetryAfter, quotaRetryAfter(err));
         markKeyExhausted(key, lastRetryAfter);
+        noteError(key, 'quota');
         keyQuotaHit = true;
         continue;
       }
@@ -568,6 +708,7 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
         console.warn(`[tutor] streaming model ${model} overloaded, trying fallback...`);
         continue;
       }
+      noteError(key, 'other');
       throw err;
     }
     }
