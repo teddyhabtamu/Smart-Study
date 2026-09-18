@@ -1685,7 +1685,8 @@ router.get('/ai-keys', requireRole(['ADMIN']), async (_req: express.Request, res
 // tokens). Let an admin confirm a newly added key without spending quota.
 router.post('/ai-keys/:index/validate', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const index = parseInt(req.params.index, 10);
+    const raw = req.params.index;
+    const index = typeof raw === 'string' ? parseInt(raw, 10) : NaN;
     if (!Number.isInteger(index) || index < 0) {
       res.status(400).json({ success: false, message: 'Key index must be a non-negative integer' } as ApiResponse);
       return;
