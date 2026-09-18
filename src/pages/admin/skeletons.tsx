@@ -264,3 +264,64 @@ export const AdminTeamSkeleton: React.FC = () => (
     </div>
   </div>
 );
+
+// Mirrors AiKeysTab: header meta line + key cards (fingerprint row, three
+// counters, timestamps, action button) so the layout doesn't shift when the
+// live ring status lands.
+export const AiKeysSkeleton: React.FC = () => (
+  <div className="space-y-4">
+    <div className="flex items-center justify-between gap-2">
+      <div className="w-48 h-4 bg-zinc-200 rounded animate-pulse"></div>
+      <div className="w-8 h-8 bg-zinc-200 rounded-lg animate-pulse"></div>
+    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {[1, 2].map((i) => (
+        <div key={i} className="bg-surface border border-zinc-200 rounded-xl p-4 shadow-sm animate-pulse">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="w-28 h-5 bg-zinc-200 rounded"></div>
+            <div className="w-20 h-5 bg-zinc-200 rounded-full"></div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {[1, 2, 3].map((j) => (
+              <div key={j} className="bg-zinc-50 rounded-lg py-2 px-1">
+                <div className="w-8 h-5 bg-zinc-200 rounded mx-auto mb-1"></div>
+                <div className="w-12 h-3 bg-zinc-200 rounded mx-auto"></div>
+              </div>
+            ))}
+          </div>
+          <div className="w-40 h-3 bg-zinc-200 rounded mb-3"></div>
+          <div className="w-full h-9 bg-zinc-200 rounded-lg"></div>
+        </div>
+      ))}
+    </div>
+    <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-2">
+      <div className="w-full h-3 bg-zinc-200 rounded"></div>
+      <div className="w-5/6 h-3 bg-zinc-200 rounded"></div>
+    </div>
+  </div>
+);
+
+// Mirrors the policy managers: header block + long text lines + meta row.
+export const PolicyManagerSkeleton: React.FC = () => (
+  <div className="space-y-4 sm:space-y-6">
+    <div className="bg-surface p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="space-y-2">
+          <div className="w-56 h-6 bg-zinc-200 rounded"></div>
+          <div className="w-72 h-4 bg-zinc-200 rounded"></div>
+        </div>
+        <div className="w-28 h-9 bg-zinc-200 rounded-lg"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="w-full h-3 bg-zinc-200 rounded"></div>
+        <div className="w-full h-3 bg-zinc-200 rounded"></div>
+        <div className="w-11/12 h-3 bg-zinc-200 rounded"></div>
+        <div className="w-full h-3 bg-zinc-200 rounded"></div>
+        <div className="w-3/4 h-3 bg-zinc-200 rounded"></div>
+      </div>
+      <div className="mt-4 p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
+        <div className="w-48 h-4 bg-zinc-200 rounded"></div>
+      </div>
+    </div>
+  </div>
+);

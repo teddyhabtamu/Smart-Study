@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, Save, X, Edit2 } from 'lucide-react';
+import { Save, X, Edit2 } from 'lucide-react';
+import { PolicyManagerSkeleton } from './skeletons';
 import { useToast } from '../../context/ToastContext';
 import { careersAPI } from '../../services/api';
 
@@ -179,9 +180,7 @@ export const PrivacyPolicyManager: React.FC<PrivacyPolicyManagerProps> = ({
         </div>
 
         {privacyPolicyLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
-          </div>
+          <PolicyManagerSkeleton />
         ) : (
           <>
             {isEditing ? (
@@ -317,9 +316,7 @@ export const TermsOfServiceManager: React.FC<TermsOfServiceManagerProps> = ({
         </div>
 
         {termsOfServiceLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
-          </div>
+          <PolicyManagerSkeleton />
         ) : (
           <>
             {isEditing ? (

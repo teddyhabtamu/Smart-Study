@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { KeyRound, Loader2, RefreshCw, CheckCircle2, FlaskConical, Zap, Clock3, Plus } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { adminAPI } from '../../services/api';
+import { AiKeysSkeleton } from './skeletons';
 
 type KeyState = 'next' | 'idle' | 'cooling' | 'retired';
 
@@ -93,11 +94,9 @@ const AiKeysTab: React.FC = () => {
   };
 
   if (loading && !status) {
-    return (
-      <div className="flex items-center justify-center py-16 text-zinc-400">
-        <Loader2 size={20} className="animate-spin mr-2" /> Loading key health…
-      </div>
-    );
+    // Layout-holding skeleton (same shape as the cards below): no spinner
+    // flash, no content jump when the ring status lands.
+    return <AiKeysSkeleton />;
   }
 
   if (!status) {

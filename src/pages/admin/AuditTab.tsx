@@ -132,9 +132,17 @@ const AuditTab: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
                   {auditLoading ? (
-                    <tr>
-                      <td className="px-4 sm:px-6 py-6 text-zinc-500" colSpan={5}>Loading audit logs...</td>
-                    </tr>
+                    // Skeleton rows inside the live table shell: column
+                    // alignment holds, no spinner flash or layout jump.
+                    [1, 2, 3, 4, 5].map((i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-4 sm:px-6 py-4"><div className="w-20 h-3 bg-zinc-200 rounded"></div></td>
+                        <td className="px-4 sm:px-6 py-4"><div className="w-28 h-4 bg-zinc-200 rounded"></div></td>
+                        <td className="px-4 sm:px-6 py-4"><div className="w-24 h-4 bg-zinc-200 rounded"></div></td>
+                        <td className="px-4 sm:px-6 py-4"><div className="w-20 h-4 bg-zinc-200 rounded"></div></td>
+                        <td className="px-4 sm:px-6 py-4"><div className="w-48 h-3 bg-zinc-200 rounded"></div></td>
+                      </tr>
+                    ))
                   ) : auditLogs.length === 0 ? (
                     <tr>
                       <td className="px-4 sm:px-6 py-6 text-zinc-500" colSpan={5}>No audit logs found.</td>
