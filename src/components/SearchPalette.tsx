@@ -53,20 +53,38 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
         return;
       }
 
+      // The backend rightly requires ≥2 characters (single letters break
+      // full-text matching). Below that, answer locally only: static pages
+      // match instantly, and — critically — no request fires, so typing the
+      // first letter can never flash a "must be at least 2 characters"
+      // error toast mid-keystroke.
+      const term = searchTerm.trim();
+      if (term.length < 2) {
+        const lowerTerm = term.toLowerCase();
+        setSearchResults(
+          STATIC_PAGES.filter(p =>
+            p.title.toLowerCase().includes(lowerTerm) ||
+            p.keywords.some(k => k.includes(lowerTerm))
+          ).map(p => ({ ...p, type: 'navigation' as const }))
+        );
+        setSuggestions([]);
+        return;
+      }
+
       setIsSearching(true);
       try {
         // Get search suggestions for autocomplete
-        const suggestionResult = await searchAPI.suggestions(searchTerm, 5);
+        const suggestionResult = await searchAPI.suggestions(term, 5);
         setSuggestions(suggestionResult.suggestions);
 
         // Perform main search
         const searchResult = await searchAPI.basic({
-          q: searchTerm,
+          q: term,
           limit: 8
         });
 
         // Filter Navigation Pages (client-side for now)
-        const lowerTerm = searchTerm.toLowerCase();
+        const lowerTerm = term.toLowerCase();
         const pages = STATIC_PAGES.filter(p =>
           p.title.toLowerCase().includes(lowerTerm) ||
           p.keywords.some(k => k.includes(lowerTerm))
