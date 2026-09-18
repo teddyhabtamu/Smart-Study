@@ -844,7 +844,7 @@ const AITutor: React.FC = () => {
                   <input
                     ref={inputRef}
                     type="text"
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-3 sm:pl-4 pr-10 sm:pr-12 py-3 sm:py-3.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-all font-medium text-sm placeholder-zinc-400 shadow-sm"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-3 sm:pl-4 pr-[60px] sm:pr-[64px] py-3 sm:py-3.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-all font-medium text-sm placeholder-zinc-400 shadow-sm"
                     placeholder={isListening ? "Listening..." : isProcessingImage ? "Extracting text from image..." : "Ask a question or paste an image..."}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
