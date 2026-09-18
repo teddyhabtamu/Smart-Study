@@ -68,8 +68,12 @@ const AiKeysTab: React.FC = () => {
 
   useEffect(() => {
     fetchStatus();
-    // Cooldown countdowns tick server-side; re-poll so they count down live.
-    const timer = setInterval(() => fetchStatus(true), 15000);
+    // Cooldowns tick in minutes, so 30s keeps countdowns fresh without
+    // hammering the endpoint. Paused while the browser tab is hidden.
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      fetchStatus(true);
+    }, 30000);
     return () => clearInterval(timer);
   }, [fetchStatus]);
 
