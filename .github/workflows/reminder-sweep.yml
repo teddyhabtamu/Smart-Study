@@ -1,0 +1,28 @@
+name: Hourly reminder sweep
+
+# Vercel Hobby allows cron jobs at most once per day, so the hourly
+# study-reminder tick lives here instead (free on public repos). Hits the
+# reminders-only endpoint — never /daily (streak-risk pushes assume
+# once-a-day with no throttle table). Needs the CRON_SECRET repo secret
+# (same value as the backend env var); without it every call 401s and the
+# job fails loudly rather than silently skipping reminders.
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    name: Trigger hourly reminders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reminders-only sweep
+        run: |
+          code=$(curl -s -o /tmp/sweep.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://smart-study-ncwi.vercel.app/api/cron/hourly)
+          cat /tmp/sweep.json
+          echo
+          test "$code" = 200
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
