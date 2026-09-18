@@ -37,6 +37,25 @@ const checkCronAuth = (req: express.Request, res: express.Response): boolean => 
   return true;
 };
 
+// Hourly: study reminders ONLY. The 1-hour/1-day windows are each one hour
+// wide, so a daily tick physically cannot catch intraday reminders (at 9am
+// a 2:35pm event is 5h out — skipped, and no later tick exists that day).
+// Daily tasks must NEVER run here: streak-risk pushes assume once-a-day
+// (no throttle table) and streak/usage sweeps are day-granular — running
+// them hourly would spam streak nudges and waste 24x the compute.
+router.get('/hourly', async (req: express.Request, res: express.Response): Promise<void> => {
+  if (!checkCronAuth(req, res)) return;
+  try {
+    const deadline = Date.now() + BUDGET_MS;
+    const { SchedulerService } = await import('../services/schedulerService');
+    await SchedulerService.triggerStudyReminders({ deadline });
+    res.json({ success: true, message: 'Hourly reminders completed' } as ApiResponse);
+  } catch (error) {
+    console.error('Cron hourly error:', error);
+    res.status(500).json({ success: false, message: 'Hourly reminders failed' } as ApiResponse);
+  }
+});
+
 // Daily: study reminders + streak maintenance + notification cleanup.
 router.get('/daily', async (req: express.Request, res: express.Response): Promise<void> => {
   if (!checkCronAuth(req, res)) return;
