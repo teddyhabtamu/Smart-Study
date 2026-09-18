@@ -369,7 +369,8 @@ router.post('/generate-study-plan', [
     // A 500 here once sent us hunting for a code bug when the preview
     // deployment simply had no GEMINI_API_KEY set — every Smart Schedule
     // attempt died with "Failed to generate study plan" and zero signal.
-    if (!process.env.GEMINI_API_KEY) {
+    // Either the single key or the rotation ring counts as configured.
+    if (!process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEYS) {
       console.error('Generate study plan: GEMINI_API_KEY is not configured');
       await logAiUsage({ route: 'generate-study-plan', userId, ok: false, errorCode: 'AI_NOT_CONFIGURED', latencyMs: Date.now() - planT0 });
       res.status(503).json({

@@ -9,18 +9,71 @@ import {
   shiftDateStr,
 } from '../utils/dates';
 
-// --- Client -------------------------------------------------------------
-let ai: GoogleGenAI | null = null;
+// --- Client key ring ----------------------------------------------------------
+// Free-tier quota attaches to KEYS, not to us: GEMINI_API_KEYS (comma-
+// separated) multiplies the free budget by the number of keys; the legacy
+// single GEMINI_API_KEY keeps working as a one-key ring. Round-robin
+// spreads load across keys; a key that 429s cools down and rejoins later,
+// and a dead credential retires for an hour so one bad key never takes
+// down the ring. Key identity in logs is the ring index only — never the
+// key itself.
+const geminiClients = new Map<string, GoogleGenAI>();
+let keyCursor = 0;
+// key -> timestamp (ms) until which it is skipped.
+const keyCooldownUntil = new Map<string, number>();
+const KEY_COOLDOWN_CAP_MS = 10 * 60 * 1000;
+const BAD_KEY_COOLDOWN_MS = 60 * 60 * 1000;
 
-const getClient = (): GoogleGenAI => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured');
+// Visible for tests (lets suites reset module state between cases).
+export const __resetTutorKeysForTests = (): void => {
+  geminiClients.clear();
+  keyCursor = 0;
+  keyCooldownUntil.clear();
+};
+
+export const parseKeyRing = (env: NodeJS.ProcessEnv = process.env): string[] => {
+  const multi = (env.GEMINI_API_KEYS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (multi.length > 0) return [...new Set(multi)];
+  const single = (env.GEMINI_API_KEY || '').trim();
+  return single ? [single] : [];
+};
+
+export const hasGeminiKeys = (env: NodeJS.ProcessEnv = process.env): boolean =>
+  parseKeyRing(env).length > 0;
+
+const clientFor = (key: string): GoogleGenAI => {
+  let c = geminiClients.get(key);
+  if (!c) {
+    c = new GoogleGenAI({ apiKey: key });
+    geminiClients.set(key, c);
   }
-  if (!ai) {
-    ai = new GoogleGenAI({ apiKey });
-  }
-  return ai;
+  return c;
+};
+
+const keyLabel = (ring: string[], key: string): string =>
+  `key #${ring.indexOf(key) + 1}/${ring.length}`;
+
+// Rotation order for this request: round-robin from the cursor, skipping
+// cooling keys. If every key is cooling, try them all anyway — quotas may
+// have reset, and attempting beats an instant 429.
+const keyOrder = (ring: string[]): string[] => {
+  const now = Date.now();
+  const live = ring.filter((k) => (keyCooldownUntil.get(k) || 0) <= now);
+  const pool = live.length > 0 ? live : [...ring];
+  const start = keyCursor % pool.length;
+  return [...pool.slice(start), ...pool.slice(0, start)];
+};
+
+const markKeyExhausted = (key: string, retryAfterSec: number): void => {
+  const ms = Math.min(Math.max(retryAfterSec, 1), KEY_COOLDOWN_CAP_MS / 1000) * 1000;
+  keyCooldownUntil.set(key, Date.now() + ms);
+};
+
+const markKeyInvalid = (key: string): void => {
+  keyCooldownUntil.set(key, Date.now() + BAD_KEY_COOLDOWN_MS);
 };
 
 export const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -96,8 +149,27 @@ export const isModelGoneError = (err: any): boolean => {
   );
 };
 
-// An invalid-argument rejection (400). Distinct from quota/gone/overloaded:
-// the request SHAPE is wrong for this model, not the model itself.
+// A dead credential (revoked/typo'd key: 401/403 or key-shaped 400).
+// Distinct from INVALID_ARGUMENT (bad request SHAPE, which rethrows): only
+// key-shaped rejections retire the key, so one bad key in the ring never
+// takes down the rest.
+export const isInvalidKeyError = (err: any): boolean => {
+  const msg = String(err?.message || '').toLowerCase();
+  const status = (err as any)?.status;
+  return (
+    status === 401 ||
+    status === 403 ||
+    msg.includes('api_key_invalid') ||
+    msg.includes('api key not valid') ||
+    msg.includes('keyexpired') ||
+    msg.includes('key expired') ||
+    msg.includes('invalid api key') ||
+    (msg.includes('permission_denied') && msg.includes('key'))
+  );
+};
+
+// An invalid-argument rejection (400). Distinct from quota/gone/overloaded/
+// dead-key: the request SHAPE is wrong for this model, not the model itself.
 export const isInvalidArgumentError = (err: any): boolean => {
   const msg = String(err?.message || '').toLowerCase();
   return (err as any)?.status === 400 || msg.includes('invalid_argument') || msg.includes('invalid argument');
@@ -133,45 +205,67 @@ export const quotaRetryAfter = (err: any): number => {
   return 60;
 };
 
-// Run fn against each model in the fallback chain. Quota errors move to the
-// next model; if all are exhausted, throw AIQuotaExceededError.
-const withModelFallback = async <T>(fn: (model: string) => Promise<T>): Promise<T> => {
-  // Adaptive ordering: the model that worked last goes first, known-dead
-  // models are skipped, so a stale chain costs nothing after first failure.
-  const ordered = preferredModel
-    ? [preferredModel, ...MODEL_FALLBACKS.filter((m) => m !== preferredModel)]
-    : [...MODEL_FALLBACKS];
+// Run fn against each key in rotation, each key against each model in the
+// fallback chain. A quota-hit key cools down and the next key takes over;
+// if every key is exhausted, throw AIQuotaExceededError. With a single key
+// this behaves exactly like the old model-only fallback.
+export const withKeyAndModelFallback = async <T>(
+  fn: (client: GoogleGenAI, model: string) => Promise<T>
+): Promise<T> => {
+  const ring = parseKeyRing();
+  if (ring.length === 0) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
   let lastQuotaError: any = null;
   let retryAfter = 60;
-  for (const model of ordered) {
-    if (isModelKnownDead(model)) {
-      console.log(`[tutor] skipping known-dead model ${model}`);
-      continue;
-    }
-    const tStart = Date.now();
-    try {
-      const result = await fn(model);
-      preferredModel = model;
-      console.log(`[tutor] model ${model} ok in ${Date.now() - tStart}ms`);
-      return result;
-    } catch (err) {
-      console.log(`[tutor] model ${model} failed in ${Date.now() - tStart}ms`);
-      if (isQuotaError(err)) {
-        console.warn(`Gemini quota hit on ${model}, trying fallback...`);
-        lastQuotaError = err;
-        retryAfter = Math.max(retryAfter, quotaRetryAfter(err));
+  for (const key of keyOrder(ring)) {
+    const client = clientFor(key);
+    const label = keyLabel(ring, key);
+    // Adaptive ordering: the model that worked last goes first, known-dead
+    // models are skipped, so a stale chain costs nothing after first failure.
+    const ordered = preferredModel
+      ? [preferredModel, ...MODEL_FALLBACKS.filter((m) => m !== preferredModel)]
+      : [...MODEL_FALLBACKS];
+    for (const model of ordered) {
+      if (isModelKnownDead(model)) {
+        console.log(`[tutor] skipping known-dead model ${model}`);
         continue;
       }
-      if (isModelGoneError(err)) {
-        console.warn(`Gemini model ${model} unavailable, trying fallback...`);
-        markModelDead(model);
-        continue;
+      const tStart = Date.now();
+      try {
+        const result = await fn(client, model);
+        preferredModel = model;
+        // Rotate on success so consecutive requests spread across the ring
+        // instead of camping on key #1 until it 429s.
+        keyCursor = (ring.indexOf(key) + 1) % ring.length;
+        console.log(`[tutor] ${label} model ${model} ok in ${Date.now() - tStart}ms`);
+        return result;
+      } catch (err) {
+        console.log(`[tutor] ${label} model ${model} failed in ${Date.now() - tStart}ms`);
+        if (isInvalidKeyError(err)) {
+          console.warn(`[tutor] ${label} invalid, retiring it for an hour...`);
+          markKeyInvalid(key);
+          break;
+        }
+        if (isQuotaError(err)) {
+          console.warn(`[tutor] quota hit on ${label} ${model}, cooling it down...`);
+          lastQuotaError = err;
+          const wait = quotaRetryAfter(err);
+          retryAfter = Math.max(retryAfter, wait);
+          markKeyExhausted(key, wait);
+          continue;
+        }
+        if (isModelGoneError(err)) {
+          console.warn(`[tutor] model ${model} unavailable, trying fallback...`);
+          markModelDead(model);
+          continue;
+        }
+        if (isOverloadedError(err)) {
+          console.warn(`[tutor] model ${model} overloaded, trying fallback...`);
+          continue;
+        }
+        throw err;
       }
-      if (isOverloadedError(err)) {
-        console.warn(`Gemini model ${model} overloaded, trying fallback...`);
-        continue;
-      }
-      throw err;
     }
   }
   throw new AIQuotaExceededError(
@@ -253,11 +347,9 @@ const complete = async (
   // model default (chat keeps thinking).
   thinkingBudget?: number
 ): Promise<string> => {
-  const client = getClient();
-
   const contents = toContents(history, userPrompt);
 
-  return withModelFallback(async (model) => {
+  return withKeyAndModelFallback(async (client, model) => {
     // One model (observed: gemini-3.5-flash-lite) rejects thinkingConfig with
     // 400 INVALID_ARGUMENT while its siblings accept it. Rather than an
     // allowlist, degrade per model: retry the same model without the field,
@@ -372,8 +464,6 @@ export async function streamTutorResponse(
   onChunk: (delta: string) => void,
   opts?: TutorOptions
 ): Promise<string> {
-  const client = getClient();
-
   const lower = message.toLowerCase();
   const isGrammarQuestion =
     lower.includes('punctuation') ||
@@ -398,15 +488,27 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
   const maxOutputTokens = tutorMaxTokens(opts);
 
   // Streaming can't retry mid-stream cleanly, so we attempt models in order
-  // (preferred working model first — see withModelFallback).
+  // (preferred working model first). The whole model chain runs per key:
+  // a key that dies quietly (quota/invalid, nothing streamed yet) yields
+  // to the next key. Partially-streamed content is NEVER regenerated on
+  // another key (the user already saw those chunks) — it returns as-is.
   // `emitted` accumulates everything sent to the client across fallbacks so
   // the persisted session text always matches what the user actually saw.
+  const ring = parseKeyRing();
+  if (ring.length === 0) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
   const ordered = preferredModel
     ? [preferredModel, ...MODEL_FALLBACKS.filter((m) => m !== preferredModel)]
     : [...MODEL_FALLBACKS];
   let lastQuotaError: any = null;
+  let lastRetryAfter = 60;
   let emitted = '';
-  for (const model of ordered) {
+  for (const key of keyOrder(ring)) {
+    const client = clientFor(key);
+    const label = keyLabel(ring, key);
+    let keyQuotaHit = false;
+    for (const model of ordered) {
     if (isModelKnownDead(model)) {
       console.log(`[tutor] skipping known-dead stream model ${model}`);
       continue;
@@ -436,28 +538,44 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
       // with no chunks means this model failed — try the next one.
       if (gotChunk || emitted) {
         preferredModel = model;
-        console.log(`[tutor] stream ${model} ok in ${Date.now() - tStart}ms`);
+        keyCursor = (ring.indexOf(key) + 1) % ring.length;
+        console.log(`[tutor] stream ${label} ${model} ok in ${Date.now() - tStart}ms`);
         return emitted;
       }
       throw new Error('Empty stream from model ' + model);
     } catch (err) {
-      console.log(`[tutor] stream ${model} failed in ${Date.now() - tStart}ms`);
+      console.log(`[tutor] stream ${label} ${model} failed in ${Date.now() - tStart}ms`);
+      if (isInvalidKeyError(err)) {
+        console.warn(`[tutor] stream ${label} invalid, retiring it for an hour...`);
+        markKeyInvalid(key);
+        keyQuotaHit = true;
+        break;
+      }
       if (isQuotaError(err)) {
-        console.warn(`Gemini streaming quota hit on ${model}, trying fallback...`);
+        console.warn(`[tutor] streaming quota hit on ${label} ${model}, cooling it down...`);
         lastQuotaError = err;
+        lastRetryAfter = Math.max(lastRetryAfter, quotaRetryAfter(err));
+        markKeyExhausted(key, lastRetryAfter);
+        keyQuotaHit = true;
         continue;
       }
       if (isModelGoneError(err)) {
-        console.warn(`Gemini streaming model ${model} unavailable, trying fallback...`);
+        console.warn(`[tutor] streaming model ${model} unavailable, trying fallback...`);
         markModelDead(model);
         continue;
       }
       if (isOverloadedError(err)) {
-        console.warn(`Gemini streaming model ${model} overloaded, trying fallback...`);
+        console.warn(`[tutor] streaming model ${model} overloaded, trying fallback...`);
         continue;
       }
       throw err;
     }
+    }
+    // Model chain done for this key. Partial content returns as-is (never
+    // regenerated on another key); a quietly-dead key yields to the next.
+    // Anything else falls through to the quota error below.
+    if (emitted) return emitted;
+    if (!keyQuotaHit) break;
   }
   // If we already streamed partial content, return it (better than an error);
   // the route persists exactly what the user saw.
