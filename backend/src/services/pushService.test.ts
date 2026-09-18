@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+// Hermetic env: a real backend/.env may carry VAPID keys (local push E2E
+// needs them), and dotenv re-injects the file on every dynamic re-import —
+// silently resurrecting keys the no-key tests just deleted. Neutralize it:
+// every var this suite needs is set explicitly in setTestEnv.
+vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
+
 // PushService: never throws, prunes dead endpoints, degrades without keys.
 // web-push + the DB facade are both mocked; a committed TEST-ONLY VAPID
 // pair drives the success path (useless outside tests: nothing is signed

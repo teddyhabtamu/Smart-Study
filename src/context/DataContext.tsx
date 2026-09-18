@@ -539,8 +539,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const createdEvent = await plannerAPI.createEvent(event);
     setStudyEvents(prev => [...prev, createdEvent]);
     
-    // Refresh dashboard if the event is for today
-    const today = new Date().toISOString().split('T')[0];
+    // Refresh dashboard if the event is for today (local day: event.date
+    // is a local calendar day, so a UTC slice would miss the evening).
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     if (event.date === today) {
       await fetchDashboard();
     }
@@ -554,8 +556,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const createdEvents = await plannerAPI.createEventsBatch(events);
     setStudyEvents(prev => [...prev, ...createdEvents]);
 
-    // Refresh dashboard if any event is for today
-    const today = new Date().toISOString().split('T')[0];
+    // Refresh dashboard if any event is for today (local day, same as above)
+    const nowDate = new Date();
+    const today = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
     if (createdEvents.some(e => e.date === today)) {
       await fetchDashboard();
     }

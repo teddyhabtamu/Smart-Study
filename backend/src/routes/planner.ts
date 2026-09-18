@@ -1,7 +1,7 @@
 import express from 'express';
 import { body } from 'express-validator';
 import { dbAdmin, query } from '../database/config';
-import { EAT_TODAY_SQL } from '../utils/dates';
+import { EAT_TODAY_SQL, eatDaySql, isValidEventDate, normalizeEventDate } from '../utils/dates';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { ApiResponse, StudyEvent, User } from '../types';
 import { NotificationService } from '../services/notificationService';
@@ -40,7 +40,9 @@ router.get('/events', authenticateToken, async (req: express.Request, res: expre
       conditions.push('is_archived IS NOT TRUE');
     }
     if (date) {
-      conditions.push(`event_date = $${params.length + 1}`);
+      // Calendar-day match in Ethiopia (event_date is an instant: a raw
+      // `=` would compare against midnight in the session TimeZone).
+      conditions.push(`${eatDaySql('event_date')} = $${params.length + 1}::date`);
       params.push(date);
     }
     if (type) {
@@ -92,38 +94,19 @@ router.post('/events', [
       return;
     }
 
-    // Normalize and validate date format (YYYY-MM-DD)
-    if (typeof event_date === 'string') {
-      event_date = event_date.trim();
-      // Check if it's a valid date format
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(event_date)) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid date format: "${event_date}". Must be in YYYY-MM-DD format`,
-          errors: [{ field: 'event_date', message: 'Date must be in YYYY-MM-DD format' }]
-        } as ApiResponse);
-        return;
-      }
-
-      // Validate it's a valid date
-      const dateObj = new Date(event_date);
-      if (isNaN(dateObj.getTime())) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid date value: "${event_date}"`,
-          errors: [{ field: 'event_date', message: 'Invalid date value' }]
-        } as ApiResponse);
-        return;
-      }
-    } else {
+    // Day-precision (YYYY-MM-DD, all-day) or hour-precision (full ISO
+    // datetime, e.g. from the Planner time picker). Day-only values are
+    // normalized to midnight Ethiopia so every writer stores the same
+    // instant for the same wall time (see utils/dates).
+    if (!isValidEventDate(event_date)) {
       res.status(400).json({
         success: false,
-        message: 'Date must be a string in YYYY-MM-DD format',
-        errors: [{ field: 'event_date', message: 'Date must be a string' }]
+        message: `Invalid date format: "${typeof event_date === 'string' ? event_date.trim() : event_date}". Must be YYYY-MM-DD or a full ISO datetime`,
+        errors: [{ field: 'event_date', message: 'Date must be YYYY-MM-DD or ISO datetime' }]
       } as ApiResponse);
       return;
     }
+    event_date = normalizeEventDate(event_date);
 
     const eventData = {
       user_id: userId,
@@ -219,7 +202,10 @@ router.put('/events/:id', [
   authenticateToken,
   body('title').optional().trim().isLength({ min: 1, max: 200 }),
   body('subject').optional().isIn(CONTENT_SUBJECTS),
-  body('event_date').optional().isString().isLength({ min: 10, max: 10 }).withMessage('Valid date required'),
+  body('event_date').optional().custom((v) => {
+    if (!isValidEventDate(v)) throw new Error('Must be YYYY-MM-DD or ISO datetime');
+    return true;
+  }),
   body('event_type').optional().isIn(['Exam', 'Revision', 'Assignment']),
   body('is_completed').optional().isBoolean(),
   body('is_archived').optional().isBoolean(),
@@ -254,7 +240,7 @@ router.put('/events/:id', [
     const updates: any = {};
     if (title !== undefined) updates.title = title;
     if (subject !== undefined) updates.subject = subject;
-    if (event_date !== undefined) updates.event_date = event_date;
+    if (event_date !== undefined) updates.event_date = normalizeEventDate(event_date);
     if (event_type !== undefined) updates.event_type = event_type;
     if (is_completed !== undefined) updates.is_completed = is_completed;
     if (is_archived !== undefined) updates.is_archived = is_archived;
@@ -352,12 +338,14 @@ router.get('/stats', authenticateToken, async (req: express.Request, res: expres
     // study_events row, count in JS). Date buckets use the Ethiopian day,
     // not UTC: today counts as upcoming, not overdue, on the student's clock.
     // Actionable buckets ignore archived tasks, same as the dashboard.
+    // (EAT-day comparison: event_date is an instant, so a raw >= against a
+    // calendar date would bucket on UTC midnight instead.)
     const [aggRows, subjRows] = await Promise.all([
       query(
         `SELECT COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE is_completed IS TRUE) AS completed,
-                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date >= ${EAT_TODAY_SQL}) AS upcoming,
-                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND event_date < ${EAT_TODAY_SQL}) AS overdue,
+                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND ${eatDaySql('event_date')} >= ${EAT_TODAY_SQL}) AS upcoming,
+                COUNT(*) FILTER (WHERE is_completed IS NOT TRUE AND is_archived IS NOT TRUE AND ${eatDaySql('event_date')} < ${EAT_TODAY_SQL}) AS overdue,
                 COUNT(*) FILTER (WHERE event_type = 'Exam') AS exam,
                 COUNT(*) FILTER (WHERE event_type = 'Revision') AS revision,
                 COUNT(*) FILTER (WHERE event_type = 'Assignment') AS assignment

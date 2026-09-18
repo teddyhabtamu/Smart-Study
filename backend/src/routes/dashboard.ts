@@ -56,14 +56,20 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     // Get today's study events. Archived tasks are excluded: they were
     // deliberately put away and must not resurface in Today's Plan or
     // inflate the daily goal.
-    // event_date is emitted as a calendar string (to_char), NOT a pg Date:
-    // node-pg parses DATE into a midnight-local Date object, which JSON
-    // serializes to the PREVIOUS day in UTC (e.g. 09-09 00:00 +03:00 ->
-    // "09-08T21:00Z") and mis-grouped every merged event in the planner.
+    // event_date is emitted as an Ethiopia-calendar string (to_char in the
+    // app zone), NOT a pg Date: node-pg parses DATE into a midnight-local
+    // Date object, which JSON serializes to the PREVIOUS day in UTC
+    // (e.g. 09-09 00:00 +03:00 -> "09-08T21:00Z") and mis-grouped every
+    // merged event in the planner. The day filter is an EAT range for the
+    // same reason: a raw `event_date = 'YYYY-MM-DD'` compares against
+    // midnight in the session TimeZone and matches nothing.
     const todaysEventsResult = await query(`
-      SELECT id, title, subject, event_type as type, is_completed, notes, to_char(event_date, 'YYYY-MM-DD') as event_date
+      SELECT id, title, subject, event_type as type, is_completed, notes, to_char(event_date AT TIME ZONE 'Africa/Addis_Ababa', 'YYYY-MM-DD') as event_date
       FROM study_events
-      WHERE user_id = $1 AND event_date = $2 AND is_archived IS NOT TRUE
+      WHERE user_id = $1
+        AND event_date >= ($2::date AT TIME ZONE 'Africa/Addis_Ababa')
+        AND event_date < (($2::date + 1) AT TIME ZONE 'Africa/Addis_Ababa')
+        AND is_archived IS NOT TRUE
       ORDER BY created_at ASC
     `, [userId, todayStr]);
 

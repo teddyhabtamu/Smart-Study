@@ -145,7 +145,9 @@ describe('POST /generate-study-plan (folded persist)', () => {
       'user-1',
       'Quadratic equation Exam',
       'Mathematics',
-      '2026-09-24',
+      // Day-precision normalizes to midnight Ethiopia (uniform instants
+      // for exact-match dedup after the TIMESTAMPTZ migration).
+      '2026-09-24T00:00:00+03:00',
       'Exam',
       false,
       'Exam day.',

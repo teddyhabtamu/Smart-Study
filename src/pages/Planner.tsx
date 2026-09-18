@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { isPushSupported, enablePush } from '../utils/push';
 import { StudyEvent } from '../types';
-import { aiTutorAPI, plannerAPI } from '../services/api';
+import { aiTutorAPI, eventInstantKey, plannerAPI, splitEventDateTime } from '../services/api';
 import CustomSelect from '../components/CustomSelect';
 import DatePicker from '../components/DatePicker';
 import { SUBJECTS } from '../constants';
@@ -159,6 +159,12 @@ const EventCard: React.FC<EventCardProps> = ({
       <p className="text-xs text-zinc-500 flex items-center gap-2">
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${subjectColor(event.subject)}`} aria-hidden />
         <span className="font-medium text-inksoft">{event.subject}</span>
+        {event.time && (
+          <span className="inline-flex items-center gap-1 font-semibold text-ink tabular-nums">
+            <Clock size={11} className="text-zinc-400" aria-hidden />
+            {event.time}
+          </span>
+        )}
         {(() => {
           // Only show simple text notes, not JSON
           if (!event.notes) return null;
@@ -338,6 +344,8 @@ const Planner: React.FC = () => {
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Mathematics');
   const [date, setDate] = useState('');
+  // Optional HH:mm wall time — absent means all-day (midnight Ethiopia).
+  const [time, setTime] = useState('');
   const [type, setType] = useState<'Revision' | 'Exam' | 'Assignment'>('Revision');
 
   // AI Form State
@@ -351,9 +359,9 @@ const Planner: React.FC = () => {
       if (statusFilter === 'archived') return event.isArchived;
       return !event.isArchived; // 'all' shows non-archived events
     })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => eventInstantKey(a.date, a.time) - eventInstantKey(b.date, b.time));
     
-  const upcomingEvents = studyEvents.filter(e => !e.isCompleted && !e.isArchived && daysUntil(e.date) >= 0).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const upcomingEvents = studyEvents.filter(e => !e.isCompleted && !e.isArchived && daysUntil(e.date) >= 0).sort((a, b) => eventInstantKey(a.date, a.time) - eventInstantKey(b.date, b.time));
   const completedCount = studyEvents.filter(e => e.isCompleted && !e.isArchived).length;
   
   // Group events by date
@@ -486,6 +494,9 @@ const Planner: React.FC = () => {
         title,
         subject,
         date,
+        // Empty time = all-day; a picked HH:mm becomes an exact instant
+        // (and arms the 1-hour push reminder for intraday sessions).
+        ...(time ? { time } : {}),
         type,
         isCompleted: false,
         isArchived: false,
@@ -552,9 +563,11 @@ const Planner: React.FC = () => {
       if (response.persisted && Array.isArray(response.events) && response.events.length > 0) {
         await fetchStudyEvents();
         // Same dashboard courtesy as the batch path below: today's plan
-        // feeds the progress ring on the Dashboard.
-        const today = new Date().toISOString().split('T')[0];
-        if (response.events.some((e: any) => String(e.event_date || '').slice(0, 10) === today)) {
+        // feeds the progress ring on the Dashboard. Local-day compare (the
+        // rows carry ISO instants now — a UTC slice would miss the evening).
+        const now = new Date();
+        const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (response.events.some((e: any) => splitEventDateTime(e.event_date).date === todayLocal)) {
           await fetchDashboard();
         }
         addToast(`Study plan generated successfully! (${response.events.length} sessions scheduled)`, "success");
@@ -626,6 +639,7 @@ const Planner: React.FC = () => {
     setTitle('');
     setSubject('Mathematics');
     setDate('');
+    setTime('');
     setType('Revision');
   };
 
@@ -743,6 +757,7 @@ const Planner: React.FC = () => {
                                 </span>
                                 <span className="text-xs font-medium text-zinc-500">
                                    {new Date(String(event.date).slice(0, 10) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                   {event.time && <span className="tabular-nums"> · {event.time}</span>}
                                 </span>
                               </span>
                             );
@@ -1074,7 +1089,9 @@ const Planner: React.FC = () => {
                  <X size={18} className="sm:w-5 sm:h-5" />
                </button>
             </div>
-            <form onSubmit={handleAddManual} className="p-4 sm:p-6 space-y-4">
+            {/* Scroll region: the panel is overflow-hidden + max-h capped, so
+                without this the date row and submit crop on short screens. */}
+            <form onSubmit={handleAddManual} className="p-4 sm:p-6 space-y-4 overflow-y-auto min-h-0 overscroll-contain custom-scrollbar">
                <div>
                   <label className="block text-xs font-semibold text-inksoft mb-1.5">Task Title</label>
                   <input 
@@ -1104,15 +1121,35 @@ const Planner: React.FC = () => {
                     />
                   </div>
                </div>
-               <div>
-                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Date</label>
-                  <DatePicker 
-                    value={date}
-                    onChange={setDate}
-                    required
-                    placeholder="Select Date"
-                  />
-               </div>
+                <div className="grid grid-cols-5 gap-3">
+                   <div className="col-span-3 min-w-0">
+                     <label className="block text-xs font-semibold text-inksoft mb-1.5">Date</label>
+                     <DatePicker 
+                       value={date}
+                       onChange={setDate}
+                       required
+                       placeholder="Select Date"
+                     />
+                   </div>
+                   <div className="col-span-2 min-w-0">
+                     <label htmlFor="manual-event-time" className="block text-xs font-semibold text-inksoft mb-1.5">
+                       Time <span className="font-normal text-zinc-400">(optional)</span>
+                     </label>
+                     <input
+                       id="manual-event-time"
+                       type="time"
+                       value={time}
+                       onChange={(e) => setTime(e.target.value)}
+                       aria-label="Start time (optional)"
+                       className="w-full px-3 py-2.5 bg-surface border border-zinc-200 rounded-lg text-sm text-ink shadow-sm transition-all hover:border-zinc-300 focus:outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100"
+                     />
+                   </div>
+                </div>
+                {time && (
+                  <p className="text-[11px] text-zinc-500 -mt-2">
+                    Reminder fires 1 hour before, even with the app closed (push on).
+                  </p>
+                )}
                <button
                  type="submit"
                  disabled={isAdding}
@@ -1247,6 +1284,9 @@ const Planner: React.FC = () => {
                       <span className="font-medium">{event.subject}</span>
                       <span aria-hidden>•</span>
                       <span>{fullDate ?? 'No date set'}</span>
+                      {event.time && (
+                        <span className="tabular-nums font-semibold text-zinc-300">· {event.time}</span>
+                      )}
                       {urgency && (
                         <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${urgencyPill(urgency.tone)}`}>
                           {urgency.label}

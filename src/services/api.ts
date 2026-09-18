@@ -1068,6 +1068,44 @@ export const aiTutorAPI = {
 };
 
 // Planner API
+// ---------------------------------------------------------------------------
+// Hour-precision event instants. The backend stores TIMESTAMPTZ and returns
+// ISO strings; all-day rows are midnight Ethiopia. The UI keeps a LOCAL
+// calendar day (`date`, YYYY-MM-DD) plus an optional LOCAL wall-clock time
+// (`time`, HH:mm) so pickers, grouping and urgency stay day-based while
+// reminders can target intraday instants.
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+export const splitEventDateTime = (iso: unknown): { date: string; time?: string } => {
+  const raw = String(iso ?? '');
+  // Legacy/calendar-day rows carry no time part — all-day by definition.
+  // (Parsing 'YYYY-MM-DD' as UTC midnight would hallucinate a time in
+  // zones ahead of UTC.)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { date: raw };
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return { date: raw.slice(0, 10) };
+  const date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  // All-day rows are stored as local midnight — no time chip for those.
+  // (A user-picked 00:00 reads back as all-day; documented on StudyEvent.)
+  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0) return { date };
+  return { date, time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}` };
+};
+
+// Local wall time → exact UTC instant for the backend. No time = day
+// precision (the backend normalizes to midnight Ethiopia).
+export const combineEventDateTime = (date: string, time?: string): string => {
+  if (!time) return date;
+  const [y, m, dd] = date.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  return new Date(y, (m || 1) - 1, dd || 1, hh || 0, mm || 0).toISOString();
+};
+
+// Sort key for instants (timed tasks order within their day).
+export const eventInstantKey = (date: string, time?: string): number => {
+  const t = new Date(combineEventDateTime(date, time)).getTime();
+  return isNaN(t) ? 0 : t;
+};
+
 export const plannerAPI = {
   getEvents: (params: { date?: string; type?: string; completed?: boolean; archived?: boolean | 'all' } = {}): Promise<StudyEvent[]> => {
     const queryParams = new URLSearchParams();
@@ -1078,18 +1116,22 @@ export const plannerAPI = {
     });
     return apiRequest(`/planner/events?${queryParams}`).then((events: any) => {
       // Transform backend field names to frontend field names
-      return events.map((event: any) => ({
-        id: event.id,
-        title: event.title,
-        subject: event.subject,
-        date: String(event.event_date || '').slice(0, 10),
-        type: event.event_type,
-        isCompleted: event.is_completed,
-        isArchived: event.is_archived || false,
-        notes: event.notes,
-        created_at: event.created_at,
-        updated_at: event.updated_at
-      }));
+      return events.map((event: any) => {
+        const { date, time } = splitEventDateTime(event.event_date);
+        return {
+          id: event.id,
+          title: event.title,
+          subject: event.subject,
+          date,
+          ...(time ? { time } : {}),
+          type: event.event_type,
+          isCompleted: event.is_completed,
+          isArchived: event.is_archived || false,
+          notes: event.notes,
+          created_at: event.created_at,
+          updated_at: event.updated_at
+        };
+      });
     });
   },
 
@@ -1098,7 +1140,7 @@ export const plannerAPI = {
     const apiEvent = {
       title: event.title,
       subject: event.subject,
-      event_date: event.date,
+      event_date: combineEventDateTime(event.date, event.time),
       event_type: event.type,
       notes: event.notes || ''
     };
@@ -1106,18 +1148,22 @@ export const plannerAPI = {
     return apiRequest('/planner/events', {
       method: 'POST',
       body: JSON.stringify(apiEvent),
-    }).then((createdEvent: any) => ({
-      id: createdEvent.id,
-      title: createdEvent.title,
-      subject: createdEvent.subject,
-      date: String(createdEvent.event_date || '').slice(0, 10),
-      type: createdEvent.event_type,
-      isCompleted: createdEvent.is_completed,
-      isArchived: createdEvent.is_archived || false,
-      notes: createdEvent.notes,
-      created_at: createdEvent.created_at,
-      updated_at: createdEvent.updated_at
-    }));
+    }).then((createdEvent: any) => {
+      const { date, time } = splitEventDateTime(createdEvent.event_date);
+      return {
+        id: createdEvent.id,
+        title: createdEvent.title,
+        subject: createdEvent.subject,
+        date,
+        ...(time ? { time } : {}),
+        type: createdEvent.event_type,
+        isCompleted: createdEvent.is_completed,
+        isArchived: createdEvent.is_archived || false,
+        notes: createdEvent.notes,
+        created_at: createdEvent.created_at,
+        updated_at: createdEvent.updated_at
+      };
+    });
   },
 
   // Batch-create events in ONE request (AI schedule generation) instead of
@@ -1126,7 +1172,7 @@ export const plannerAPI = {
     const apiEvents = events.map((event) => ({
       title: event.title,
       subject: event.subject,
-      event_date: event.date,
+      event_date: combineEventDateTime(event.date, event.time),
       event_type: event.type,
       notes: event.notes || ''
     }));
@@ -1134,27 +1180,36 @@ export const plannerAPI = {
     return apiRequest('/planner/events/batch', {
       method: 'POST',
       body: JSON.stringify({ events: apiEvents }),
-    }).then((created: any) => ((created || []) as any[]).map((createdEvent: any) => ({
-      id: createdEvent.id,
-      title: createdEvent.title,
-      subject: createdEvent.subject,
-      date: String(createdEvent.event_date || '').slice(0, 10),
-      type: createdEvent.event_type,
-      isCompleted: createdEvent.is_completed,
-      isArchived: createdEvent.is_archived || false,
-      notes: createdEvent.notes,
-      created_at: createdEvent.created_at,
-      updated_at: createdEvent.updated_at
-    })));
+    }).then((created: any) => ((created || []) as any[]).map((createdEvent: any) => {
+      const { date, time } = splitEventDateTime(createdEvent.event_date);
+      return {
+        id: createdEvent.id,
+        title: createdEvent.title,
+        subject: createdEvent.subject,
+        date,
+        ...(time ? { time } : {}),
+        type: createdEvent.event_type,
+        isCompleted: createdEvent.is_completed,
+        isArchived: createdEvent.is_archived || false,
+        notes: createdEvent.notes,
+        created_at: createdEvent.created_at,
+        updated_at: createdEvent.updated_at
+      };
+    }));
   },
 
   updateEvent: (id: string, updates: Partial<StudyEvent>): Promise<StudyEvent> => {
     // Map frontend field names to backend field names
     const apiUpdates: any = { ...updates };
-    if (updates.date !== undefined) {
-      apiUpdates.event_date = updates.date;
+    const updTime = (updates as Partial<StudyEvent>).time;
+    if (updates.date !== undefined || updTime) {
+      // A time without its day is meaningless — fail loudly, never send
+      // a bare "14:30" the backend would 400 on.
+      if (!updates.date) throw new Error('Cannot set an event time without a date');
+      apiUpdates.event_date = combineEventDateTime(updates.date, updTime || undefined);
       delete apiUpdates.date;
     }
+    delete apiUpdates.time;
     if (updates.type !== undefined) {
       apiUpdates.event_type = updates.type;
       delete apiUpdates.type;
@@ -1171,22 +1226,26 @@ export const plannerAPI = {
     return apiRequest(`/planner/events/${id}`, {
       method: 'PUT',
       body: JSON.stringify(apiUpdates),
-    }).then((updatedEvent: any) => ({
-      id: updatedEvent.id,
-      title: updatedEvent.title,
-      subject: updatedEvent.subject,
-      date: updatedEvent.event_date,
-      type: updatedEvent.event_type,
-      isCompleted: updatedEvent.is_completed,
-      isArchived: updatedEvent.is_archived || false,
-      notes: updatedEvent.notes,
-      created_at: updatedEvent.created_at,
-      updated_at: updatedEvent.updated_at,
-      // Award info on false→true completions (absent otherwise)
-      xpGained: updatedEvent.xpGained ?? 0,
-      newLevel: updatedEvent.newLevel,
-      leveledUp: updatedEvent.leveledUp ?? false
-    }));
+    }).then((updatedEvent: any) => {
+      const { date, time } = splitEventDateTime(updatedEvent.event_date);
+      return {
+        id: updatedEvent.id,
+        title: updatedEvent.title,
+        subject: updatedEvent.subject,
+        date,
+        ...(time ? { time } : {}),
+        type: updatedEvent.event_type,
+        isCompleted: updatedEvent.is_completed,
+        isArchived: updatedEvent.is_archived || false,
+        notes: updatedEvent.notes,
+        created_at: updatedEvent.created_at,
+        updated_at: updatedEvent.updated_at,
+        // Award info on false→true completions (absent otherwise)
+        xpGained: updatedEvent.xpGained ?? 0,
+        newLevel: updatedEvent.newLevel,
+        leveledUp: updatedEvent.leveledUp ?? false
+      };
+    });
   },
 
   deleteEvent: (id: string): Promise<void> =>

@@ -49,7 +49,9 @@ export const pickDate = async (page: Page, dateStr: string): Promise<void> => {
     year: 'numeric',
   });
   await page.getByText('Select Date').click();
-  const popup = page.locator('div.absolute.z-\\[999\\]');
+  // The calendar portals to document.body (it used to render in-flow, so
+  // this locator used to be div.absolute...). Role-based: immune to that.
+  const popup = page.getByRole('dialog', { name: 'Choose date' });
   for (let i = 0; i < 14; i++) {
     if ((await popup.getByText(targetHeader, { exact: true }).count()) > 0) break;
     const shown = await popup.locator('span').first().textContent();

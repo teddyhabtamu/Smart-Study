@@ -1,4 +1,5 @@
 import { CONTENT_SUBJECTS } from '../constants';
+import { normalizeEventDate } from '../utils/dates';
 
 // Subject normalization map - maps common variations to allowed subjects
 export const normalizeSubject = (subject: string): string | null => {
@@ -83,11 +84,15 @@ export const validateBatchEvent = (
   }
   return {
     ok: true,
+    // event_date is normalized to a full instant (day-precision becomes
+    // midnight Ethiopia) so exact-match dedup compares like with like
+    // against rows this same helper wrote. Identity stays calendar-day
+    // (batchRowKey slices), so AI day-plans dedup exactly as before.
     row: [
       userId,
       (event.title as string).trim(),
       normalizedSubject,
-      (event.event_date as string).trim(),
+      normalizeEventDate(event.event_date as string),
       event.event_type as string,
       String((event as BatchEventInput).notes ?? '').trim(),
     ],

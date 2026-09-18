@@ -183,7 +183,10 @@ export interface StudyEvent {
   id: string;
   title: string;
   subject: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD (local calendar day)
+  /** HH:mm local wall time. Absent = all-day (stored as midnight Ethiopia).
+      Local midnight itself reads as all-day — picking 00:00 is the same. */
+  time?: string;
   type: 'Exam' | 'Revision' | 'Assignment';
   isCompleted: boolean;
   isArchived: boolean;

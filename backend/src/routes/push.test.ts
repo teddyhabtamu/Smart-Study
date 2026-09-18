@@ -1,4 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Hermetic env (see pushService.test.ts): neutralize dotenv so a real
+// backend/.env carrying VAPID keys can't resurrect them mid-suite and
+// flip the no-key 503 test into a configured-path test.
+vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';

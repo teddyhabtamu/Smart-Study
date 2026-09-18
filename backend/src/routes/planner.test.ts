@@ -11,10 +11,15 @@ import type { BatchEventInput } from '../services/plannerBatch';
 // generate leg worked but batch silently died, and nobody had ever driven
 // this endpoint in a test.
 const mockQuery = vi.fn();
+const mockDbInsert = vi.fn();
+const mockDbUpdate = vi.fn();
 
 vi.mock('../database/config', () => ({
   query: mockQuery,
-  dbAdmin: {},
+  dbAdmin: {
+    insert: (...args: any[]) => mockDbInsert(...args),
+    update: (...args: any[]) => mockDbUpdate(...args),
+  },
 }));
 
 const savedEnv = { ...process.env };
@@ -33,6 +38,8 @@ const setTestEnv = () => {
 beforeEach(() => {
   setTestEnv();
   mockQuery.mockReset();
+  mockDbInsert.mockReset();
+  mockDbUpdate.mockReset();
   // authenticateToken's user lookup: premium student, good standing.
   mockQuery.mockImplementation(async (text: string, params: any[] = []) => {
     if (text.includes('FROM users')) {
@@ -144,6 +151,8 @@ describe('POST /events/batch (happy path + SQL mapping)', () => {
 
     // One multi-row INSERT (not N round trips), frontend date/type mapped
     // to event_date/event_type, 'Maths' normalized to 'Mathematics'.
+    // Day-precision dates normalize to midnight Ethiopia (uniform instants
+    // for exact-match dedup after the TIMESTAMPTZ migration).
     const insertCall = mockQuery.mock.calls.find(([sql]: any[]) =>
       String(sql).startsWith('INSERT INTO study_events')
     );
@@ -154,7 +163,7 @@ describe('POST /events/batch (happy path + SQL mapping)', () => {
       'user-1',
       'Quadratic equation Exam',
       'Mathematics',
-      '2026-09-24',
+      '2026-09-24T00:00:00+03:00',
       'Exam',
       false,
       'Your Mathematics exam is today.',
@@ -287,8 +296,10 @@ describe('validateBatchEvents (pure validator)', () => {
     );
     expect(verdict.ok).toBe(true);
     if (verdict.ok) {
+      // Day-precision normalizes to midnight Ethiopia (uniform instants
+      // for exact-match dedup after the TIMESTAMPTZ migration).
       expect(verdict.rows[0]).toEqual(
-        ['user-1', 'spaced', 'Mathematics', '2026-09-24', 'Exam', 'Today.']
+        ['user-1', 'spaced', 'Mathematics', '2026-09-24T00:00:00+03:00', 'Exam', 'Today.']
       );
     }
   });
@@ -454,5 +465,133 @@ describe('POST /events/batch (retry dedup)', () => {
     // 7 params = exactly one row inserted (the non-duplicate).
     expect(insertCall![1]).toHaveLength(7);
     expect(insertCall![1][1]).toBe('Newton revision');
+  });
+});
+
+describe('POST /events (single) hour-precision dates', () => {
+  const singleBody = (event_date: string) => ({
+    title: 'Algebra review',
+    subject: 'Mathematics',
+    event_date,
+    event_type: 'Revision',
+  });
+
+  it('normalizes a day-precision date to midnight Ethiopia', async () => {
+    const app = await loadApp();
+    mockDbInsert.mockImplementation(async (_table: string, data: any) => ({ id: 'evt-1', ...data }));
+    const res = await request(app)
+      .post('/api/planner/events')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send(singleBody('2026-09-24'));
+    expect(res.status).toBe(201);
+    expect(mockDbInsert).toHaveBeenCalledTimes(1);
+    expect(mockDbInsert.mock.calls[0][1].event_date).toBe('2026-09-24T00:00:00+03:00');
+  });
+
+  it('stores a full ISO datetime untouched', async () => {
+    const app = await loadApp();
+    mockDbInsert.mockImplementation(async (_table: string, data: any) => ({ id: 'evt-2', ...data }));
+    const res = await request(app)
+      .post('/api/planner/events')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send(singleBody('2026-09-24T14:30:00+03:00'));
+    expect(res.status).toBe(201);
+    expect(mockDbInsert.mock.calls[0][1].event_date).toBe('2026-09-24T14:30:00+03:00');
+  });
+
+  it.each([['tomorrow'], ['2026-13-40'], ['2026-09-24 14:30'], ['24/09/2026']])(
+    'rejects %p with a 400 naming event_date',
+    async (event_date) => {
+      const app = await loadApp();
+      const res = await request(app)
+        .post('/api/planner/events')
+        .set('Authorization', `Bearer ${tokenFor()}`)
+        .send(singleBody(event_date));
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toContain('event_date');
+      expect(mockDbInsert).not.toHaveBeenCalled();
+    }
+  );
+});
+
+describe('PUT /events/:id hour-precision dates', () => {
+  const mockOwnership = () =>
+    mockQuery.mockImplementation(async (text: string) => {
+      if (text.includes('FROM users')) {
+        return {
+          rows: [{ id: 'user-1', role: 'STUDENT', status: 'Active', is_premium: true, bookmarks: [] }],
+          rowCount: 1,
+        };
+      }
+      if (text.includes('FROM study_events')) {
+        return {
+          rows: [{ id: 'evt-1', user_id: 'user-1', title: 'Algebra review', event_type: 'Revision', is_completed: false, xp_awarded: false }],
+          rowCount: 1,
+        };
+      }
+      throw new Error(`unexpected query in test: ${String(text).slice(0, 80)}`);
+    });
+
+  it('stores a full ISO datetime on update', async () => {
+    const app = await loadApp();
+    mockOwnership();
+    mockDbUpdate.mockImplementation(async (_table: string, _id: string, data: any) => ({ id: 'evt-1', ...data }));
+    const res = await request(app)
+      .put('/api/planner/events/evt-1')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send({ event_date: '2026-09-25T09:00:00+03:00' });
+    expect(res.status).toBe(200);
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1);
+    expect(mockDbUpdate.mock.calls[0][2].event_date).toBe('2026-09-25T09:00:00+03:00');
+  });
+
+  it('normalizes a day-precision date on update', async () => {
+    const app = await loadApp();
+    mockOwnership();
+    mockDbUpdate.mockImplementation(async (_table: string, _id: string, data: any) => ({ id: 'evt-1', ...data }));
+    const res = await request(app)
+      .put('/api/planner/events/evt-1')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send({ event_date: '2026-09-25' });
+    expect(res.status).toBe(200);
+    expect(mockDbUpdate.mock.calls[0][2].event_date).toBe('2026-09-25T00:00:00+03:00');
+  });
+
+  it('rejects a garbage date with 400 before touching the DB', async () => {
+    const app = await loadApp();
+    mockOwnership();
+    const res = await request(app)
+      .put('/api/planner/events/evt-1')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send({ event_date: 'next Friday-ish' });
+    expect(res.status).toBe(400);
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('event date helpers (utils/dates)', () => {
+  it('validates day + datetime shapes and rejects the rest', async () => {
+    const dates = await import('../utils/dates');
+    expect(dates.isValidEventDate('2026-09-24')).toBe(true);
+    expect(dates.isValidEventDate('2026-09-24T14:30')).toBe(true);
+    expect(dates.isValidEventDate('2026-09-24T14:30:00+03:00')).toBe(true);
+    expect(dates.isValidEventDate('2026-09-24T14:30:00Z')).toBe(true);
+    expect(dates.isValidEventDate('tomorrow')).toBe(false);
+    expect(dates.isValidEventDate('2026-13-40')).toBe(false);
+    expect(dates.isValidEventDate('2026-09-24 14:30')).toBe(false);
+    expect(dates.isValidEventDate('')).toBe(false);
+    expect(dates.isValidEventDate(undefined)).toBe(false);
+    expect(dates.normalizeEventDate('2026-09-24')).toBe('2026-09-24T00:00:00+03:00');
+    expect(dates.normalizeEventDate('2026-09-24T14:30:00+03:00')).toBe('2026-09-24T14:30:00+03:00');
+  });
+
+  it('normalizes batch rows to midnight Ethiopia (dedup-safe instants)', async () => {
+    const helpers = await import('../services/plannerBatch');
+    const verdict = helpers.validateBatchEvents(
+      [{ title: 'T', subject: 'Maths', event_date: '2026-09-24', event_type: 'Exam' }],
+      'user-1'
+    );
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) expect(verdict.rows[0][3]).toBe('2026-09-24T00:00:00+03:00');
   });
 });

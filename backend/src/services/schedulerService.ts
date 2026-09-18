@@ -1,5 +1,5 @@
 import { dbAdmin, query } from '../database/config';
-import { eatTodayStr } from '../utils/dates';
+import { eatTodayStr, formatEventDateTime } from '../utils/dates';
 import { NotificationService } from './notificationService';
 
 export class SchedulerService {
@@ -111,7 +111,9 @@ export class SchedulerService {
               await NotificationService.createStudyReminderNotification(
                 event.user_id,
                 event.title,
-                event.event_date,
+                // event_date is a Date post-TIMESTAMPTZ migration (string in
+                // tests): format to an EAT label for the email either way.
+                formatEventDateTime(event.event_date),
                 shouldSendHourReminder ? 1 : 24
               );
               console.log(`Sent ${reminderType} reminder for event: ${event.title}`);

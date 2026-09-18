@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DatePickerProps {
@@ -15,6 +16,9 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = "Select date", className = "", required = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  // Fixed popup geometry, recomputed on open/scroll/resize (see below).
+  const [popupPos, setPopupPos] = useState({ top: 0, left: 0, width: 288, dropUp: false });
 
   // Helper to parse "YYYY-MM-DD" safely without timezone issues
   const getDateFromValue = (val: string) => {
@@ -30,16 +34,52 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
   const currentYear = currentDate.getFullYear();
   const selectedDate = getDateFromValue(value);
 
-  // Close on click outside
+  // Close on click outside (popup is portaled, so both refs count as in).
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      const t = event.target as Node;
+      if (containerRef.current?.contains(t)) return;
+      if (popupRef.current?.contains(t)) return;
+      setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  // Popup geometry: the trigger often lives inside an overflow-hidden modal
+  // panel (Add Task on mobile), where an in-flow absolute calendar gets
+  // cropped. The calendar portals to the body and pins under the trigger
+  // instead — flipping above it when space below runs out, clamping width
+  // to the viewport, and re-pinning on scroll/resize so it never detaches.
+  const pinPopup = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.min(288, vw - 16);
+    const height = 384; // calendar card estimate for the flip decision
+    const left = Math.max(8, Math.min(rect.left, vw - width - 8));
+    const dropUp = rect.bottom + 8 + height > vh && rect.top - 8 - height > 8;
+    setPopupPos({
+      top: dropUp ? Math.max(8, rect.top - 8 - height) : rect.bottom + 6,
+      left,
+      width,
+      dropUp,
+    });
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    pinPopup();
+    window.addEventListener('scroll', pinPopup, true);
+    window.addEventListener('resize', pinPopup);
+    return () => {
+      window.removeEventListener('scroll', pinPopup, true);
+      window.removeEventListener('resize', pinPopup);
+    };
+  }, [isOpen, pinPopup]);
 
   // Update calendar view if value changes externally
   useEffect(() => {
@@ -117,8 +157,14 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
         tabIndex={-1}
       />
 
-      {isOpen && (
-        <div className="absolute z-[999] mt-1.5 p-4 bg-surface border border-zinc-200 rounded-xl shadow-xl animate-popover left-0 w-72">
+      {isOpen && createPortal(
+        <div
+          ref={popupRef}
+          role="dialog"
+          aria-label="Choose date"
+          className="fixed z-[999] p-4 bg-surface border border-zinc-200 rounded-xl shadow-xl animate-popover"
+          style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
              <button type="button" onClick={handlePrevMonth} className="p-1 hover:bg-zinc-100 rounded-full text-zinc-500 transition-colors">
@@ -172,9 +218,10 @@ const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 
                    {day}
                  </button>
                );
-             })}
-          </div>
-        </div>
+              })}
+           </div>
+        </div>,
+        document.body
       )}
     </div>
   );
