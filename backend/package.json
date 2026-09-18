@@ -36,7 +36,8 @@
     "pdf-parse": "^2.4.5",
     "pg": "^8.16.3",
     "tesseract.js": "^5.1.1",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -50,6 +51,7 @@
     "@types/pg": "^8.10.9",
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^9.0.7",
+    "@types/web-push": "^3.6.4",
     "nodemon": "^3.1.14",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",

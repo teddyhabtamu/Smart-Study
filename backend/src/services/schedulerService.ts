@@ -134,6 +134,12 @@ export class SchedulerService {
       // Update user streaks based on last activity
       await this.updateUserStreaks(opts);
 
+      // Streak-at-risk pushes: streak >= 3, alive (last active yesterday in
+      // Ethiopia), but nothing today. Runs after the sweep above so already-
+      // lost streaks (reset to 0) never notify. Once per day by construction
+      // (daily cron) — no per-user throttle table needed.
+      await this.sendStreakRiskPushes(opts);
+
       // Clean up old read notifications (keep only last 100 per user)
       await this.cleanupOldNotifications();
 
@@ -144,6 +150,43 @@ export class SchedulerService {
 
     } catch (error) {
       console.error('Error running daily tasks:', error);
+    }
+  }
+
+  /**
+   * Push users whose streak dies tonight: meaningful streak (3+ days),
+   * last active yesterday (Ethiopia), silent today. Best-effort per user —
+   * one failing push must not cancel everyone else's.
+   */
+  private static async sendStreakRiskPushes(opts?: { deadline?: number }): Promise<void> {
+    try {
+      const { eatTodayStr, shiftDateStr } = await import('../utils/dates');
+      const { sendPushToUser } = await import('./pushService');
+      const today = eatTodayStr();
+      const yesterday = shiftDateStr(today, -1);
+      const atRisk = await query(
+        `SELECT id, streak FROM users
+         WHERE streak >= 3 AND last_active_date = $1`,
+        [yesterday]
+      );
+      for (const u of atRisk.rows as Array<{ id: string; streak: number }>) {
+        if (opts?.deadline && Date.now() > opts.deadline) break;
+        try {
+          await sendPushToUser(u.id, {
+            title: 'Keep your streak alive',
+            body: `Your ${u.streak}-day streak ends tonight — study today to keep it going.`,
+            url: '/planner',
+            tag: 'streak-risk',
+          });
+        } catch (err) {
+          console.error(`Streak-risk push failed for user ${u.id}:`, (err as any)?.message || err);
+        }
+      }
+      if ((atRisk.rows?.length || 0) > 0) {
+        console.log(`Streak-risk pushes attempted for ${atRisk.rows.length} users`);
+      }
+    } catch (error) {
+      console.error('Error sending streak-risk pushes:', error);
     }
   }
 

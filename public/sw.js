@@ -96,3 +96,48 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// Web Push: genuine server-driven notifications (study reminders, streak
+// risk) that arrive with the app closed — the in-page Notification API in
+// AuthContext only fires while a tab is alive. Payload shape is owned by
+// backend pushService: { title, body, url?, tag? }.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'SmartStudy';
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'smartstudy-push',
+    renotify: true,
+    data: { url: data.url || '/dashboard' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Tap a push: focus the existing app tab on the payload URL, or open one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/dashboard';
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.navigate(url);
+            return client.focus();
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(url);
+        }
+        return undefined;
+      })
+  );
+});

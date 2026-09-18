@@ -1462,6 +1462,21 @@ export const searchAPI = {
 };
 
 // Dashboard API
+// Web Push subscriptions (genuine push that arrives with the app closed).
+export const pushAPI = {
+  subscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<{ subscribed: boolean }> =>
+    apiRequest('/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(sub),
+    }),
+
+  unsubscribe: (endpoint: string): Promise<{ removed: number }> =>
+    apiRequest('/push/unsubscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    }),
+};
+
 export const dashboardAPI = {
   getData: (): Promise<{
     user: {

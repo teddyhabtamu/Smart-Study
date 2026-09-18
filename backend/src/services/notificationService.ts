@@ -220,6 +220,20 @@ export class NotificationService {
       type: 'INFO'
     });
 
+    // Push twin (best-effort, never throws): reaches users with the app
+    // closed — the in-app row above only surfaces to open tabs.
+    try {
+      const { sendPushToUser } = await import('./pushService');
+      await sendPushToUser(userId, {
+        title: 'Study Reminder',
+        body: `${eventTitle} is coming up in ${timeMessage}. Don't forget to prepare!`,
+        url: '/planner',
+        tag: 'study-reminder',
+      });
+    } catch {
+      // Push must never break reminder creation.
+    }
+
     // Send email notification if user has email notifications enabled and it's a 1-day or 1-hour reminder
     if (hoursUntil === 1 || hoursUntil === 24) {
       try {

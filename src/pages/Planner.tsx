@@ -4,10 +4,11 @@ import Dialog from '../components/Dialog';
 import Rail from '../components/Rail';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight, BellRing } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { isPushSupported, enablePush } from '../utils/push';
 import { StudyEvent } from '../types';
 import { aiTutorAPI, plannerAPI } from '../services/api';
 import CustomSelect from '../components/CustomSelect';
@@ -242,6 +243,32 @@ const Planner: React.FC = () => {
 
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  // Push soft-prompt after first completion (see handleTaskToggle).
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [pushEnabling, setPushEnabling] = useState(false);
+
+  const dismissPushPrompt = () => {
+    try {
+      localStorage.setItem('ss-push-asked', '1');
+    } catch {
+      // ignore
+    }
+    setShowPushPrompt(false);
+  };
+
+  const enablePushFromPrompt = async () => {
+    if (pushEnabling) return;
+    setPushEnabling(true);
+    try {
+      await enablePush();
+      addToast('Push notifications on — reminders will find you.', 'success');
+    } catch (error: any) {
+      addToast(error?.message || 'Could not turn on push notifications.', 'error');
+    } finally {
+      setPushEnabling(false);
+      dismissPushPrompt();
+    }
+  };
   const [isGenerating, setIsGenerating] = useState(false);
   // Elapsed seconds while the AI schedule generates — drives staged progress text
   const [generateElapsed, setGenerateElapsed] = useState(0);
@@ -389,6 +416,21 @@ const Planner: React.FC = () => {
         addToast(xp > 0 ? `+${xp} XP Task Completed!` : "Task completed!", "success");
         if (updated.leveledUp && updated.newLevel) {
           setTimeout(() => addToast(`Level Up! You are now Level ${updated.newLevel}`, "info"), 500);
+        }
+        // First completion is the highest-value moment to offer push: the
+        // student just felt progress. Once per browser, dismiss is permanent
+        // (the Profile toggle remains for later minds).
+        try {
+          if (
+            !localStorage.getItem('ss-push-asked') &&
+            isPushSupported() &&
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'default'
+          ) {
+            setShowPushPrompt(true);
+          }
+        } catch {
+          // Storage unavailable — skip the prompt silently.
         }
       }
     } catch (error) {
@@ -1325,6 +1367,49 @@ const Planner: React.FC = () => {
           document.body
         );
       })()}
+
+      {/* Push soft-prompt: one shot after the first completed task (see
+          handleTaskToggle). Bottom sheet on mobile, floating card on
+          desktop — same language as the tour and PWA prompts. */}
+      {showPushPrompt && (
+        <div className="fixed z-[9990] inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-96 animate-slide-up">
+          <div className="bg-zinc-900 text-onink rounded-2xl shadow-2xl border border-zinc-800 p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-white/10 rounded-xl flex-shrink-0">
+                <BellRing size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold">Never lose a streak again?</p>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  Get study reminders and streak nudges even with the app closed.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={enablePushFromPrompt}
+                    disabled={pushEnabling}
+                    className="flex-1 py-2 bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                  >
+                    {pushEnabling ? 'Turning on…' : 'Turn on'}
+                  </button>
+                  <button
+                    onClick={dismissPushPrompt}
+                    className="flex-1 py-2 bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors"
+                  >
+                    Not now
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={dismissPushPrompt}
+                aria-label="Dismiss"
+                className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors flex-shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

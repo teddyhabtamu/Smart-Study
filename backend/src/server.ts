@@ -36,6 +36,7 @@ app.set('trust proxy', true);
 // Add preview domains temporarily via EXTRA_ALLOWED_ORIGINS (comma-separated).
 const allowedOrigins = [
   'http://localhost:5173', // Development frontend
+  'http://localhost:4173', // E2E preview runs (vite preview --port 4173)
   'https://smart-study-navy.vercel.app',
   'https://smart-study-ncwi.vercel.app',
   'https://ethio-smart-study.vercel.app',
@@ -200,6 +201,7 @@ import videoRoutes from './routes/videos';
 import forumRoutes from './routes/forum';
 import aiTutorRoutes from './routes/ai-tutor';
 import plannerRoutes from './routes/planner';
+import pushRoutes from './routes/push';
 import adminRoutes from './routes/admin';
 import adminYoutubeRoutes from './routes/admin-youtube';
 import dashboardRoutes from './routes/dashboard';
@@ -215,6 +217,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/forum', forumRoutes);
 app.use('/api/ai-tutor', aiTutorRoutes);
 app.use('/api/planner', plannerRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/youtube', adminYoutubeRoutes);
 app.use('/api/dashboard', dashboardRoutes);

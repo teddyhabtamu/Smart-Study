@@ -61,5 +61,13 @@ export const config = {
     },
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
     supportEmail: process.env.SUPPORT_EMAIL || 'support@smartstudy.com'
+  },
+  push: {
+    // Web Push (VAPID). Absent keys = push disabled (subscription endpoints
+    // 503, sends no-op) — never a boot failure: the app works fully without
+    // push, and local dev rarely configures it.
+    publicKey: process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY,
+    subject: process.env.VAPID_SUBJECT || 'mailto:support@smartstudy.com'
   }
 };

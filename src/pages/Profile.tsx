@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, Palette, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles, Sun, Sunset, Moon } from 'lucide-react';
+import { User, Mail, Shield, Crown, Save, Check, Loader2, Lock, Bell, BellRing, Palette, AlertTriangle, LogOut, Camera, Upload, Trophy, Footprints, BookOpen, Flame, Users, GraduationCap, Clock, Trash2, Info, CheckCircle, AlertCircle, ExternalLink, Filter, Eye, EyeOff, Zap, Star, BrainCircuit, MonitorPlay, Sparkles, Sun, Sunset, Moon } from 'lucide-react';
 import { UserRole, User as UserType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { BADGES } from '../constants';
 import { usersAPI } from '../services/api';
+import { enablePush, disablePush, getPushState, type PushState } from '../utils/push';
 import { formatRelativeTime, getNotificationActionUrl } from '../utils/dateUtils';
 import { useTheme, THEMES, type ThemePreference, type AutoSlot } from '../context/ThemeContext';
 import { AUTO_SLOT_META, themeName } from '../context/themeSchedule';
@@ -98,6 +99,56 @@ const Profile: React.FC = () => {
   // Notification State
   const [emailNotifs, setEmailNotifs] = useState(user?.preferences?.emailNotifications ?? true);
   const [studyReminders, setStudyReminders] = useState(user?.preferences?.studyReminders ?? true);
+  // Push state lives outside the Save form: toggling needs a user gesture
+  // (permission prompt) and subscribes immediately, not on save.
+  const [pushState, setPushState] = useState<PushState>({ kind: 'off' });
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    getPushState()
+      .then((s) => {
+        if (!cancelled) setPushState(s);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handlePushToggle = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushState.kind === 'on') {
+        await disablePush();
+        setPushState({ kind: 'off' });
+        addToast('Push notifications turned off.', 'info');
+      } else {
+        await enablePush();
+        setPushState({ kind: 'on' });
+        addToast('Push notifications on — reminders will find you.', 'success');
+      }
+    } catch (error: any) {
+      addToast(error?.message || 'Could not change push setting.', 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const pushStatusText = (): string => {
+    switch (pushState.kind) {
+      case 'on':
+        return 'On — reminders and streak nudges arrive with the app closed.';
+      case 'blocked':
+        return 'Blocked — allow notifications in browser settings to turn on.';
+      case 'unsupported':
+        return 'Not supported in this browser.';
+      case 'unconfigured':
+        return 'Not available right now.';
+      default:
+        return 'Study reminders and streak nudges, even with the app closed.';
+    }
+  };
   const [notificationView, setNotificationView] = useState<NotificationView>('preferences');
   const [notificationTypeFilter, setNotificationTypeFilter] = useState<'all' | 'info' | 'success' | 'warning' | 'error'>('all');
 
@@ -1271,6 +1322,29 @@ const Profile: React.FC = () => {
                          <label className="relative inline-flex items-center cursor-pointer">
                            <input type="checkbox" checked={studyReminders} onChange={() => setStudyReminders(!studyReminders)} className="sr-only peer" />
                            <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-surface after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                         </label>
+                       </div>
+
+                       <div className="flex items-center justify-between p-4 border border-zinc-200 rounded-lg hover:border-zinc-300 transition-colors">
+                         <div className="flex gap-3">
+                            <div className="p-2 bg-zinc-100 rounded-lg h-fit text-zinc-500">
+                              <BellRing size={20} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-ink">Push Notifications</p>
+                              <p className="text-xs text-zinc-500">{pushStatusText()}</p>
+                            </div>
+                         </div>
+                         <label className="relative inline-flex items-center cursor-pointer">
+                           <input
+                             type="checkbox"
+                             checked={pushState.kind === 'on'}
+                             disabled={pushBusy || pushState.kind === 'unsupported' || pushState.kind === 'unconfigured' || pushState.kind === 'blocked'}
+                             onChange={handlePushToggle}
+                             className="sr-only peer"
+                             aria-label="Push notifications"
+                           />
+                           <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-zinc-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-surface after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900 peer-disabled:opacity-50"></div>
                          </label>
                        </div>
                      </div>
