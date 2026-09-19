@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ThumbsUp, Share2, Lock, Bookmark, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Send, Bot, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { ChevronLeft, ThumbsUp, Share2, Lock, Bookmark, PlayCircle, FileText, Download, UserPlus, LogIn, CheckCircle, MessageSquare, HelpCircle, Bot, Loader2 } from 'lucide-react';
+import ChatInput from '../components/ChatInput';
 import { videosAPI, aiTutorAPI } from '../services/api';
 import { Video } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -60,10 +61,6 @@ const VideoWatch: React.FC = () => {
         setQuizContent(null);
         setActiveTab('upNext');
         viewRecordedRef.current = null; // Reset view recording tracker when switching videos
-        if (imagePreview) {
-          URL.revokeObjectURL(imagePreview);
-          setImagePreview(null);
-        }
 
         // Fetch the main video
         const videoData = await videosAPI.getById(id);
@@ -149,8 +146,9 @@ const VideoWatch: React.FC = () => {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: string, text: string }[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // Image attach + OCR lives in the shared ChatInput; imageBusy mirrors
+  // its OCR activity for send guards and placeholders.
+  const [imageBusy, setImageBusy] = useState(false);
   const [quizContent, setQuizContent] = useState<string | null>(null);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -215,55 +213,15 @@ const VideoWatch: React.FC = () => {
     }
   };
 
-  const handleImageUpload = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      addToast('Please upload an image file', 'error');
-      return;
-    }
-
-    if (!video) return;
-
-    setIsProcessingImage(true);
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreview(previewUrl);
-
-    try {
-      // Extract text from image using OCR
-      const { text } = await aiTutorAPI.extractTextFromImage(file);
-      
-      // Put extracted text in input field instead of auto-sending
-      if (text && text.trim()) {
-        setChatInput(`[Image with text]\n\n${text}`);
-        addToast('Text extracted from image. You can edit and send it.', 'success');
-      } else {
-        // Leave the input empty: sending a literal placeholder to the model
-        // would waste the user's message on junk text.
-        setChatInput('');
-        addToast('No text could be extracted from the image. You can still add a question.', 'info');
-      }
-    } catch (error: any) {
-      console.error('OCR error:', error);
-      addToast(error.message || 'Failed to extract text from image', 'error');
-      setImagePreview(null);
-    } finally {
-      setIsProcessingImage(false);
-    }
-  };
-
-  // Clear image preview
-  const clearImagePreview = () => {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-      setImagePreview(null);
-    }
-  };
+  // Image attach + OCR lives in the shared ChatInput (see AITutor wiring).
+  // Preview retires with the emptied field on send.
 
   const handleAskAI = async () => {
     if (!chatInput.trim() || !video) return;
 
     const userMsg = chatInput;
     setChatInput('');
-    clearImagePreview(); // Clear image preview when sending
+    // Image preview retires with the emptied field (owned by ChatInput).
     setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsChatLoading(true);
 
@@ -298,37 +256,6 @@ const VideoWatch: React.FC = () => {
       setIsQuizLoading(false);
     }
   };
-
-  // Handle paste event for images
-  const handlePaste = async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items;
-    
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      
-      // Check if the pasted item is an image
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        
-        const blob = item.getAsFile();
-        if (blob) {
-          // Convert blob to File object
-          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
-          await handleImageUpload(file);
-        }
-        return;
-      }
-    }
-  };
-
-  // Cleanup image preview on unmount
-  useEffect(() => {
-    return () => {
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
-      }
-    };
-  }, [imagePreview]);
 
   // Helper function to extract video ID from URL
   const getVideoId = (url: string) => {
@@ -836,73 +763,18 @@ const VideoWatch: React.FC = () => {
                        )}
                     </div>
 
-                    <div className="pt-2 border-t border-zinc-100 relative">
-                       {/* Image Preview */}
-                       {imagePreview && (
-                         <div className="absolute bottom-full left-0 mb-2 p-2 bg-surface border border-zinc-200 rounded-lg shadow-lg z-10">
-                           <div className="relative">
-                             <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
-                             <button
-                               type="button"
-                               onClick={clearImagePreview}
-                               className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                               title="Remove image"
-                             >
-                               <X size={14} />
-                             </button>
-                           </div>
-                         </div>
-                       )}
-                       <form onSubmit={(e) => { e.preventDefault(); handleAskAI(); }} className="relative flex items-center gap-1">
-                          <input
-                             type="file"
-                             accept="image/*"
-                             onChange={(e) => {
-                               const file = e.target.files?.[0];
-                               if (file) handleImageUpload(file);
-                               e.target.value = ''; // Reset input
-                             }}
-                             className="hidden"
-                             id="video-image-upload-input"
-                             disabled={isChatLoading || isProcessingImage}
-                          />
-                          <label
-                             htmlFor="video-image-upload-input"
-                             className={`p-1.5 rounded-lg transition-colors flex items-center justify-center cursor-pointer ${
-                               isProcessingImage
-                                 ? 'bg-blue-50 text-blue-600'
-                                 : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
-                             } ${isChatLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                             title="Upload Image with Text"
-                          >
-                             {isProcessingImage ? (
-                               <Loader2 size={14} className="animate-spin" />
-                             ) : (
-                               <ImageIcon size={14} />
-                             )}
-                          </label>
-                          <input
-                             type="text"
-                             className="flex-1 pl-3 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-xs focus:outline-none focus:border-zinc-900 transition-all placeholder-zinc-400"
-                             placeholder={isProcessingImage ? "Extracting text from image..." : "Ask a question or paste an image..."}
-                             value={chatInput}
-                             onChange={(e) => setChatInput(e.target.value)}
-                             onPaste={handlePaste}
-                             disabled={isChatLoading || isProcessingImage}
-                          />
-                          <button 
-                             type="submit" 
-                             disabled={!chatInput.trim() || isChatLoading || isProcessingImage}
-                             className="absolute right-2 top-2 p-1 text-zinc-400 hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                          >
-                             {isChatLoading ? (
-                               <Loader2 size={14} className="animate-spin" />
-                             ) : (
-                               <Send size={14} />
-                             )}
-                          </button>
-                       </form>
-                    </div>
+                     <div className="pt-2 border-t border-zinc-100 relative">
+                        <ChatInput
+                          value={chatInput}
+                          onChange={setChatInput}
+                          onSend={() => void handleAskAI()}
+                          placeholder="Ask a question or paste an image…"
+                          disabled={isChatLoading}
+                          onProcessingChange={setImageBusy}
+                          imageInputId="video-image-upload-input"
+                          notify={(message, kind) => addToast(message, kind)}
+                        />
+                     </div>
                  </div>
                )}
 

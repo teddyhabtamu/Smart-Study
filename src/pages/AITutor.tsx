@@ -5,7 +5,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import Rail from '../components/Rail';
 import MyAiUsageCard from '../components/MyAiUsageCard';
-import { Send, Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Bot, User as UserIcon, Sparkles, Lightbulb, BookOpen, BrainCircuit, Eraser, MessageSquare, Plus, Trash2, Menu, Lock, Settings2, Brain, GraduationCap, X, Download, Mic, MicOff, Loader2 } from 'lucide-react';
+import ChatInput from '../components/ChatInput';
 import { Link, useLocation } from 'react-router-dom';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { ChatSession } from '../types';
@@ -52,8 +53,7 @@ const AITutor: React.FC = () => {
   // streamingIndex set   -> "streaming" (tokens arriving, show blinking cursor)
   const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
 
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
@@ -104,7 +104,7 @@ const AITutor: React.FC = () => {
   const [mounted, setMounted] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
   const hasProcessedInitialPrompt = useRef(false);
 
@@ -186,15 +186,6 @@ const AITutor: React.FC = () => {
 
     loadUserGrade().finally(() => setGradeReady(true));
   }, [user]);
-
-  // Cleanup image preview on unmount
-  useEffect(() => {
-    return () => {
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
-      }
-    };
-  }, [imagePreview]);
 
   // Latest handleSend for the deep-link effect below. The effect is gated
   // on gradeReady (not on handleSend identity), so without this ref it would
@@ -334,76 +325,16 @@ const AITutor: React.FC = () => {
     }
   };
 
-  // Handle image upload and OCR
-  const handleImageUpload = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      addToast('Please upload an image file', 'error');
-      return;
-    }
-
-    setIsProcessingImage(true);
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreview(previewUrl);
-
-    try {
-      // Extract text from image using OCR
-      const { text } = await aiTutorAPI.extractTextFromImage(file);
-      
-      // Put extracted text in input field instead of auto-sending
-      if (text && text.trim()) {
-        setInput(`[Image with text]\n\n${text}`);
-        addToast('Text extracted from image. You can edit and send it.', 'success');
-      } else {
-        // Leave the input empty: sending the literal placeholder below to the
-        // model would waste a prompt on junk text.
-        setInput('');
-        addToast('No text could be extracted from the image. You can still add a question.', 'info');
-      }
-    } catch (error: any) {
-      console.error('OCR error:', error);
-      addToast(error.message || 'Failed to extract text from image', 'error');
-      setImagePreview(null);
-    } finally {
-      setIsProcessingImage(false);
-    }
-  };
-
-  // Clear image preview
-  const clearImagePreview = () => {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-      setImagePreview(null);
-    }
-  };
-
-  // Handle paste event for images
-  const handlePaste = async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items;
-    
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      
-      // Check if the pasted item is an image
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        
-        const blob = item.getAsFile();
-        if (blob) {
-          // Convert blob to File object
-          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
-          await handleImageUpload(file);
-        }
-        return;
-      }
-    }
-  };
+  // Image attach + OCR now lives in the shared ChatInput (preview, size
+  // guard, append semantics). The parent only tracks busyness for send
+  // guards and placeholders.
 
   // Send message
   const handleSend = async (text: string = input) => {
     if (!text.trim()) return;
 
     // Ignore sends while a generation is already running
-    if (isLoading || streamingIndex !== null || isProcessingImage) return;
+    if (isLoading || streamingIndex !== null || imageBusy) return;
 
     // Check limit for non-authenticated users
     if (!user && guestPromptCount >= MAX_FREE_PROMPTS) {
@@ -412,7 +343,7 @@ const AITutor: React.FC = () => {
 
     const userMsg = text;
     setInput('');
-    clearImagePreview(); // Clear image preview when sending
+    // Image preview retires with the emptied field (owned by ChatInput).
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -528,7 +459,7 @@ const AITutor: React.FC = () => {
   const limitReached = !user && guestPromptCount >= MAX_FREE_PROMPTS;
   // Busy = thinking, streaming, or processing an image — input stays locked
   // so concurrent generations can't interleave.
-  const isBusy = isLoading || streamingIndex !== null || isProcessingImage;
+  const isBusy = isLoading || streamingIndex !== null || imageBusy;
 
   return (
     <div className="h-[calc(100vh-6rem)] flex gap-1 sm:gap-2 md:gap-4 animate-fade-in relative">
@@ -826,95 +757,34 @@ const AITutor: React.FC = () => {
                  </div>
                </div>
             ) : (
-              <form
-                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                className="relative flex gap-1.5 sm:gap-2 items-center"
-              >
-                {/* Image Preview */}
-                {imagePreview && (
-                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-surface border border-zinc-200 rounded-lg shadow-lg z-10">
-                    <div className="relative">
-                      <img src={imagePreview} alt="Preview" className="max-w-[200px] max-h-[200px] rounded" />
-                      <button
-                        type="button"
-                        onClick={clearImagePreview}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                        title="Remove image"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <div className="relative flex-1">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-3 sm:pl-4 pr-[60px] sm:pr-[64px] py-3 sm:py-3.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-all font-medium text-sm placeholder-zinc-400 shadow-sm"
-                    placeholder={isListening ? "Listening..." : isProcessingImage ? "Extracting text from image..." : "Ask a question or paste an image..."}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onPaste={handlePaste}
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSend={() => void handleSend()}
+                placeholder={isListening ? 'Listening…' : 'Ask a question or paste an image…'}
+                disabled={isBusy}
+                onProcessingChange={setImageBusy}
+                textareaRef={inputRef}
+                imageInputId="image-upload-input"
+                autoFocus
+                notify={(message, kind) => addToast(message, kind)}
+                actions={
+                  <button
+                    type="button"
+                    onClick={toggleListening}
                     disabled={isBusy}
-                    autoFocus
-                  />
-                  <div className="absolute right-1.5 sm:right-2 top-1.5 sm:top-2 flex gap-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file);
-                        e.target.value = ''; // Reset input
-                      }}
-                      className="hidden"
-                      id="image-upload-input"
-                      disabled={isBusy}
-                    />
-                    <label
-                      htmlFor="image-upload-input"
-                      className={`relative p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer after:absolute after:-inset-2 after:content-[''] ${
-                        isProcessingImage
-                          ? 'bg-blue-50 text-blue-600 animate-pulse'
-                          : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
-                      } ${isLoading || isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      title="Upload Image with Text"
-                    >
-                      {isProcessingImage ? (
-                        <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
-                      ) : (
-                        <ImageIcon size={14} className="sm:w-4 sm:h-4" />
-                      )}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={toggleListening}
-                      disabled={isBusy}
-                      aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
-                      className={`relative p-1 sm:p-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${
-                        isListening
-                          ? 'bg-red-50 text-red-600 animate-pulse'
-                          : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
-                      }`}
-                      title="Voice Input"
-                    >
-                      {isListening ? <MicOff size={14} className="sm:w-4 sm:h-4" /> : <Mic size={14} className="sm:w-4 sm:h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isBusy || !input.trim()}
-                  className="p-3 sm:p-3.5 bg-zinc-900 text-onink rounded-xl hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" />
-                  ) : (
-                    <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
-                  )}
-                </button>
-              </form>
+                    aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                    className={`relative p-1 sm:p-1.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed after:absolute after:-inset-2 after:content-[''] ${
+                      isListening
+                        ? 'bg-red-50 text-red-600 animate-pulse'
+                        : 'text-zinc-400 hover:text-ink hover:bg-zinc-100'
+                    }`}
+                    title="Voice Input"
+                  >
+                    {isListening ? <MicOff size={14} className="sm:w-4 sm:h-4" /> : <Mic size={14} className="sm:w-4 sm:h-4" />}
+                  </button>
+                }
+              />
             )}
 
             <div className="text-center flex flex-col items-center gap-1">
