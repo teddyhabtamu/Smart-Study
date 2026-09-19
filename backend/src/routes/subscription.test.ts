@@ -96,6 +96,34 @@ describe('POST /api/subscription/claim', () => {
     expect(insert[1]).toEqual(['u-1', 'TX123']);
   });
 
+  it('notifies admins inline and reports the count (never fire-and-forget)', async () => {
+    mockQuery.mockImplementation(async (text: string) => {
+      if (text.includes('LEFT JOIN bookmarks')) return { rows: [userRow()], rowCount: 1 };
+      if (text.includes('FROM payment_claims')) return { rows: [], rowCount: 0 };
+      if (text.includes('INSERT INTO payment_claims')) {
+        return { rows: [{ id: 'c-1', status: 'pending', transaction_ref: null, created_at: new Date() }], rowCount: 1 };
+      }
+      if (text.includes("FROM users WHERE role")) {
+        return { rows: [{ id: 'admin-9' }], rowCount: 1 };
+      }
+      throw new Error(`unexpected query in test: ${String(text).slice(0, 100)}`);
+    });
+    const { subApp } = await loadApps();
+    const res = await request(subApp)
+      .post('/api/subscription/claim')
+      .set('Authorization', `Bearer ${tokenFor()}`)
+      .send({});
+    expect(res.status).toBe(200);
+    // Awaited delivery: the insert (not just the claim row) completed
+    // before the response — the production bug was a void async block that
+    // died on runtime suspend.
+    expect(mockDbAdmin.insert).toHaveBeenCalledWith(
+      'notifications',
+      expect.objectContaining({ user_id: 'admin-9', title: 'New Pro payment claim' })
+    );
+    expect(res.body.data.notifiedAdmins).toBe(1);
+  });
+
   it('returns the existing pending row instead of duplicating', async () => {
     mockQuery.mockImplementation(async (text: string) => {
       if (text.includes('LEFT JOIN bookmarks')) return { rows: [userRow()], rowCount: 1 };

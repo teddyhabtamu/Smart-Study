@@ -35,6 +35,20 @@ test('claim, queue, approve, premium', async ({ page }) => {
     expect(claimRow.rows[0]?.status).toBe('pending');
     expect(claimRow.rows[0]?.transaction_ref).toBe('E2ETX1');
 
+    // Admin notification landed inline with the claim (not fire-and-forget:
+    // a void post-response block dies on runtime suspend — the production
+    // failure this guards).
+    const adminIdRow = await testDb().query(`SELECT id FROM users WHERE email = $1`, [adminCreds.email]);
+    await expect
+      .poll(async () => {
+        const n = await testDb().query(
+          `SELECT COUNT(*) AS c FROM notifications WHERE user_id = $1 AND title = 'New Pro payment claim'`,
+          [adminIdRow.rows[0].id]
+        );
+        return Number(n.rows[0].c);
+      }, { timeout: 15000 })
+      .toBeGreaterThan(0);
+
     // Admin approves from the Students queue (identity pre-linked: no
     // email matching step exists anywhere in this flow). Fresh session:
     // the login page redirects authenticated users away.

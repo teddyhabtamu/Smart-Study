@@ -40,14 +40,20 @@ router.post('/claim', authenticateToken, [
     );
     const claim = inserted.rows[0];
 
-    // Ping every admin in-app (best-effort, never fails the claim).
-    void (async () => {
-      try {
+    // Ping every admin in-app — AWAITED, not fire-and-forget. A void async
+    // block after res.json() dies unsent whenever the runtime suspends the
+    // handler (serverless freeze/idle): the claim row landed while the
+    // notification never did, exactly the production failure seen. Bounded
+    // at 8s so a sick notifier can't hold the submission hostage; failure
+    // still returns the claim (the queue card is the backstop).
+    let notifiedAdmins = 0;
+    try {
+      const notifyWork = (async () => {
         const admins = await dbQuery(
           `SELECT id FROM users WHERE role = 'ADMIN' AND status IS DISTINCT FROM 'Banned'`
         );
         const name = req.user?.name || req.user?.email || 'A student';
-        await Promise.allSettled((admins.rows || []).map((a: any) =>
+        const results = await Promise.allSettled((admins.rows || []).map((a: any) =>
           NotificationService.create({
             user_id: String(a.id),
             title: 'New Pro payment claim',
@@ -55,12 +61,20 @@ router.post('/claim', authenticateToken, [
             type: 'INFO',
           })
         ));
-      } catch (notifyErr) {
-        console.error('Admin claim notification failed (non-fatal):', (notifyErr as any)?.message || notifyErr);
-      }
-    })();
+        return results.filter((r) => r.status === 'fulfilled').length;
+      })();
+      notifiedAdmins = await Promise.race([
+        notifyWork,
+        new Promise<number>((resolve) => {
+          const t = setTimeout(() => resolve(0), 8000);
+          (t as any)?.unref?.();
+        }),
+      ]);
+    } catch (notifyErr) {
+      console.error('Admin claim notification failed (non-fatal):', (notifyErr as any)?.message || notifyErr);
+    }
 
-    res.json({ success: true, data: claim } as ApiResponse);
+    res.json({ success: true, data: { ...claim, notifiedAdmins } } as ApiResponse);
   } catch (error) {
     console.error('Submit payment claim error:', error);
     res.status(500).json({
