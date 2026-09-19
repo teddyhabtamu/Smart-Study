@@ -4,9 +4,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // budget. GoogleGenAI is faked at the module boundary; the mock routes by
 // the apiKey each client was constructed with, so tests observe exactly
 // which key serves each attempt.
-const { mockGenerateContent, mockList } = vi.hoisted(() => ({
+const { mockGenerateContent, mockList, mockKeyQuery } = vi.hoisted(() => ({
   mockGenerateContent: vi.fn(),
   mockList: vi.fn(),
+  mockKeyQuery: vi.fn(),
 }));
 
 vi.mock('@google/genai', () => ({
@@ -20,6 +21,12 @@ vi.mock('@google/genai', () => ({
       };
     }
   },
+}));
+
+// Durable per-key metering (aiKeyUsage) dynamic-imports the DB client —
+// fake it so rotation tests stay hermetic and assert the INSERT shape.
+vi.mock('../database/config', () => ({
+  query: mockKeyQuery,
 }));
 
 import {
@@ -45,6 +52,8 @@ beforeEach(() => {
   __resetTutorKeysForTests();
   mockGenerateContent.mockReset();
   mockList.mockReset();
+  mockKeyQuery.mockReset();
+  mockKeyQuery.mockResolvedValue({ rows: [], rowCount: 1 });
   delete process.env.GEMINI_API_KEYS;
   delete process.env.GEMINI_API_KEY;
 });
@@ -112,6 +121,23 @@ describe('withKeyAndModelFallback (rotation)', () => {
     expect(mockGenerateContent.mock.calls.map(([k]) => k)).toEqual([K1, K2]);
   });
 
+  it('logs every serve durably (fire-and-forget ai_key_usage row)', async () => {
+    process.env.GEMINI_API_KEYS = `${K1},${K2}`;
+    mockGenerateContent.mockImplementation(async (key: string) => ({ text: `from ${key}` }));
+    await via();
+    // logKeyUsage is fire-and-forget (never blocks the AI response): give
+    // the dynamic import + insert a tick to land.
+    await new Promise((r) => setTimeout(r, 20));
+    const inserts = mockKeyQuery.mock.calls.filter(([sql]: any[]) =>
+      String(sql).includes('INSERT INTO ai_key_usage'));
+    expect(inserts.length).toBeGreaterThan(0);
+    const [, params] = inserts[0];
+    // [fingerprint, keyIndex, outcome, model, latencyMs] — no key material.
+    expect(params[2]).toBe('served');
+    expect(String(params[0])).toContain(K1.slice(-4));
+    expect(JSON.stringify(params)).not.toContain(K1);
+  });
+
   it('fails over to key #2 when key #1 hits quota, then skips the cooling key', async () => {
     process.env.GEMINI_API_KEYS = `${K1},${K2}`;
     mockGenerateContent.mockImplementation(async (key: string) => {
@@ -127,6 +153,13 @@ describe('withKeyAndModelFallback (rotation)', () => {
     const r2 = await via();
     expect(r2).toContain(K2);
     expect(mockGenerateContent.mock.calls.every(([k]) => k === K2)).toBe(true);
+    // The quota hit was metered durably too (fire-and-forget — flush it).
+    await new Promise((r) => setTimeout(r, 20));
+    const outcomes = mockKeyQuery.mock.calls
+      .filter(([sql]: any[]) => String(sql).includes('INSERT INTO ai_key_usage'))
+      .map(([, params]: any[]) => params[2]);
+    expect(outcomes).toContain('quota');
+    expect(outcomes).toContain('served');
   });
 
   it('retires an invalid key and serves from the next one', async () => {

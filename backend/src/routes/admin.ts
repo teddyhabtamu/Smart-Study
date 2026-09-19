@@ -1666,15 +1666,49 @@ router.get('/audit-logs', requireRole(['ADMIN', 'MODERATOR']), [
 });
 
 // --- Gemini key-ring observability (admin AI-keys tab) ----------------------
-// Live rotation state: which key serves next, which are cooling/retired,
-// per-key serve/quota counters. ADMIN-only, and the payload carries key
-// fingerprints (last 4 chars) — never key material. Counters are
-// per-instance memory (serverless): they reset on deploy/cold start, so
-// the tab labels them "since boot" rather than pretending global truth.
+// Live rotation state (which key serves next, cooling/retired) comes from
+// in-memory ring state; COUNTERS are durable aggregates from ai_key_usage
+// (90-day window) so the tab survives restarts and serverless cold starts.
+// When the durable store is unavailable (old DB, missing migration) the
+// endpoint soft-falls back to in-memory session counters instead of 500ing.
+// ADMIN-only, and the payload carries key fingerprints (last 4 chars) —
+// never key material.
 router.get('/ai-keys', requireRole(['ADMIN']), async (_req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { getKeyRingStatus } = await import('../services/aiTutor');
-    res.json({ success: true, data: getKeyRingStatus() } as ApiResponse);
+    const ring = getKeyRingStatus();
+    let totals: Map<string, {
+      served: number; quotaHits: number; invalidHits: number; otherErrors: number;
+      lastOkAt: string | null; lastErrorAt: string | null;
+      lastErrorKind: 'quota' | 'invalid' | 'other' | null;
+    }> | null = null;
+    try {
+      const { getKeyUsageTotals } = await import('../services/aiKeyUsage');
+      totals = await getKeyUsageTotals();
+    } catch (totalsErr) {
+      console.error('AI key durable totals failed (non-fatal, falling back to session counters):',
+        (totalsErr as any)?.message || totalsErr);
+    }
+    const merged = {
+      ...ring,
+      keys: ring.keys.map((k) => {
+        const d = totals?.get(k.fingerprint);
+        // Durable row wins when present; otherwise the live session counter
+        // keeps the tab useful on old databases / empty history.
+        if (!d) return k;
+        return {
+          ...k,
+          served: d.served,
+          quotaHits: d.quotaHits,
+          invalidHits: d.invalidHits,
+          otherErrors: (k as any).otherErrors !== undefined ? d.otherErrors : (k as any).otherErrors,
+          lastOkAt: d.lastOkAt ?? k.lastOkAt,
+          lastErrorAt: d.lastErrorAt ?? k.lastErrorAt,
+          lastErrorKind: d.lastErrorKind ?? k.lastErrorKind,
+        };
+      }),
+    };
+    res.json({ success: true, data: merged } as ApiResponse);
   } catch (err) {
     console.error('Get AI key status error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch AI key status' } as ApiResponse);

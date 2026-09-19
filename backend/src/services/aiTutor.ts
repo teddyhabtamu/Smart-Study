@@ -8,6 +8,7 @@ import {
   weekdayOfDateStr,
   shiftDateStr,
 } from '../utils/dates';
+import { logKeyUsage } from './aiKeyUsage';
 
 // --- Client key ring ----------------------------------------------------------
 // Free-tier quota attaches to KEYS, not to us: GEMINI_API_KEYS (comma-
@@ -278,6 +279,17 @@ export const withKeyAndModelFallback = async <T>(
         st.served += 1;
         st.lastOkAt = Date.now();
         console.log(`[tutor] ${label} model ${model} ok in ${Date.now() - tStart}ms`);
+        // Durable per-key metering (fire-and-forget: best-effort, never
+        // blocks the AI response). In-memory stats above keep the live
+        // rotation snappy; this row keeps the admin tab truthful across
+        // restarts and serverless cold starts.
+        void logKeyUsage({
+          fingerprint: keyFingerprint(key),
+          keyIndex: ring.indexOf(key),
+          outcome: 'served',
+          model,
+          latencyMs: Date.now() - tStart,
+        });
         return result;
       } catch (err) {
         console.log(`[tutor] ${label} model ${model} failed in ${Date.now() - tStart}ms`);
@@ -285,6 +297,13 @@ export const withKeyAndModelFallback = async <T>(
           console.warn(`[tutor] ${label} invalid, retiring it for an hour...`);
           markKeyInvalid(key);
           noteError(key, 'invalid');
+          void logKeyUsage({
+            fingerprint: keyFingerprint(key),
+            keyIndex: ring.indexOf(key),
+            outcome: 'invalid',
+            model,
+            latencyMs: Date.now() - tStart,
+          });
           break;
         }
         if (isQuotaError(err)) {
@@ -294,6 +313,13 @@ export const withKeyAndModelFallback = async <T>(
           retryAfter = Math.max(retryAfter, wait);
           markKeyExhausted(key, wait);
           noteError(key, 'quota');
+          void logKeyUsage({
+            fingerprint: keyFingerprint(key),
+            keyIndex: ring.indexOf(key),
+            outcome: 'quota',
+            model,
+            latencyMs: Date.now() - tStart,
+          });
           continue;
         }
         if (isModelGoneError(err)) {
@@ -306,6 +332,13 @@ export const withKeyAndModelFallback = async <T>(
           continue;
         }
         noteError(key, 'other');
+        void logKeyUsage({
+          fingerprint: keyFingerprint(key),
+          keyIndex: ring.indexOf(key),
+          outcome: 'other',
+          model,
+          latencyMs: Date.now() - tStart,
+        });
         throw err;
       }
     }
@@ -678,6 +711,13 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
         st.served += 1;
         st.lastOkAt = Date.now();
         console.log(`[tutor] stream ${label} ${model} ok in ${Date.now() - tStart}ms`);
+        void logKeyUsage({
+          fingerprint: keyFingerprint(key),
+          keyIndex: ring.indexOf(key),
+          outcome: 'served',
+          model,
+          latencyMs: Date.now() - tStart,
+        });
         return emitted;
       }
       throw new Error('Empty stream from model ' + model);
@@ -687,6 +727,13 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
         console.warn(`[tutor] stream ${label} invalid, retiring it for an hour...`);
         markKeyInvalid(key);
         noteError(key, 'invalid');
+        void logKeyUsage({
+          fingerprint: keyFingerprint(key),
+          keyIndex: ring.indexOf(key),
+          outcome: 'invalid',
+          model,
+          latencyMs: Date.now() - tStart,
+        });
         keyQuotaHit = true;
         break;
       }
@@ -696,6 +743,13 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
         lastRetryAfter = Math.max(lastRetryAfter, quotaRetryAfter(err));
         markKeyExhausted(key, lastRetryAfter);
         noteError(key, 'quota');
+        void logKeyUsage({
+          fingerprint: keyFingerprint(key),
+          keyIndex: ring.indexOf(key),
+          outcome: 'quota',
+          model,
+          latencyMs: Date.now() - tStart,
+        });
         keyQuotaHit = true;
         continue;
       }
@@ -709,6 +763,13 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
         continue;
       }
       noteError(key, 'other');
+      void logKeyUsage({
+        fingerprint: keyFingerprint(key),
+        keyIndex: ring.indexOf(key),
+        outcome: 'other',
+        model,
+        latencyMs: Date.now() - tStart,
+      });
       throw err;
     }
     }

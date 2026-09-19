@@ -205,8 +205,10 @@ const AiKeysTab: React.FC = () => {
       <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-xs text-zinc-600 space-y-2">
         <p className="flex items-start gap-1.5">
           <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
-          Counters are per server instance since boot ({status.bootedAt ? new Date(status.bootedAt).toLocaleString() : '—'});
-          they reset on deploy. Durable per-route totals live under Overview → AI usage.
+          Counters are durable per-key totals (last 90 days) — they survive
+          reloads and deploys. Live rotation state (serving next / cooling /
+          retired) is per server instance. Durable per-route totals live under
+          Overview → AI usage.
         </p>
         <p className="flex items-start gap-1.5">
           <Plus size={14} className="text-zinc-400 flex-shrink-0 mt-0.5" />

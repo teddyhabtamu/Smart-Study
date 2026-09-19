@@ -56,6 +56,11 @@ beforeEach(() => {
         rowCount: 1,
       };
     }
+    // Durable per-key aggregates (ai_key_usage): empty history in tests —
+    // the endpoint falls back to live session counters per key.
+    if (text.includes('FROM ai_key_usage')) {
+      return { rows: [], rowCount: 0 };
+    }
     throw new Error(`unexpected query in test: ${String(text).slice(0, 80)}`);
   });
 });

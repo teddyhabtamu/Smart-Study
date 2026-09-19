@@ -150,6 +150,10 @@ export class SchedulerService {
       // that are dead weight on a table that grows per AI call).
       await this.cleanupOldAiUsage();
 
+      // Same 90-day trim for the per-key log backing the AI-keys tab
+      // (its aggregates read the same window; see aiKeyUsage.ts).
+      await this.cleanupOldAiKeyUsage();
+
     } catch (error) {
       console.error('Error running daily tasks:', error);
     }
@@ -275,6 +279,23 @@ export class SchedulerService {
       }
     } catch (error) {
       console.error('Error cleaning up old AI usage:', error);
+    }
+  }
+
+  /**
+   * Trim per-key AI rows older than 90 days. Guarded like ai_usage above:
+   * old databases without the migration must not break daily tasks.
+   */
+  private static async cleanupOldAiKeyUsage(): Promise<void> {
+    try {
+      const result = await query(
+        `DELETE FROM ai_key_usage WHERE created_at < NOW() - INTERVAL '90 days'`
+      );
+      if ((result.rowCount ?? 0) > 0) {
+        console.log(`Cleaned up ${result.rowCount} old AI key usage rows`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up old AI key usage:', error);
     }
   }
 
