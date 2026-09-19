@@ -1287,7 +1287,7 @@ const Planner: React.FC = () => {
                       <span aria-hidden>•</span>
                       <span>{fullDate ?? 'No date set'}</span>
                       {event.time && (
-                        <span className="tabular-nums font-semibold text-zinc-300">· {event.time}</span>
+                        <span className="tabular-nums font-semibold text-white/70">· {event.time}</span>
                       )}
                       {urgency && (
                         <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${urgencyPill(urgency.tone)}`}>
@@ -1296,7 +1296,7 @@ const Planner: React.FC = () => {
                       )}
                     </p>
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-200">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/10 text-white">
                         {event.type}
                       </span>
                       {event.isCompleted && (
@@ -1435,7 +1435,7 @@ const Planner: React.FC = () => {
                   </button>
                   <button
                     onClick={dismissPushPrompt}
-                    className="flex-1 py-2 bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors"
+                    className="flex-1 py-2 bg-transparent border border-white/20 text-white text-sm font-medium rounded-xl hover:bg-white/10 transition-colors"
                   >
                     Not now
                   </button>

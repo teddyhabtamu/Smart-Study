@@ -742,7 +742,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               <Link
                                  to="/profile?tab=notifications&view=history"
                                  onClick={() => setIsNotificationsOpen(false)}
-                                 className="block w-full text-center text-xs font-medium text-onink hover:text-zinc-200 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
+                                  className="block w-full text-center text-xs font-medium text-onink hover:text-white py-2 rounded-lg hover:bg-zinc-800 transition-colors"
                               >
                                  View all notifications
                               </Link>

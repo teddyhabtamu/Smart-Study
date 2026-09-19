@@ -983,10 +983,10 @@ const Profile: React.FC = () => {
                           <div className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center">
                             <Crown size={16} className="text-amber-400" />
                           </div>
-                          <span className="font-black tracking-[0.2em] text-sm text-zinc-300">STUDENT&nbsp;PRO</span>
+                           <span className="font-black tracking-[0.2em] text-sm text-white/70">STUDENT&nbsp;PRO</span>
                         </div>
                         <h3 className="text-xl sm:text-2xl font-black mb-2">Study without limits.</h3>
-                        <p className="text-sm text-zinc-400 mb-5 max-w-sm">
+                         <p className="text-sm text-white/70 mb-5 max-w-sm">
                           Join Pro members getting the most out of SmartStudy every day.
                         </p>
                         <button
@@ -1015,7 +1015,7 @@ const Profile: React.FC = () => {
                               <p className="text-sm font-bold text-ink">{title}</p>
                               <p className="text-xs text-zinc-500">{sub}</p>
                             </div>
-                            <Lock size={14} className="text-zinc-300 flex-shrink-0 mt-1" />
+                             <Lock size={14} className="text-zinc-400 flex-shrink-0 mt-1" />
                           </div>
                         ))}
                       </div>

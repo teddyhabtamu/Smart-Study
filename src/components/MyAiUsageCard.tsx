@@ -62,7 +62,7 @@ const MyAiUsageCard: React.FC = () => {
             </span>
             <div className="w-20 h-1.5 bg-zinc-100 rounded-full overflow-hidden flex-shrink-0">
               <div
-                className="h-full bg-zinc-700 rounded-full"
+                className="h-full bg-ink rounded-full"
                 style={{ width: `${Math.max(8, Math.round((r.calls / usage.totalCalls) * 100))}%` }}
               />
             </div>
