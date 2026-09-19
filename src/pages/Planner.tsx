@@ -136,7 +136,7 @@ const EventCard: React.FC<EventCardProps> = ({
 
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-2 mb-1">
-        <h4 className={`font-bold text-ink truncate text-sm sm:text-base ${event.isCompleted ? 'line-through text-zinc-500' : ''}`}>
+        <h4 className={`font-bold text-ink truncate text-sm sm:text-base flex-1 min-w-0 ${event.isCompleted ? 'line-through text-zinc-500' : ''}`}>
           {event.title}
         </h4>
         {event.type === 'Exam' && (
@@ -1121,8 +1121,8 @@ const Planner: React.FC = () => {
                     />
                   </div>
                </div>
-                <div className="grid grid-cols-5 gap-3">
-                   <div className="col-span-3 min-w-0">
+                 <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                    <div className="sm:col-span-3 min-w-0">
                      <label className="block text-xs font-semibold text-inksoft mb-1.5">Date</label>
                      <DatePicker 
                        value={date}
@@ -1131,7 +1131,7 @@ const Planner: React.FC = () => {
                        placeholder="Select Date"
                      />
                    </div>
-                   <div className="col-span-2 min-w-0">
+                    <div className="sm:col-span-2 min-w-0">
                      <label htmlFor="manual-event-time" className="block text-xs font-semibold text-inksoft mb-1.5">
                        Time <span className="font-normal text-zinc-400">(optional)</span>
                      </label>

@@ -139,7 +139,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ options, value, onChange, p
         </span>
         <ChevronDown 
           size={16} 
-          className={`text-zinc-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+          className={`text-zinc-400 transition-transform duration-200 flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} 
         />
       </button>
 

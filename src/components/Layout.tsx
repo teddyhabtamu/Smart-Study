@@ -35,6 +35,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // Collapse is a desktop affordance: the toggle is hidden below lg, but the
+  // state persists across resizes — without this the mobile drawer opens
+  // icon-only (labels, logo, search all gated on effectiveCollapsed). The drawer
+  // is therefore always expanded; only the desktop rail collapses.
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  );
+  const effectiveCollapsed = isCollapsed && isDesktop;
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -56,6 +64,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       document.body.style.overflow = prev;
     };
   }, [isSidebarOpen]);
+
+  // Track the lg breakpoint so collapse stays desktop-only (see above).
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
 
   // Redirect unauthorized users only when they're on protected pages (and auth is loaded)
@@ -168,27 +184,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
       <Link
         to={to}
-        title={isCollapsed ? label : undefined}
+        title={effectiveCollapsed ? label : undefined}
         onClick={handleClick}
         className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium relative ${
           isActive(to)
             ? 'bg-zinc-100 text-ink'
             : 'text-zinc-500 hover:bg-zinc-50 hover:text-ink'
-        } ${isCollapsed ? 'justify-center' : ''}`}
+        } ${effectiveCollapsed ? 'justify-center' : ''}`}
       >
         <Icon size={20} className={`flex-shrink-0 ${isActive(to) ? 'text-ink' : isPremium ? 'text-ink' : 'text-zinc-400 group-hover:text-inksoft'}`} />
         
-        {!isCollapsed && (
+        {!effectiveCollapsed && (
           <span className="whitespace-nowrap overflow-hidden transition-all duration-200">
             {label}
           </span>
         )}
 
         {/* Active Indicator */}
-        {!isCollapsed && isActive(to) && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-zinc-900"></div>}
+        {!effectiveCollapsed && isActive(to) && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-zinc-900"></div>}
         
         {/* Premium Indicator for Collapsed State */}
-        {isCollapsed && isPremium && (
+        {effectiveCollapsed && isPremium && (
           <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-zinc-900 border border-white"></div>
         )}
       </Link>
@@ -353,15 +369,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
           ${isCollapsed ? 'lg:w-[80px]' : 'lg:w-[260px]'}
-          w-[260px]
+          w-[260px] max-w-[85vw]
         `}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className={`h-20 flex items-center border-b border-zinc-100 transition-all duration-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between px-6'}`}>
+          <div className={`h-20 flex items-center border-b border-zinc-100 transition-all duration-300 ${effectiveCollapsed ? 'justify-center px-0' : 'justify-between px-6'}`}>
             
             {/* Logo - Hidden when collapsed */}
-            {!isCollapsed && (
+            {!effectiveCollapsed && (
               <div className="flex items-center gap-3 overflow-hidden animate-fade-in-fast pl-1">
                 <div className="relative">
                   {/* Subtle glow effect */}
@@ -385,9 +401,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="hidden lg:flex p-2 text-zinc-400 hover:text-ink hover:bg-zinc-100 rounded-lg transition-colors"
-              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              title={effectiveCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
-              {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+              {effectiveCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
 
             {/* Close Button (Mobile) */}
@@ -400,7 +416,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Quick Actions (Search Trigger) */}
-          <div className={`px-4 mt-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
+          <div className={`px-4 mt-4 mb-2 ${effectiveCollapsed ? 'hidden' : 'block'}`}>
              <button 
                onClick={() => setIsSearchOpen(true)}
                className="w-full flex items-center gap-2 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm text-zinc-400 hover:border-zinc-300 hover:text-inksoft transition-all text-left shadow-sm"
@@ -416,12 +432,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {(user?.role === 'ADMIN' || user?.role === 'MODERATOR') ? (
               <>
                 <div className="space-y-1">
-                  {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">Administration</p>}
+                  {!effectiveCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">Administration</p>}
                   <NavItem to="/admin" icon={Shield} label="Management Panel" />
                 </div>
 
                 <div className="space-y-1">
-                  {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">View as Student</p>}
+                  {!effectiveCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">View as Student</p>}
                   <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
                   <NavItem to="/library" icon={Search} label="Library" />
                   <NavItem to="/past-exams" icon={FileText} label="Past Exams" />
@@ -433,7 +449,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             ) : (
               <>
                 <div className="space-y-1">
-                  {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">Platform</p>}
+                  {!effectiveCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 animate-fade-in">Platform</p>}
                   {/* Overview is guests-only: "/" redirect-resolves to the
                       dashboard for logged-in users, who already have a real
                       Dashboard item under Account. Showing both meant a
@@ -452,7 +468,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
                 {user && (
                   <div className="space-y-1">
-                    {!isCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 mt-6 animate-fade-in">Account</p>}
+                    {!effectiveCollapsed && <p className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 mt-6 animate-fade-in">Account</p>}
                     <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
                     <NavItem to="/subscription" icon={Crown} label="Subscription" isPremium />
                   </div>
@@ -463,12 +479,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Quiet install entry (Chromium only, hidden when installed) —
               recovery path if the popup was dismissed */}
-          <InstallAppRow collapsed={isCollapsed} onNavigate={() => setIsSidebarOpen(false)} />
+          <InstallAppRow collapsed={effectiveCollapsed} onNavigate={() => setIsSidebarOpen(false)} />
 
           {/* Footer / Profile - Hidden on mobile (moved to header) */}
           <div className="hidden lg:block p-4 border-t border-zinc-100 relative overflow-visible">
             {user ? (
-              <div className={`flex items-center transition-all duration-300 ${isCollapsed ? 'justify-center flex-col gap-4' : 'gap-2'} relative`}>
+              <div className={`flex items-center transition-all duration-300 ${effectiveCollapsed ? 'justify-center flex-col gap-4' : 'gap-2'} relative`}>
                 {/* Notification Bell (Desktop only) */}
                 <div className="relative z-50" ref={notificationRef}>
                    <button
@@ -737,7 +753,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                    )}
                 </div>
 
-                <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className={`flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group ${isCollapsed ? 'justify-center w-full' : 'flex-1 overflow-hidden'}`} title={user.name}>
+                <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className={`flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group ${effectiveCollapsed ? 'justify-center w-full' : 'flex-1 overflow-hidden'}`} title={user.name}>
                   <div className={`relative h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs border flex-shrink-0 overflow-visible ${
                     user.isPremium
                       ? 'bg-amber-50 text-amber-700 border-amber-400 ring-1 ring-amber-300'
@@ -756,7 +772,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       </span>
                     )}
                   </div>
-                  {!isCollapsed && (
+                  {!effectiveCollapsed && (
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-semibold text-ink truncate">{user.name}</span>
                       {/* One meta row: role (+ level for students). The PRO pill
@@ -784,7 +800,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <LogOut size={18} />
                 </button>
               </div>
-            ) : isCollapsed ? (
+            ) : effectiveCollapsed ? (
               <Link to="/login" className="flex items-center justify-center w-full bg-zinc-900 text-onink p-2.5 rounded-lg hover:bg-zinc-800 transition-colors" title="Sign In">
                 <User size={18} />
               </Link>

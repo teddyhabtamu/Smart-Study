@@ -29,6 +29,15 @@ const Admin: React.FC = () => {
     }
   }, [isModerator, activeTab]);
 
+  // Keep the active tab visible in the horizontal rail: on mobile only a
+  // few tabs fit, and without this the selection can sit off-screen with
+  // no scrollbar affordance (the rail hides scrollbars by design).
+  useEffect(() => {
+    document
+      .querySelector(`[data-admintab="${activeTab}"]`)
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [activeTab]);
+
   // Each tab fetches its own data on mount (OverviewTab stats, StudentsTab
   // pages, ContentTab below, …) — the old mount-everything effect fired four
   // full-table fetches for tabs the user might never open.
@@ -73,6 +82,7 @@ const Admin: React.FC = () => {
               ].map(tab => (
                 <button
                   key={tab.id}
+                  data-admintab={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-all whitespace-nowrap ${
                     activeTab === tab.id

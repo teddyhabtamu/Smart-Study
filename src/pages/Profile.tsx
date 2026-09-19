@@ -1258,9 +1258,9 @@ const Profile: React.FC = () => {
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-              <div className="p-6 space-y-6 animate-fade-in h-full flex flex-col">
+              <div className="p-4 sm:p-6 space-y-6 animate-fade-in h-full flex flex-col">
                  {/* View Toggle */}
-                 <div className="flex items-center justify-between">
+                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                    <div>
                      <h2 className="text-lg font-bold text-ink mb-1">Notifications</h2>
                      <p className="text-sm text-zinc-500">Manage your notification preferences and history.</p>

@@ -621,17 +621,17 @@ const AITutor: React.FC = () => {
             <div className="w-8 h-8 sm:w-9 sm:h-9 bg-zinc-900 rounded-xl flex items-center justify-center text-onink shadow-lg shadow-zinc-900/10">
               <Sparkles size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
-            <div>
-              <h1 className="font-bold text-xs sm:text-sm text-ink flex items-center gap-1 sm:gap-2">
-                Smart Tutor
+            <div className="min-w-0">
+              <h1 className="font-bold text-xs sm:text-sm text-ink flex items-center gap-1 sm:gap-2 min-w-0">
+                <span className="flex-shrink-0">Smart Tutor</span>
                 {deepThinking && (
-                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-ink px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
+                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-ink px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200 whitespace-nowrap flex-shrink-0">
                     <Brain size={8} className="sm:w-2.5 sm:h-2.5" /> Deep Think
                   </span>
                 )}
                 {subjectFocus !== 'General' && (
-                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-inksoft px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200">
-                    <GraduationCap size={8} className="sm:w-2.5 sm:h-2.5" /> {subjectFocus}
+                  <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-zinc-100 text-inksoft px-1 sm:px-1.5 py-0.5 rounded border border-zinc-200 min-w-0 max-w-[140px] truncate">
+                    <GraduationCap size={8} className="sm:w-2.5 sm:h-2.5 flex-shrink-0" /> <span className="truncate">{subjectFocus}</span>
                   </span>
                 )}
               </h1>

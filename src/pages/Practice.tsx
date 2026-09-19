@@ -456,7 +456,7 @@ const Practice: React.FC = () => {
                    }`}>
                      {OPTION_LETTERS[idx] ?? idx + 1}
                    </span>
-                   <span className={`font-medium text-sm sm:text-base flex-1 ${isSelected ? 'text-ink' : 'text-inksoft'}`}>
+                    <span className={`font-medium text-sm sm:text-base flex-1 min-w-0 break-words ${isSelected ? 'text-ink' : 'text-inksoft'}`}>
                      <MarkdownInline content={stripOptionPrefix(option)} />
                    </span>
                    {isSelected && <div className="w-4 h-4 sm:w-5 sm:h-5 bg-zinc-900 rounded-full flex items-center justify-center flex-shrink-0"><Check size={10} className="sm:w-3 sm:h-3 text-onink" /></div>}

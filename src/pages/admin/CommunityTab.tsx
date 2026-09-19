@@ -165,7 +165,7 @@ const CommunityTab: React.FC = () => {
                             "{post.content}"
                          </p>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-zinc-400">
-                             <span className="truncate">Posted by <span className="font-medium text-inksoft">{post.author}</span></span>
+                              <span className="truncate min-w-0 max-w-full">Posted by <span className="font-medium text-inksoft">{post.author}</span></span>
                              <span className="hidden sm:inline">•</span>
                              <span className="text-[10px] sm:text-xs">{(post as any).created_at ? new Date((post as any).created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
                              <span className="hidden sm:inline">•</span>

@@ -262,16 +262,16 @@ const Community: React.FC = () => {
                </>
              ) : leaderboard.length > 0 ? (
                leaderboard.slice(0, 3).map((learner) => (
-                 <div key={learner.id} className={`flex items-center justify-between p-3 rounded-lg ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'bg-zinc-50'}`}>
-                    <div className="flex items-center gap-3">
+                  <div key={learner.id} className={`flex items-center justify-between gap-2 p-3 rounded-lg ${learner.isUser ? 'bg-amber-50 border border-amber-200' : 'bg-zinc-50'}`}>
+                     <div className="flex items-center gap-3 min-w-0">
                        <div className="w-6 h-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-inksoft">
                           {learner.rank}
                        </div>
                        <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-inksoft border border-zinc-200">
                           {learner.initial}
                        </div>
-                       <div>
-                          <p className={`text-sm font-bold ${learner.isUser ? 'text-amber-900' : 'text-ink'}`}>
+                        <div className="min-w-0">
+                           <p className={`text-sm font-bold truncate ${learner.isUser ? 'text-amber-900' : 'text-ink'}`}>
                              {learner.name}
                           </p>
                           <p className="text-xs text-zinc-500">Level {learner.level}</p>
@@ -631,10 +631,10 @@ const Community: React.FC = () => {
                     <p className="text-inksoft text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
                   )}
 
-                  <div className={`flex items-center justify-between ${hasExcerpt ? 'border-t border-zinc-50 pt-3 sm:pt-4' : 'pt-1'}`}>
-                    <div className="flex items-center gap-2">
+                  <div className={`flex items-center justify-between gap-2 ${hasExcerpt ? 'border-t border-zinc-50 pt-3 sm:pt-4' : 'pt-1'}`}>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div
-                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-onink ${
+                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-onink ${
                           authorRole === UserRole.TUTOR
                             ? 'bg-zinc-800'
                             : authorRole === UserRole.ADMIN
@@ -645,7 +645,7 @@ const Community: React.FC = () => {
                         {post.author.charAt(0)}
                       </div>
 
-                      <span className="text-xs font-medium text-inksoft">{post.author}</span>
+                      <span className="text-xs font-medium text-inksoft truncate min-w-0">{post.author}</span>
                       <span
                         className="text-xs text-zinc-500"
                         title={createdAt ? new Date(createdAt).toLocaleString() : undefined}
@@ -654,7 +654,7 @@ const Community: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 text-xs text-zinc-500">
+                    <div className="flex items-center gap-1 text-xs text-zinc-500 whitespace-nowrap flex-shrink-0">
                       <MessageSquare size={12} className="sm:w-3.5 sm:h-3.5" /> {post.comment_count || 0} {(post.comment_count || 0) === 1 ? 'comment' : 'comments'}
                     </div>
                   </div>
