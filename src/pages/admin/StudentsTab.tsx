@@ -27,6 +27,8 @@ const StudentsTab: React.FC = () => {
   }, [searchTerm]);
   const [planFilter, setPlanFilter] = useState<'all' | 'free' | 'premium'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Banned'>('all');
+  const [claims, setClaims] = useState<any[] | null>(null);
+  const [isDecidingClaim, setIsDecidingClaim] = useState<string | null>(null);
   const [students, setStudents] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE, offset: 0, hasMore: false });
@@ -88,6 +90,41 @@ const StudentsTab: React.FC = () => {
   useEffect(() => {
     fetchStudents({ offset: 0 });
   }, [fetchStudents]);
+
+  // Payment claims queue: identity-linked at claim time, so approval needs
+  // no Telegram-to-email matching. Silent-fail to hidden (old DBs).
+  const fetchClaims = useCallback(async () => {
+    try {
+      const rows = await adminAPI.getPaymentClaims();
+      setClaims(rows);
+    } catch {
+      setClaims(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClaims();
+  }, [fetchClaims]);
+
+  // Approve = the existing premium toggle (auto-settles the claim
+  // server-side). Reject = explicit no. Both refresh the queue + list.
+  const decideClaim = async (claim: any, approve: boolean) => {
+    try {
+      setIsDecidingClaim(claim.id);
+      if (approve) {
+        await adminAPI.updateUserPremium(claim.user_id, true);
+        addToast(`${claim.name} upgraded to Pro`, 'success');
+      } else {
+        await adminAPI.rejectPaymentClaim(claim.id);
+        addToast('Claim rejected', 'success');
+      }
+      await Promise.all([fetchClaims(), fetchStudents()]);
+    } catch (error: any) {
+      addToast(error?.message || 'Failed to decide claim', 'error');
+    } finally {
+      setIsDecidingClaim(null);
+    }
+  };
 
   const hasActiveFilters = debouncedSearch.trim() !== '' || planFilter !== 'all' || statusFilter !== 'all';
 
@@ -200,10 +237,51 @@ const StudentsTab: React.FC = () => {
                     onChange={(value) => setStatusFilter(value as 'all' | 'Active' | 'Banned')}
                   />
                 </div>
-              </div>
-           </div>
+               </div>
+            </div>
 
-           {usersLoading ? (
+            {/* Payment claims queue — pending first. Identity is linked at
+                claim time: approve upgrades (auto-settles), reject says no. */}
+            {claims !== null && claims.some((c: any) => c.status === 'pending') && (
+              <div className="bg-surface rounded-xl border border-amber-200 shadow-sm p-4 sm:p-5">
+                <h3 className="font-bold text-ink text-sm sm:text-base mb-1">
+                  Pending payments <span className="text-xs font-medium text-zinc-500">({claims.filter((c: any) => c.status === 'pending').length} waiting)</span>
+                </h3>
+                <p className="text-xs text-zinc-500 mb-3">Verify the Telebirr receipt, then approve — the upgrade settles the ticket automatically.</p>
+                <div className="space-y-2">
+                  {claims.filter((c: any) => c.status === 'pending').map((c: any) => (
+                    <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-ink truncate">{c.name}</p>
+                        <p className="text-[11px] text-zinc-500 truncate">
+                          {c.email}
+                          {c.transaction_ref ? ` · ref ${c.transaction_ref}` : ''}
+                          {' · '}{new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => decideClaim(c, true)}
+                          disabled={isDecidingClaim === c.id}
+                          className="flex-1 sm:flex-none px-3 py-1.5 bg-zinc-900 text-onink text-xs font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                        >
+                          {isDecidingClaim === c.id ? 'Working…' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => decideClaim(c, false)}
+                          disabled={isDecidingClaim === c.id}
+                          className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {usersLoading ? (
              <StudentsTableSkeleton />
            ) : (
              <>

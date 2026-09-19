@@ -209,6 +209,7 @@ import searchRoutes from './routes/search';
 import careersRoutes from './routes/careers';
 import cronRoutes from './routes/cron';
 import clientErrorsRoutes from './routes/clientErrors';
+import subscriptionRoutes from './routes/subscription';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -225,6 +226,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/careers', careersRoutes);
 app.use('/api/client-errors', clientErrorsRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/cron', cronRoutes); // Vercel Cron (CRON_SECRET bearer) — the serverless scheduler
 
 // Version stamp: which code is actually running. Vercel injects

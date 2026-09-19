@@ -395,6 +395,22 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
       is_read: false
     });
 
+    // Upgrading through this endpoint settles the payment queue: the payer
+    // identity was linked at claim time, so approval needs no email
+    // matching. Best-effort — a claims-table gap must never fail the
+    // upgrade itself.
+    if (isPremium) {
+      try {
+        await dbQuery(
+          `UPDATE payment_claims SET status = 'approved', decided_at = NOW(), decided_by = $1
+           WHERE user_id = $2 AND status = 'pending'`,
+          [req.user!.id, targetUserId]
+        );
+      } catch (claimErr) {
+        console.error('Auto-approve payment claims failed (non-fatal):', (claimErr as any)?.message || claimErr);
+      }
+    }
+
     // Send premium email notifications (non-blocking)
     if (user.email && user.name) {
       if (isPremium) {
@@ -432,6 +448,58 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
     res.status(500).json({
       success: false,
       message: 'Failed to update user premium status'
+    } as ApiResponse);
+  }
+});
+
+// --- Payment claims queue (admin) ----------------------------------------
+// Pending claims first (the actual work queue), then recently decided.
+// Identity comes linked from claim time — no Telegram-to-email matching.
+router.get('/payment-claims', requireRole(['ADMIN']), async (_req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    let rows: any[] = [];
+    try {
+      const r = await dbQuery(
+        `SELECT c.id, c.status, c.transaction_ref, c.created_at, c.decided_at,
+                u.id AS user_id, u.name, u.email, u.is_premium
+         FROM payment_claims c JOIN users u ON u.id = c.user_id
+         ORDER BY (c.status = 'pending') DESC, c.created_at DESC
+         LIMIT 50`
+      );
+      rows = r.rows;
+    } catch (claimsErr) {
+      console.error('Payment claims list failed (non-fatal, table may predate migration):', (claimsErr as any)?.message || claimsErr);
+    }
+    res.json({ success: true, data: rows } as ApiResponse);
+  } catch (error) {
+    console.error('Get payment claims error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get payment claims'
+    } as ApiResponse);
+  }
+});
+
+// Reject one pending claim (approvals flow through the premium toggle,
+// which auto-approves — this endpoint only says no).
+router.post('/payment-claims/:id/reject', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      res.status(400).json({ success: false, message: 'Claim id required' } as ApiResponse);
+      return;
+    }
+    const r = await dbQuery(
+      `UPDATE payment_claims SET status = 'rejected', decided_at = NOW(), decided_by = $1
+       WHERE id = $2 AND status = 'pending'`,
+      [req.user!.id, id]
+    );
+    res.json({ success: true, data: { rejected: (r.rowCount ?? 0) > 0 } } as ApiResponse);
+  } catch (error) {
+    console.error('Reject payment claim error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject payment claim'
     } as ApiResponse);
   }
 });

@@ -1366,6 +1366,17 @@ export const adminAPI = {
       body: JSON.stringify({ fingerprint }),
     }),
 
+  // Payment claims queue (pending first) + reject action. Approvals flow
+  // through updateUserPremium, which auto-settles pending claims.
+  getPaymentClaims: (): Promise<Array<{
+    id: string; status: string; transaction_ref: string | null; created_at: string; decided_at: string | null;
+    user_id: string; name: string; email: string; is_premium: boolean;
+  }>> =>
+    apiRequest('/admin/payment-claims'),
+
+  rejectPaymentClaim: (id: string): Promise<{ rejected: boolean }> =>
+    apiRequest(`/admin/payment-claims/${id}/reject`, { method: 'POST' }),
+
   getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
     users: User[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
@@ -1670,6 +1681,25 @@ export const dashboardAPI = {
     perDay: Array<{ date: string; tasksCompleted: number; xp: number }>;
   }> =>
     apiRequest('/dashboard/recap'),
+};
+
+// Subscription API — Pro payment claims (identity-linked receipt queue).
+export const subscriptionAPI = {
+  // Record the claim after paying over Telebirr. Idempotent: repeat calls
+  // return the existing pending row, never a duplicate queue entry.
+  submitClaim: (transactionRef?: string): Promise<{
+    id: string; status: string; transaction_ref: string | null; created_at: string;
+  }> =>
+    apiRequest('/subscription/claim', {
+      method: 'POST',
+      body: JSON.stringify({ transactionRef: transactionRef || undefined }),
+    }),
+
+  // Latest claim (any status) or null — drives the persistent pending state.
+  getMyClaim: (): Promise<{
+    id: string; status: string; transaction_ref: string | null; created_at: string; decided_at: string | null;
+  } | null> =>
+    apiRequest('/subscription/claim/mine'),
 };
 
 // Careers API
