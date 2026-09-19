@@ -18,6 +18,16 @@ export const uiLogin = async (page: Page, email: string, password: string): Prom
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 60000 });
 };
 
+// Switch accounts mid-spec: the login page redirects authenticated users
+// away, so a second uiLogin without clearing state fills a form that
+// instantly navigates off (30s timeouts into a test timeout). Wipe the
+// session and land on a fresh /login instead.
+export const uiLogout = async (page: Page): Promise<void> => {
+  await page.context().clearCookies();
+  await page.evaluate(() => localStorage.clear());
+  await page.goto('/login');
+};
+
 // Delete via the real API using a fresh login token (exercises nothing but
 // cleanup — the delete-account UI has its own confirm flow we don't need).
 export const deleteAccountViaAPI = async (email: string, password: string): Promise<void> => {
@@ -38,6 +48,17 @@ export const deleteAccountViaAPI = async (email: string, password: string): Prom
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ password }),
   }).catch(() => undefined);
+};
+
+// Fresh accounts get the onboarding tour modal on the Dashboard (800ms
+// delay) — it overlays everything and intercepts clicks. Dismiss it when
+// present; no-op when absent or already seen.
+export const dismissTourIfOpen = async (page: Page): Promise<void> => {
+  try {
+    await page.getByRole('button', { name: 'Skip tour' }).click({ timeout: 5000 });
+  } catch {
+    // No tour open — nothing to dismiss.
+  }
 };
 
 // Drive the custom DatePicker to an exact YYYY-MM-DD (no adjacent-month

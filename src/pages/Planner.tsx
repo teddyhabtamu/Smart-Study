@@ -419,7 +419,10 @@ const Planner: React.FC = () => {
       // code called gainXP(50) on top, double-paying every completion.
       const updated = await updateStudyEvent(id, { isCompleted: !isCompleted });
       if (!isCompleted) { // If marking as complete
-        await refreshUser(); // sync header XP/level with the award
+        // Header sync is advisory: offline the toggle already queued above
+        // and this refresh would throw, turning a saved tap into a failure
+        // toast. The dashboard re-syncs on reconnect regardless.
+        await refreshUser().catch(() => {});
         const xp = updated.xpGained ?? 0;
         addToast(xp > 0 ? `+${xp} XP Task Completed!` : "Task completed!", "success");
         if (updated.leveledUp && updated.newLevel) {
