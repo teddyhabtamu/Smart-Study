@@ -357,7 +357,7 @@ export type KeyRingKeyState = 'next' | 'idle' | 'cooling' | 'retired';
 
 export interface KeyRingKeyStatus {
   index: number;
-  /** Masked identity (•••• + last 4) for matching against AI Studio. */
+  /** Masked identity (•••• + last 4) for matching against the API key dashboard. */
   fingerprint: string;
   state: KeyRingKeyState;
   /** Seconds until it rejoins rotation (cooling/retired only). */
