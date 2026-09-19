@@ -1342,6 +1342,25 @@ export const adminAPI = {
   }>> =>
     apiRequest(`/admin/ai-usage/top-users?days=${days}&limit=${limit}`),
 
+  // Grouped error summary (Overview Errors card) + resolve action.
+  getErrorSummary: (days = 7, limit = 20): Promise<Array<{
+    fingerprint: string;
+    source: 'client' | 'server';
+    route: string | null;
+    message: string;
+    occurrences: number;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    resolved: boolean;
+  }>> =>
+    apiRequest(`/admin/errors?days=${days}&limit=${limit}`),
+
+  resolveError: (fingerprint: string): Promise<{ resolved: boolean }> =>
+    apiRequest('/admin/errors/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ fingerprint }),
+    }),
+
   getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
     users: User[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };

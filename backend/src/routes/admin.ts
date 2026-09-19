@@ -235,6 +235,38 @@ router.get('/ai-usage/top-users', requireRole(['ADMIN']), [
   }
 });
 
+// --- Error log (admin Errors card) ---------------------------------------
+// Grouped failures over a sliding window, most frequent first, resolved
+// last. Soft-fails to [] on old databases (missing error_log table).
+router.get('/errors', requireRole(['ADMIN']), [
+  query('days').optional().isInt({ min: 1, max: 90 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { getErrorSummary } = await import('../services/errorLog');
+    const data = await getErrorSummary(Number(req.query.days) || 7, Number(req.query.limit) || 20);
+    res.json({ success: true, data } as ApiResponse);
+  } catch (err) {
+    console.error('Get error summary error:', err);
+    res.status(500).json({ success: false, message: 'Failed to get error summary' } as ApiResponse);
+  }
+});
+
+// Mark one fingerprint resolved. A repeat occurrence reopens it — silence
+// must be earned by fixing the cause, not by clicking.
+router.post('/errors/resolve', requireRole(['ADMIN']), [
+  body('fingerprint').isString().trim().isLength({ min: 1, max: 64 }),
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { resolveError } = await import('../services/errorLog');
+    const ok = await resolveError(String(req.body.fingerprint));
+    res.json({ success: true, data: { resolved: ok } } as ApiResponse);
+  } catch (err) {
+    console.error('Resolve error fingerprint error:', err);
+    res.status(500).json({ success: false, message: 'Failed to resolve error' } as ApiResponse);
+  }
+});
+
 // User management endpoints
 router.get('/users', requireRole(['ADMIN']), [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),

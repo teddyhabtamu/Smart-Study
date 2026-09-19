@@ -208,6 +208,7 @@ import dashboardRoutes from './routes/dashboard';
 import searchRoutes from './routes/search';
 import careersRoutes from './routes/careers';
 import cronRoutes from './routes/cron';
+import clientErrorsRoutes from './routes/clientErrors';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -223,6 +224,7 @@ app.use('/api/admin/youtube', adminYoutubeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/careers', careersRoutes);
+app.use('/api/client-errors', clientErrorsRoutes);
 app.use('/api/cron', cronRoutes); // Vercel Cron (CRON_SECRET bearer) — the serverless scheduler
 
 // Version stamp: which code is actually running. Vercel injects
@@ -271,6 +273,13 @@ app.get('/api/health', async (req, res) => {
 // Error handling middleware - ensure CORS headers on errors
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction): void => {
   console.error('Error:', err);
+  // Every 500 that reaches Express is a bug or outage worth one grouped
+  // row — fire-and-forget so telemetry never delays the error response.
+  if (!res.headersSent && (err.status || 500) >= 500) {
+    void import('./services/errorLog').then((m) =>
+      m.reportError({ source: 'server', route: req.path, message: String(err?.message || err) })
+    ).catch(() => undefined);
+  }
 
   // Set CORS headers on error responses
   const origin = req.headers.origin;

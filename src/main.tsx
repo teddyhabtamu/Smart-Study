@@ -6,7 +6,12 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { initErrorReporting } from './utils/errorReporting';
 import './index.css';
+
+// Client crash telemetry (PROD only — see errorReporting.ts). Installed
+// before first render so boot failures are captured too.
+initErrorReporting();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

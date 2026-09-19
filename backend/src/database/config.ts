@@ -135,7 +135,7 @@ export const isTransientError = (err: any): boolean => {
 // One retry only (worst case ≈ acquire 10s + backoff + acquire 10s ≈ 22s,
 // inside the function budget). Two retries stacked past the Vercel kill —
 // a third attempt at a sick pooler helps no one and silences the failure.
-const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500, sqlTag = ''): Promise<T> => {
   let lastError: any;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -151,6 +151,14 @@ const withRetry = async <T>(fn: () => Promise<T>, retries = 1, delayMs = 1500): 
         `pg pool failure (total=${s.total} idle=${s.idle} waiting=${s.waiting} max=${s.max}):`,
         (err as any)?.message || err
       );
+      // Pool collapses are the outage class admins must see first — report
+      // one grouped row. Skipped for error_log's own queries: telemetry
+      // writing about its own write failure would recurse forever.
+      if (!sqlTag.includes('error_log')) {
+        void import('../services/errorLog').then((m) =>
+          m.reportError({ source: 'server', route: 'pg-pool', message: String((err as any)?.message || err) })
+        ).catch(() => undefined);
+      }
       throw err;
     }
   }
@@ -201,7 +209,7 @@ export const query = async (text: string, params: any[] = []): Promise<{ rows: a
     }
   };
   // withRetry logs the failure with pool gauges before rethrowing.
-  return withRetry(run);
+  return withRetry(run, 1, 1500, text);
 };
 
 // Absolute per-operation ceiling, enforced by OUR OWN timer — not pg's.
@@ -263,7 +271,7 @@ export const getClient = async (): Promise<PoolClient> => {
   };
   const wrappedQuery = client.query.bind(client);
   (client as any).query = async (text: string, p: any[] = []) => {
-    return withRetry(() => wrappedQuery(text, p));
+    return withRetry(() => wrappedQuery(text, p), 1, 1500, text);
   };
   return client;
 };

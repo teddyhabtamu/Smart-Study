@@ -19,7 +19,6 @@ const rateLimitValidate = {
 } as const;
 
 // Login-specific throttle: 20 FAILED attempts per IP per 15 minutes.
-//
 // Why separate from the global /api/ limiter (100/15min)? 100 password
 // guesses per window is ample for credential stuffing. And why failures
 // only (skipSuccessfulRequests)? Shared computer labs behind one public IP
@@ -40,5 +39,24 @@ export const loginLimiter = rateLimit({
     success: false,
     code: 'TOO_MANY_LOGIN_ATTEMPTS',
     message: 'Too many failed login attempts. Please try again in 15 minutes.',
+  },
+});
+
+// Client-error telemetry throttle: 30 reports per IP per minute. Generous
+// on purpose — a crash loop on one device must still get through — but
+// bounded so a hostile page can't flood error_log (each report is a DB
+// upsert). Client-side dedupe + session caps do the real shaping; this is
+// the backstop.
+export const clientErrorLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: ipKeyGenerator,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: rateLimitValidate,
+  message: {
+    success: false,
+    code: 'TOO_MANY_ERROR_REPORTS',
+    message: 'Too many error reports. Please try again in a minute.',
   },
 });
