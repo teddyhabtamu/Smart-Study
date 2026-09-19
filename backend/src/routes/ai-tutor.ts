@@ -7,7 +7,7 @@ import { authenticateToken, optionalAuth, validateRequest, requirePremium } from
 import { ApiResponse, ChatSession, User } from '../types';
 import { extractTextFromImage } from '../services/ocrService';
 import { AIQuotaExceededError, AI_QUOTA_MESSAGE } from '../services/aiTutor';
-import { getDocumentExcerpt } from '../services/documentContentService';
+import { getDocumentExcerpt, getDocumentMeta } from '../services/documentContentService';
 import { awardXP, AI_GENERATION_XP_SOURCES, DAILY_AI_GENERATION_XP_CAP } from '../services/xpService';
 import { logAiUsage } from '../services/aiUsage';
 import { validateBatchEvents, buildBatchInsert, buildRecentDuplicatesSelect, splitNewVsExisting } from '../services/plannerBatch';
@@ -30,40 +30,96 @@ const FREE_DAILY_QUIZ_LIMIT = 1;
 // enough for real summaries/answers without torching shared Gemini quota.
 const DOC_EXCERPT_CHARS = 10_000;
 
-// Build the document-grounding block for a chat prompt. Best-effort:
-// failures (or a premium doc requested by a non-premium user/guest) yield
-// { context: null, grounded: false, reason } and the caller falls back to
-// metadata-only prompts — never leaks premium content, never 500s the chat
-// over a slow Drive download. The reason lets the reader render a designed
-// empty state instead of a model apology.
-const buildDocumentContext = async (
+// Build the document-grounding block for a chat prompt. Tiered by design —
+// an unavailable excerpt degrades to a metadata overview instead of an
+// error wall, because the catalog facts (title/description/subject) are
+// already public in the library:
+// - excerpt readable (+ entitled) → grounded: true (file-accurate answers).
+// - premium-gated / scanned / unparsable / unfetchable → grounded: false,
+//   partial: true with a catalog-info prompt + UI notice. Never leaks
+//   premium text; never 500s the chat over a slow Drive download.
+// - no document row at all → hard unavailable (nothing honest to say).
+// Exported for unit tests (route wiring itself is covered by route tests).
+export interface DocumentContextResult {
+  context: string | null;
+  grounded: boolean;
+  partial: boolean;
+  notice?: string;
+  reason?: string;
+}
+
+const PARTIAL_NOTICES: Record<string, string> = {
+  'premium-gated': 'Pro material — general overview below. Upgrade for file-accurate answers.',
+  'no-text-layer': 'Scanned document — overview from catalog info, not the file text.',
+  'unsupported-type': 'Preview format — general overview from catalog info.',
+  'fetch-failed': "Couldn't read the file right now — general overview. Retry for the full version.",
+  'parse-failed': "Couldn't read the file right now — general overview. Retry for the full version.",
+};
+
+export const buildDocumentContext = async (
   documentId: string | undefined,
   requesterIsPremium: boolean
-): Promise<{ context: string | null; grounded: boolean; reason?: string }> => {
-  if (!documentId) return { context: null, grounded: false };
+): Promise<DocumentContextResult> => {
+  if (!documentId) return { context: null, grounded: false, partial: false };
   try {
     const doc = await getDocumentExcerpt(documentId, DOC_EXCERPT_CHARS);
-    if ('unavailable' in doc) return { context: null, grounded: false, reason: doc.reason };
-    // Premium gate: excerpt text stays server-side unless the requester is
-    // entitled. Metadata-only fallback below reveals nothing.
-    if (doc.isPremium && !requesterIsPremium) {
-      return { context: null, grounded: false, reason: 'premium-gated' };
+    if (!('unavailable' in doc)) {
+      // Premium gate: excerpt text stays server-side unless the requester is
+      // entitled. Metadata fallback below reveals nothing beyond the catalog.
+      if (doc.isPremium && !requesterIsPremium) {
+        const meta = await getDocumentMeta(documentId);
+        return metadataFallback(
+          'premium-gated',
+          meta?.title ?? doc.title,
+          meta?.description ?? '',
+          meta?.subject ?? '',
+          meta?.grade ?? null
+        );
+      }
+      return {
+        context: [
+          `Document context: "${doc.title}". The excerpt below is the actual document text — use it to answer.`,
+          `--- document excerpt (${doc.totalChars} chars${doc.truncated ? ', truncated' : ''}) ---`,
+          doc.excerpt,
+          `--- end of excerpt ---`,
+          `Ground your answer in the excerpt above. If the question covers content not in the excerpt, say so honestly and answer from general knowledge, clearly labeling which part is from the document vs general knowledge. Never invent quotes or page numbers not present in the excerpt.`,
+        ].join('\n'),
+        grounded: true,
+        partial: false,
+      };
     }
-    return {
-      context: [
-        `Document context: "${doc.title}". The excerpt below is the actual document text — use it to answer.`,
-        `--- document excerpt (${doc.totalChars} chars${doc.truncated ? ', truncated' : ''}) ---`,
-        doc.excerpt,
-        `--- end of excerpt ---`,
-        `Ground your answer in the excerpt above. If the question covers content not in the excerpt, say so honestly and answer from general knowledge, clearly labeling which part is from the document vs general knowledge. Never invent quotes or page numbers not present in the excerpt.`,
-      ].join('\n'),
-      grounded: true,
-    };
+    const meta = await getDocumentMeta(documentId);
+    if (!meta) return { context: null, grounded: false, partial: false, reason: doc.reason };
+    return metadataFallback(doc.reason, meta.title, meta.description, meta.subject, meta.grade);
   } catch (err) {
     console.error('[ai-tutor] document context failed:', (err as Error)?.message);
-    return { context: null, grounded: false, reason: 'fetch-failed' };
+    return { context: null, grounded: false, partial: false, reason: 'fetch-failed' };
   }
 };
+
+// Catalog-info prompt for the degraded tier. Explicitly tells the model it
+// does NOT have the file, so it frames honestly instead of hallucinating
+// specifics — the failure mode the old metadata-only prompts had.
+const metadataFallback = (
+  reason: string,
+  title: string,
+  description: string,
+  subject: string,
+  grade: number | null
+): DocumentContextResult => ({
+  context: [
+    `Document catalog info (you do NOT have the file text): Title "${title}"` +
+      (subject ? `, Subject ${subject}` : '') +
+      (grade !== null ? `, Grade ${grade}` : '') +
+      (description ? `. Catalog description: ${description.slice(0, 500)}` : '.'),
+    `Give a helpful general study overview of this topic from your own knowledge, pitched at the student's level.`,
+    `State clearly at the start that this is a general overview, not a summary of the document. Never claim to have read the file, never invent quotes, page numbers, or document-specific facts.`,
+  ].join('\n'),
+  grounded: false,
+  partial: true,
+  notice: PARTIAL_NOTICES[reason] || PARTIAL_NOTICES['fetch-failed'],
+  reason,
+});
 
 const router = express.Router();
 
@@ -671,8 +727,14 @@ router.post('/chat', [
         ...(userId && { xpGained }),
         // Grounding signal for the reader: a summary request answered without
         // the excerpt is not a document summary — the UI renders a designed
-        // empty state instead of the model's honesty fallback.
-        ...(documentId ? { grounded: docResult.grounded, ...(docResult.reason ? { unavailableReason: docResult.reason } : {}) } : {}),
+        // empty state instead of the model's honesty fallback. A metadata
+        // overview (partial) renders WITH a notice banner instead.
+        ...(documentId ? {
+          grounded: docResult.grounded,
+          partial: docResult.partial,
+          ...(docResult.notice ? { notice: docResult.notice } : {}),
+          ...(docResult.reason ? { unavailableReason: docResult.reason } : {}),
+        } : {}),
       },
       message: 'AI response generated successfully'
     } as ApiResponse);
@@ -838,7 +900,15 @@ router.post('/chat/stream', [
       }
     }
 
-    send('done', { sessionId: currentSessionId, xpGained });
+    send('done', {
+      sessionId: currentSessionId,
+      xpGained,
+      ...(documentId ? {
+        grounded: docResult.grounded,
+        partial: docResult.partial,
+        ...(docResult.notice ? { notice: docResult.notice } : {}),
+      } : {}),
+    });
     await logAiUsage({
       route: 'chat-stream',
       userId,

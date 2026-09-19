@@ -245,3 +245,38 @@ export const getDocumentExcerpt = async (
 export const __clearDocContentCache = (): void => {
   cache.clear();
 };
+
+export interface DocumentMeta {
+  id: string;
+  title: string;
+  description: string;
+  subject: string;
+  grade: number | null;
+  isPremium: boolean;
+}
+
+// Catalog metadata only (no file fetch): powers the metadata fallback when
+// the excerpt is unavailable (premium gate, scanned PDF, fetch failure).
+// Title/description/subject are already public in the library, so quoting
+// them leaks nothing the student couldn't already see.
+export const getDocumentMeta = async (documentId: string): Promise<DocumentMeta | null> => {
+  try {
+    if (!documentId || !/^[0-9a-fA-F-]{8,36}$/.test(documentId)) return null;
+    const { data: doc, error } = await supabaseAdmin
+      .from('documents')
+      .select('id, title, description, subject, grade, is_premium')
+      .eq('id', documentId)
+      .maybeSingle();
+    if (error || !doc) return null;
+    return {
+      id: String(doc.id),
+      title: String(doc.title || 'Untitled document'),
+      description: String(doc.description || ''),
+      subject: String(doc.subject || 'General'),
+      grade: typeof doc.grade === 'number' ? doc.grade : null,
+      isPremium: !!doc.is_premium,
+    };
+  } catch {
+    return null;
+  }
+};

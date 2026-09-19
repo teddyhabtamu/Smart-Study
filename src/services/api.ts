@@ -845,11 +845,13 @@ export const aiTutorAPI = {
       method: 'DELETE',
     }),
 
-  chat: (message: string, subject?: string, grade?: number, sessionId?: string, documentId?: string): Promise<{ response: string; sessionId?: string; xpGained?: number; grounded?: boolean; unavailableReason?: string }> =>
+  chat: (message: string, subject?: string, grade?: number, sessionId?: string, documentId?: string): Promise<{ response: string; sessionId?: string; xpGained?: number; grounded?: boolean; partial?: boolean; notice?: string; unavailableReason?: string }> =>
     apiRequest('/ai-tutor/chat', {
       method: 'POST',
       body: JSON.stringify({ message, subject, grade, sessionId, documentId }),
-    }),
+      // Document-grounded calls download + parse the PDF server-side before
+      // generating: 60s like the study-plan route instead of the 30s default.
+    }, true, 3, 1000, false, documentId ? 60000 : 30000),
 
   // Streaming chat via SSE — onDelta receives incremental text chunks.
   // Returns the full response plus session/xp metadata when done.
