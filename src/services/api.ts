@@ -564,6 +564,17 @@ export const usersAPI = {
   getBookmarks: (): Promise<{ id: string; item_id: string; item_type: 'document' | 'video'; created_at: string; item: Document | Video }[]> =>
     apiRequest('/users/bookmarks'),
 
+  // Own AI usage summary (Dashboard card). Best-effort: the Dashboard card
+  // hides itself on failure so a metering outage never breaks the landing.
+  getMyAiUsage: (days = 7): Promise<{
+    days: number;
+    totalCalls: number;
+    failures: number;
+    byRoute: Array<{ route: string; calls: number }>;
+    lastUsedAt: string | null;
+  }> =>
+    apiRequest(`/users/ai-usage?days=${days}`),
+
   addBookmark: (itemId: string, itemType: 'document' | 'video'): Promise<{ id: string; item_id: string; item_type: string; created_at: string }> =>
     apiRequest('/users/bookmarks', {
       method: 'POST',
@@ -1317,6 +1328,19 @@ export const adminAPI = {
     };
   }> =>
     apiRequest('/admin/stats'),
+
+  // Top AI consumers over a sliding window (Overview tab). Raw pg rows —
+  // counts arrive as strings, parsed at the render site like ai_usage_7d.
+  getTopAiUsers: (days = 7, limit = 10): Promise<Array<{
+    user_id: string;
+    name: string;
+    email: string;
+    calls: string;
+    failures: string;
+    quota_errors: string;
+    last_used_at: string | null;
+  }>> =>
+    apiRequest(`/admin/ai-usage/top-users?days=${days}&limit=${limit}`),
 
   getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
     users: User[];

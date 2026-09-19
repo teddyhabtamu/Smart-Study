@@ -240,6 +240,62 @@ router.get('/profile', authenticateToken, async (req: express.Request, res: expr
   }
 });
 
+// Own AI usage summary (Dashboard "AI usage this week" card). Same ai_usage
+// rows the admin aggregates read — scoped to the caller, no other users, no
+// prompts. Guests have no account so there is nothing to scope: this route
+// is authenticated, guests never reach it. Soft-fails to zeros on old
+// databases (missing table) instead of breaking the dashboard.
+router.get('/ai-usage', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const rawDays = Number(req.query.days);
+    const days = Number.isFinite(rawDays) ? Math.min(Math.max(Math.floor(rawDays), 1), 90) : 7;
+    let totalCalls = 0;
+    let failures = 0;
+    let byRoute: Array<{ route: string; calls: number }> = [];
+    let lastUsedAt: string | null = null;
+    try {
+      const [totalsRes, routesRes] = await Promise.all([
+        query(
+          `SELECT COUNT(*) AS calls,
+                  COUNT(*) FILTER (WHERE ok IS NOT TRUE) AS failures,
+                  MAX(created_at) AS last_used_at
+           FROM ai_usage
+           WHERE user_id = $1 AND created_at >= NOW() - make_interval(days => $2::int)`,
+          [userId, days]
+        ),
+        query(
+          `SELECT route, COUNT(*) AS calls
+           FROM ai_usage
+           WHERE user_id = $1 AND created_at >= NOW() - make_interval(days => $2::int)
+           GROUP BY route ORDER BY calls DESC`,
+          [userId, days]
+        ),
+      ]);
+      const t = totalsRes.rows[0] || {};
+      totalCalls = Number(t.calls || 0);
+      failures = Number(t.failures || 0);
+      lastUsedAt = t.last_used_at ? new Date(t.last_used_at).toISOString() : null;
+      byRoute = (routesRes.rows || []).map((r: any) => ({
+        route: String(r.route || 'unknown'),
+        calls: Number(r.calls || 0),
+      }));
+    } catch (usageErr) {
+      console.error('My AI usage aggregate failed (non-fatal, table may predate migration):', (usageErr as any)?.message || usageErr);
+    }
+    res.json({
+      success: true,
+      data: { days, totalCalls, failures, byRoute, lastUsedAt },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get my AI usage error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get AI usage'
+    } as ApiResponse);
+  }
+});
+
 // Update user profile
 router.put('/profile', [
   authenticateToken,

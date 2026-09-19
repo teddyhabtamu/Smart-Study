@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Crown, FileText, MessageSquare, Sparkles } from 'lucide-react';
+import { Users, Crown, FileText, MessageSquare, Sparkles, Gauge } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { adminAPI } from '../../services/api';
 import { StatsCardSkeleton, RecentActivitySkeleton } from './skeletons';
@@ -11,6 +11,7 @@ const OverviewTab: React.FC = () => {
   const [adminStats, setAdminStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [topUsers, setTopUsers] = useState<any[] | null>(null);
 
   const fetchAdminStats = useCallback(async () => {
     try {
@@ -30,6 +31,9 @@ const OverviewTab: React.FC = () => {
 
   useEffect(() => {
     fetchAdminStats();
+    // Top consumers ride along silently: a metering gap must not fail the
+    // whole tab, and an empty ranking simply doesn't render (see below).
+    adminAPI.getTopAiUsers(7, 8).then(setTopUsers).catch(() => setTopUsers([]));
   }, [fetchAdminStats]);
 
   const stats = adminStats ? {
@@ -192,9 +196,45 @@ const OverviewTab: React.FC = () => {
                  </div>
                </div>
              );
-           })()}
+            })()}
 
-           {/* Recent Activity */}
+            {/* Top AI consumers (7 days): who burns the shared quota. Hidden
+                while loading and when empty — a missing table or zero usage
+                is not an error state worth wall space. Rows are min-w-0
+                safe: long names truncate instead of pushing counts off. */}
+            {topUsers !== null && topUsers.length > 0 && (
+              <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6">
+                <h3 className="font-bold text-ink flex items-center gap-2">
+                  <Gauge size={16} className="text-inksoft" /> Top AI consumers · last 7 days
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1 mb-3">
+                  Students ranked by AI generations — spot abuse or heavy-but-legit cramming before it trips the shared quota.
+                </p>
+                <div className="space-y-1">
+                  {topUsers.map((u: any, i: number) => {
+                    const calls = parseInt(u.calls || '0', 10) || 0;
+                    const quota = parseInt(u.quota_errors || '0', 10) || 0;
+                    return (
+                      <div key={u.user_id || i} className="flex items-center gap-3 py-2 border-b border-zinc-50 last:border-0 text-sm min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-zinc-100 text-inksoft text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-ink text-sm truncate">{u.name || 'Unknown student'}</p>
+                          <p className="text-[11px] text-zinc-400 truncate">{u.email || ''}</p>
+                        </div>
+                        <span className="text-xs text-zinc-500 whitespace-nowrap flex-shrink-0">
+                          {calls.toLocaleString()} call{calls === 1 ? '' : 's'}
+                          {quota > 0 && <span className="text-red-600 font-semibold"> · {quota} quota</span>}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Activity */}
           {adminLoading ? (
             <RecentActivitySkeleton />
           ) : !adminStats ? (

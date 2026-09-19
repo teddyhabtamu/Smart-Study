@@ -191,6 +191,50 @@ router.get('/stats', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Re
   }
 });
 
+// --- Per-student AI usage: Top consumers (admin dashboard) ----------------
+// Who burns the shared Gemini quota, over a sliding window (default 7d).
+// Powers Overview → Top AI consumers: abuse spotting and support ("why is
+// the AI slow for me?"). Guests log with user_id NULL and are excluded —
+// they cannot be attributed. Soft-fails to [] on old databases (missing
+// ai_usage table) so the panel never 500s over metering.
+router.get('/ai-usage/top-users', requireRole(['ADMIN']), [
+  query('days').optional().isInt({ min: 1, max: 90 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const days = Number(req.query.days) || 7;
+    const limit = Number(req.query.limit) || 10;
+    let rows: any[] = [];
+    try {
+      const r = await dbQuery(
+        `SELECT u.id AS user_id, u.name, u.email,
+                COUNT(a.*) AS calls,
+                COUNT(*) FILTER (WHERE a.ok IS NOT TRUE) AS failures,
+                COUNT(*) FILTER (WHERE a.error_code = 'AI_QUOTA_EXCEEDED') AS quota_errors,
+                MAX(a.created_at) AS last_used_at
+         FROM ai_usage a
+         JOIN users u ON u.id = a.user_id
+         WHERE a.created_at >= NOW() - make_interval(days => $1::int)
+           AND a.user_id IS NOT NULL
+         GROUP BY u.id, u.name, u.email
+         ORDER BY calls DESC
+         LIMIT $2`,
+        [days, limit]
+      );
+      rows = r.rows;
+    } catch (usageErr) {
+      console.error('Top AI users aggregate failed (non-fatal, table may predate migration):', (usageErr as any)?.message || usageErr);
+    }
+    res.json({ success: true, data: rows } as ApiResponse);
+  } catch (error) {
+    console.error('Get top AI users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get top AI users'
+    } as ApiResponse);
+  }
+});
+
 // User management endpoints
 router.get('/users', requireRole(['ADMIN']), [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
