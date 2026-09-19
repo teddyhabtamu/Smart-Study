@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Crown, FileText, MessageSquare, Sparkles, Gauge, TriangleAlert } from 'lucide-react';
+import { Users, Crown, FileText, MessageSquare, Sparkles, Gauge, TriangleAlert, Activity } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { adminAPI } from '../../services/api';
 import { StatsCardSkeleton, RecentActivitySkeleton } from './skeletons';
@@ -15,6 +15,7 @@ const OverviewTab: React.FC = () => {
   const [errorRows, setErrorRows] = useState<any[] | null>(null);
   const [errorsFailed, setErrorsFailed] = useState(false);
   const [resolvingFp, setResolvingFp] = useState<string | null>(null);
+  const [engagement, setEngagement] = useState<any | null>(null);
 
   const fetchAdminStats = useCallback(async () => {
     try {
@@ -50,6 +51,8 @@ const OverviewTab: React.FC = () => {
     // whole tab, and an empty ranking simply doesn't render (see below).
     adminAPI.getTopAiUsers(7, 8).then(setTopUsers).catch(() => setTopUsers([]));
     fetchErrors(true);
+    // Engagement likewise never fails the tab — a missing dataset hides it.
+    adminAPI.getEngagement().then(setEngagement).catch(() => setEngagement(null));
   }, [fetchAdminStats, fetchErrors]);
 
   const handleResolve = async (fingerprint: string) => {
@@ -224,6 +227,58 @@ const OverviewTab: React.FC = () => {
                  </div>
                </div>
              );
+            })()}
+
+            {/* Engagement (30 days): DAU/WAU/MAU from login activity plus a
+                daily active series and the 7-day feature split. Hidden while
+                loading and on failure — a missing dataset is not wall space.
+                Bars are capped-width columns (never fat pills). */}
+            {engagement !== null && (() => {
+              const maxActive = Math.max(1, ...engagement.perDay.map((d: any) => d.active || 0));
+              const stats: Array<[string, number]> = [
+                ['DAU', engagement.dau || 0],
+                ['WAU', engagement.wau || 0],
+                ['MAU', engagement.mau || 0],
+              ];
+              return (
+                <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <h3 className="font-bold text-ink flex items-center gap-2 min-w-0">
+                      <Activity size={16} className="text-inksoft flex-shrink-0" />
+                      <span className="truncate">Engagement · last 30 days</span>
+                    </h3>
+                    <span className="text-[11px] text-zinc-500 whitespace-nowrap flex-shrink-0">
+                      +{Number(engagement.newUsers7d || 0).toLocaleString()} new / 7d
+                    </span>
+                  </div>
+                  <div className="flex gap-4 sm:gap-6 my-3">
+                    {stats.map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <div className="text-xl sm:text-2xl font-bold text-ink tabular-nums">{Number(value).toLocaleString()}</div>
+                        <div className="text-[11px] text-zinc-500">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-end gap-[3px] sm:gap-1 h-16 mb-3" aria-hidden="true">
+                    {engagement.perDay.map((d: any) => (
+                      <div
+                        key={d.date}
+                        title={`${d.date}: ${d.active} active`}
+                        className={`flex-1 max-w-[14px] mx-auto rounded-full ${d.active === 0 ? 'bg-ink/15' : 'bg-ink'}`}
+                        style={{ height: d.active === 0 ? 3 : Math.max(6, Math.round((d.active / maxActive) * 56)) }}
+                      />
+                    ))}
+                  </div>
+                  <div className="space-y-1.5">
+                    {(engagement.features || []).map((f: any) => (
+                      <div key={f.key} className="flex items-center justify-between text-xs min-w-0">
+                        <span className="text-zinc-500 truncate">{f.label}</span>
+                        <span className="text-ink font-bold tabular-nums flex-shrink-0">{Number(f.count || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
             })()}
 
             {/* Top AI consumers (7 days): who burns the shared quota. Hidden

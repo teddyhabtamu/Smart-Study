@@ -1379,6 +1379,15 @@ export const adminAPI = {
   rejectPaymentClaim: (id: string): Promise<{ rejected: boolean }> =>
     apiRequest(`/admin/payment-claims/${id}/reject`, { method: 'POST' }),
 
+  // Engagement (Overview): DAU/WAU/MAU, 30-day active series, 7-day
+  // feature split. Best-effort: callers hide the card on failure.
+  getEngagement: (): Promise<{
+    dau: number; wau: number; mau: number; totalUsers: number; newUsers7d: number;
+    perDay: Array<{ date: string; active: number }>;
+    features: Array<{ key: string; label: string; count: number }>;
+  }> =>
+    apiRequest('/admin/engagement'),
+
   getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
     users: User[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };

@@ -235,6 +235,88 @@ router.get('/ai-usage/top-users', requireRole(['ADMIN']), [
   }
 });
 
+// --- Engagement (admin Overview): DAU/WAU/MAU + 30-day activity --------
+// DAU/WAU/MAU read users.last_active_date (maintained on login). The daily
+// series can't use it (only the current value is kept), so active user-days
+// come from the event tables we already log: xp_history + ai_usage. A day
+// with neither row for a user counts as quiet for them — logins without
+// any action don't move the needle, which is the honest definition for an
+// engagement chart. Feature split covers the core loops. Soft-fails to
+// zeros (missing tables must never break the panel).
+router.get('/engagement', requireRole(['ADMIN']), async (_req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const eat = `(now() AT TIME ZONE 'Africa/Addis_Ababa')::date`;
+    const one = async (sql: string, params: any[] = [], fallback: any = null): Promise<any> => {
+      try {
+        const r = await dbQuery(sql, params);
+        return r;
+      } catch (err) {
+        console.error('Engagement slice failed (non-fatal):', (err as any)?.message || err);
+        return { rows: fallback !== null ? [{ v: fallback }] : [] };
+      }
+    };
+    const num = async (sql: string, params: any[] = []): Promise<number> => {
+      const r = await one(sql, params, 0);
+      return Number(r.rows?.[0]?.v ?? r.rows?.[0]?.c ?? 0);
+    };
+
+    const [dau, wau, mau, totalUsers, new7d] = await Promise.all([
+      num(`SELECT COUNT(*) AS c FROM users WHERE last_active_date = ${eat}`),
+      num(`SELECT COUNT(*) AS c FROM users WHERE last_active_date >= ${eat} - INTERVAL '6 days'`),
+      num(`SELECT COUNT(*) AS c FROM users WHERE last_active_date >= ${eat} - INTERVAL '29 days'`),
+      num(`SELECT COUNT(*) AS c FROM users`),
+      num(`SELECT COUNT(*) AS c FROM users WHERE (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date >= ${eat} - INTERVAL '6 days'`),
+    ]);
+
+    const seriesRes = await one(
+      `SELECT day, COUNT(DISTINCT user_id) AS active FROM (
+         SELECT user_id, (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date AS day FROM xp_history
+         WHERE created_at >= ${eat} - INTERVAL '29 days' AND user_id IS NOT NULL
+         UNION
+         SELECT user_id, (created_at AT TIME ZONE 'Africa/Addis_Ababa')::date AS day FROM ai_usage
+         WHERE created_at >= ${eat} - INTERVAL '29 days' AND user_id IS NOT NULL
+       ) a GROUP BY day ORDER BY day`
+    );
+    const byDay = new Map<string, number>();
+    for (const r of seriesRes.rows || []) {
+      byDay.set(String(r.day).slice(0, 10), Number(r.active || 0));
+    }
+    const perDay: Array<{ date: string; active: number }> = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000 + 3 * 3600000).toISOString().slice(0, 10);
+      perDay.push({ date: d, active: byDay.get(d) || 0 });
+    }
+
+    const [aiCalls, quizzes, tasksDone, videosDone, posts] = await Promise.all([
+      num(`SELECT COUNT(*) AS c FROM ai_usage WHERE created_at >= ${eat} - INTERVAL '6 days'`),
+      num(`SELECT COUNT(*) AS c FROM xp_history WHERE source = 'practice_quiz' AND created_at >= ${eat} - INTERVAL '6 days'`),
+      num(`SELECT COUNT(*) AS c FROM study_events WHERE is_completed IS TRUE AND updated_at >= ${eat} - INTERVAL '6 days'`),
+      num(`SELECT COUNT(*) AS c FROM video_completions WHERE completed_at >= ${eat} - INTERVAL '6 days'`),
+      num(`SELECT COUNT(*) AS c FROM forum_posts WHERE created_at >= ${eat} - INTERVAL '6 days'`),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        dau, wau, mau, totalUsers, newUsers7d: new7d, perDay,
+        features: [
+          { key: 'ai', label: 'AI generations', count: aiCalls },
+          { key: 'quiz', label: 'Quizzes finished', count: quizzes },
+          { key: 'tasks', label: 'Tasks completed', count: tasksDone },
+          { key: 'videos', label: 'Videos finished', count: videosDone },
+          { key: 'posts', label: 'Forum posts', count: posts },
+        ],
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get engagement error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get engagement'
+    } as ApiResponse);
+  }
+});
+
 // --- Error log (admin Errors card) ---------------------------------------
 // Grouped failures over a sliding window, most frequent first, resolved
 // last. Soft-fails to [] on old databases (missing error_log table).
