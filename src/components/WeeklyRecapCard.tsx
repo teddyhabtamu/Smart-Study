@@ -137,7 +137,7 @@ const WeeklyRecapCard: React.FC = () => {
                     </span>
                   )}
                   <span
-                    className={`w-full rounded-full transition-colors ${d.tasksCompleted === 0 ? 'bg-ink/15' : isOpen ? 'bg-inksoft' : 'bg-ink'}`}
+                    className={`w-full max-w-[26px] mx-auto rounded-full transition-colors ${d.tasksCompleted === 0 ? 'bg-ink/15' : isOpen ? 'bg-inksoft' : 'bg-ink'}`}
                     style={{ height }}
                   />
                   <span className={`text-[10px] ${isToday ? 'font-bold text-ink' : 'text-zinc-500'}`}>

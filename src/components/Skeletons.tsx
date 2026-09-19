@@ -282,91 +282,102 @@ export const DocumentViewSkeleton: React.FC = () => (
   </div>
 );
 
-// Community Post Detail Skeleton
+// Community Post Detail Skeleton — mirrors CommunityPost.tsx: toolbar row
+// (back + actions), then the scroll area's max-w-3xl column (question card
+// with TOP author row + prose + tags, AI answer section, comments, reply
+// form) plus the desktop w-80 related sidebar. The old version centered a
+// max-w-5xl stack with pills/title/author-footer that matched nothing.
 export const CommunityPostDetailSkeleton: React.FC = () => (
-  <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
-    {/* Breadcrumb */}
+  <div className="space-y-4 sm:space-y-6 animate-pulse" aria-hidden="true">
+    {/* Toolbar: back + actions */}
     <div className="flex items-center gap-2">
-      <div className="h-4 bg-zinc-200 rounded w-24"></div>
-      <div className="h-4 bg-zinc-200 rounded w-48"></div>
+      <div className="h-9 bg-zinc-200 rounded-lg w-24"></div>
+      <div className="flex-1"></div>
+      <div className="h-9 bg-zinc-200 rounded-lg w-20 hidden sm:block"></div>
+      <div className="h-9 bg-zinc-200 rounded-lg w-20 hidden sm:block"></div>
     </div>
 
-    {/* Post Header */}
-    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
-      <div className="flex items-start gap-4">
-        {/* Vote Section */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-6 h-6 bg-zinc-200 rounded"></div>
-          <div className="h-6 bg-zinc-200 rounded w-8"></div>
-        </div>
-
-        {/* Post Content */}
-        <div className="flex-1 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="h-5 bg-zinc-200 rounded w-20"></div>
-            <div className="h-5 bg-zinc-200 rounded w-16"></div>
-            <div className="h-5 bg-zinc-200 rounded w-12 ml-auto"></div>
-          </div>
-          
-          <div className="h-8 bg-zinc-200 rounded w-3/4"></div>
-          
-          <div className="space-y-2">
-            <div className="h-4 bg-zinc-200 rounded w-full"></div>
-            <div className="h-4 bg-zinc-200 rounded w-full"></div>
-            <div className="h-4 bg-zinc-200 rounded w-5/6"></div>
-          </div>
-
-          {/* Author Info */}
-          <div className="flex items-center gap-3 pt-4 border-t border-zinc-100">
-            <div className="w-8 h-8 rounded-full bg-zinc-200"></div>
-            <div className="space-y-1">
-              <div className="h-3 bg-zinc-200 rounded w-24"></div>
-              <div className="h-2 bg-zinc-200 rounded w-32"></div>
+    <div className="flex gap-3 sm:gap-6 items-start">
+      {/* Main column */}
+      <div className="flex-1 min-w-0 max-w-3xl mx-auto w-full space-y-4 sm:space-y-6">
+        {/* Question card */}
+        <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6 md:p-8">
+          <div className="flex gap-3 sm:gap-6">
+            <div className="flex flex-col items-center gap-1 pt-1 flex-shrink-0">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 bg-zinc-200 rounded-lg"></div>
+              <div className="h-5 bg-zinc-200 rounded w-8"></div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {/* Comments Section */}
-    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
-      <div className="h-6 bg-zinc-200 rounded w-32 mb-6"></div>
-      
-      {/* Comment Input */}
-      <div className="mb-6 space-y-2">
-        <div className="h-24 bg-zinc-200 rounded"></div>
-        <div className="h-10 bg-zinc-200 rounded w-32 ml-auto"></div>
-      </div>
-
-      {/* Comments List */}
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex gap-4 p-4 border border-zinc-100 rounded-lg">
-            <div className="w-10 h-10 rounded-full bg-zinc-200"></div>
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-zinc-200 rounded w-32"></div>
-              <div className="h-4 bg-zinc-200 rounded w-full"></div>
-              <div className="h-4 bg-zinc-200 rounded w-3/4"></div>
-              <div className="flex items-center gap-4 pt-2">
-                <div className="h-3 bg-zinc-200 rounded w-16"></div>
-                <div className="h-3 bg-zinc-200 rounded w-12"></div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-200 flex-shrink-0"></div>
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="h-3.5 bg-zinc-200 rounded w-32"></div>
+                  <div className="h-2.5 bg-zinc-200 rounded w-24"></div>
+                </div>
+                <div className="h-6 bg-zinc-200 rounded w-16 flex-shrink-0"></div>
+              </div>
+              <div className="space-y-2 mb-6">
+                <div className="h-4 bg-zinc-200 rounded w-full"></div>
+                <div className="h-4 bg-zinc-200 rounded w-full"></div>
+                <div className="h-4 bg-zinc-200 rounded w-5/6"></div>
+                <div className="h-4 bg-zinc-200 rounded w-2/3"></div>
+              </div>
+              <div className="flex gap-2 pt-4 border-t border-zinc-50">
+                <div className="h-6 bg-zinc-200 rounded-md w-16"></div>
+                <div className="h-6 bg-zinc-200 rounded-md w-20"></div>
               </div>
             </div>
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
 
-    {/* Related Posts */}
-    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-6">
-      <div className="h-6 bg-zinc-200 rounded w-40 mb-4"></div>
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="p-3 border border-zinc-100 rounded-lg">
-            <div className="h-4 bg-zinc-200 rounded w-full mb-2"></div>
-            <div className="h-3 bg-zinc-200 rounded w-2/3"></div>
+        {/* AI Smart Answer section */}
+        <div className="bg-zinc-50/50 rounded-xl border border-zinc-200 p-4 sm:p-6 shadow-sm">
+          <div className="h-5 bg-zinc-200 rounded w-40 mb-4"></div>
+          <div className="space-y-2">
+            <div className="h-4 bg-zinc-200 rounded w-full"></div>
+            <div className="h-4 bg-zinc-200 rounded w-5/6"></div>
           </div>
-        ))}
+        </div>
+
+        {/* Comments */}
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-surface rounded-xl border border-zinc-200 p-4 sm:p-6 shadow-sm">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-zinc-200 flex-shrink-0"></div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="h-3.5 bg-zinc-200 rounded w-28"></div>
+                  <div className="h-4 bg-zinc-200 rounded w-full"></div>
+                  <div className="h-4 bg-zinc-200 rounded w-3/4"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Reply form */}
+        <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6">
+          <div className="h-5 bg-zinc-200 rounded w-28 mb-4"></div>
+          <div className="h-20 bg-zinc-200 rounded-xl mb-3"></div>
+          <div className="flex justify-end">
+            <div className="h-10 bg-zinc-200 rounded-lg w-32"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Related sidebar (desktop) */}
+      <div className="hidden lg:block w-80 flex-shrink-0">
+        <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-5">
+          <div className="h-5 bg-zinc-200 rounded w-36 mb-4"></div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="h-4 bg-zinc-200 rounded w-full"></div>
+                <div className="h-3 bg-zinc-200 rounded w-2/3"></div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -406,7 +417,7 @@ export const WeeklyRecapSkeleton: React.FC = () => (
     <div className="flex items-end gap-1.5 sm:gap-2 h-20 mb-1">
       {[10, 26, 18, 40, 30, 52, 22].map((h, i) => (
         <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-          <div className="w-full bg-zinc-200 rounded-full" style={{ height: h }}></div>
+          <div className="w-full max-w-[26px] mx-auto bg-zinc-200 rounded-full" style={{ height: h }}></div>
           <div className="w-3 h-2.5 bg-zinc-200 rounded"></div>
         </div>
       ))}
