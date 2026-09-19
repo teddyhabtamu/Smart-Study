@@ -1284,6 +1284,11 @@ export const plannerAPI = {
 
   getStats: (): Promise<{ total_sessions: number; current_level: number; total_xp: number; xp_to_next_level: number; current_streak: number }> =>
     apiRequest('/planner/practice/stats'),
+
+  // Review queue ("revise these today"): weakest subjects first, recent
+  // planner subjects as fallback. Empty due list = nothing due.
+  getReviewQueue: (): Promise<{ due: Array<{ subject: string; avgScorePct: number | null; attempts: number; reason: 'weakest' | 'recent' }> }> =>
+    apiRequest('/planner/practice/review-queue'),
 };
 
 // Admin API

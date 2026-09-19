@@ -9,8 +9,8 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { StudyEvent } from '../types';
 import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
-import MyAiUsageCard from '../components/MyAiUsageCard';
 import WeeklyRecapCard from '../components/WeeklyRecapCard';
+import ReviewTodayCard from '../components/ReviewTodayCard';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 import OnboardingTour, { hasSeenOnboarding } from '../components/OnboardingTour';
 
@@ -72,7 +72,7 @@ const BookmarkCard: React.FC<{
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { dashboardData, fetchDashboard, loading, errors } = useData();
+  const { dashboardData, fetchDashboard, loading, errors, studyEvents } = useData();
 
   // Use dashboard user data if available, otherwise fall back to auth user
   const displayUser = dashboardData?.user || user;
@@ -208,6 +208,34 @@ const Dashboard: React.FC = () => {
                 <>Ready to make some progress? You have <span className="font-semibold text-ink">{totalToday - completedToday} tasks</span> remaining today.</>
               )}
             </p>
+            {/* Exam countdown: nearest upcoming uncompleted exam (<=120d).
+                The planner holds the deadline; the dashboard plays coach.
+                Nothing scheduled = nothing rendered. */}
+            {(() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              let best: { title: string; diff: number } | null = null;
+              for (const e of studyEvents || []) {
+                if (e.type !== 'Exam' || e.isCompleted || e.isArchived) continue;
+                const d = new Date(`${e.date}T00:00:00`);
+                if (isNaN(d.getTime())) continue;
+                const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+                if (diff < 0 || diff > 120) continue;
+                if (!best || diff < best.diff) best = { title: e.title, diff };
+              }
+              if (!best) return null;
+              const label = best.diff === 0 ? 'today' : best.diff === 1 ? 'tomorrow' : `in ${best.diff} days`;
+              return (
+                <Link
+                  to="/planner"
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 text-onink rounded-full text-xs font-bold hover:bg-zinc-800 transition-colors max-w-full"
+                >
+                  <Target size={12} className="flex-shrink-0" />
+                  <span className="truncate">{best.title}</span>
+                  <span className="font-medium opacity-70 whitespace-nowrap">· {label}</span>
+                </Link>
+              );
+            })()}
             <button
               onClick={() => setTourOpen(true)}
               className="mt-1.5 text-xs font-medium text-zinc-400 hover:text-ink inline-flex items-center gap-1 transition-colors"
@@ -312,6 +340,10 @@ const Dashboard: React.FC = () => {
 
            {/* Weekly recap: totals + daily bars from already-logged data */}
            <WeeklyRecapCard />
+
+           {/* Review queue: weakest subjects first (declutter note: the AI
+               usage strip moved to the AI Tutor page, its contextual home) */}
+           <ReviewTodayCard />
 
            {/* Continue Learning (Saved Items) */}
           <div data-tour="continue-learning">
@@ -440,10 +472,7 @@ const Dashboard: React.FC = () => {
                    </div>
                  )}
               </div>
-           </div>
-
-            {/* Own AI usage (hides itself at zero — see component) */}
-            <MyAiUsageCard />
+            </div>
 
             {/* Membership card: upsell for free users, recognition for Pro */}
 

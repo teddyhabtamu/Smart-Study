@@ -17,7 +17,7 @@ const ROUTE_LABELS: Record<string, string> = {
   'generate-practice-quiz': 'Quizzes',
 };
 
-const MyAiUsageCard: React.FC = () => {
+const MyAiUsageCard: React.FC<{ hideLink?: boolean }> = ({ hideLink = false }) => {
   const [usage, setUsage] = useState<{
     totalCalls: number;
     byRoute: Array<{ route: string; calls: number }>;
@@ -74,12 +74,14 @@ const MyAiUsageCard: React.FC = () => {
           </div>
         ))}
       </div>
-      <Link
-        to="/ai-tutor"
-        className="text-xs font-medium text-zinc-500 hover:text-ink flex items-center gap-1 transition-colors"
-      >
-        Open AI Tutor <ChevronRight size={14} />
-      </Link>
+      {!hideLink && (
+        <Link
+          to="/ai-tutor"
+          className="text-xs font-medium text-zinc-500 hover:text-ink flex items-center gap-1 transition-colors"
+        >
+          Open AI Tutor <ChevronRight size={14} />
+        </Link>
+      )}
     </div>
   );
 };

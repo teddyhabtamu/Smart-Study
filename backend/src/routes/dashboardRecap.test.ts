@@ -37,12 +37,12 @@ beforeEach(() => {
     if (text.includes('FROM study_events')) {
       return { rows: [{ day: '2026-09-18', done: '3' }], rowCount: 1 };
     }
-    // xp_history per EAT day.
+    // xp_history per EAT day (quizzes branch first: it also reads xp_history).
+    if (text.includes("source = 'practice_quiz'")) {
+      return { rows: [{ quizzes: '2' }], rowCount: 1 };
+    }
     if (text.includes('FROM xp_history')) {
       return { rows: [{ day: '2026-09-18', xp: '120' }], rowCount: 1 };
-    }
-    if (text.includes('FROM practice_sessions')) {
-      return { rows: [{ quizzes: '2' }], rowCount: 1 };
     }
     if (text.includes('FROM ai_usage')) {
       return { rows: [{ calls: '9' }], rowCount: 1 };

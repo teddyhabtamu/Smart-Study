@@ -255,9 +255,9 @@ router.get('/recap', authenticateToken, async (req: express.Request, res: expres
         [userId]
       )),
       safe({ rows: [{ quizzes: 0 }] }, () => query(
-        `SELECT COUNT(*) AS quizzes FROM practice_sessions
-         WHERE user_id = $1
-           AND completed_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'`,
+        `SELECT COUNT(*) AS quizzes FROM xp_history
+         WHERE user_id = $1 AND source = 'practice_quiz'
+           AND created_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'`,
         [userId]
       )),
       safe({ rows: [{ calls: 0 }] }, () => query(

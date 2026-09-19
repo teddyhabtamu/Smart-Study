@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Dialog from '../components/Dialog';
 import { BrainCircuit, Check, X, Trophy, ArrowRight, Loader2, RotateCcw, AlertCircle, Crown, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -37,6 +37,31 @@ const Practice: React.FC = () => {
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Review entry: the Dashboard review card navigates here with
+  // { reviewSubject, reviewCount }. Preset only — the student still taps
+  // Start (same generator, same daily limit, no surprise AI spend), and a
+  // mid-quiz restore always wins over the preset.
+  const [reviewFor, setReviewFor] = useState<string | null>(null);
+  useEffect(() => {
+    const state = location.state as { reviewSubject?: string; reviewCount?: string } | null;
+    const wanted = state?.reviewSubject;
+    if (!wanted || !SUBJECTS.includes(wanted)) return;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if ((parsed.view === 'quiz' || parsed.view === 'result') && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+          return; // resume the live quiz, don't clobber it with a preset
+        }
+      }
+    } catch { /* corrupt save: preset anyway */ }
+    setSubject(wanted);
+    if (state?.reviewCount === '5' || state?.reviewCount === '10') setQCount(state.reviewCount);
+    setReviewFor(wanted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // State: 'config' | 'loading' | 'quiz' | 'result' | 'limit'
   const [view, setView] = useState<'config' | 'loading' | 'quiz' | 'result' | 'limit'>('config');
@@ -320,11 +345,16 @@ const Practice: React.FC = () => {
               : 'Generate an AI quiz to master any subject — 1 free quiz per day.'}
           </p>
 
-          {!user?.isPremium && user && (
-             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-zinc-100 rounded-full text-xs font-medium text-inksoft border border-zinc-200">
-               <Lock size={12} /> 1 free quiz per day
+           {!user?.isPremium && user && (
+              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-zinc-100 rounded-full text-xs font-medium text-inksoft border border-zinc-200">
+                <Lock size={12} /> 1 free quiz per day
+              </div>
+           )}
+           {reviewFor !== null && reviewFor === subject && (
+             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-medium text-amber-800">
+               <RotateCcw size={12} /> Review mode: {reviewFor} — same daily limit as practice
              </div>
-          )}
+           )}
         </div>
 
         <div className="bg-surface p-6 sm:p-8 rounded-2xl border border-zinc-200 shadow-sm space-y-4 sm:space-y-6 relative">

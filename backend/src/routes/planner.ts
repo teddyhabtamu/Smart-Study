@@ -487,6 +487,20 @@ router.post('/practice/quiz-complete', [
       practice_attempts: newAttempts
     });
 
+    // Record the session row: practice_sessions was write-only-dead (schema
+    // + readers existed, nothing inserted), so per-subject history, the
+    // recap quiz count, and the review queue all read zeros. Best-effort:
+    // a tracking insert must never fail a completed quiz.
+    try {
+      await query(
+        `INSERT INTO practice_sessions (user_id, subject, score, total_questions)
+         VALUES ($1, $2, $3, $4)`,
+        [userId, subject, safeScore, safeTotal]
+      );
+    } catch (sessionErr) {
+      console.error('Practice session insert failed (non-fatal):', (sessionErr as any)?.message || sessionErr);
+    }
+
     // Send practice session completed email (non-blocking)
     if (user.email && user.name) {
       console.log('📧 Triggering practice session completed email for user:', { 
@@ -567,6 +581,66 @@ router.get('/practice/stats', authenticateToken, async (req: express.Request, re
     res.status(500).json({
       success: false,
       message: 'Failed to get practice statistics'
+    } as ApiResponse);
+  }
+});
+
+// Review queue ("revise these today"): weakest subjects by average quiz
+// score, falling back to recent planner subjects when no quiz history
+// exists yet. Scores come from practice_sessions (recorded at quiz
+// completion); a subject with zero attempts has no signal and is skipped
+// in favor of one with proven weakness. Empty due list = nothing due.
+router.get('/practice/review-queue', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    let due: Array<{ subject: string; avgScorePct: number | null; attempts: number; reason: 'weakest' | 'recent' }> = [];
+    try {
+      const weak = await query(
+        `SELECT subject, COUNT(*) AS attempts,
+                ROUND(AVG(score::float / NULLIF(total_questions, 0)) * 100) AS avg_pct,
+                MAX(completed_at) AS last_at
+         FROM practice_sessions
+         WHERE user_id = $1 AND subject IS NOT NULL
+         GROUP BY subject
+         ORDER BY avg_pct ASC NULLS LAST, last_at ASC
+         LIMIT 3`,
+        [userId]
+      );
+      due = (weak.rows || []).map((r: any) => ({
+        subject: String(r.subject),
+        avgScorePct: r.avg_pct === null ? null : Number(r.avg_pct),
+        attempts: Number(r.attempts || 0),
+        reason: 'weakest' as const,
+      }));
+    } catch (weakErr) {
+      console.error('Review weakest-subjects failed (non-fatal):', (weakErr as any)?.message || weakErr);
+    }
+    if (due.length === 0) {
+      try {
+        const recent = await query(
+          `SELECT subject, COUNT(*) AS n
+           FROM study_events
+           WHERE user_id = $1 AND subject IS NOT NULL
+             AND event_date >= CURRENT_DATE - INTERVAL '30 days'
+           GROUP BY subject ORDER BY n DESC LIMIT 3`,
+          [userId]
+        );
+        due = (recent.rows || []).map((r: any) => ({
+          subject: String(r.subject),
+          avgScorePct: null,
+          attempts: 0,
+          reason: 'recent' as const,
+        }));
+      } catch (recentErr) {
+        console.error('Review recent-subjects failed (non-fatal):', (recentErr as any)?.message || recentErr);
+      }
+    }
+    res.json({ success: true, data: { due } } as ApiResponse);
+  } catch (error) {
+    console.error('Get review queue error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get review queue'
     } as ApiResponse);
   }
 });
