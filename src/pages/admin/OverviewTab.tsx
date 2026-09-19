@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Users, Crown, FileText, MessageSquare, Sparkles, Gauge, TriangleAlert, Activity } from 'lucide-react';
+import ActivityBars from '../../components/ActivityBars';
 import { useData } from '../../context/DataContext';
 import { adminAPI } from '../../services/api';
 import { StatsCardSkeleton, RecentActivitySkeleton } from './skeletons';
@@ -16,6 +17,10 @@ const OverviewTab: React.FC = () => {
   const [errorsFailed, setErrorsFailed] = useState(false);
   const [resolvingFp, setResolvingFp] = useState<string | null>(null);
   const [engagement, setEngagement] = useState<any | null>(null);
+  // Long lists page client-side: fetch once (20), reveal in steps. A pager
+  // with 1/20 offsets would re-query per click for zero benefit here.
+  const [showAllErrors, setShowAllErrors] = useState(false);
+  const [showAllUsers, setShowAllUsers] = useState(false);
 
   const fetchAdminStats = useCallback(async () => {
     try {
@@ -49,7 +54,7 @@ const OverviewTab: React.FC = () => {
     fetchAdminStats();
     // Top consumers ride along silently: a metering gap must not fail the
     // whole tab, and an empty ranking simply doesn't render (see below).
-    adminAPI.getTopAiUsers(7, 8).then(setTopUsers).catch(() => setTopUsers([]));
+    adminAPI.getTopAiUsers(7, 20).then(setTopUsers).catch(() => setTopUsers([]));
     fetchErrors(true);
     // Engagement likewise never fails the tab — a missing dataset hides it.
     adminAPI.getEngagement().then(setEngagement).catch(() => setEngagement(null));
@@ -234,7 +239,11 @@ const OverviewTab: React.FC = () => {
                 loading and on failure — a missing dataset is not wall space.
                 Bars are capped-width columns (never fat pills). */}
             {engagement !== null && (() => {
-              const maxActive = Math.max(1, ...engagement.perDay.map((d: any) => d.active || 0));
+              const todayStr = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10);
+              const dayTitle = (dateStr: string): string => {
+                const d = new Date(`${dateStr}T12:00:00`);
+                return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+              };
               const stats: Array<[string, number]> = [
                 ['DAU', engagement.dau || 0],
                 ['WAU', engagement.wau || 0],
@@ -259,16 +268,17 @@ const OverviewTab: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-end gap-[3px] sm:gap-1 h-16 mb-3" aria-hidden="true">
-                    {engagement.perDay.map((d: any) => (
-                      <div
-                        key={d.date}
-                        title={`${d.date}: ${d.active} active`}
-                        className={`flex-1 max-w-[14px] mx-auto rounded-full ${d.active === 0 ? 'bg-ink/15' : 'bg-ink'}`}
-                        style={{ height: d.active === 0 ? 3 : Math.max(6, Math.round((d.active / maxActive) * 56)) }}
-                      />
-                    ))}
-                  </div>
+                  <ActivityBars
+                    maxHeight={56}
+                    bars={engagement.perDay.map((d: any, i: number) => ({
+                      key: d.date,
+                      label: i % 5 === 0 || d.date === todayStr ? String(d.date).slice(8) : '',
+                      value: d.active || 0,
+                      title: dayTitle(d.date),
+                      detail: `${d.active || 0} active`,
+                      highlight: d.date === todayStr,
+                    }))}
+                  />
                   <div className="space-y-1.5">
                     {(engagement.features || []).map((f: any) => (
                       <div key={f.key} className="flex items-center justify-between text-xs min-w-0">
@@ -297,6 +307,7 @@ const OverviewTab: React.FC = () => {
                   {topUsers.map((u: any, i: number) => {
                     const calls = parseInt(u.calls || '0', 10) || 0;
                     const quota = parseInt(u.quota_errors || '0', 10) || 0;
+                    if (!showAllUsers && i >= 5) return null;
                     return (
                       <div key={u.user_id || i} className="flex items-center gap-3 py-2 border-b border-zinc-50 last:border-0 text-sm min-w-0">
                         <span className="w-5 h-5 rounded-full bg-zinc-100 text-inksoft text-[10px] font-bold flex items-center justify-center flex-shrink-0">
@@ -314,6 +325,14 @@ const OverviewTab: React.FC = () => {
                     );
                   })}
                 </div>
+                {topUsers.length > 5 && (
+                  <button
+                    onClick={() => setShowAllUsers((v) => !v)}
+                    className="mt-2 text-xs font-medium text-zinc-500 hover:text-ink transition-colors"
+                  >
+                    {showAllUsers ? 'Show less' : `Show all ${topUsers.length}`}
+                  </button>
+                )}
               </div>
             )}
 
@@ -366,7 +385,7 @@ const OverviewTab: React.FC = () => {
                         Grouped by failure shape — one row per distinct bug, not per crash.
                       </p>
                       <div className="space-y-1">
-                        {rows.slice(0, 8).map((e: any) => (
+                        {rows.slice(0, showAllErrors ? 20 : 8).map((e: any) => (
                           <div key={e.fingerprint} className="flex items-center gap-3 py-2 border-b border-zinc-50 last:border-0 text-sm min-w-0">
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${e.source === 'server' ? 'bg-zinc-900 text-onink' : 'bg-zinc-100 text-inksoft'}`}>
                               {e.source === 'server' ? 'SRV' : 'WEB'}
@@ -391,6 +410,14 @@ const OverviewTab: React.FC = () => {
                           </div>
                         ))}
                       </div>
+                      {rows.length > 8 && (
+                        <button
+                          onClick={() => setShowAllErrors((v) => !v)}
+                          className="mt-2 text-xs font-medium text-zinc-500 hover:text-ink transition-colors"
+                        >
+                          {showAllErrors ? 'Show less' : `Show all ${rows.length}`}
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
