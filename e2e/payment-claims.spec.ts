@@ -47,10 +47,15 @@ test('claim, queue, approve, premium', async ({ page }) => {
     // Scope to the amber queue card: the same email also renders in the
     // students table rows below.
     const queue = page.locator('div.border-amber-200', { hasText: 'Pending payments' });
-    await expect(queue.getByText(student.email)).toBeVisible();
-    await queue.getByRole('button', { name: 'Approve' }).click();
-    // Queue drains once the claim settles (approve refreshes queue + list).
-    await expect(page.getByText('Pending payments')).toHaveCount(0, { timeout: 20000 });
+    // Row-scoped (planner.spec pattern): the queue can hold other
+    // students' leftover claims, so the bare Approve button is ambiguous.
+    const emailEl = queue.getByText(student.email);
+    await expect(emailEl).toBeVisible();
+    const myRow = emailEl.locator('xpath=ancestor::div[contains(@class,"bg-zinc-50")][1]');
+    await myRow.getByRole('button', { name: 'Approve' }).click();
+    // Our row settles (other students' leftover rows may keep the queue
+    // itself visible — assert ours, not the panel).
+    await expect(myRow).toHaveCount(0, { timeout: 20000 });
 
     // Upgrade applied + claim settled in the DB.
     await expect
