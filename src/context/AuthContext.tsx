@@ -18,6 +18,11 @@ interface AuthContextType {
   refreshUser: (force?: boolean) => Promise<User | undefined>;
   isAuthenticated: boolean;
   isLoading: boolean;
+  // Notifications-only refresh for the bell, the 60s poll, and mark-read
+  // flows: same list the profile carries, without the user row + bookmarks
+  // those callers never read. 15s floor (except force) so rapid bell
+  // toggles don't refetch; mutations pass force for immediate truth.
+  refreshNotifications: (force?: boolean) => Promise<{ notifications: any[]; unreadCount: number } | undefined>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -235,11 +240,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isPolling = true;
 
       try {
-        // Forced: the poll IS the refresh cadence (60s > the 30s profile
-        // cache), and refreshUser now RETURNS the fresh user — no more
-        // comparing a stale closure against itself.
-        const fresh = await refreshUser(true);
-        const freshList = ((fresh?.notifications ?? []) as NotifLite[]);
+        // Notifications-only cadence (was: full profile every 60s). The
+        // 15s floor inside refreshNotifications also absorbs races with
+        // bell opens and mark-read refreshes.
+        const data = await refreshNotifications();
+        const freshList = ((data?.notifications ?? []) as NotifLite[]);
         if (prevSnapshot === null) {
           // First poll seeds the baseline silently: everything already on
           // screen is "known", so login doesn't detonate a toast burst.
@@ -516,9 +521,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await usersAPI.markNotificationsRead(notificationIds);
-      // Forced: the profile cache would otherwise serve the pre-mark state
-      // and the bell count would stay stale for up to 30s.
-      await refreshUser(true);
+      // Notifications-only refresh: the full profile fetch here was pure
+      // overhead (user row + bookmarks just to flip read flags).
+      await refreshNotifications(true);
     } catch (error) {
       console.error('Mark notifications read error:', error);
       throw error;
@@ -531,12 +536,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await usersAPI.deleteNotification(notificationId);
       // Forced, same reason as above.
-      await refreshUser(true);
+      await refreshNotifications(true);
     } catch (error) {
       console.error('Delete notification error:', error);
       throw error;
     }
   };
+
+  const lastNotificationsFetchRef = useRef<Date | null>(null);
+  const NOTIFICATIONS_CACHE_DURATION = 15000;
+
+  const refreshNotifications = useCallback(async (force = false) => {
+    if (!localStorage.getItem('auth_token')) return;
+    const now = new Date();
+    if (!force && lastNotificationsFetchRef.current) {
+      if (now.getTime() - lastNotificationsFetchRef.current.getTime() < NOTIFICATIONS_CACHE_DURATION) {
+        return;
+      }
+    }
+    try {
+      const data = await usersAPI.getNotifications();
+      lastNotificationsFetchRef.current = new Date();
+      setUser(prev => {
+        if (!prev) return prev;
+        const next = { ...prev, notifications: data.notifications, unreadCount: data.unreadCount };
+        try {
+          if (JSON.stringify(next) !== JSON.stringify(prev)) {
+            localStorage.setItem('smartstudy_user', JSON.stringify(next));
+            return next;
+          }
+        } catch {
+          return next;
+        }
+        return prev;
+      });
+      return data;
+    } catch (error: any) {
+      console.error('Refresh notifications error:', error);
+      if (error?.message?.includes('401') || error?.message?.includes('403') || error?.message?.includes('Unauthorized')) {
+        broadcastSessionExpired();
+        setUser(null);
+      }
+      throw error;
+    }
+  }, []);
 
   const refreshUser = useCallback(async (force = false) => {
     // Do nothing if there's no auth token
@@ -652,6 +695,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       markNotificationsAsRead,
       deleteNotification,
       refreshUser,
+      refreshNotifications,
       isAuthenticated: !!user,
       isLoading
     }}>

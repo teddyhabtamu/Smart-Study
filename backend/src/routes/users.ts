@@ -689,6 +689,45 @@ router.delete('/bookmarks/:itemId/:itemType', authenticateToken, async (req: exp
 // which keeps level math, badge unlocks, history, and notifications identical
 // everywhere.
 
+// Lightweight notifications list (latest 50 + exact unread count). The
+// bell dropdown, the 60s poll, and mark-read/delete refreshes used to pull
+// the FULL profile (user row + bookmarks + notifications) every time —
+// this endpoint carries only what those flows actually read.
+router.get('/notifications', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const result = await query(
+      `SELECT COALESCE(json_agg(json_build_object(
+              'id', n.id,
+              'title', n.title,
+              'message', n.message,
+              'type', n.type,
+              'isRead', n.is_read,
+              'date', n.created_at
+            ) ORDER BY n.created_at DESC), '[]') AS notifications,
+            COALESCE((SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read IS NOT TRUE), 0)::int AS unread_count
+       FROM (SELECT id, title, message, type, is_read, created_at
+             FROM notifications WHERE user_id = $1
+             ORDER BY created_at DESC LIMIT 50) n`,
+      [userId]
+    );
+    const row = result.rows[0] || {};
+    res.json({
+      success: true,
+      data: {
+        notifications: row.notifications || [],
+        unreadCount: Number(row.unread_count || 0),
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get notifications'
+    } as ApiResponse);
+  }
+});
+
 // Mark notifications as read
 router.put('/notifications/read', [
   authenticateToken,

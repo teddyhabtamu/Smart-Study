@@ -600,6 +600,18 @@ export const usersAPI = {
       method: 'DELETE',
     }),
 
+  // Lightweight bell/poll payload: latest 50 notifications + exact unread
+  // count. Same item shape as getProfile (normalized once, here) without
+  // the user row and bookmarks the bell never reads.
+  getNotifications: (): Promise<{ notifications: any[]; unreadCount: number }> =>
+    apiRequest('/users/notifications').then((data: any) => ({
+      notifications: (data.notifications || []).map((n: any) => ({
+        ...n,
+        type: String(n.type || 'info').toLowerCase(),
+      })),
+      unreadCount: Number(data.unreadCount || 0),
+    })),
+
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> =>
     apiRequest('/users/password', {
       method: 'PUT',

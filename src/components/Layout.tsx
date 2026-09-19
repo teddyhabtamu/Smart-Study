@@ -31,7 +31,7 @@ const NOTIF_TYPE_STYLES: Record<string, { icon: any; iconBg: string; iconColor: 
 };
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, logout, markNotificationsAsRead, deleteNotification, refreshUser, isLoading } = useAuth();
+  const { user, logout, markNotificationsAsRead, deleteNotification, refreshNotifications, isLoading } = useAuth();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -297,20 +297,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Notification Bell (Mobile) */}
           {user && (
             <div className="relative" ref={mobileNotificationRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsNotificationsOpen(!isNotificationsOpen);
-                  if (!isNotificationsOpen && user) {
-                    refreshUser(true).catch(error => {
-                      console.error('Failed to fetch notifications:', error);
-                    });
-                  }
-                }}
-                className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-ink' : 'text-inksoft hover:text-ink hover:bg-zinc-50'}`}
-                aria-label="Notifications"
-              >
-                <Bell size={22} />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsNotificationsOpen(!isNotificationsOpen);
+                      // Bell reads the notifications-only endpoint (the old
+                      // full-profile fetch on every open was the top
+                      // profile-API repeater). 15s floor absorbs fast toggles.
+                      if (!isNotificationsOpen && user) {
+                        refreshNotifications().catch(error => {
+                          console.error('Failed to fetch notifications:', error);
+                        });
+                      }
+                    }}
+                    className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-ink' : 'text-inksoft hover:text-ink hover:bg-zinc-50'}`}
+                    aria-label="Notifications"
+                  >
+                    <Bell size={22} />
                 {unreadCount > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                 )}
@@ -493,16 +496,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                        // Open dropdown immediately
                        setIsNotificationsOpen(!isNotificationsOpen);
                        
-                       // Fetch fresh notifications in background (non-blocking)
-                       if (!isNotificationsOpen && user) {
-                         refreshUser(true).catch(error => {
-                           console.error('Failed to fetch notifications:', error);
-                         });
-                       }
+                        // Fetch fresh notifications in background (non-blocking).
+                        // Notifications-only endpoint (see mobile bell).
+                        if (!isNotificationsOpen && user) {
+                          refreshNotifications().catch(error => {
+                            console.error('Failed to fetch notifications:', error);
+                          });
+                        }
                      }}
-                     className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-ink' : 'text-zinc-400 hover:text-ink hover:bg-zinc-50'}`}
-                   >
-                     <Bell size={20} />
+                      className={`p-2 rounded-lg transition-colors relative ${isNotificationsOpen ? 'bg-zinc-100 text-ink' : 'text-zinc-400 hover:text-ink hover:bg-zinc-50'}`}
+                      aria-label="Notifications"
+                    >
+                      <Bell size={20} />
                      {unreadCount > 0 && (
                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                      )}
