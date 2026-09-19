@@ -164,6 +164,25 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
     const totalToday = todaysEvents.length;
     const progressPercentage = totalToday === 0 ? 0 : Math.round((completedToday / totalToday) * 100);
 
+    // Next upcoming exam (the dashboard coach chip). Best-effort: a planner
+    // gap must never fail the whole dashboard.
+    let upcomingExam: { title: string; date: string } | null = null;
+    try {
+      const examRes = await query(`
+        SELECT title, to_char(event_date AT TIME ZONE 'Africa/Addis_Ababa', 'YYYY-MM-DD') as event_date
+        FROM study_events
+        WHERE user_id = $1 AND event_type = 'Exam'
+          AND is_completed IS NOT TRUE AND is_archived IS NOT TRUE
+          AND event_date >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date
+        ORDER BY event_date ASC LIMIT 1
+      `, [userId]);
+      if (examRes.rows.length > 0) {
+        upcomingExam = { title: examRes.rows[0].title, date: examRes.rows[0].event_date };
+      }
+    } catch (examError) {
+      console.error('Upcoming exam lookup failed (non-fatal):', (examError as any)?.message || examError);
+    }
+
     // Calculate level progress (null-guarded: legacy rows can lack xp/level,
     // which previously produced NaN xpToNextLevel and absurd percentages;
     // clamped at zero: a row with level ahead of xp (level 3, 500 XP) would
@@ -186,6 +205,7 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
       },
       todaysEvents: todaysEvents,
       recentBookmarks: recentBookmarks,
+      upcomingExam: upcomingExam,
       progress: {
         todayCompleted: completedToday,
         todayTotal: totalToday,

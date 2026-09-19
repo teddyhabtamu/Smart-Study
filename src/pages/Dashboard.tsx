@@ -72,7 +72,7 @@ const BookmarkCard: React.FC<{
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { dashboardData, fetchDashboard, loading, errors, studyEvents } = useData();
+  const { dashboardData, fetchDashboard, loading, errors } = useData();
 
   // Use dashboard user data if available, otherwise fall back to auth user
   const displayUser = dashboardData?.user || user;
@@ -208,30 +208,27 @@ const Dashboard: React.FC = () => {
                 <>Ready to make some progress? You have <span className="font-semibold text-ink">{totalToday - completedToday} tasks</span> remaining today.</>
               )}
             </p>
-            {/* Exam countdown: nearest upcoming uncompleted exam (<=120d).
+            {/* Exam countdown: nearest upcoming exam, served by the dashboard
+                payload itself (no extra fetch, no shared-state side effects).
                 The planner holds the deadline; the dashboard plays coach.
                 Nothing scheduled = nothing rendered. */}
             {(() => {
+              const exam = dashboardData?.upcomingExam;
+              if (!exam) return null;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              let best: { title: string; diff: number } | null = null;
-              for (const e of studyEvents || []) {
-                if (e.type !== 'Exam' || e.isCompleted || e.isArchived) continue;
-                const d = new Date(`${e.date}T00:00:00`);
-                if (isNaN(d.getTime())) continue;
-                const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
-                if (diff < 0 || diff > 120) continue;
-                if (!best || diff < best.diff) best = { title: e.title, diff };
-              }
-              if (!best) return null;
-              const label = best.diff === 0 ? 'today' : best.diff === 1 ? 'tomorrow' : `in ${best.diff} days`;
+              const d = new Date(`${exam.date}T00:00:00`);
+              if (isNaN(d.getTime())) return null;
+              const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+              if (diff < 0 || diff > 120) return null;
+              const label = diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : `in ${diff} days`;
               return (
                 <Link
                   to="/planner"
                   className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 text-onink rounded-full text-xs font-bold hover:bg-zinc-800 transition-colors max-w-full"
                 >
                   <Target size={12} className="flex-shrink-0" />
-                  <span className="truncate">{best.title}</span>
+                  <span className="truncate">{exam.title}</span>
                   <span className="font-medium opacity-70 whitespace-nowrap">· {label}</span>
                 </Link>
               );

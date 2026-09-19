@@ -37,6 +37,10 @@ const ReviewTodayCard: React.FC = () => {
   if (!due || due.length === 0) return null;
   const [top, ...rest] = due;
   if (!top) return null;
+  // Perfect record: nothing is weak, so "lowest average" copy would read as
+  // nonsense ("lowest: 100%"). Reframe as maintenance, ordered oldest-first
+  // by the backend tiebreak.
+  const allStrong = top.avgScorePct !== null && top.avgScorePct >= 90;
 
   const startReview = (subject: string) => {
     navigate('/practice', { state: { reviewSubject: subject, reviewCount: '5' } });
@@ -49,7 +53,9 @@ const ReviewTodayCard: React.FC = () => {
         <h3 className="font-bold text-ink truncate">Review today</h3>
       </div>
       <p className="text-xs text-zinc-500 mb-3">
-        {top.reason === 'weakest' && top.avgScorePct !== null ? (
+        {allStrong ? (
+          <>Everything's strong — keep <span className="font-bold text-ink">{top.subject}</span> warm with 5 quick questions.</>
+        ) : top.reason === 'weakest' && top.avgScorePct !== null ? (
           <>Your lowest quiz average is <span className="font-bold text-ink">{top.subject} ({top.avgScorePct}%)</span> — 5 quick questions to lock it in.</>
         ) : (
           <>Pick up <span className="font-bold text-ink">{top.subject}</span> again — short review, 5 questions.</>

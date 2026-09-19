@@ -1650,6 +1650,7 @@ export const dashboardAPI = {
       previewImage?: string;
       isPremium: boolean;
     }>;
+    upcomingExam: { title: string; date: string } | null;
     progress: {
       todayCompleted: number;
       todayTotal: number;

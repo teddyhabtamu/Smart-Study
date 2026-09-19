@@ -88,6 +88,9 @@ interface DataContextType {
       levelProgress: number;
       xpToNextLevel: number;
     };
+    // Nearest upcoming exam for the dashboard countdown chip (null = none
+    // scheduled). Served by GET /api/dashboard itself.
+    upcomingExam: { title: string; date: string } | null;
   } | null;
 
   // Loading states
