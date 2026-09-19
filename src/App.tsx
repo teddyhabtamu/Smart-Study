@@ -125,8 +125,19 @@ const AdminRouteGuard: React.FC = () => {
 const App: React.FC = () => {
   const { user, login, updateUser, isLoading } = useAuth();
 
+  // The session-expired listener must mount OUTSIDE the loading gate: the
+  // auth boot itself broadcasts (token gone, cached user remains) while
+  // isLoading is still true. Gated inside, the broadcast fires with nobody
+  // listening, Layout's guest rule wins unopposed, and the user strands on
+  // `/` with no explanation and no return URL. Mounted here it catches the
+  // boot broadcast: toast + /login?next, and Layout yields via the marker.
   if (isLoading) {
-    return <Loader />;
+    return (
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SessionExpiredHandler />
+        <Loader />
+      </Router>
+    );
   }
 
   return (
