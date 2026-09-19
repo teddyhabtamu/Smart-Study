@@ -68,7 +68,7 @@ export const blockComponents = {
   code: ({node, ...props}: any) => {
     const isBlock = node?.position?.start.line !== node?.position?.end.line;
     return isBlock ? (
-       <div className="bg-zinc-900 text-zinc-100 p-4 rounded-lg my-4 overflow-x-auto text-xs font-mono">
+        <div className="bg-zinc-900 text-white p-4 rounded-lg my-4 overflow-x-auto text-xs font-mono">
          <code {...props} />
        </div>
     ) : (

@@ -240,7 +240,7 @@ const Subscription: React.FC = () => {
 
             <div className="flex-1 space-y-3 sm:space-y-4 mb-6 sm:mb-8 relative z-10">
               {PRO_FEATURES.map((f) => (
-                <div key={f.title} className="flex items-start gap-3 text-sm text-zinc-300">
+                 <div key={f.title} className="flex items-start gap-3 text-sm text-white/80">
                   <Check size={14} className="sm:w-4 sm:h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-onink">{f.title}</p>

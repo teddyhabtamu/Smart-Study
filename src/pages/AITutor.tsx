@@ -692,7 +692,7 @@ const AITutor: React.FC = () => {
                             onClick={() => setDeepThinking(!deepThinking)}
                             className={`w-10 h-6 rounded-full transition-colors relative ${deepThinking ? 'bg-zinc-900' : 'bg-zinc-200'}`}
                           >
-                             <div className={`absolute top-1 left-1 w-4 h-4 bg-surface rounded-full transition-transform ${deepThinking ? 'translate-x-4' : ''}`}></div>
+                             <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${deepThinking ? 'translate-x-4' : ''}`}></div>
                           </button>
                         </div>
                       </div>

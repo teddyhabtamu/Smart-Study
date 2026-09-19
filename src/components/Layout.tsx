@@ -569,8 +569,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                        setIsMarkingAllRead(false);
                                      }
                                    }}
-                                   disabled={isMarkingAllRead}
-                                   className="text-[10px] font-medium text-zinc-300 hover:text-onink flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={isMarkingAllRead}
+                                    className="text-[10px] font-medium text-white/70 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                  >
                                    {isMarkingAllRead ? (
                                      <>
@@ -590,21 +590,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                            <div className="flex gap-2">
                               <button
                                 onClick={() => setNotificationFilter('all')}
-                                className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
-                                  notificationFilter === 'all'
-                                    ? 'bg-surface text-ink'
-                                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                                }`}
+                                 className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
+                                   notificationFilter === 'all'
+                                     ? 'bg-surface text-ink'
+                                     : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+                                 }`}
                               >
                                 All ({user?.notifications?.length || 0})
                               </button>
                               <button
                                 onClick={() => setNotificationFilter('unread')}
-                                className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
-                                  notificationFilter === 'unread'
-                                    ? 'bg-surface text-ink'
-                                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                                }`}
+                                 className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
+                                   notificationFilter === 'unread'
+                                     ? 'bg-surface text-ink'
+                                     : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+                                 }`}
                               >
                                 Unread ({unreadCount})
                               </button>

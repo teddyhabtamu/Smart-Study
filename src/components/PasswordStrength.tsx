@@ -52,7 +52,7 @@ export const PasswordStrengthMeter: React.FC<{ password: string }> = ({ password
             strength.strength === 'weak'
               ? 'text-red-600'
               : strength.strength === 'medium'
-              ? 'text-amber-600'
+              ? 'text-warn'
               : 'text-emerald-600'
           }`}
         >

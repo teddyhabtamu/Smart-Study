@@ -187,7 +187,7 @@ const OverviewTab: React.FC = () => {
                        <span className="font-medium text-ink font-mono text-xs">{r.route}</span>
                        <span className="text-xs text-zinc-500">
                          {r.calls.toLocaleString()} calls
-                         {r.failures > 0 && <span className="text-amber-600"> · {r.failures} failed</span>}
+                          {r.failures > 0 && <span className="text-warn"> · {r.failures} failed</span>}
                          {r.quotaErrors > 0 && <span className="text-red-600 font-semibold"> · {r.quotaErrors} quota</span>}
                          {r.avgMs !== null && <span> · ~{Math.round(r.avgMs)}ms</span>}
                        </span>

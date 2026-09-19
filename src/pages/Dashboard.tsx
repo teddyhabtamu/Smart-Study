@@ -254,7 +254,7 @@ const Dashboard: React.FC = () => {
              <div className="absolute bottom-0 left-0 w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] bg-zinc-700/30 rounded-full blur-3xl -ml-6 -mb-6 sm:-ml-10 sm:-mb-10"></div>
 
              <div className="relative z-10">
-                <div className="flex items-center gap-2 text-zinc-300 font-medium text-xs uppercase tracking-wider mb-3 sm:mb-4">
+                 <div className="flex items-center gap-2 text-white/70 font-medium text-xs uppercase tracking-wider mb-3 sm:mb-4">
                   <Sparkles size={14} /> AI Learning Assistant
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Stuck on a concept? Ask me anything.</h2>
@@ -335,7 +335,7 @@ const Dashboard: React.FC = () => {
                  ))
                ) : (
                  <div className="col-span-1 sm:col-span-2 py-8 sm:py-12 bg-zinc-50 border border-dashed border-zinc-200 rounded-xl flex flex-col items-center justify-center text-center">
-                    <Bookmark size={28} className="sm:w-8 sm:h-8 text-zinc-300 mb-3" />
+                     <Bookmark size={28} className="sm:w-8 sm:h-8 text-zinc-400 mb-3" />
                     <p className="text-sm font-medium text-ink">No saved items yet</p>
                     <p className="text-xs text-zinc-500 mb-4 px-4">Bookmark videos or documents to access them quickly here.</p>
                     <Link to="/library" className="text-xs bg-zinc-900 text-onink px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors">
@@ -467,7 +467,7 @@ const Dashboard: React.FC = () => {
              <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 text-onink relative overflow-hidden">
                 <div className="relative z-10">
                    <h3 className="font-bold text-base sm:text-lg mb-1">Upgrade to Pro</h3>
-                   <p className="text-zinc-300 text-sm mb-4">Premium library & videos, unlimited quizzes, AI study planner.</p>
+                    <p className="text-white/70 text-sm mb-4">Premium library & videos, unlimited quizzes, AI study planner.</p>
                    <Link to="/subscription" className="inline-block px-4 py-2 bg-surface text-ink font-bold rounded-lg text-sm hover:bg-zinc-200 transition-colors">
                       View Plans
                    </Link>

@@ -229,7 +229,7 @@ export const InstallPrompt: React.FC = () => {
             {installing ? 'Installing…' : 'Install app'}
           </button>
         ) : (
-          <ol className="mt-3 space-y-1.5 text-xs sm:text-sm text-zinc-300 list-none bg-surface/5 rounded-xl p-3">
+          <ol className="mt-3 space-y-1.5 text-xs sm:text-sm text-white/80 list-none bg-white/5 rounded-xl p-3">
             <li className="flex items-center gap-1.5">
               1. Tap
               <Share size={13} className="text-zinc-400 flex-shrink-0" />

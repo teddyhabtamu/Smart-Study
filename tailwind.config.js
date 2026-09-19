@@ -35,6 +35,9 @@ export default {
         ink: 'rgb(var(--ink) / <alpha-value>)',
         inksoft: 'rgb(var(--inksoft) / <alpha-value>)',
         onink: 'rgb(var(--onink) / <alpha-value>)',
+        // Warning text on theme surfaces: amber-700 in light themes,
+        // light gold in dark ones. Fixed-bg amber pills keep the ramp.
+        warn: 'rgb(var(--warn) / <alpha-value>)',
         zinc: {
           50: 'rgb(var(--zinc-50) / <alpha-value>)',
           100: 'rgb(var(--zinc-100) / <alpha-value>)',

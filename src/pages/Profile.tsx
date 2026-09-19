@@ -744,7 +744,7 @@ const Profile: React.FC = () => {
                                 <span className="block text-xs font-bold text-ink leading-tight">
                                   {label}
                                   {autoSlot === slot && (
-                                    <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">Now</span>
+                                     <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-warn">Now</span>
                                   )}
                                 </span>
                                 <span className="block text-[10px] text-zinc-400 leading-tight">{hours}</span>

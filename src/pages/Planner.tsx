@@ -194,7 +194,7 @@ const EventCard: React.FC<EventCardProps> = ({
             onToggleArchive(event.id, event.isArchived);
           }}
           disabled={archivingId === event.id}
-          className="p-1.5 sm:p-2 text-zinc-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+           className="p-1.5 sm:p-2 text-zinc-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           title="Unarchive"
         >
           {archivingId === event.id ? (
@@ -210,7 +210,7 @@ const EventCard: React.FC<EventCardProps> = ({
             onToggleArchive(event.id, event.isArchived);
           }}
           disabled={archivingId === event.id}
-          className="p-1.5 sm:p-2 text-zinc-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+           className="p-1.5 sm:p-2 text-zinc-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           title="Archive"
         >
           {archivingId === event.id ? (
@@ -226,7 +226,7 @@ const EventCard: React.FC<EventCardProps> = ({
           onDelete(event.id);
         }}
         disabled={deletingId === event.id}
-        className="p-1.5 sm:p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+         className="p-1.5 sm:p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
         title="Delete task"
       >
         {deletingId === event.id ? (
@@ -808,13 +808,15 @@ const Planner: React.FC = () => {
            </div>
            
            <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-6 rounded-xl border border-amber-100 flex items-center gap-3 sm:gap-4">
-               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-surface rounded-full flex items-center justify-center text-amber-500 shadow-sm border border-amber-100 flex-shrink-0">
-                 <Trophy size={18} className="sm:w-5 sm:h-5" />
-               </div>
-               <div className="min-w-0">
-                 <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">XP Reward</p>
-                 <p className="text-sm text-inksoft">Complete tasks to earn up to <span className="font-bold">50 XP</span> each!</p>
-               </div>
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center text-amber-500 shadow-sm border border-amber-100 flex-shrink-0">
+                  <Trophy size={18} className="sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0">
+                  {/* Fixed-cream card: fixed-dark copy (theme ink turns light
+                      in dark themes and would vanish on the cream). */}
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">XP Reward</p>
+                  <p className="text-sm text-zinc-700">Complete tasks to earn up to <span className="font-bold">50 XP</span> each!</p>
+                </div>
            </div>
         </div>
 
@@ -1350,7 +1352,7 @@ const Planner: React.FC = () => {
                 {hasGuide && typeof guide.suggestions === 'string' && guide.suggestions && (
                   <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200">
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Suggestion</p>
-                    <p className="text-sm text-inksoft leading-relaxed"><MarkdownInline content={guide.suggestions} /></p>
+                    <p className="text-sm text-zinc-700 leading-relaxed"><MarkdownInline content={guide.suggestions} /></p>
                   </div>
                 )}
 

@@ -143,7 +143,7 @@ const Careers: React.FC = () => {
             </div>
           ) : positions.length === 0 ? (
             <div className="bg-surface border border-zinc-200 rounded-xl p-8 sm:p-12 text-center">
-              <Briefcase size={48} className="mx-auto text-zinc-300 mb-4" />
+              <Briefcase size={48} className="mx-auto text-zinc-400 mb-4" />
               <p className="text-zinc-500 text-sm sm:text-base">No open positions at the moment. Check back soon!</p>
             </div>
           ) : (

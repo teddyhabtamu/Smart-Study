@@ -379,7 +379,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <h3 className="font-bold text-white text-base leading-tight mb-1">
             {current.title}
           </h3>
-          <p className="text-sm text-zinc-300 leading-relaxed">{current.body}</p>
+          <p className="text-sm text-white/80 leading-relaxed">{current.body}</p>
         </div>
       </div>
 
@@ -432,7 +432,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
             </button>
             <button
               onClick={() => goTo('/videos')}
-              className="w-full py-2.5 min-h-[44px] bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center"
+              className="w-full py-2.5 min-h-[44px] bg-transparent border border-white/20 text-white text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center"
             >
               Browse videos first
             </button>
@@ -447,7 +447,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
             </button>
             <button
               onClick={dismiss}
-              className="w-full py-2.5 min-h-[44px] bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center"
+              className="w-full py-2.5 min-h-[44px] bg-transparent border border-white/20 text-white text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center"
             >
               Back to dashboard
             </button>
@@ -455,13 +455,24 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
         )
       ) : (
         <div className="flex gap-2">
-          <button
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
-            className="flex-1 py-2.5 min-h-[44px] bg-transparent border border-white/20 text-zinc-200 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <ArrowLeft size={15} /> Back
-          </button>
+          {/* Step 0 has no Back target: a disabled ghost button reads as
+              broken (and its dimmed remapped-zinc text vanishes in dark
+              themes). Skip is the honest action here. */}
+          {step === 0 ? (
+            <button
+              onClick={dismiss}
+              className="flex-1 py-2.5 min-h-[44px] bg-transparent border border-white/20 text-white text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
+            >
+              Skip tour
+            </button>
+          ) : (
+            <button
+              onClick={() => setStep((s) => Math.max(0, s - 1))}
+              className="flex-1 py-2.5 min-h-[44px] bg-transparent border border-white/20 text-white text-sm font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <ArrowLeft size={15} /> Back
+            </button>
+          )}
           <button
             onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
             className="flex-1 py-2.5 min-h-[44px] bg-white text-zinc-900 text-sm font-bold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"

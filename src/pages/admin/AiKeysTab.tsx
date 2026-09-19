@@ -154,7 +154,7 @@ const AiKeysTab: React.FC = () => {
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wide">served</div>
                 </div>
                 <div className="bg-zinc-50 rounded-lg py-2">
-                  <div className={`font-bold tabular-nums ${key.quotaHits > 0 ? 'text-amber-600' : 'text-ink'}`}>{key.quotaHits}</div>
+                  <div className={`font-bold tabular-nums ${key.quotaHits > 0 ? 'text-warn' : 'text-ink'}`}>{key.quotaHits}</div>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wide">quota hits</div>
                 </div>
                 <div className="bg-zinc-50 rounded-lg py-2">
@@ -164,7 +164,7 @@ const AiKeysTab: React.FC = () => {
               </div>
 
               {key.state === 'cooling' && key.cooldownEndsInSec !== null && (
-                <p className="flex items-center gap-1.5 text-xs text-amber-700 mb-2">
+                <p className="flex items-center gap-1.5 text-xs text-warn mb-2">
                   <Clock3 size={13} /> Back in rotation in ~{key.cooldownEndsInSec}s
                 </p>
               )}
