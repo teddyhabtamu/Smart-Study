@@ -13,6 +13,7 @@ const OverviewTab: React.FC = () => {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [topUsers, setTopUsers] = useState<any[] | null>(null);
   const [errorRows, setErrorRows] = useState<any[] | null>(null);
+  const [errorsFailed, setErrorsFailed] = useState(false);
   const [resolvingFp, setResolvingFp] = useState<string | null>(null);
 
   const fetchAdminStats = useCallback(async () => {
@@ -35,8 +36,11 @@ const OverviewTab: React.FC = () => {
     try {
       const rows = await adminAPI.getErrorSummary(7, 20);
       setErrorRows(rows);
+      setErrorsFailed(false);
     } catch {
-      if (!silent) setErrorRows([]);
+      // A telemetry outage must not blank the tab — but it also must not
+      // masquerade as "all quiet". The card renders a failed state instead.
+      setErrorsFailed(true);
     }
   }, []);
 
@@ -258,12 +262,15 @@ const OverviewTab: React.FC = () => {
               </div>
             )}
 
-            {/* Errors (7 days): grouped failures, most frequent first. Hidden
-                while loading and when quiet — no errors is not an error state.
-                Resolving is advisory: a repeat occurrence reopens the row. */}
-            {errorRows !== null && errorRows.length > 0 && (() => {
-              const open = errorRows.filter((e: any) => !e.resolved);
-              const total = errorRows.reduce((n: number, e: any) => n + (Number(e.occurrences) || 0), 0);
+            {/* Errors (7 days): grouped failures, most frequent first. Always
+                rendered — an empty error log reads as "all quiet", never as
+                a missing panel. Only a fetch failure hides the rows, with an
+                explicit note instead of false calm. Resolving is advisory: a
+                repeat occurrence reopens the row. */}
+            {(errorRows !== null || errorsFailed) && (() => {
+              const rows = errorRows || [];
+              const open = rows.filter((e: any) => !e.resolved);
+              const total = rows.reduce((n: number, e: any) => n + (Number(e.occurrences) || 0), 0);
               return (
                 <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4 sm:p-6">
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -271,39 +278,66 @@ const OverviewTab: React.FC = () => {
                       <TriangleAlert size={16} className="text-inksoft flex-shrink-0" />
                       <span className="truncate">Errors · last 7 days</span>
                     </h3>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${open.length > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                      {open.length > 0 ? `${total.toLocaleString()} hits` : 'all quiet'}
-                    </span>
+                    {errorsFailed ? (
+                      <button
+                        onClick={() => fetchErrors()}
+                        className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 bg-zinc-100 text-inksoft hover:bg-zinc-200 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    ) : (
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${open.length > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                        {open.length > 0 ? `${total.toLocaleString()} hits` : 'all quiet'}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-zinc-500 mb-3">
-                    Grouped by failure shape — one row per distinct bug, not per crash.
-                  </p>
-                  <div className="space-y-1">
-                    {errorRows.slice(0, 8).map((e: any) => (
-                      <div key={e.fingerprint} className="flex items-center gap-3 py-2 border-b border-zinc-50 last:border-0 text-sm min-w-0">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${e.source === 'server' ? 'bg-zinc-900 text-onink' : 'bg-zinc-100 text-inksoft'}`}>
-                          {e.source === 'server' ? 'SRV' : 'WEB'}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate ${e.resolved ? 'text-zinc-400 line-through' : 'text-ink font-medium'}`} title={e.message}>
-                            {e.message}
-                          </p>
-                          <p className="text-[11px] text-zinc-400 truncate">
-                            {e.route || 'unknown route'} · {Number(e.occurrences || 0).toLocaleString()}×
-                          </p>
-                        </div>
-                        {!e.resolved && (
-                          <button
-                            onClick={() => handleResolve(e.fingerprint)}
-                            disabled={resolvingFp === e.fingerprint}
-                            className="text-[11px] font-medium text-zinc-500 hover:text-ink border border-zinc-200 hover:border-zinc-300 rounded-lg px-2 py-1 transition-colors disabled:opacity-50 flex-shrink-0 whitespace-nowrap"
-                          >
-                            {resolvingFp === e.fingerprint ? 'Resolving…' : 'Resolve'}
-                          </button>
-                        )}
+                  {errorsFailed ? (
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Couldn't load error telemetry — check your connection and retry. This hides nothing: rows appear once loading succeeds.
+                    </p>
+                  ) : rows.length === 0 ? (
+                    <>
+                      <p className="text-xs text-zinc-500 mt-1 mb-3">
+                        No errors recorded in the last 7 days. Client crashes, pool failures, and 500s land here automatically when they happen.
+                      </p>
+                      <div className="space-y-1" aria-hidden="true">
+                        <div className="h-3 bg-zinc-100 rounded w-full"></div>
+                        <div className="h-3 bg-zinc-100 rounded w-5/6"></div>
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-zinc-500 mb-3">
+                        Grouped by failure shape — one row per distinct bug, not per crash.
+                      </p>
+                      <div className="space-y-1">
+                        {rows.slice(0, 8).map((e: any) => (
+                          <div key={e.fingerprint} className="flex items-center gap-3 py-2 border-b border-zinc-50 last:border-0 text-sm min-w-0">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${e.source === 'server' ? 'bg-zinc-900 text-onink' : 'bg-zinc-100 text-inksoft'}`}>
+                              {e.source === 'server' ? 'SRV' : 'WEB'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm truncate ${e.resolved ? 'text-zinc-400 line-through' : 'text-ink font-medium'}`} title={e.message}>
+                                {e.message}
+                              </p>
+                              <p className="text-[11px] text-zinc-400 truncate">
+                                {e.route || 'unknown route'} · {Number(e.occurrences || 0).toLocaleString()}×
+                              </p>
+                            </div>
+                            {!e.resolved && (
+                              <button
+                                onClick={() => handleResolve(e.fingerprint)}
+                                disabled={resolvingFp === e.fingerprint}
+                                className="text-[11px] font-medium text-zinc-500 hover:text-ink border border-zinc-200 hover:border-zinc-300 rounded-lg px-2 py-1 transition-colors disabled:opacity-50 flex-shrink-0 whitespace-nowrap"
+                              >
+                                {resolvingFp === e.fingerprint ? 'Resolving…' : 'Resolve'}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })()}
