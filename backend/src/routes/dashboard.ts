@@ -208,4 +208,117 @@ router.get('/', authenticateToken, async (req: express.Request, res: express.Res
   }
 });
 
+// Weekly recap ("your week in study"): 7-day totals + per-day activity from
+// data we already log — study_events, xp_history, practice_sessions,
+// ai_usage, video_completions. All windows run on the student's EAT day
+// (same convention as admin stats), so an evening session counts toward
+// the day the student lived it, not a UTC slice.
+//
+// "Tasks completed" reads is_completed + updated_at in-window. updated_at
+// moves on any edit, so a rescheduled-then-finished task still lands in
+// the week it was finished — the approximation errs toward giving credit,
+// which is the right direction for a motivation surface.
+// Every aggregate is guarded: a missing table degrades its slice to zero
+// instead of failing the card.
+router.get('/recap', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    // Best-effort slice runner: every aggregate degrades to its fallback
+    // instead of failing the card (typed loose on purpose — fallbacks only
+    // need the shape the merger reads below).
+    const safe = async (fallback: any, fn: () => Promise<any>): Promise<any> => {
+      try {
+        return await fn();
+      } catch (err) {
+        console.error('Recap slice failed (non-fatal):', (err as any)?.message || err);
+        return fallback;
+      }
+    };
+
+    const [taskRows, xpRows, quizRows, aiRows, videoRows, streakRows] = await Promise.all([
+      safe({ rows: [] }, () => query(
+        `SELECT to_char(updated_at AT TIME ZONE 'Africa/Addis_Ababa', 'YYYY-MM-DD') AS day,
+                COUNT(*) AS done
+         FROM study_events
+         WHERE user_id = $1 AND is_completed IS TRUE
+           AND updated_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'
+         GROUP BY 1`,
+        [userId]
+      )),
+      safe({ rows: [] }, () => query(
+        `SELECT to_char(created_at AT TIME ZONE 'Africa/Addis_Ababa', 'YYYY-MM-DD') AS day,
+                COALESCE(SUM(amount), 0) AS xp
+         FROM xp_history
+         WHERE user_id = $1
+           AND created_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'
+         GROUP BY 1`,
+        [userId]
+      )),
+      safe({ rows: [{ quizzes: 0 }] }, () => query(
+        `SELECT COUNT(*) AS quizzes FROM practice_sessions
+         WHERE user_id = $1
+           AND completed_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'`,
+        [userId]
+      )),
+      safe({ rows: [{ calls: 0 }] }, () => query(
+        `SELECT COUNT(*) AS calls FROM ai_usage
+         WHERE user_id = $1
+           AND created_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'`,
+        [userId]
+      )),
+      safe({ rows: [{ videos: 0 }] }, () => query(
+        `SELECT COUNT(*) AS videos FROM video_completions
+         WHERE user_id = $1
+           AND completed_at >= (now() AT TIME ZONE 'Africa/Addis_Ababa')::date - INTERVAL '6 days'`,
+        [userId]
+      )),
+      safe({ rows: [] }, () => query('SELECT streak FROM users WHERE id = $1', [userId])),
+    ]);
+
+    // Zero-filled 7-day series (oldest → today) in EAT, merged in JS so a
+    // quiet day still renders its bar slot instead of shifting the axis.
+    const days: Array<{ date: string; tasksCompleted: number; xp: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      // EAT calendar day for the label anchor (en-CA yields YYYY-MM-DD).
+      const eat = new Date(d.getTime() + 3 * 3600000).toISOString().slice(0, 10);
+      days.push({ date: eat, tasksCompleted: 0, xp: 0 });
+    }
+    const byDate = new Map(days.map((d) => [d.date, d]));
+    for (const r of taskRows.rows || []) {
+      const d = byDate.get(String(r.day));
+      if (d) d.tasksCompleted = Number(r.done || 0);
+    }
+    for (const r of xpRows.rows || []) {
+      const d = byDate.get(String(r.day));
+      if (d) d.xp = Number(r.xp || 0);
+    }
+
+    const tasksCompleted = days.reduce((n, d) => n + d.tasksCompleted, 0);
+    const xpGained = days.reduce((n, d) => n + d.xp, 0);
+    const activeDays = days.filter((d) => d.tasksCompleted > 0 || d.xp > 0).length;
+
+    res.json({
+      success: true,
+      data: {
+        weekStart: days[0]?.date ?? '',
+        tasksCompleted,
+        xpGained,
+        quizzesTaken: Number(quizRows.rows?.[0]?.quizzes || 0),
+        aiCalls: Number(aiRows.rows?.[0]?.calls || 0),
+        videosCompleted: Number(videoRows.rows?.[0]?.videos || 0),
+        activeDays,
+        streak: Number(streakRows.rows?.[0]?.streak || 0),
+        perDay: days,
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get recap error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get weekly recap'
+    } as ApiResponse);
+  }
+});
+
 export default router;

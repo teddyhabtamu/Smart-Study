@@ -1631,6 +1631,21 @@ export const dashboardAPI = {
 
     return apiRequest(`/dashboard?date=${todayStr}`);
   },
+
+  // Weekly recap ("your week in study"). Best-effort like getMyAiUsage:
+  // callers hide the card on failure so metering gaps never break the page.
+  getRecap: (): Promise<{
+    weekStart: string;
+    tasksCompleted: number;
+    xpGained: number;
+    quizzesTaken: number;
+    aiCalls: number;
+    videosCompleted: number;
+    activeDays: number;
+    streak: number;
+    perDay: Array<{ date: string; tasksCompleted: number; xp: number }>;
+  }> =>
+    apiRequest('/dashboard/recap'),
 };
 
 // Careers API

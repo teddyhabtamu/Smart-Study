@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { StudyEvent } from '../types';
 import { BookmarkCardSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 import MyAiUsageCard from '../components/MyAiUsageCard';
+import WeeklyRecapCard from '../components/WeeklyRecapCard';
 import { convertGoogleDriveImageUrl } from '../utils/imageUtils';
 import OnboardingTour, { hasSeenOnboarding } from '../components/OnboardingTour';
 
@@ -309,7 +310,10 @@ const Dashboard: React.FC = () => {
              </div>
           </div>
 
-          {/* Continue Learning (Saved Items) */}
+           {/* Weekly recap: totals + daily bars from already-logged data */}
+           <WeeklyRecapCard />
+
+           {/* Continue Learning (Saved Items) */}
           <div data-tour="continue-learning">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-ink flex items-center gap-2">
