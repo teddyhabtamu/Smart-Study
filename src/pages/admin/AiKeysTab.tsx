@@ -158,7 +158,7 @@ const AiKeysTab: React.FC = () => {
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wide">quota hits</div>
                 </div>
                 <div className="bg-zinc-50 rounded-lg py-2">
-                  <div className={`font-bold tabular-nums ${key.invalidHits > 0 ? 'text-red-600' : 'text-ink'}`}>{key.invalidHits}</div>
+                  <div className={`font-bold tabular-nums ${key.invalidHits > 0 ? 'text-danger' : 'text-ink'}`}>{key.invalidHits}</div>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wide">invalid</div>
                 </div>
               </div>
@@ -169,7 +169,7 @@ const AiKeysTab: React.FC = () => {
                 </p>
               )}
               {key.state === 'retired' && (
-                <p className="text-xs text-red-600 mb-2">
+                <p className="text-xs text-danger mb-2">
                   Credential rejected — check the value in Vercel env, or validate below.
                 </p>
               )}

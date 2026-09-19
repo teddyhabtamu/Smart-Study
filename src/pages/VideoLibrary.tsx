@@ -473,7 +473,7 @@ const VideoLibrary: React.FC = () => {
           {errors.videos && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
               <p className="text-red-800 font-semibold text-sm">Failed to load videos</p>
-              <p className="text-red-600 text-xs mt-1">{errors.videos}</p>
+              <p className="text-danger text-xs mt-1">{errors.videos}</p>
               {/* Retry keeps the visible filters — a bare refetch would drop them */}
               <button onClick={() => fetchVideos(buildParams(INITIAL_LIMIT, 0))} className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
                 Try Again

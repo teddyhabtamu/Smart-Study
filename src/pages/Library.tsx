@@ -206,7 +206,7 @@ const Library: React.FC = () => {
       {errors.documents && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
           <p className="text-red-800 font-medium">Failed to load documents</p>
-          <p className="text-red-600 text-sm mt-1">{errors.documents}</p>
+          <p className="text-danger text-sm mt-1">{errors.documents}</p>
           {/* Retry keeps the visible filters — a bare refetch would silently
               drop them and show unfiltered results under a filtered UI */}
           <button

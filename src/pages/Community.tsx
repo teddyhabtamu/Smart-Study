@@ -550,7 +550,7 @@ const Community: React.FC = () => {
           {errors.forumPosts && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
               <p className="text-red-800 font-medium">Failed to load forum posts</p>
-              <p className="text-red-600 text-sm mt-1">{errors.forumPosts}</p>
+              <p className="text-danger text-sm mt-1">{errors.forumPosts}</p>
               <button
                 onClick={() => fetchForumPosts()}
                 className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"

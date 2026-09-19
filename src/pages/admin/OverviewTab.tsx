@@ -102,7 +102,7 @@ const OverviewTab: React.FC = () => {
           {statsError && !adminStats && !statsLoading ? (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
               <p className="text-red-800 font-medium text-sm">Failed to load system stats</p>
-              <p className="text-red-600 text-xs mt-1">{friendlyStatsError()}</p>
+              <p className="text-danger text-xs mt-1">{friendlyStatsError()}</p>
               <button
                 onClick={fetchAdminStats}
                 className="mt-4 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
@@ -216,7 +216,7 @@ const OverviewTab: React.FC = () => {
                        <span className="text-xs text-zinc-500">
                          {r.calls.toLocaleString()} calls
                           {r.failures > 0 && <span className="text-warn"> · {r.failures} failed</span>}
-                         {r.quotaErrors > 0 && <span className="text-red-600 font-semibold"> · {r.quotaErrors} quota</span>}
+                         {r.quotaErrors > 0 && <span className="text-danger font-semibold"> · {r.quotaErrors} quota</span>}
                          {r.avgMs !== null && <span> · ~{Math.round(r.avgMs)}ms</span>}
                        </span>
                      </div>
@@ -253,7 +253,7 @@ const OverviewTab: React.FC = () => {
                         </div>
                         <span className="text-xs text-zinc-500 whitespace-nowrap flex-shrink-0">
                           {calls.toLocaleString()} call{calls === 1 ? '' : 's'}
-                          {quota > 0 && <span className="text-red-600 font-semibold"> · {quota} quota</span>}
+                          {quota > 0 && <span className="text-danger font-semibold"> · {quota} quota</span>}
                         </span>
                       </div>
                     );

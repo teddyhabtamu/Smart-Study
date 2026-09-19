@@ -521,7 +521,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
                         </button>
                       </div>
                       {confirmPassword && password !== confirmPassword && (
-                        <p id="auth-confirm-error" role="alert" className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
+                        <p id="auth-confirm-error" role="alert" className="mt-1 text-xs text-danger ml-1">Passwords do not match</p>
                       )}
                     </div>
                   )}

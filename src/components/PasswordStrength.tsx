@@ -50,7 +50,7 @@ export const PasswordStrengthMeter: React.FC<{ password: string }> = ({ password
         <span
           className={`text-xs font-medium ${
             strength.strength === 'weak'
-              ? 'text-red-600'
+              ? 'text-danger'
               : strength.strength === 'medium'
               ? 'text-warn'
               : 'text-emerald-600'

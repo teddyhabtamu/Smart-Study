@@ -38,6 +38,10 @@ export default {
         // Warning text on theme surfaces: amber-700 in light themes,
         // light gold in dark ones. Fixed-bg amber pills keep the ramp.
         warn: 'rgb(var(--warn) / <alpha-value>)',
+        // Destructive text on theme surfaces: red-600 in light themes,
+        // light red in dark ones (red-600 on dark surfaces is ~3.7:1).
+        // Fixed-bg red pills/tiles and standalone icons keep the ramp.
+        danger: 'rgb(var(--danger) / <alpha-value>)',
         zinc: {
           50: 'rgb(var(--zinc-50) / <alpha-value>)',
           100: 'rgb(var(--zinc-100) / <alpha-value>)',

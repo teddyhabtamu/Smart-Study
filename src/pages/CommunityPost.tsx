@@ -512,7 +512,7 @@ const CommunityPost: React.FC = () => {
                            <button
                              onClick={(e) => { handleDeletePost(e); setShowMobileMenu(false); }}
                              disabled={isDeletingPost}
-                             className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-3 disabled:opacity-50"
+                             className="w-full px-4 py-3 text-left text-sm font-medium text-danger hover:bg-red-50 flex items-center gap-3 disabled:opacity-50"
                            >
                              {isDeletingPost ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                              {isDeletingPost ? 'Deleting...' : 'Delete Post'}
@@ -565,7 +565,7 @@ const CommunityPost: React.FC = () => {
                  <button
                    onClick={handleDeletePost}
                    disabled={isDeletingPost}
-                   className="px-3 py-1.5 text-sm font-medium text-red-600 bg-surface border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                   className="px-3 py-1.5 text-sm font-medium text-danger bg-surface border border-zinc-200 rounded-lg hover:bg-red-50 hover:border-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                    title="Delete Discussion"
                  >
                    {isDeletingPost ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}

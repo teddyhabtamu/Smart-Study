@@ -610,7 +610,7 @@ const Practice: React.FC = () => {
                               </div>
                               <div className="space-y-1 mb-3">
                                  <p className="text-xs text-zinc-500">
-                                   Your Answer{userLetter >= 0 ? ` (${OPTION_LETTERS[userLetter]})` : ''}: <span className={isCorrect ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}><MarkdownInline content={stripOptionPrefix(userAnswer)} /></span>
+                                   Your Answer{userLetter >= 0 ? ` (${OPTION_LETTERS[userLetter]})` : ''}: <span className={isCorrect ? 'text-emerald-600 font-bold' : 'text-danger font-bold'}><MarkdownInline content={stripOptionPrefix(userAnswer)} /></span>
                                  </p>
                                  {!isCorrect && (
                                    <p className="text-xs text-zinc-500">

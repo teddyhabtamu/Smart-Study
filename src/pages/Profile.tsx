@@ -569,7 +569,7 @@ const Profile: React.FC = () => {
           <div className="pt-4 mt-4 border-t border-zinc-100">
              <button
               onClick={() => setShowLogoutConfirm(true)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-danger rounded-lg hover:bg-red-50 transition-colors"
             >
               <LogOut size={18} /> Sign Out
             </button>
@@ -1117,7 +1117,7 @@ const Profile: React.FC = () => {
                         </div>
                       </div>
                       {setupError && (
-                        <p role="alert" className="text-xs font-medium text-red-600">{setupError}</p>
+                        <p role="alert" className="text-xs font-medium text-danger">{setupError}</p>
                       )}
                       <div className="flex items-center gap-3">
                         <button
@@ -1236,18 +1236,18 @@ const Profile: React.FC = () => {
                 )}
 
                 <div className="mt-8 pt-8 border-t border-zinc-200">
-                  <h3 className="text-sm font-bold text-red-600 mb-2 flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-danger mb-2 flex items-center gap-2">
                     <AlertTriangle size={16} /> Danger Zone
                   </h3>
                   <div className="bg-red-50 border border-red-100 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-red-900">Delete Account</p>
-                      <p className="text-xs text-red-600 mt-1">Permanently delete your account and all data.</p>
+                      <p className="text-xs text-danger mt-1">Permanently delete your account and all data.</p>
                     </div>
                     <button 
                       type="button"
                       onClick={handleDeleteAccount}
-                      className="px-4 py-2 bg-surface border border-red-200 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
+                      className="px-4 py-2 bg-surface border border-red-200 text-danger text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
                     >
                       Delete Account
                     </button>
@@ -1454,7 +1454,7 @@ const Profile: React.FC = () => {
                                 switch (type) {
                                   case 'success': return <CheckCircle size={16} className="text-emerald-600" />;
                                   case 'warning': return <AlertTriangle size={16} className="text-amber-600" />;
-                                  case 'error': return <AlertCircle size={16} className="text-red-600" />;
+                                  case 'error': return <AlertCircle size={16} className="text-danger" />;
                                   default: return <Info size={16} className="text-zinc-500" />;
                                 }
                               };
@@ -1642,7 +1642,7 @@ const Profile: React.FC = () => {
                 </div>
               )}
               {deleteError && (
-                <p role="alert" className="text-xs font-medium text-red-600 mb-3">{deleteError}</p>
+                <p role="alert" className="text-xs font-medium text-danger mb-3">{deleteError}</p>
               )}
               
               <div className="flex gap-3">

@@ -23,6 +23,53 @@ const loadSnapshot = <T,>(key: string): T[] => {
   }
 };
 
+// Offline completion queue: taps made without a connection, replayed in
+// order on reconnect. The server guards XP to the first false→true
+// transition (xp_awarded), so replays never double-pay.
+interface PendingOp {
+  opId: string;
+  eventId: string;
+  toCompleted: boolean;
+  at: number;
+}
+
+const PENDING_OPS_KEY = 'smartstudy_pending_ops';
+
+const loadPendingOps = (): PendingOp[] => {
+  try {
+    const raw = localStorage.getItem(PENDING_OPS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((o) => o && o.eventId) : [];
+  } catch {
+    return [];
+  }
+};
+
+const savePendingOps = (ops: PendingOp[]): void => {
+  try {
+    localStorage.setItem(PENDING_OPS_KEY, JSON.stringify(ops));
+  } catch {
+    // Storage full: the queue stays in memory for this session only.
+  }
+};
+
+// Network-shaped failures only (never auth/validation): a 401 must keep
+// hitting the session-expired flow, not silently serve stale snapshots.
+const looksLikeNetworkFailure = (e: any): boolean => {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  const m = String(e?.message || '').toLowerCase();
+  return (
+    m.includes('failed to fetch') ||
+    m.includes('networkerror') ||
+    m.includes('network error') ||
+    m.includes('timeout') ||
+    m.includes('offline') ||
+    m.includes('connection') ||
+    m.includes('load failed')
+  );
+};
+
 // Helper function to transform Video API response to VideoLesson format
 const transformVideoToVideoLesson = (video: Video): VideoLesson => {
   // Backend responses have been inconsistent historically:
@@ -113,6 +160,13 @@ interface DataContextType {
     dashboard: string | null;
   };
 
+  // Connectivity: true when the browser reports offline OR recent fetches
+  // failed with network-shaped errors. Pages show saved snapshots + queue
+  // completions instead of error walls.
+  isOffline: boolean;
+  // Completions recorded offline, still waiting to sync.
+  pendingOpsCount: number;
+
   // Data fetching functions
   fetchDocuments: (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number; append?: boolean }) => Promise<{ hasMore: boolean } | void>;
   fetchMoreDocuments: (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number }) => Promise<{ hasMore: boolean }>;
@@ -191,6 +245,62 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setErrorState = (key: keyof typeof errors, value: string | null) => {
     setErrors(prev => ({ ...prev, [key]: value }));
   };
+
+  // Connectivity + offline queue (see header comments on each helper).
+  const [isOffline, setIsOffline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? !navigator.onLine : false
+  );
+  const [pendingOps, setPendingOps] = useState<PendingOp[]>(() => loadPendingOps());
+
+  const persistPendingOps = useCallback((ops: PendingOp[]) => {
+    setPendingOps(ops);
+    savePendingOps(ops);
+  }, []);
+
+  // Replay queued completions in order. Successful (and gone: 404) ops drop
+  // off; a network failure stops the flush, keeping the rest for later.
+  const flushPendingOps = useCallback(async () => {
+    const queue = loadPendingOps();
+    if (queue.length === 0) {
+      setPendingOps([]);
+      return;
+    }
+    const remaining: PendingOp[] = [];
+    let stopped = false;
+    for (const op of queue) {
+      if (stopped) {
+        remaining.push(op);
+        continue;
+      }
+      try {
+        await plannerAPI.updateEvent(op.eventId, { isCompleted: op.toCompleted });
+      } catch (err: any) {
+        const status = err?.status;
+        if (status === 404) continue; // event deleted elsewhere: drop it
+        if (looksLikeNetworkFailure(err)) {
+          stopped = true;
+          remaining.push(op);
+        }
+        // Auth/validation errors: drop (re-login or correction resolves).
+      }
+    }
+    persistPendingOps(remaining);
+    if (!stopped) setIsOffline(false);
+  }, [persistPendingOps]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOffline(false);
+      void flushPendingOps();
+    };
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [flushPendingOps]);
 
   // Data fetching functions
   const fetchDocuments = useCallback(async (params?: { subject?: string; grade?: number; search?: string; tag?: string; excludeTag?: string; limit?: number; offset?: number; append?: boolean }) => {
@@ -377,13 +487,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setErrorState('studyEvents', null);
       const events = await plannerAPI.getEvents(params);
       setStudyEvents(Array.isArray(events) ? events : []);
+      saveSnapshot('smartstudy_events_snapshot', Array.isArray(events) ? events : []);
+      setIsOffline(false);
+      // A fresh list may resolve queued taps (completed elsewhere, deleted
+      // events) — flush opportunistically, never blocking the fetch.
+      void flushPendingOps();
     } catch (error: any) {
       console.error('Fetch study events error:', error);
-      setErrorState('studyEvents', error.message || 'Failed to fetch study events');
+      if (looksLikeNetworkFailure(error)) {
+        // Offline: serve the last saved plan instead of an error wall.
+        setStudyEvents(loadSnapshot<StudyEvent>('smartstudy_events_snapshot'));
+        setErrorState('studyEvents', null);
+        setIsOffline(true);
+      } else {
+        setErrorState('studyEvents', error.message || 'Failed to fetch study events');
+      }
     } finally {
       setLoadingState('studyEvents', false);
     }
-  }, []);
+  }, [flushPendingOps]);
 
   const fetchUsers = useCallback(async (params?: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' }) => {
     try {
@@ -570,15 +692,42 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateStudyEvent = async (id: string, updates: Partial<StudyEvent>): Promise<StudyEvent> => {
-    const updatedEvent = await plannerAPI.updateEvent(id, updates);
-    setStudyEvents(prev => prev.map(event => event.id === id ? updatedEvent : event));
-    
-    // Refresh dashboard if completion status changed (affects today's progress)
-    if (updates.isCompleted !== undefined) {
-      await fetchDashboard();
+    try {
+      const updatedEvent = await plannerAPI.updateEvent(id, updates);
+      setStudyEvents(prev => prev.map(event => event.id === id ? updatedEvent : event));
+
+      // Refresh dashboard if completion status changed (affects today's progress)
+      if (updates.isCompleted !== undefined) {
+        await fetchDashboard();
+      }
+
+      return updatedEvent;
+    } catch (error: any) {
+      // Offline completions queue instead of failing: optimistic toggle now,
+      // server replay on reconnect (XP-safe via the xp_awarded guard). Other
+      // edits (title/date/notes) can't merge safely — those still throw.
+      if (updates.isCompleted !== undefined && looksLikeNetworkFailure(error)) {
+        const toCompleted = updates.isCompleted;
+        let optimistic: StudyEvent | null = null;
+        setStudyEvents(prev => prev.map(event => {
+          if (event.id !== id) return event;
+          optimistic = { ...event, isCompleted: toCompleted };
+          return optimistic;
+        }));
+        if (!optimistic) throw error;
+        const queue = loadPendingOps().filter(op => op.eventId !== id);
+        queue.push({
+          opId: `${id}-${Date.now()}`,
+          eventId: id,
+          toCompleted,
+          at: Date.now(),
+        });
+        persistPendingOps(queue);
+        setIsOffline(true);
+        return optimistic;
+      }
+      throw error;
     }
-    
-    return updatedEvent;
   };
 
   const deleteStudyEvent = async (id: string): Promise<void> => {
@@ -616,6 +765,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Error states
       errors,
+
+      // Connectivity
+      isOffline,
+      pendingOpsCount: pendingOps.length,
 
       // Data fetching
       fetchDocuments,

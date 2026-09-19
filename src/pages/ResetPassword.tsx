@@ -153,7 +153,7 @@ const ResetPassword: React.FC = () => {
           {error && (
             <div role="alert" className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-800">{error}</p>
               </div>
               {/* Dead link (expired/used/invalid discovered at submit): the
@@ -240,7 +240,7 @@ const ResetPassword: React.FC = () => {
                 </button>
               </div>
               {confirmPassword && password !== confirmPassword && (
-                <p className="mt-1 text-xs text-red-600 ml-1">Passwords do not match</p>
+                <p className="mt-1 text-xs text-danger ml-1">Passwords do not match</p>
               )}
             </div>
 

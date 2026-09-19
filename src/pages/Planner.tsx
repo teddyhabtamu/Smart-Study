@@ -241,7 +241,7 @@ const EventCard: React.FC<EventCardProps> = ({
 
 
 const Planner: React.FC = () => {
-  const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading, fetchDashboard } = useData();
+  const { studyEvents, fetchStudyEvents, createStudyEvent, createStudyEventsBatch, updateStudyEvent, deleteStudyEvent, loading, fetchDashboard, isOffline, pendingOpsCount } = useData();
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -690,6 +690,24 @@ const Planner: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
+      {/* Offline mode: saved plan below, taps queue and sync on reconnect. */}
+      {isOffline && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3" role="status">
+          <p className="text-sm text-amber-900 flex-1">
+            <strong>You're offline</strong> — showing your saved plan.
+            {pendingOpsCount > 0 ? (
+              <> {pendingOpsCount} completion{pendingOpsCount === 1 ? '' : 's'} will sync when you reconnect.</>
+            ) : (
+              <> Taps to complete tasks will sync when you reconnect.</>
+            )}
+          </p>
+          {pendingOpsCount > 0 && (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap self-start sm:self-auto">
+              {pendingOpsCount} pending
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
@@ -1393,7 +1411,7 @@ const Planner: React.FC = () => {
                   <button
                     onClick={() => handleDeleteEvent(event.id)}
                     disabled={busy}
-                    className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 ml-auto"
+                    className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-danger hover:bg-red-50 transition-colors disabled:opacity-50 ml-auto"
                   >
                     {isDeletingEvent === event.id ? (
                       <Loader2 size={16} className="animate-spin" />

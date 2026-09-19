@@ -514,7 +514,7 @@ const TeamTab: React.FC = () => {
                                 {(() => {
                                   const expiry = inviteExpiry(member);
                                   return (
-                                    <p className={`mt-1.5 text-[10px] font-medium ${expiry.expired ? 'text-red-600' : 'text-zinc-500'}`}>
+                                    <p className={`mt-1.5 text-[10px] font-medium ${expiry.expired ? 'text-danger' : 'text-zinc-500'}`}>
                                       {expiry.label}
                                     </p>
                                   );
@@ -569,7 +569,7 @@ const TeamTab: React.FC = () => {
                                        {(() => {
                                          const expiry = inviteExpiry(member);
                                          return (
-                                           <span className={`block mt-0.5 font-medium ${expiry.expired ? 'text-red-600' : ''}`}>
+                                           <span className={`block mt-0.5 font-medium ${expiry.expired ? 'text-danger' : ''}`}>
                                              {expiry.label}
                                            </span>
                                          );
@@ -788,7 +788,7 @@ const TeamTab: React.FC = () => {
                     ) : null}. Promote them to the team instead of inviting?
                   </p>
                   {promoteCandidate?.status === 'Banned' && (
-                    <p className="mt-2 text-sm text-red-600 font-medium">
+                    <p className="mt-2 text-sm text-danger font-medium">
                       This account is banned — unban it from Student Management first.
                     </p>
                   )}
