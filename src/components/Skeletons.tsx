@@ -32,31 +32,33 @@ export const VideoCardSkeleton: React.FC = () => (
   </div>
 );
 
-// Forum Post Skeleton
+// Forum Post Skeleton — mirrors Community.tsx post cards (p-4/sm:p-5,
+// vote button + count column, subject/grade pills + views, title, excerpt,
+// avatar footer) so cards don't jump when posts land.
 export const ForumPostSkeleton: React.FC = () => (
-  <div className="bg-surface p-6 rounded-xl border border-zinc-200 shadow-sm animate-pulse">
-    <div className="flex items-start gap-4">
-      <div className="flex flex-col items-center gap-1 min-w-[3rem]">
-        <div className="w-6 h-6 bg-zinc-200 rounded"></div>
-        <div className="h-4 bg-zinc-200 rounded w-4"></div>
+  <div className="bg-surface p-4 sm:p-5 rounded-xl border border-zinc-200 shadow-sm animate-pulse" aria-hidden="true">
+    <div className="flex items-start gap-3 sm:gap-4">
+      <div className="flex flex-col items-center gap-0.5 min-w-[2.5rem] sm:min-w-[3rem]">
+        <div className="w-[18px] h-[18px] sm:w-5 sm:h-5 bg-zinc-200 rounded"></div>
+        <div className="h-4 bg-zinc-200 rounded w-5"></div>
       </div>
-      <div className="flex-1 space-y-3">
-        <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0 space-y-0">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
           <div className="h-5 bg-zinc-200 rounded w-20"></div>
           <div className="h-5 bg-zinc-200 rounded w-16"></div>
-          <div className="h-5 bg-zinc-200 rounded w-12 ml-auto"></div>
+          <div className="h-4 bg-zinc-200 rounded w-10 ml-auto"></div>
         </div>
-        <div className="h-6 bg-zinc-200 rounded w-3/4"></div>
-        <div className="space-y-2">
+        <div className="h-6 bg-zinc-200 rounded w-3/4 mb-2"></div>
+        <div className="space-y-2 mb-3 sm:mb-4">
           <div className="h-4 bg-zinc-200 rounded w-full"></div>
           <div className="h-4 bg-zinc-200 rounded w-5/6"></div>
         </div>
-        <div className="pt-4 border-t border-zinc-50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-zinc-200 rounded-full"></div>
+        <div className="pt-3 sm:pt-4 border-t border-zinc-50 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-5 h-5 sm:w-6 sm:h-6 bg-zinc-200 rounded-full flex-shrink-0"></div>
             <div className="h-3 bg-zinc-200 rounded w-24"></div>
           </div>
-          <div className="h-3 bg-zinc-200 rounded w-20"></div>
+          <div className="h-3 bg-zinc-200 rounded w-20 flex-shrink-0"></div>
         </div>
       </div>
     </div>
@@ -103,18 +105,19 @@ export const TaskItemSkeleton: React.FC = () => (
   </div>
 );
 
-// Leaderboard Item Skeleton
+// Leaderboard Item Skeleton — mirrors both Community leaderboard rows
+// (rank dot + avatar + name/level stack + XP pill) in desktop and mobile.
 export const LeaderboardItemSkeleton: React.FC = () => (
-  <div className="flex items-center justify-between p-2 rounded-lg animate-pulse">
-    <div className="flex items-center gap-3">
-      <div className="w-5 h-5 bg-zinc-200 rounded"></div>
-      <div className="w-8 h-8 rounded-full bg-zinc-200"></div>
-      <div className="space-y-1">
-        <div className="h-3 bg-zinc-200 rounded w-16"></div>
+  <div className="flex items-center justify-between gap-2 p-2 sm:p-3 rounded-lg animate-pulse" aria-hidden="true">
+    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <div className="w-5 h-5 sm:w-6 sm:h-6 bg-zinc-200 rounded-full flex-shrink-0"></div>
+      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-zinc-200 flex-shrink-0"></div>
+      <div className="space-y-1 min-w-0">
+        <div className="h-3 bg-zinc-200 rounded w-20"></div>
         <div className="h-2 bg-zinc-200 rounded w-12"></div>
       </div>
     </div>
-    <div className="h-4 bg-zinc-200 rounded w-16"></div>
+    <div className="h-5 bg-zinc-200 rounded w-16 flex-shrink-0"></div>
   </div>
 );
 
@@ -366,5 +369,48 @@ export const CommunityPostDetailSkeleton: React.FC = () => (
         ))}
       </div>
     </div>
+  </div>
+);
+
+// My AI Usage Skeleton — mirrors MyAiUsageCard (title + total row,
+// sub-line, 3 meter rows, footer link).
+export const MyAiUsageSkeleton: React.FC = () => (
+  <div className="bg-surface rounded-2xl border border-zinc-200 p-4 sm:p-6 shadow-sm animate-pulse" aria-hidden="true">
+    <div className="flex items-center justify-between gap-2 mb-1">
+      <div className="h-5 bg-zinc-200 rounded w-36"></div>
+      <div className="h-6 bg-zinc-200 rounded w-10"></div>
+    </div>
+    <div className="h-3 bg-zinc-200 rounded w-48 mb-3"></div>
+    <div className="space-y-2 mb-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="h-3 bg-zinc-200 rounded flex-1"></div>
+          <div className="h-1.5 bg-zinc-200 rounded-full w-20 flex-shrink-0"></div>
+          <div className="h-3 bg-zinc-200 rounded w-6 flex-shrink-0"></div>
+        </div>
+      ))}
+    </div>
+    <div className="h-3 bg-zinc-200 rounded w-28"></div>
+  </div>
+);
+
+// Weekly Recap Skeleton — mirrors WeeklyRecapCard (title + streak row,
+// headline, 7-day bar strip, footer link) so the Dashboard doesn't jump.
+export const WeeklyRecapSkeleton: React.FC = () => (
+  <div className="bg-surface p-4 sm:p-6 rounded-2xl border border-zinc-200 shadow-sm animate-pulse" aria-hidden="true">
+    <div className="flex items-center justify-between gap-2 mb-1">
+      <div className="h-5 bg-zinc-200 rounded w-32"></div>
+      <div className="h-4 bg-zinc-200 rounded w-20"></div>
+    </div>
+    <div className="h-3 bg-zinc-200 rounded w-56 mb-3"></div>
+    <div className="flex items-end gap-1.5 sm:gap-2 h-20 mb-1">
+      {[10, 26, 18, 40, 30, 52, 22].map((h, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+          <div className="w-full bg-zinc-200 rounded-full" style={{ height: h }}></div>
+          <div className="w-3 h-2.5 bg-zinc-200 rounded"></div>
+        </div>
+      ))}
+    </div>
+    <div className="h-3 bg-zinc-200 rounded w-24 mt-1"></div>
   </div>
 );

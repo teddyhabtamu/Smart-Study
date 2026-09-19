@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarRange, ChevronRight, Flame } from 'lucide-react';
 import { dashboardAPI } from '../services/api';
+import { WeeklyRecapSkeleton } from './Skeletons';
 
 interface RecapDay {
   date: string;
@@ -24,15 +25,26 @@ interface Recap {
 // we already log (events, XP, quizzes, AI, videos). Self-contained like
 // MyAiUsageCard. Unlike usage stats, the EMPTY state stays visible — a new
 // account seeing "plan your first session" is onboarding, not a broken
-// zero. Only a fetch failure hides the card.
+// zero. Only a fetch failure hides the card; while loading, the matching
+// skeleton holds the layout so nothing jumps.
 const weekdayLetter = (dateStr: string): string => {
   const d = new Date(`${dateStr}T12:00:00`);
   return isNaN(d.getTime()) ? '' : 'SMTWTFS'[d.getDay()] || '';
 };
 
+const fullDate = (dateStr: string): string => {
+  const d = new Date(`${dateStr}T12:00:00`);
+  return isNaN(d.getTime())
+    ? dateStr
+    : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
 const WeeklyRecapCard: React.FC = () => {
   const [recap, setRecap] = useState<Recap | null>(null);
   const [failed, setFailed] = useState(false);
+  // Open tooltip day: hover (mouse), focus (keyboard), tap (touch — hover
+  // doesn't exist there, so tap toggles and tapping elsewhere closes).
+  const [openDay, setOpenDay] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -49,7 +61,9 @@ const WeeklyRecapCard: React.FC = () => {
     };
   }, []);
 
-  if (failed || !recap) return null;
+  if (failed) return null;
+  if (!recap) return <WeeklyRecapSkeleton />;
+
   const hasActivity =
     recap.tasksCompleted > 0 ||
     recap.xpGained > 0 ||
@@ -93,21 +107,43 @@ const WeeklyRecapCard: React.FC = () => {
             {recap.quizzesTaken > 0 && <> · {recap.quizzesTaken} quiz{recap.quizzesTaken === 1 ? '' : 'zes'}</>}
             {recap.activeDays > 0 && <> · {recap.activeDays} active day{recap.activeDays === 1 ? '' : 's'}</>}
           </p>
-          <div className="flex items-end gap-1.5 sm:gap-2 h-20 mb-1" aria-hidden="true">
-            {recap.perDay.map((d) => {
+          <div className="flex items-end gap-1.5 sm:gap-2 h-20 mb-1">
+            {recap.perDay.map((d, i) => {
               const isToday = d.date === todayStr;
+              const isOpen = openDay === d.date;
               const height = d.tasksCompleted === 0 ? 4 : Math.max(10, Math.round((d.tasksCompleted / maxTasks) * 64));
+              // Edge columns pin their tooltip inward so it never clips
+              // the card on 360px viewports.
+              const align = i <= 1 ? 'left-0' : i >= recap.perDay.length - 2 ? 'right-0' : 'left-1/2 -translate-x-1/2';
               return (
-                <div key={d.date} className="flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end">
-                  <div
-                    className={`w-full rounded-full ${d.tasksCompleted === 0 ? 'bg-ink/15' : 'bg-ink'}`}
+                <button
+                  key={d.date}
+                  type="button"
+                  aria-label={`${fullDate(d.date)}: ${d.tasksCompleted} tasks, ${d.xp} XP`}
+                  aria-expanded={isOpen}
+                  onMouseEnter={() => setOpenDay(d.date)}
+                  onMouseLeave={() => setOpenDay((cur) => (cur === d.date ? null : cur))}
+                  onFocus={() => setOpenDay(d.date)}
+                  onBlur={() => setOpenDay((cur) => (cur === d.date ? null : cur))}
+                  onClick={() => setOpenDay((cur) => (cur === d.date ? null : d.date))}
+                  className="flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end relative rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/30"
+                >
+                  {isOpen && (
+                    <span
+                      role="status"
+                      className={`absolute -top-1 -translate-y-full ${align} z-10 whitespace-nowrap bg-zinc-900 text-onink text-[11px] font-medium rounded-lg px-2.5 py-1.5 shadow-lg pointer-events-none`}
+                    >
+                      {fullDate(d.date)} · {d.tasksCompleted} task{d.tasksCompleted === 1 ? '' : 's'} · {d.xp} XP
+                    </span>
+                  )}
+                  <span
+                    className={`w-full rounded-full transition-colors ${d.tasksCompleted === 0 ? 'bg-ink/15' : isOpen ? 'bg-inksoft' : 'bg-ink'}`}
                     style={{ height }}
-                    title={`${d.date}: ${d.tasksCompleted} tasks, ${d.xp} XP`}
                   />
                   <span className={`text-[10px] ${isToday ? 'font-bold text-ink' : 'text-zinc-500'}`}>
                     {weekdayLetter(d.date)}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>

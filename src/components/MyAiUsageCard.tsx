@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { usersAPI } from '../services/api';
+import { MyAiUsageSkeleton } from './Skeletons';
 
 // Dashboard "AI usage this week" card: the student's own generations from
 // the same ai_usage rows the admin aggregates read — scoped to the caller.
@@ -21,6 +22,7 @@ const MyAiUsageCard: React.FC = () => {
     totalCalls: number;
     byRoute: Array<{ route: string; calls: number }>;
   } | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -30,14 +32,16 @@ const MyAiUsageCard: React.FC = () => {
         if (alive) setUsage({ totalCalls: d.totalCalls, byRoute: d.byRoute });
       })
       .catch(() => {
-        if (alive) setUsage(null);
+        if (alive) setFailed(true);
       });
     return () => {
       alive = false;
     };
   }, []);
 
-  if (!usage || usage.totalCalls === 0) return null;
+  if (failed) return null;
+  if (!usage) return <MyAiUsageSkeleton />;
+  if (usage.totalCalls === 0) return null;
   const top = [...usage.byRoute].sort((a, b) => b.calls - a.calls).slice(0, 3);
 
   return (
