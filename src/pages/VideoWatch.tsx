@@ -518,8 +518,8 @@ const VideoWatch: React.FC = () => {
              </div>
 
              <div>
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
-                  <div>
+                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
+                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-2 flex-wrap mb-2">
                       <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-ink leading-tight">{decodeHtmlEntities(video.title)}</h1>
                       {isPremiumVideo && (
@@ -529,8 +529,8 @@ const VideoWatch: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                     {user && canWatch && (
+                   <div className="flex gap-2 flex-shrink-0">
+                      {user && canWatch && (
                        <button
                          onClick={handleCompleteLesson}
                          disabled={isCompleted || isCompleting}

@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
 import { forumAPI } from '../services/api';
-import { requestInstallPrompt } from '../components/PwaInstall';
+import { requestInstallPrompt, usePwaInstall } from '../components/PwaInstall';
 import { ForumPost } from '../types';
 import { CommunityPostDetailSkeleton } from '../components/Skeletons';
 import { formatRelativeTime } from '../utils/dateUtils';
@@ -36,6 +36,10 @@ const CommunityPost: React.FC = () => {
   const hasAcceptedSolution = postComments.some((c: any) => Boolean(c?.isAccepted ?? c?.is_accepted));
   // Find related posts (same subject, excluding current)
   const relatedPosts = forumPosts.filter(p => p.subject === post?.subject && p.id !== post?.id).slice(0, 3);
+  // PWA promo hides once installed (an installed user doesn't need to be
+  // sold the app), and Related hides when empty (a "no discussions" panel
+  // advertises a dead community; the reply form above is the CTA).
+  const { installed: pwaInstalled } = usePwaInstall();
 
   // Local interaction state
   const [replyContent, setReplyContent] = useState('');
@@ -668,10 +672,10 @@ const CommunityPost: React.FC = () => {
                                  #{tag}
                                </span>
                              ))}
-                           </div>
-                         )}
-                      </div>
-                   </div>
+            </div>
+            )}
+         </div>
+       </div>
                 </div>
 
                 {/* AI Smart Answer Section */}
@@ -905,14 +909,16 @@ const CommunityPost: React.FC = () => {
                    )}
                 </div>
 
-                {/* Related on mobile: below the answers, inside the scroll */}
+                {/* Related on mobile: below the answers, inside the scroll.
+                    Hidden when empty (see sidebar note). */}
+                {relatedPosts.length > 0 && (
                 <div className="lg:hidden">
-                   <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4">
+                    <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-4">
                       <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-2">
                          <HelpCircle size={16} className="text-zinc-500" /> Related Questions
                       </h3>
                       <div className="space-y-3">
-                         {relatedPosts.length > 0 ? relatedPosts.map(rp => (
+                         {relatedPosts.map(rp => (
                             <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
                        <h4 className="text-xs font-semibold text-ink group-hover:text-ink group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
                           {rp.title}
@@ -923,60 +929,67 @@ const CommunityPost: React.FC = () => {
                           <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
                        </div>
                     </Link>
-                 )) : (
-                    <p className="text-xs text-zinc-500">No related discussions found.</p>
-                 )}
+                 ))}
               </div>
-           </div>
-        </div>
+            </div>
+         </div>
+                )}
              </div>
           </div>
         </div>
 
-        {/* Right Sidebar: Related Content (Hidden on small screens) */}
-        <div className="hidden lg:block w-80 flex-shrink-0 space-y-6">
-           {/* Related Questions */}
-           <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-5">
-              <h3 className="font-bold text-ink text-sm mb-4 flex items-center gap-2">
-                 <HelpCircle size={16} className="text-zinc-500" /> Related Questions
-              </h3>
-              <div className="space-y-4">
-                 {relatedPosts.length > 0 ? relatedPosts.map(rp => (
-                    <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
-                       <h4 className="text-xs font-semibold text-ink group-hover:text-ink group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
-                          {rp.title}
-                       </h4>
-                       <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                          <span>{rp.votes} votes</span>
-                          <span>•</span>
-                          <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
-                       </div>
-                    </Link>
-                 )) : (
-                    <p className="text-xs text-zinc-500">No related discussions found.</p>
-                 )}
-              </div>
-           </div>
+         {/* Right Sidebar: Related + install promo. The whole column hides
+             when both cards are gone (empty related + installed app) so it
+             never reserves 320px of nothing on desktop. */}
+         {(relatedPosts.length > 0 || !pwaInstalled) && (
+         <div className="hidden lg:block w-80 flex-shrink-0 space-y-6">
+            {/* Related Questions — hidden when empty (see note above). */}
+            {relatedPosts.length > 0 && (
+            <div className="bg-surface rounded-xl border border-zinc-200 shadow-sm p-5">
+               <h3 className="font-bold text-ink text-sm mb-4 flex items-center gap-2">
+                  <HelpCircle size={16} className="text-zinc-500" /> Related Questions
+               </h3>
+               <div className="space-y-4">
+                  {relatedPosts.map(rp => (
+                     <Link key={rp.id} to={`/community/${rp.id}`} className="block group">
+                        <h4 className="text-xs font-semibold text-ink group-hover:text-ink group-hover:underline underline-offset-2 transition-colors line-clamp-2 leading-relaxed mb-1">
+                           {rp.title}
+                        </h4>
+                        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                           <span>{rp.votes} votes</span>
+                           <span>•</span>
+                           <span>{(rp.comments?.length || (rp as any).comment_count || 0)} answers</span>
+                        </div>
+                     </Link>
+                  ))}
+               </div>
+            </div>
+            )}
 
-           {/* Mobile App Promo */}
-           <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-xl p-6 text-white text-center shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-surface/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-              <h4 className="font-bold text-sm mb-2 relative z-10">Study on the go</h4>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed relative z-10">
-                 Install the SmartStudy app for offline access and practice notifications.
-              </p>
-              {/* Wired to the real PWA install flow (native prompt when the
-                  browser offers it, manual steps otherwise) — previously a
-                  dead button with no handler. */}
-              <button
-                onClick={requestInstallPrompt}
-                className="w-full py-2 bg-surface text-ink rounded-lg text-xs font-bold hover:bg-zinc-100 transition-colors relative z-10 min-h-[44px]"
-              >
-                 Get Mobile App
-              </button>
-           </div>
-        </div>
-      </div>
+            {/* Mobile App Promo — hidden once installed. Desktop users can
+                install the PWA too (Chrome/Edge), so it stays on desktop;
+                the installed check is what removes it, not the viewport. */}
+            {!pwaInstalled && (
+            <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-xl p-6 text-white text-center shadow-lg relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-surface/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+               <h4 className="font-bold text-sm mb-2 relative z-10">Study on the go</h4>
+               <p className="text-xs text-zinc-400 mb-4 leading-relaxed relative z-10">
+                  Install the SmartStudy app for offline access and practice notifications.
+               </p>
+               {/* Wired to the real PWA install flow (native prompt when the
+                   browser offers it, manual steps otherwise) — previously a
+                   dead button with no handler. */}
+               <button
+                 onClick={requestInstallPrompt}
+                 className="w-full py-2 bg-surface text-ink rounded-lg text-xs font-bold hover:bg-zinc-100 transition-colors relative z-10 min-h-[44px]"
+               >
+                  Get Mobile App
+               </button>
+            </div>
+            )}
+         </div>
+       )}
+       </div>
 
       {/* Delete Confirmation Modal */}
       <Dialog
