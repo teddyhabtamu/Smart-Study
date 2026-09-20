@@ -84,7 +84,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Structured Data (JSON-LD) -->
+  <!-- Structured Data (JSON-LD).
+       NOTE: no SoftwareApplication node on purpose. Google's Software-app
+       schema REQUIRES aggregateRating|review plus numeric offers.price; we
+       have no genuine app ratings and faking one risks a manual action, so
+       the type only earns a permanent GSC warning. Re-add with real ratings.
+       NOTE: no SearchAction/potentialAction either — Google retired the
+       sitelinks search box, so it only risks an "unsupported" warning. -->
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -107,33 +113,6 @@
           ]
         },
         {
-          "@type": "SoftwareApplication",
-          "@id": "https://smartstudy.pro.et/#software",
-          "name": "SmartStudy",
-          "applicationCategory": "EducationalApplication",
-          "operatingSystem": "Web Browser",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "ETB",
-            "description": "Free basic access with premium features available"
-          },
-          "description": "AI-powered learning platform featuring digital library, AI tutor, video lessons, and community support for Ethiopian high school students",
-          "featureList": [
-            "AI-powered personal tutor for math, physics, and chemistry",
-            "Digital library with textbooks and exam papers",
-            "Curated video lessons organized by subject and grade",
-            "Community forums and study groups",
-            "Practice exams and quizzes"
-          ],
-          "author": {
-            "@id": "https://smartstudy.pro.et/#organization"
-          },
-          "publisher": {
-            "@id": "https://smartstudy.pro.et/#organization"
-          }
-        },
-        {
           "@type": "WebSite",
           "@id": "https://smartstudy.pro.et/#website",
           "url": "https://smartstudy.pro.et",
@@ -142,14 +121,6 @@
           "description": "Educational platform for Ethiopian high school students with AI tutor, digital library, and community support",
           "publisher": {
             "@id": "https://smartstudy.pro.et/#organization"
-          },
-          "potentialAction": {
-            "@type": "SearchAction",
-            "target": {
-              "@type": "EntryPoint",
-              "urlTemplate": "https://smartstudy.pro.et/library?search={search_term_string}"
-            },
-            "query-input": "required name=search_term_string"
           }
         },
         {

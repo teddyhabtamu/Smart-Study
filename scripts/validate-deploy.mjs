@@ -31,8 +31,23 @@ if (blocks.length === 0) {
 }
 blocks.forEach((m, i) => {
   try {
-    JSON.parse(m[1]);
+    const data = JSON.parse(m[1]);
     console.log(`[deploy-gate] index.html JSON-LD block ${i}: valid`);
+    // Google's SoftwareApplication REQUIRES aggregateRating|review (plus
+    // numeric offers.price). A rating-less node earns a permanent GSC warning,
+    // and a faked rating risks a manual action — so refuse to ship one.
+    const nodes = data?.['@graph'] || [data];
+    for (const n of nodes) {
+      if (n?.['@type'] === 'SoftwareApplication') {
+        if (!n.aggregateRating && !n.review) {
+          fail('SoftwareApplication without aggregateRating|review — Google flags this; remove the node or add genuine ratings');
+        }
+        const price = n.offers?.price;
+        if (price !== undefined && typeof price !== 'number') {
+          fail(`SoftwareApplication offers.price must be a Number, got ${JSON.stringify(price)}`);
+        }
+      }
+    }
   } catch (err) {
     fail(`index.html JSON-LD block ${i} is not valid JSON: ${err.message}`);
   }
