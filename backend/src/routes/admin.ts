@@ -491,6 +491,19 @@ router.put('/users/:userId/premium', requireRole(['ADMIN']), [
       } catch (claimErr) {
         console.error('Auto-approve payment claims failed (non-fatal):', (claimErr as any)?.message || claimErr);
       }
+      // Same for referral rewards: a manual upgrade fulfills the pending
+      // reward's purpose (the referrer is Pro now), so settle the row
+      // instead of leaving a stale queue entry. No extra month is stacked —
+      // the admin's grant IS the reward here.
+      try {
+        await dbQuery(
+          `UPDATE referral_rewards SET status = 'approved', decided_at = NOW(), decided_by = $1
+           WHERE referrer_id = $2 AND status = 'pending'`,
+          [req.user!.id, targetUserId]
+        );
+      } catch (rwErr) {
+        console.error('Auto-settle referral rewards failed (non-fatal):', (rwErr as any)?.message || rwErr);
+      }
     }
 
     // Send premium email notifications (non-blocking)
@@ -582,6 +595,153 @@ router.post('/payment-claims/:id/reject', requireRole(['ADMIN']), async (req: ex
     res.status(500).json({
       success: false,
       message: 'Failed to reject payment claim'
+    } as ApiResponse);
+  }
+});
+
+// --- Referral rewards queue (admin) ----------------------------------------
+// Pending rewards first (the actual work queue), then recently decided.
+// Each row carries its 5 referees (full emails — admin eyes only) so fraud
+// review needs no extra clicks: same-date bursts and lookalike emails show
+// right here. Approve grants 1 STACKED Pro month (premium_until =
+// max(now, existing) + 1 month; paid-forever accounts keep NULL). Reject
+// releases the 5 back to unrewarded so honest progress survives a misclick —
+// fake accounts are handled with the existing ban tool, and banned referees
+// never count toward the next trigger.
+router.get('/referral-rewards', requireRole(['ADMIN']), async (_req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    let rows: any[] = [];
+    try {
+      const r = await dbQuery(
+        `SELECT rw.id, rw.status, rw.qualified_count, rw.created_at, rw.decided_at,
+                u.id AS referrer_id, u.name, u.email, u.is_premium, u.premium_until,
+                (SELECT json_agg(json_build_object(
+                    'email', ru.email, 'name', ru.name,
+                    'qualified_at', r.qualified_at, 'status', ru.status
+                  ) ORDER BY r.qualified_at)
+                 FROM referrals r JOIN users ru ON ru.id = r.referee_id
+                 WHERE r.reward_id = rw.id) AS referees
+         FROM referral_rewards rw JOIN users u ON u.id = rw.referrer_id
+         ORDER BY (rw.status = 'pending') DESC, rw.created_at DESC
+         LIMIT 50`
+      );
+      rows = r.rows;
+    } catch (rwErr) {
+      console.error('Referral rewards list failed (non-fatal, table may predate migration):', (rwErr as any)?.message || rwErr);
+    }
+    res.json({ success: true, data: rows } as ApiResponse);
+  } catch (error) {
+    console.error('Get referral rewards error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get referral rewards'
+    } as ApiResponse);
+  }
+});
+
+// Approve one pending reward: stack +1 Pro month, settle the row, tell the
+// referrer. Idempotent on status (double-clicks approve once).
+router.post('/referral-rewards/:id/approve', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      res.status(400).json({ success: false, message: 'Reward id required' } as ApiResponse);
+      return;
+    }
+    const rw = await dbQuery(
+      `SELECT id, referrer_id, status FROM referral_rewards WHERE id = $1`,
+      [id]
+    );
+    if (rw.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Reward not found' } as ApiResponse);
+      return;
+    }
+    if (rw.rows[0].status !== 'pending') {
+      res.json({ success: true, data: { approved: false, reason: 'already decided' } } as ApiResponse);
+      return;
+    }
+    const referrerId = String(rw.rows[0].referrer_id);
+
+    const granted = await dbQuery(
+      `UPDATE users
+       SET is_premium = TRUE,
+           premium_since = CASE WHEN is_premium IS TRUE THEN premium_since ELSE NOW() END,
+           premium_until = GREATEST(COALESCE(premium_until, NOW()), NOW()) + INTERVAL '1 month',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING is_premium, premium_until`,
+      [referrerId]
+    );
+    await dbQuery(
+      `UPDATE referral_rewards SET status = 'approved', decided_at = NOW(), decided_by = $1
+       WHERE id = $2 AND status = 'pending'`,
+      [req.user!.id, id]
+    );
+    try {
+      await NotificationService.create({
+        user_id: referrerId,
+        title: 'Pro reward unlocked!',
+        message: 'Your 5 referrals earned you 1 month of Student Pro. Thanks for spreading the word — keep inviting!',
+        type: 'SUCCESS',
+      });
+    } catch (nErr) {
+      console.error('Referral approval notification failed (non-fatal):', (nErr as any)?.message || nErr);
+    }
+    try {
+      const who = await dbQuery(`SELECT email, name FROM users WHERE id = $1`, [referrerId]);
+      if (who.rows[0]?.email) {
+        EmailService.sendPremiumUpgradeEmail(who.rows[0].email, who.rows[0]?.name || 'there').catch(() => {});
+      }
+    } catch { /* email is advisory next to the grant */ }
+    logAdminActivity(req, {
+      action: 'referral.reward.approve',
+      target_type: 'user',
+      target_id: referrerId,
+      summary: `Approved referral reward ${id} (+1 Pro month)`,
+    } as any).catch?.(() => {});
+    res.json({ success: true, data: { approved: true, premium_until: granted.rows[0]?.premium_until } } as ApiResponse);
+  } catch (error) {
+    console.error('Approve referral reward error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve referral reward'
+    } as ApiResponse);
+  }
+});
+
+// Reject one pending reward: releases the 5 referees back to unrewarded
+// (honest progress survives; ban fakes with the existing tool instead).
+router.post('/referral-rewards/:id/reject', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      res.status(400).json({ success: false, message: 'Reward id required' } as ApiResponse);
+      return;
+    }
+    const r = await dbQuery(
+      `UPDATE referral_rewards SET status = 'rejected', decided_at = NOW(), decided_by = $1
+       WHERE id = $2 AND status = 'pending' RETURNING referrer_id`,
+      [req.user!.id, id]
+    );
+    if ((r.rowCount ?? 0) > 0) {
+      await dbQuery(`UPDATE referrals SET reward_id = NULL WHERE reward_id = $1`, [id]);
+      try {
+        await NotificationService.create({
+          user_id: String(r.rows[0].referrer_id),
+          title: 'Referral reward declined',
+          message: 'Your referral reward was declined after review. If you think this is a mistake, contact support on Telegram.',
+          type: 'INFO',
+        });
+      } catch (nErr) {
+        console.error('Referral rejection notification failed (non-fatal):', (nErr as any)?.message || nErr);
+      }
+    }
+    res.json({ success: true, data: { rejected: (r.rowCount ?? 0) > 0 } } as ApiResponse);
+  } catch (error) {
+    console.error('Reject referral reward error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject referral reward'
     } as ApiResponse);
   }
 });

@@ -35,6 +35,15 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   }, [initialType]);
 
   const [email, setEmail] = useState('');
+  // Referral capture: /register?ref=CODE from a friend's invite link.
+  // Format-guarded (8 alphanumerics) so junk params never reach the API;
+  // an unknown-but-valid code is ignored server-side, never blocking signup.
+  // NOTE: Google-OAuth signup can't carry the code through the OAuth
+  // round-trip — email signup is the referral path for v1.
+  const inviteCode = (() => {
+    const raw = (searchParams.get('ref') || '').trim().toUpperCase();
+    return /^[A-Z0-9]{4,16}$/.test(raw) ? raw : null;
+  })();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
@@ -194,7 +203,7 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
           return;
         }
 
-        await register(name, email, password, grade ? Number(grade) : undefined);
+        await register(name, email, password, grade ? Number(grade) : undefined, inviteCode || undefined);
 
         // Registration requires email verification — move to a dedicated
         // pending screen that KEEPS the email (no retyping) and offers resend.
@@ -278,6 +287,11 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
           </div>
 
           <div className="mt-6 sm:mt-8 md:mt-10">
+            {view === 'register' && inviteCode && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 leading-relaxed">
+                🎉 You were invited by a friend — verify your email after signup and it counts toward their Pro reward.
+              </div>
+            )}
             {view === 'login' && oauthError && oauthErrorCopy[oauthError] && (
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 leading-relaxed flex items-start gap-2">
                 <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />

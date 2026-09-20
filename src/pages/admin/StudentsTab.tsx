@@ -29,6 +29,10 @@ const StudentsTab: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Banned'>('all');
   const [claims, setClaims] = useState<any[] | null>(null);
   const [isDecidingClaim, setIsDecidingClaim] = useState<string | null>(null);
+  // Referral rewards queue — same approve/reject shape as payment claims,
+  // except Approve hits its own endpoint (stacks +1 Pro month server-side).
+  const [refRewards, setRefRewards] = useState<any[] | null>(null);
+  const [isDecidingReward, setIsDecidingReward] = useState<string | null>(null);
   const [students, setStudents] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE, offset: 0, hasMore: false });
@@ -123,6 +127,41 @@ const StudentsTab: React.FC = () => {
       addToast(error?.message || 'Failed to decide claim', 'error');
     } finally {
       setIsDecidingClaim(null);
+    }
+  };
+
+  // Referral rewards queue: referees arrive linked (verify-time), so the
+  // review is right here — same-date bursts and lookalike emails are the
+  // fraud tells. Approve stacks +1 Pro month; reject releases the 5 back.
+  // Silent-fail to hidden (old DBs).
+  const fetchRefRewards = useCallback(async () => {
+    try {
+      const rows = await adminAPI.getReferralRewards();
+      setRefRewards(rows);
+    } catch {
+      setRefRewards(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRefRewards();
+  }, [fetchRefRewards]);
+
+  const decideReward = async (reward: any, approve: boolean) => {
+    try {
+      setIsDecidingReward(reward.id);
+      if (approve) {
+        await adminAPI.approveReferralReward(reward.id);
+        addToast(`${reward.name} earned 1 month of Pro`, 'success');
+      } else {
+        await adminAPI.rejectReferralReward(reward.id);
+        addToast('Reward rejected — referees released back', 'success');
+      }
+      await Promise.all([fetchRefRewards(), fetchStudents()]);
+    } catch (error: any) {
+      addToast(error?.message || 'Failed to decide reward', 'error');
+    } finally {
+      setIsDecidingReward(null);
     }
   };
 
@@ -275,6 +314,67 @@ const StudentsTab: React.FC = () => {
                           Reject
                         </button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Referral rewards queue — pending first. Approve stacks +1 Pro
+                month; reject releases the referees back. Referee emails render
+                inline so fraud review (bursts, lookalikes) needs no clicks. */}
+            {refRewards !== null && refRewards.some((r: any) => r.status === 'pending') && (
+              <div className="bg-surface rounded-xl border border-emerald-200 shadow-sm p-4 sm:p-5">
+                <h3 className="font-bold text-ink text-sm sm:text-base mb-1">
+                  Referral rewards <span className="text-xs font-medium text-zinc-500">({refRewards.filter((r: any) => r.status === 'pending').length} waiting)</span>
+                </h3>
+                <p className="text-xs text-zinc-500 mb-3">Check the 5 referees look real (verified, spread over days), then approve — +1 Pro month stacks automatically.</p>
+                <div className="space-y-2">
+                  {refRewards.filter((r: any) => r.status === 'pending').map((r: any) => (
+                    <div key={r.id} className="flex flex-col gap-2 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-ink truncate">{r.name}</p>
+                          <p className="text-[11px] text-zinc-500 truncate">
+                            {r.email}
+                            {' · '}{new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            {r.is_premium ? ' · already Pro (stacks)' : ''}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => decideReward(r, true)}
+                            disabled={isDecidingReward === r.id}
+                            className="flex-1 sm:flex-none px-3 py-1.5 bg-zinc-900 text-onink text-xs font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                          >
+                            {isDecidingReward === r.id ? 'Working…' : 'Approve +1 mo'}
+                          </button>
+                          <button
+                            onClick={() => decideReward(r, false)}
+                            disabled={isDecidingReward === r.id}
+                            className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                      {(r.referees?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {r.referees.map((f: any, i: number) => (
+                            <span
+                              key={i}
+                              title={`${f.name || ''} · verified ${f.qualified_at ? new Date(f.qualified_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}${f.status && f.status !== 'Active' ? ` · ${f.status}` : ''}`}
+                              className={`text-[11px] font-mono px-2 py-0.5 rounded-full border ${
+                                f.status && f.status !== 'Active'
+                                  ? 'bg-red-50 text-red-600 border-red-200'
+                                  : 'bg-surface text-zinc-500 border-zinc-200'
+                              }`}
+                            >
+                              {f.email}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -6,6 +6,7 @@ import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscriptionAPI } from '../services/api';
+import ReferralCard from '../components/ReferralCard';
 
 const PRO_PLAN = {
 // Single source of truth for the Pro plan. Amount/channel must match what
@@ -229,11 +230,15 @@ const Subscription: React.FC = () => {
                  </a>{' '}
                  and we'll sort it out.
                </p>
-            </div>
           </div>
         </div>
       </div>
-    );
+
+      {/* Referral program: visible in the member view too — current Pro
+          members are the most credible recruiters. */}
+      <ReferralCard />
+    </div>
+  );
   }
 
   // RENDER: Upgrade View (For Free Users)
@@ -308,16 +313,19 @@ const Subscription: React.FC = () => {
               ))}
             </div>
 
-           <button
-             onClick={() => setIsModalOpen(true)}
-             className="w-full py-3 bg-surface text-ink font-medium rounded-lg hover:bg-zinc-100 transition-colors relative z-10 text-sm sm:text-base"
-           >
-             Upgrade via Telebirr
-           </button>
-        </div>
-      </div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="w-full py-3 bg-surface text-ink font-medium rounded-lg hover:bg-zinc-100 transition-colors relative z-10 text-sm sm:text-base"
+            >
+              Upgrade via Telebirr
+            </button>
+         </div>
+       </div>
 
-      {/* Payment Modal using Portal */}
+       {/* Free path to Pro: refer 5 verified friends, admin approves. */}
+       <ReferralCard />
+
+       {/* Payment Modal using Portal */}
       {/* Payment dialog: focus-trapped, Esc-dismissible, focus-returning
           (shared Dialog). Backdrop click closes via the default dismissible
           path — same as the old overlay, which closed on backdrop click. */}

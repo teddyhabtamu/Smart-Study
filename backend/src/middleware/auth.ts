@@ -28,6 +28,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       `SELECT u.id, u.name, u.email, u.role, u.status, u.is_premium, u.avatar,
               u.preferences, u.xp, u.level, u.streak, u.last_active_date,
               u.unlocked_badges, u.practice_attempts, u.grade, u.premium_since,
+              u.premium_until, u.referral_code,
               u.created_at, u.updated_at,
               (u.password_hash IS NOT NULL AND u.password_hash != $2) AS has_password,
               COALESCE(array_agg(b.item_id) FILTER (WHERE b.item_id IS NOT NULL), ARRAY[]::text[]) as bookmarks
@@ -58,6 +59,25 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         message: `Your account has been ${blockedStatuses[user.status]}. Please contact support for assistance.`
       });
       return;
+    }
+
+    // Referral-reward Pro is time-boxed (premium_until); paid Pro is forever
+    // (premium_until NULL, never expires). Lazy expiry here — the single
+    // choke point every authenticated request passes through — so no caller
+    // needs its own clock check. Best-effort: an expiry-write failure must
+    // never 401 a legitimate user; the in-request flag still flips.
+    const premiumUntil = (user as any).premium_until;
+    if (user.is_premium && premiumUntil && new Date(premiumUntil).getTime() < Date.now()) {
+      try {
+        await query(
+          `UPDATE users SET is_premium = FALSE, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND is_premium IS TRUE AND premium_until IS NOT NULL AND premium_until < NOW()`,
+          [user.id]
+        );
+      } catch (expErr) {
+        console.error('Pro expiry write failed (non-fatal):', (expErr as any)?.message || expErr);
+      }
+      user.is_premium = false as any;
     }
 
     req.user = user;
@@ -119,12 +139,18 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
       // Fetch user from database to ensure they still exist and get latest data
       const result = await query(
-        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at, (password_hash IS NOT NULL AND password_hash != $2) AS has_password FROM users WHERE id = $1',
+        'SELECT id, name, email, role, status, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, premium_until, created_at, updated_at, (password_hash IS NOT NULL AND password_hash != $2) AS has_password FROM users WHERE id = $1',
         [decoded.userId, OAUTH_PASSWORD_PLACEHOLDER]
       );
 
       if (result.rows.length > 0) {
         const user = result.rows[0] as User;
+        // Same expiry rule as authenticateToken, read-only here (the lazy
+        // DB write happens on the next authenticated request instead).
+        const until = (user as any).premium_until;
+        if (user.is_premium && until && new Date(until).getTime() < Date.now()) {
+          user.is_premium = false as any;
+        }
         // For optionalAuth, we don't block banned users (it's for public routes)
         // But we still set the user so routes can check status if needed
         req.user = user;

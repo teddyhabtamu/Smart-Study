@@ -471,10 +471,10 @@ export const authAPI = {
       body: JSON.stringify({ email, password }),
     }, false),
 
-  register: (name: string, email: string, password: string, grade?: number): Promise<{ user: User; token?: string; refreshToken?: string; message?: string }> =>
+  register: (name: string, email: string, password: string, grade?: number, referralCode?: string): Promise<{ user: User; token?: string; refreshToken?: string; message?: string }> =>
     apiRequest('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password, ...(grade !== undefined ? { grade } : {}) }),
+      body: JSON.stringify({ name, email, password, ...(grade !== undefined ? { grade } : {}), ...(referralCode ? { referralCode } : {}) }),
     }, false),
 
   verify: (): Promise<{ user: User }> =>
@@ -1391,6 +1391,21 @@ export const adminAPI = {
   rejectPaymentClaim: (id: string): Promise<{ rejected: boolean }> =>
     apiRequest(`/admin/payment-claims/${id}/reject`, { method: 'POST' }),
 
+  // Referral rewards queue (pending first). Approvals grant +1 Pro month
+  // server-side; rejects release the referees back to unrewarded.
+  getReferralRewards: (): Promise<Array<{
+    id: string; status: string; qualified_count: number; created_at: string; decided_at: string | null;
+    referrer_id: string; name: string; email: string; is_premium: boolean; premium_until: string | null;
+    referees: Array<{ email: string; name: string; qualified_at: string; status: string }> | null;
+  }>> =>
+    apiRequest('/admin/referral-rewards'),
+
+  approveReferralReward: (id: string): Promise<{ approved: boolean; premium_until?: string }> =>
+    apiRequest(`/admin/referral-rewards/${id}/approve`, { method: 'POST' }),
+
+  rejectReferralReward: (id: string): Promise<{ rejected: boolean }> =>
+    apiRequest(`/admin/referral-rewards/${id}/reject`, { method: 'POST' }),
+
   // Engagement (Overview): DAU/WAU/MAU, 30-day active series, 7-day
   // feature split. Best-effort: callers hide the card on failure.
   getEngagement: (): Promise<{
@@ -1724,6 +1739,15 @@ export const subscriptionAPI = {
     id: string; status: string; transaction_ref: string | null; created_at: string; decided_at: string | null;
   } | null> =>
     apiRequest('/subscription/claim/mine'),
+
+  // Referral dashboard: code, qualified progress, reward state, referees.
+  getMyReferrals: (): Promise<{
+    code: string | null; required: number; rewardMonths: number; qualifiedCount: number;
+    pendingReward: { id: string; status: string; created_at: string } | null;
+    latestReward: { id: string; status: string; created_at: string; decided_at: string | null } | null;
+    referees: Array<{ email: string; qualified: boolean }>;
+  }> =>
+    apiRequest('/subscription/referrals/mine'),
 };
 
 // Careers API

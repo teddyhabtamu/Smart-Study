@@ -11,6 +11,7 @@ import passport from '../middleware/googleAuth';
 import { loginLimiter } from '../middleware/rateLimit';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { mintUniqueReferralCode, maybeCreateReferralReward } from '../services/referralService';
 import { EmailService, isNewLoginFingerprint } from '../services/emailService';
 
 const router = express.Router();
@@ -34,7 +35,8 @@ router.post('/register', [
   body('name').trim().isLength({ min: 2, max: 255 }).withMessage('Name must be between 2 and 255 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
-  body('grade').optional().isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12')
+  body('grade').optional().isInt({ min: 9, max: 12 }).withMessage('Grade must be between 9 and 12'),
+  body('referralCode').optional().isString().trim().isLength({ max: 16 }).withMessage('Referral code is too long')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { name, email, password }: RegisterRequest = req.body;
@@ -56,17 +58,45 @@ router.post('/register', [
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
+    // Referral capture: ?ref=CODE on the signup page. Unknown codes are
+    // ignored (never fail registration over a referral), and the referrer
+    // can't be the new account itself (it doesn't exist yet — guaranteed).
+    let referrerId: string | null = null;
+    const rawCode = typeof req.body.referralCode === 'string' ? req.body.referralCode.trim().toUpperCase() : '';
+    if (rawCode) {
+      try {
+        const ref = await query('SELECT id FROM users WHERE referral_code = $1', [rawCode]);
+        if (ref.rows.length > 0) referrerId = String(ref.rows[0].id);
+      } catch (refErr) {
+        console.error('Referral lookup failed (non-fatal):', (refErr as any)?.message || refErr);
+      }
+    }
+
     // Create user (email_verified will be false by default)
+    const myCode = await mintUniqueReferralCode();
     const result = await query(`
-      INSERT INTO users (name, email, password_hash, role, preferences, unlocked_badges, email_verified, grade)
-      VALUES ($1, $2, $3, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], false, $4)
-      RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, created_at, updated_at
-    `, [name, email, password_hash, grade]);
+      INSERT INTO users (name, email, password_hash, role, preferences, unlocked_badges, email_verified, grade, referral_code, referred_by)
+      VALUES ($1, $2, $3, 'STUDENT', '{"emailNotifications": true, "studyReminders": true}', ARRAY['b1'], false, $4, $5, $6)
+      RETURNING id, name, email, role, is_premium, avatar, preferences, xp, level, streak, last_active_date, unlocked_badges, practice_attempts, grade, premium_since, referred_by, created_at, updated_at
+    `, [name, email, password_hash, grade, myCode, referrerId]);
 
     const user = result.rows[0];
     // Add bookmarks array (empty for new users)
     user.bookmarks = [];
     user.email_verified = false;
+
+    // Link the referral (pending — it QUALIFIES when this user verifies).
+    // Best-effort: a referrals-table gap must never fail registration.
+    if (referrerId) {
+      try {
+        await query(
+          'INSERT INTO referrals (referrer_id, referee_id) VALUES ($1, $2) ON CONFLICT (referee_id) DO NOTHING',
+          [referrerId, user.id]
+        );
+      } catch (linkErr) {
+        console.error('Referral link failed (non-fatal):', (linkErr as any)?.message || linkErr);
+      }
+    }
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -839,6 +869,24 @@ router.get('/verify-email', async (req: express.Request, res: express.Response):
       'UPDATE tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1',
       [token]
     );
+
+    // Referral qualification: verified email is what counts (per the
+    // verified-email-only rule). Banned referees never count — enforced at
+    // reward time, so no action needed here beyond stamping qualified_at.
+    // Best-effort: referral bookkeeping must never fail verification.
+    try {
+      const q = await query(
+        `UPDATE referrals SET qualified_at = NOW()
+         WHERE referee_id = $1 AND qualified_at IS NULL
+         RETURNING referrer_id`,
+        [tokenRecord.user_id]
+      );
+      if (q.rows.length > 0) {
+        await maybeCreateReferralReward(String(q.rows[0].referrer_id));
+      }
+    } catch (refErr) {
+      console.error('Referral qualification failed (non-fatal):', (refErr as any)?.message || refErr);
+    }
 
     // Get user data
     const userResult = await query(

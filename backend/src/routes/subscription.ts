@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { query as dbQuery } from '../database/config';
 import { authenticateToken, validateRequest } from '../middleware/auth';
 import { NotificationService } from '../services/notificationService';
+import { REFERRALS_REQUIRED, REWARD_PRO_MONTHS, maskEmail, mintUniqueReferralCode } from '../services/referralService';
 import { ApiResponse } from '../types';
 
 const router = express.Router();
@@ -99,6 +100,79 @@ router.get('/claim/mine', authenticateToken, async (req: express.Request, res: e
     res.status(500).json({
       success: false,
       message: 'Failed to get payment claim'
+    } as ApiResponse);
+  }
+});
+
+// The student's own referral dashboard: public code, qualified progress
+// toward the Pro reward, pending/latest reward state, and a masked referee
+// list (full emails are admin-eyes-only). Lazy-mints a code for accounts
+// created before the program existed.
+router.get('/referrals/mine', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    let codeRow = await dbQuery('SELECT referral_code FROM users WHERE id = $1', [userId]);
+    let code: string | null = codeRow.rows[0]?.referral_code || null;
+    if (!code) {
+      try {
+        code = await mintUniqueReferralCode();
+        await dbQuery('UPDATE users SET referral_code = $1 WHERE id = $2 AND referral_code IS NULL', [code, userId]);
+      } catch (mintErr) {
+        console.error('Referral code mint failed (non-fatal):', (mintErr as any)?.message || mintErr);
+      }
+    }
+
+    let progress: any[] = [];
+    let pendingReward = null;
+    let latestReward = null;
+    try {
+      const rw = await dbQuery(
+        `SELECT id, status, qualified_count, created_at, decided_at FROM referral_rewards
+         WHERE referrer_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [userId]
+      );
+      latestReward = rw.rows[0] || null;
+      if (latestReward?.status === 'pending') pendingReward = latestReward;
+    } catch (rwErr) {
+      console.error('Referral reward read failed (non-fatal):', (rwErr as any)?.message || rwErr);
+    }
+    try {
+      // Progress counts unrewarded referees PLUS the ones consumed by the
+      // pending reward (they're still yours — just awaiting approval — so
+      // the bar must read 5/5, not reset to 0, while under review).
+      const r = await dbQuery(
+        `SELECT r.qualified_at, r.created_at, u.email, u.status
+         FROM referrals r JOIN users u ON u.id = r.referee_id
+         WHERE r.referrer_id = $1 AND (r.reward_id IS NULL OR r.reward_id = $2)
+         ORDER BY r.created_at DESC LIMIT 20`,
+        [userId, pendingReward?.id || null]
+      );
+      progress = r.rows;
+    } catch (progErr) {
+      console.error('Referral progress read failed (non-fatal, table may predate migration):', (progErr as any)?.message || progErr);
+    }
+
+    const qualified = progress.filter((p) => p.qualified_at && p.status !== 'Banned').length;
+    res.json({
+      success: true,
+      data: {
+        code,
+        required: REFERRALS_REQUIRED,
+        rewardMonths: REWARD_PRO_MONTHS,
+        qualifiedCount: qualified,
+        pendingReward,
+        latestReward,
+        referees: progress.map((p) => ({
+          email: maskEmail(p.email),
+          qualified: !!p.qualified_at,
+        })),
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get my referrals error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get referral status'
     } as ApiResponse);
   }
 });

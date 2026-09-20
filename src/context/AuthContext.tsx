@@ -6,7 +6,7 @@ import { diffNotifications, snapshotNotifications, type NotifLite } from '../uti
 interface AuthContextType {
   user: User | null;
   login: (emailOrUser: string | User, password?: string) => Promise<User | void>;
-  register: (name: string, email: string, password: string, grade?: number) => Promise<void>;
+  register: (name: string, email: string, password: string, grade?: number, referralCode?: string) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
@@ -408,9 +408,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (name: string, email: string, password: string, grade?: number): Promise<void> => {
+  const register = async (name: string, email: string, password: string, grade?: number, referralCode?: string): Promise<void> => {
     try {
-      const response = await authAPI.register(name, email, password, grade);
+      const response = await authAPI.register(name, email, password, grade, referralCode);
 
       // If no token is returned, email verification is required
       if (!response.token) {
