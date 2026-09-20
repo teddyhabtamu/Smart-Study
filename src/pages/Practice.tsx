@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Dialog from '../components/Dialog';
-import { BrainCircuit, Check, X, Trophy, ArrowRight, Loader2, RotateCcw, AlertCircle, Crown, Lock } from 'lucide-react';
+import { BrainCircuit, Check, X, Trophy, ArrowRight, Loader2, RotateCcw, AlertCircle, Crown, Lock, Send, Link2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { aiTutorAPI, plannerAPI } from '../services/api';
 import { generatePracticeQuiz } from '../services/geminiService';
@@ -12,6 +12,7 @@ import { useToast } from '../context/ToastContext';
 import TTSButton from '../components/TTSButton';
 import MarkdownRenderer, { MarkdownInline } from '../components/MarkdownRenderer';
 import { stripForSpeech } from '../utils/textUtils';
+import { shareUrl, openTelegramShare, copyShareLink, quizBragText } from '../utils/share';
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 
@@ -581,6 +582,37 @@ const Practice: React.FC = () => {
 
               <div className="inline-flex items-center gap-2 bg-surface/10 px-3 sm:px-4 py-2 rounded-full text-sm font-medium backdrop-blur-md">
                  <span className="text-emerald-400">+{score * 10} XP</span> Earned
+              </div>
+
+              {/* Growth loop: bragging about a score is the cheapest acquisition
+                  channel — Telegram-first (one tap into class groups), with a
+                  copy-link fallback for anywhere else. */}
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-4 sm:mt-5">
+                <button
+                  onClick={() => {
+                    const url = shareUrl('/practice');
+                    const ok = openTelegramShare(
+                      quizBragText({ score, total: questions.length, subject, grade }),
+                      url
+                    );
+                    if (!ok) addToast('Popup blocked — copy the link below instead.', 'info');
+                  }}
+                  className="px-4 py-2 bg-[#229ED9] text-white text-xs sm:text-sm font-bold rounded-full hover:brightness-110 transition-all inline-flex items-center gap-1.5 shadow"
+                >
+                  <Send size={14} /> Brag on Telegram
+                </button>
+                <button
+                  onClick={async () => {
+                    const ok = await copyShareLink(shareUrl('/practice'));
+                    addToast(
+                      ok ? 'Practice link copied — paste it in your class group!' : 'Could not copy — copy the address bar link manually.',
+                      ok ? 'success' : 'error'
+                    );
+                  }}
+                  className="px-4 py-2 bg-surface/10 text-white text-xs sm:text-sm font-medium rounded-full hover:bg-surface/20 transition-all inline-flex items-center gap-1.5 backdrop-blur-md"
+                >
+                  <Link2 size={14} /> Copy link
+                </button>
               </div>
            </div>
 

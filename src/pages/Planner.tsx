@@ -4,7 +4,7 @@ import Dialog from '../components/Dialog';
 import Rail from '../components/Rail';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight, BellRing } from 'lucide-react';
+import { CalendarDays, Plus, Sparkles, CheckCircle, Circle, Trash2, X, Clock, BookOpen, Lock, Trophy, Loader2, Lightbulb, Target, TrendingUp, Archive, ArchiveRestore, ChevronLeft, ChevronRight, BellRing, Send } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -16,6 +16,7 @@ import DatePicker from '../components/DatePicker';
 import { SUBJECTS } from '../constants';
 import { PlannerEventSkeleton, TaskItemSkeleton } from '../components/Skeletons';
 import { MarkdownInline } from '../components/MarkdownRenderer';
+import { shareUrl, openTelegramShare, plannerInviteText } from '../utils/share';
 
 // Days until (negative = overdue) for a date string. Tolerant: accepts both
 // YYYY-MM-DD and full ISO timestamps (slices to the calendar date).
@@ -730,6 +731,19 @@ const Planner: React.FC = () => {
                className="px-3 sm:px-4 py-2 bg-surface text-inksoft border border-zinc-200 text-sm font-medium rounded-lg hover:bg-zinc-50 transition-all flex items-center gap-1.5 sm:gap-2"
              >
                <Plus size={14} className="sm:w-4 sm:h-4" /> Add Task
+             </button>
+             {/* Buddy invite: a planner is more fun (and stickier) with a
+                 classmate — Telegram-first share into class groups. */}
+             <button
+               onClick={() => {
+                 const ok = openTelegramShare(plannerInviteText(), shareUrl('/planner'));
+                 if (!ok) addToast('Popup blocked — copy the address bar link instead.', 'info');
+               }}
+               title="Invite a study buddy on Telegram"
+               aria-label="Invite a study buddy on Telegram"
+               className="px-3 sm:px-4 py-2 bg-[#229ED9] text-white text-sm font-medium rounded-lg hover:brightness-110 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md"
+             >
+               <Send size={14} className="sm:w-4 sm:h-4" /> Invite
              </button>
           </div>
         </div>
