@@ -1081,4 +1081,103 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
   }
 });
 
+// Bulk delete videos (same contract as documents bulk-delete: one request,
+// one audit entry, honest { deleted, requested } on partial success).
+router.post('/bulk-delete', authenticateToken, [
+  body('ids').isArray({ min: 1, max: 100 }).withMessage('ids must be an array of 1-100 video ids'),
+  body('ids.*').isString().trim().isLength({ min: 1, max: 64 }).withMessage('Each id must be a non-empty string')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
+      res.status(403).json({
+        success: false,
+        message: 'Admin or moderator access required to delete videos'
+      } as ApiResponse);
+      return;
+    }
+    const ids = [...new Set((req.body.ids as string[]).map((s) => s.trim()))];
+
+    let titles: string[] = [];
+    try {
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from('videos')
+          .select('title')
+          .in('id', ids);
+        titles = (data || []).map((v: any) => v.title).filter(Boolean);
+      }
+    } catch {
+      titles = [];
+    }
+
+    const result = await dbQuery('DELETE FROM videos WHERE id = ANY($1)', [ids]);
+    const deleted = result.rowCount ?? 0;
+
+    logAdminActivity(req, {
+      action: 'video.bulk_delete',
+      target_type: 'video',
+      target_id: `${deleted}/${ids.length}`,
+      summary: `Bulk-deleted ${deleted} of ${ids.length} videos${titles.length > 0 ? `: ${titles.slice(0, 5).join('; ')}${titles.length > 5 ? '…' : ''}` : ''}`,
+      after: { ids, deleted, requested: ids.length }
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      data: { deleted, requested: ids.length },
+      message: `Deleted ${deleted} of ${ids.length} videos`
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Bulk delete videos error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk-delete videos'
+    } as ApiResponse);
+  }
+});
+
+// Bulk premium flag (make a batch Free ↔ Pro without opening each row).
+router.patch('/bulk-premium', authenticateToken, [
+  body('ids').isArray({ min: 1, max: 100 }).withMessage('ids must be an array of 1-100 video ids'),
+  body('ids.*').isString().trim().isLength({ min: 1, max: 64 }).withMessage('Each id must be a non-empty string'),
+  body('isPremium').isBoolean().withMessage('isPremium must be a boolean')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
+      res.status(403).json({
+        success: false,
+        message: 'Admin or moderator access required to update videos'
+      } as ApiResponse);
+      return;
+    }
+    const ids = [...new Set((req.body.ids as string[]).map((s) => s.trim()))];
+    const isPremium = req.body.isPremium as boolean;
+
+    const result = await dbQuery(
+      'UPDATE videos SET is_premium = $1, updated_at = NOW() WHERE id = ANY($2)',
+      [isPremium, ids]
+    );
+    const updated = result.rowCount ?? 0;
+
+    logAdminActivity(req, {
+      action: 'video.bulk_premium',
+      target_type: 'video',
+      target_id: `${updated}/${ids.length}`,
+      summary: `Marked ${updated} of ${ids.length} videos as ${isPremium ? 'Pro' : 'Free'}`,
+      after: { ids, updated, requested: ids.length, isPremium }
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      data: { updated, requested: ids.length },
+      message: `Updated ${updated} of ${ids.length} videos`
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Bulk premium videos error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk-update videos'
+    } as ApiResponse);
+  }
+});
+
 export default router;

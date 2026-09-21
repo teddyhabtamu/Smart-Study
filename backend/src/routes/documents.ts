@@ -735,4 +735,104 @@ router.delete('/:id', authenticateToken, async (req: express.Request, res: expre
   }
 });
 
+// Bulk delete documents (admin content cleanup: dedupe runs, bad imports).
+// One request, one audit entry — not N round-trips. Partial success is
+// honest: { deleted, requested } so the UI reports what actually went.
+router.post('/bulk-delete', authenticateToken, [
+  body('ids').isArray({ min: 1, max: 100 }).withMessage('ids must be an array of 1-100 document ids'),
+  body('ids.*').isString().trim().isLength({ min: 1, max: 64 }).withMessage('Each id must be a non-empty string')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
+      res.status(403).json({
+        success: false,
+        message: 'Admin or moderator access required to delete documents'
+      } as ApiResponse);
+      return;
+    }
+    const ids = [...new Set((req.body.ids as string[]).map((s) => s.trim()))];
+
+    let titles: string[] = [];
+    try {
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from('documents')
+          .select('title')
+          .in('id', ids);
+        titles = (data || []).map((d: any) => d.title).filter(Boolean);
+      }
+    } catch {
+      titles = [];
+    }
+
+    const result = await dbQuery('DELETE FROM documents WHERE id = ANY($1)', [ids]);
+    const deleted = result.rowCount ?? 0;
+
+    logAdminActivity(req, {
+      action: 'document.bulk_delete',
+      target_type: 'document',
+      target_id: `${deleted}/${ids.length}`,
+      summary: `Bulk-deleted ${deleted} of ${ids.length} documents${titles.length > 0 ? `: ${titles.slice(0, 5).join('; ')}${titles.length > 5 ? '…' : ''}` : ''}`,
+      after: { ids, deleted, requested: ids.length }
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      data: { deleted, requested: ids.length },
+      message: `Deleted ${deleted} of ${ids.length} documents`
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Bulk delete documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk-delete documents'
+    } as ApiResponse);
+  }
+});
+
+// Bulk premium flag (make a batch Free ↔ Pro without opening each row).
+router.patch('/bulk-premium', authenticateToken, [
+  body('ids').isArray({ min: 1, max: 100 }).withMessage('ids must be an array of 1-100 document ids'),
+  body('ids.*').isString().trim().isLength({ min: 1, max: 64 }).withMessage('Each id must be a non-empty string'),
+  body('isPremium').isBoolean().withMessage('isPremium must be a boolean')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    if (req.user!.role !== 'ADMIN' && req.user!.role !== 'MODERATOR') {
+      res.status(403).json({
+        success: false,
+        message: 'Admin or moderator access required to update documents'
+      } as ApiResponse);
+      return;
+    }
+    const ids = [...new Set((req.body.ids as string[]).map((s) => s.trim()))];
+    const isPremium = req.body.isPremium as boolean;
+
+    const result = await dbQuery(
+      'UPDATE documents SET is_premium = $1, updated_at = NOW() WHERE id = ANY($2)',
+      [isPremium, ids]
+    );
+    const updated = result.rowCount ?? 0;
+
+    logAdminActivity(req, {
+      action: 'document.bulk_premium',
+      target_type: 'document',
+      target_id: `${updated}/${ids.length}`,
+      summary: `Marked ${updated} of ${ids.length} documents as ${isPremium ? 'Pro' : 'Free'}`,
+      after: { ids, updated, requested: ids.length, isPremium }
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      data: { updated, requested: ids.length },
+      message: `Updated ${updated} of ${ids.length} documents`
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Bulk premium documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk-update documents'
+    } as ApiResponse);
+  }
+});
+
 export default router;

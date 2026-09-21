@@ -13,7 +13,7 @@ import { decodeHtmlEntities } from '../../utils/textUtils';
 // Content management tab (extracted from Admin.tsx): documents, videos and
 // past-exam papers with create/edit/delete. Owns all form + modal state.
 const ContentTab: React.FC = () => {
-  const { documents, videos, createDocument, updateDocument, deleteDocument, createVideo, updateVideo, deleteVideo, fetchDocuments, fetchVideos, loading } = useData();
+  const { documents, videos, createDocument, updateDocument, deleteDocument, deleteDocuments, setDocumentsPremium, createVideo, updateVideo, deleteVideo, deleteVideos, setVideosPremium, fetchDocuments, fetchVideos, loading } = useData();
   const { addToast } = useToast();
   const [mounted, setMounted] = useState(false);
 
@@ -69,6 +69,74 @@ const ContentTab: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Bulk management: checkbox multi-select over the FILTERED list (so
+  // "select all" means "all matching search", never the whole library).
+  // Past-exams are documents with a tag — same bulk endpoints as documents.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkWorking, setIsBulkWorking] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const selectedSet = new Set(selectedIds.map(String));
+  const isDocCategory = contentCategory !== 'videos';
+  // Switching tabs changes the item pool — a stale selection would act on
+  // invisible rows, so it resets. Search keeps the selection (standard).
+  useEffect(() => {
+    setSelectedIds([]);
+    setBulkDeleteOpen(false);
+  }, [contentCategory]);
+  const toggleSelect = (id: string) => {
+    const key = String(id);
+    setSelectedIds((prev) =>
+      prev.map(String).includes(key) ? prev.filter((s) => String(s) !== key) : [...prev, key]
+    );
+  };
+  // NOTE: allFilteredSelected + toggleSelectAllFiltered live below
+  // filteredItems (render order) — they read the filtered list.
+  const clearSelection = () => {
+    setSelectedIds([]);
+    setBulkDeleteOpen(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0 || isBulkWorking) return;
+    setIsBulkWorking(true);
+    try {
+      const result = isDocCategory
+        ? await deleteDocuments(selectedIds)
+        : await deleteVideos(selectedIds);
+      if (editingId && selectedSet.has(String(editingId))) resetForm();
+      clearSelection();
+      addToast(
+        result.deleted === result.requested
+          ? `${result.deleted} item${result.deleted === 1 ? '' : 's'} deleted permanently`
+          : `Deleted ${result.deleted} of ${result.requested} (the rest were already gone)`,
+        'info'
+      );
+    } catch (error: any) {
+      addToast(error.message || 'Failed to delete items', 'error');
+    } finally {
+      setIsBulkWorking(false);
+    }
+  };
+
+  const handleBulkPremium = async (isPremium: boolean) => {
+    if (selectedIds.length === 0 || isBulkWorking) return;
+    setIsBulkWorking(true);
+    try {
+      const result = isDocCategory
+        ? await setDocumentsPremium(selectedIds, isPremium)
+        : await setVideosPremium(selectedIds, isPremium);
+      clearSelection();
+      addToast(
+        `${result.updated} item${result.updated === 1 ? '' : 's'} marked as ${isPremium ? 'Pro' : 'Free'}`,
+        'success'
+      );
+    } catch (error: any) {
+      addToast(error.message || 'Failed to update items', 'error');
+    } finally {
+      setIsBulkWorking(false);
+    }
+  };
+
   // YouTube auto-sync (videos tab only). Single-subject sync fits the 30s
   // serverless budget; full sync is time-boxed server-side with honest
   // partial counts. Separate grade/subject state so picking a sync target
@@ -100,6 +168,20 @@ const ContentTab: React.FC = () => {
         return (d.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (d.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       })
     : videos.filter(v => (v.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (v.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
+
+  // Select-all scope = the filtered list (declared here: render order
+  // matters — this reads filteredItems during render).
+  const allFilteredSelected = filteredItems.length > 0 &&
+    filteredItems.every((item) => selectedSet.has(String(item.id)));
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) {
+      const filtered = new Set(filteredItems.map((item) => String(item.id)));
+      setSelectedIds((prev) => prev.filter((s) => !filtered.has(String(s))));
+    } else {
+      const merged = new Set([...selectedIds.map(String), ...filteredItems.map((item) => String(item.id))]);
+      setSelectedIds([...merged]);
+    }
+  };
 
   const resetForm = () => {
     setEditingId(null);
@@ -750,11 +832,20 @@ const ContentTab: React.FC = () => {
           {/* List Section */}
           <section className="bg-surface rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
              <div className="p-3 sm:p-4 border-b border-zinc-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-zinc-50/50">
-                <h3 className="font-bold text-ink text-sm flex items-center gap-2">
-                  {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
-                  <span className="hidden sm:inline">Manage {contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
-                  <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
-                </h3>
+                 <h3 className="font-bold text-ink text-sm flex items-center gap-2">
+                   {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
+                   <span className="hidden sm:inline">Manage {contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
+                   <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
+                 </h3>
+                 <div className="flex items-center gap-2 w-full sm:w-auto">
+                 {filteredItems.length > 0 && (
+                   <button
+                     onClick={toggleSelectAllFiltered}
+                     className="text-[11px] font-bold text-inksoft hover:text-ink whitespace-nowrap px-2 py-1.5"
+                   >
+                     {allFilteredSelected ? 'Deselect all' : 'Select all'}
+                   </button>
+                 )}
                 <div className="relative w-full sm:w-auto">
                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                    <input 
@@ -765,18 +856,63 @@ const ContentTab: React.FC = () => {
                      onChange={(e) => setSearchTerm(e.target.value)}
                    />
                 </div>
+                 </div>
              </div>
              
-             {loading.documents || loading.videos ? (
-               <ContentTableSkeleton />
-             ) : (
-               <>
-                 {/* Mobile Card Layout */}
+              {loading.documents || loading.videos ? (
+                <ContentTableSkeleton />
+              ) : (
+                <>
+                  {/* Bulk action bar: appears when anything is selected.
+                      Sticky so it stays reachable on long filtered lists. */}
+                  {selectedIds.length > 0 && (
+                    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 px-3 sm:px-4 py-2.5 bg-zinc-900 text-onink border-b border-zinc-700">
+                      <span className="text-xs font-bold mr-1">
+                        {selectedIds.length} selected
+                      </span>
+                      <button
+                        onClick={() => handleBulkPremium(true)}
+                        disabled={isBulkWorking}
+                        className="px-2.5 py-1.5 text-[11px] font-bold bg-amber-400 text-zinc-900 rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                      >
+                        Make Pro
+                      </button>
+                      <button
+                        onClick={() => handleBulkPremium(false)}
+                        disabled={isBulkWorking}
+                        className="px-2.5 py-1.5 text-[11px] font-bold bg-surface text-inksoft rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                      >
+                        Make Free
+                      </button>
+                      <button
+                        onClick={() => setBulkDeleteOpen(true)}
+                        disabled={isBulkWorking}
+                        className="px-2.5 py-1.5 text-[11px] font-bold bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                      <button
+                        onClick={clearSelection}
+                        disabled={isBulkWorking}
+                        className="ml-auto px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  {/* Mobile Card Layout */}
                  <div className="md:hidden p-3 space-y-3">
-                   {filteredItems.map((item) => (
-                     <div key={item.id} className="border border-zinc-200 rounded-lg p-3 bg-zinc-50/50">
-                       <div className="flex items-start gap-3 mb-2">
-                         <div className="w-10 h-10 rounded bg-zinc-200 flex items-center justify-center text-zinc-500 flex-shrink-0">
+                    {filteredItems.map((item) => (
+                      <div key={item.id} className={`border rounded-lg p-3 transition-colors ${selectedSet.has(String(item.id)) ? 'border-zinc-500 bg-zinc-100/70' : 'border-zinc-200 bg-zinc-50/50'}`}>
+                        <div className="flex items-start gap-3 mb-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedSet.has(String(item.id))}
+                            onChange={() => toggleSelect(item.id)}
+                            aria-label={`Select ${item.title}`}
+                            className="mt-1 w-4 h-4 rounded accent-zinc-900 flex-shrink-0"
+                          />
+                          <div className="w-10 h-10 rounded bg-zinc-200 flex items-center justify-center text-zinc-500 flex-shrink-0">
                            {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={18} /> : <PlaySquare size={18} />}
                          </div>
                          <div className="flex-1 min-w-0">
@@ -834,18 +970,38 @@ const ContentTab: React.FC = () => {
                  {/* Desktop Table Layout */}
                  <div className="hidden md:block overflow-x-auto">
                    <table className="w-full text-sm text-left">
-                     <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
-                       <tr>
-                         <th className="px-6 py-3 font-semibold">Title</th>
+                      <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 border-b border-zinc-100">
+                        <tr>
+                          <th className="pl-6 pr-0 py-3 w-10">
+                            <input
+                              type="checkbox"
+                              checked={allFilteredSelected}
+                              ref={(el) => { if (el) el.indeterminate = !allFilteredSelected && filteredItems.some((i) => selectedSet.has(String(i.id))); }}
+                              onChange={toggleSelectAllFiltered}
+                              aria-label={allFilteredSelected ? 'Deselect all matching' : 'Select all matching'}
+                              title={allFilteredSelected ? 'Deselect all matching' : 'Select all matching'}
+                              className="w-4 h-4 rounded accent-zinc-900 align-middle"
+                            />
+                          </th>
+                          <th className="px-6 py-3 font-semibold">Title</th>
                          <th className="px-6 py-3 font-semibold">Details</th>
                          <th className="px-6 py-3 font-semibold">Type</th>
                          <th className="px-6 py-3 font-semibold text-right">Actions</th>
                        </tr>
                      </thead>
                      <tbody className="divide-y divide-zinc-50">
-                       {filteredItems.map((item) => (
-                     <tr key={item.id} className="hover:bg-zinc-50/80 transition-colors group">
-                       <td className="px-6 py-4 font-medium text-ink">
+                        {filteredItems.map((item) => (
+                      <tr key={item.id} className={`transition-colors group ${selectedSet.has(String(item.id)) ? 'bg-zinc-100/70' : 'hover:bg-zinc-50/80'}`}>
+                        <td className="pl-6 pr-0 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedSet.has(String(item.id))}
+                            onChange={() => toggleSelect(item.id)}
+                            aria-label={`Select ${item.title}`}
+                            className="w-4 h-4 rounded accent-zinc-900 align-middle"
+                          />
+                        </td>
+                        <td className="px-6 py-4 font-medium text-ink">
                           <div className="flex items-center gap-3">
                              <div className="w-8 h-8 rounded bg-zinc-100 flex items-center justify-center text-zinc-500">
                                 {contentCategory === 'documents' || contentCategory === 'past-exams' ? <FileText size={16} /> : <PlaySquare size={16} />}
@@ -900,7 +1056,7 @@ const ContentTab: React.FC = () => {
                        ))}
                        {filteredItems.length === 0 && (
                          <tr>
-                           <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-xs">
+                           <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 text-xs">
                              No content found matching your filters.
                            </td>
                          </tr>
@@ -950,6 +1106,49 @@ const ContentTab: React.FC = () => {
                     </>
                   ) : (
                     'Delete Forever'
+                  )}
+                </button>
+              </div>
+            </div>
+      </Dialog>
+      <Dialog
+        open={bulkDeleteOpen && mounted}
+        onClose={() => setBulkDeleteOpen(false)}
+        label="Bulk delete content?"
+      >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-ink text-lg mb-2">
+                    Delete {selectedIds.length} item{selectedIds.length === 1 ? '' : 's'}?
+                  </h3>
+                  <p className="text-sm text-inksoft">
+                    This permanently deletes the selected {isDocCategory ? 'documents' : 'videos'}. This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-zinc-100">
+                <button
+                  onClick={() => setBulkDeleteOpen(false)}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isBulkWorking}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBulkWorking ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    `Delete ${selectedIds.length}`
                   )}
                 </button>
               </div>

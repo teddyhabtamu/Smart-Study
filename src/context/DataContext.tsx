@@ -181,11 +181,15 @@ interface DataContextType {
   createDocument: (doc: Omit<Document, 'id' | 'created_at' | 'updated_at'>) => Promise<Document>;
   updateDocument: (id: string, updates: Partial<Document>) => Promise<Document>;
   deleteDocument: (id: string) => Promise<void>;
+  deleteDocuments: (ids: string[]) => Promise<{ deleted: number; requested: number }>;
+  setDocumentsPremium: (ids: string[], isPremium: boolean) => Promise<{ updated: number; requested: number }>;
 
   createVideo: (video: Omit<VideoLesson, 'id' | 'uploadedAt'>) => Promise<VideoLesson>;
   updateVideo: (id: string, updates: Partial<VideoLesson>) => Promise<VideoLesson>;
   updateVideoStats: (id: string, updates: { views?: number; likes?: number }) => void;
   deleteVideo: (id: string) => Promise<void>;
+  deleteVideos: (ids: string[]) => Promise<{ deleted: number; requested: number }>;
+  setVideosPremium: (ids: string[], isPremium: boolean) => Promise<{ updated: number; requested: number }>;
 
   createForumPost: (post: { title: string; content: string; subject: string; grade: number; tags?: string[] }) => Promise<ForumPost>;
   updateForumPost: (id: string, updates: Partial<ForumPost>) => Promise<ForumPost>;
@@ -591,6 +595,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDocuments(prev => prev.filter(doc => doc.id !== id));
   };
 
+  // Bulk ops (admin content cleanup): one request each, local state updated
+  // from the requested ids (the server reports honest deleted/updated counts
+  // for the toast; missing rows simply vanish from the list either way).
+  const deleteDocuments = async (ids: string[]): Promise<{ deleted: number; requested: number }> => {
+    const result = await documentsAPI.bulkDelete(ids);
+    const gone = new Set(ids.map(String));
+    setDocuments(prev => prev.filter(doc => !gone.has(String(doc.id))));
+    return result;
+  };
+
+  const setDocumentsPremium = async (ids: string[], isPremium: boolean): Promise<{ updated: number; requested: number }> => {
+    const result = await documentsAPI.bulkPremium(ids, isPremium);
+    const touched = new Set(ids.map(String));
+    setDocuments(prev => prev.map(doc =>
+      touched.has(String(doc.id)) ? { ...doc, isPremium, is_premium: isPremium } as Document : doc
+    ));
+    return result;
+  };
+
   const createVideo = async (video: Omit<VideoLesson, 'id' | 'uploadedAt'>): Promise<VideoLesson> => {
     // Transform VideoLesson to Video format for API
     const apiVideo = {
@@ -641,6 +664,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteVideo = async (id: string): Promise<void> => {
     await videosAPI.delete(id);
     setVideos(prev => prev.filter(vid => vid.id !== id));
+  };
+
+  const deleteVideos = async (ids: string[]): Promise<{ deleted: number; requested: number }> => {
+    const result = await videosAPI.bulkDelete(ids);
+    const gone = new Set(ids.map(String));
+    setVideos(prev => prev.filter(vid => !gone.has(String(vid.id))));
+    return result;
+  };
+
+  const setVideosPremium = async (ids: string[], isPremium: boolean): Promise<{ updated: number; requested: number }> => {
+    const result = await videosAPI.bulkPremium(ids, isPremium);
+    const touched = new Set(ids.map(String));
+    setVideos(prev => prev.map(vid =>
+      touched.has(String(vid.id)) ? { ...vid, isPremium } : vid
+    ));
+    return result;
   };
 
   const createForumPost = async (post: { title: string; content: string; subject: string; grade: number; tags?: string[] }): Promise<ForumPost> => {
@@ -784,10 +823,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createDocument,
       updateDocument,
       deleteDocument,
+      deleteDocuments,
+      setDocumentsPremium,
       createVideo,
       updateVideo,
       updateVideoStats,
       deleteVideo,
+      deleteVideos,
+      setVideosPremium,
       createForumPost,
       updateForumPost,
       deleteForumPost,

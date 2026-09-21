@@ -683,6 +683,18 @@ export const documentsAPI = {
     apiRequest(`/documents/${id}`, {
       method: 'DELETE',
     }),
+
+  bulkDelete: (ids: string[]): Promise<{ deleted: number; requested: number }> =>
+    apiRequest('/documents/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+
+  bulkPremium: (ids: string[], isPremium: boolean): Promise<{ updated: number; requested: number }> =>
+    apiRequest('/documents/bulk-premium', {
+      method: 'PATCH',
+      body: JSON.stringify({ ids, isPremium }),
+    }),
 };
 
 // Videos API
@@ -738,6 +750,18 @@ export const videosAPI = {
   delete: (id: string): Promise<void> =>
     apiRequest(`/videos/${id}`, {
       method: 'DELETE',
+    }),
+
+  bulkDelete: (ids: string[]): Promise<{ deleted: number; requested: number }> =>
+    apiRequest('/videos/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+
+  bulkPremium: (ids: string[], isPremium: boolean): Promise<{ updated: number; requested: number }> =>
+    apiRequest('/videos/bulk-premium', {
+      method: 'PATCH',
+      body: JSON.stringify({ ids, isPremium }),
     }),
 };
 
