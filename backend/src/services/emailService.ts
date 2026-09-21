@@ -1300,32 +1300,35 @@ export class EmailService {
     try {
       console.log('📧 Attempting to send job application status update email:', { applicantEmail, applicantName, applicationStatus });
       
-      // Determine status colors and icon based on application status
-      let statusIcon = '📋';
+      // Determine status colors and icon based on application status.
+      // No emojis: the glyph renders inside Brevo template 17, so it must
+      // be a plain-text mark (monochrome text glyphs, never emoji
+      // presentation) — email clients have no icon fonts.
+      let statusIcon = '●';
       let statusBackground = '#fafafa';
       let statusColor = '#18181b';
       let statusTextColor = '#18181b';
       const isAccepted = applicationStatus === 'Accepted';
       const isRejected = applicationStatus === 'Rejected';
-      
+
       if (isAccepted) {
-        statusIcon = '✅';
+        statusIcon = '✓';
         statusBackground = '#f0fdf4';
         statusColor = '#10b981';
         statusTextColor = '#166534';
       } else if (isRejected) {
-        statusIcon = '❌';
+        statusIcon = '✕';
         statusBackground = '#fef2f2';
         statusColor = '#ef4444';
         statusTextColor = '#991b1b';
       } else if (applicationStatus === 'Interview') {
-        statusIcon = '📅';
+        statusIcon = '◷';
         statusBackground = '#eff6ff';
         statusColor = '#3b82f6';
         statusTextColor = '#1e40af';
       } else {
         // Under Review or Pending
-        statusIcon = '⏳';
+        statusIcon = '●';
         statusBackground = '#fafafa';
         statusColor = '#3b82f6';
         statusTextColor = '#18181b';
@@ -1410,7 +1413,7 @@ export class EmailService {
         <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #fafafa;">
           <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; border: 1px solid #e4e4e7;">
             <div style="background: #18181b; padding: 30px; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff;">📚 Study Reminder</h1>
+              <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff;">Study Reminder</h1>
             </div>
             <div style="padding: 40px 30px;">
               <h2 style="color: #18181b; margin-top: 0;">Hi ${name}!</h2>

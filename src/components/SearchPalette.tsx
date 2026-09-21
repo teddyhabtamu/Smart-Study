@@ -224,13 +224,13 @@ const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose }) => {
                     {result.type === 'document' && (
                       <p className="text-xs text-zinc-500 truncate">
                         Document • {result.subject} • Grade {result.grade}
-                        {result.isPremium && <span className="ml-1 text-amber-600">★</span>}
+                        {result.isPremium && <Crown size={11} className="ml-1 inline text-amber-600" />}
                       </p>
                     )}
                     {result.type === 'video' && (
                       <p className="text-xs text-zinc-500 truncate">
                         Video • {result.subject} • Grade {result.grade}
-                        {result.isPremium && <span className="ml-1 text-amber-600">★</span>}
+                        {result.isPremium && <Crown size={11} className="ml-1 inline text-amber-600" />}
                       </p>
                     )}
                     {result.type === 'post' && (

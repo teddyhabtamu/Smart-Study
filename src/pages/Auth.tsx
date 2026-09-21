@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { UserRole } from '../types';
-import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star, Eye, EyeOff, MailCheck, AlertCircle } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Send, Mail, Lock, User, CheckCircle2, Loader2, Star, Eye, EyeOff, MailCheck, AlertCircle, Gift } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
@@ -292,8 +292,9 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
 
           <div className="mt-6 sm:mt-8 md:mt-10">
             {view === 'register' && inviteCode && (
-              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 leading-relaxed">
-                🎉 You were invited by a friend — verify your email after signup and it counts toward their Pro reward.
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 leading-relaxed flex items-start gap-2">
+                <Gift size={16} className="flex-shrink-0 mt-0.5" />
+                <span>You were invited by a friend — verify your email after signup and it counts toward their Pro reward.</span>
               </div>
             )}
             {view === 'login' && oauthError && oauthErrorCopy[oauthError] && (

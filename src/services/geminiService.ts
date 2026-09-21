@@ -30,7 +30,7 @@ export const generateTutorResponse = async (
 
     // Fallback message if the API fails
     return {
-      response: `## 🤖 AI Tutor Temporarily Unavailable
+      response: `## AI Tutor Temporarily Unavailable
 
 I'm currently unable to connect to the AI service. This is usually temporary.
 

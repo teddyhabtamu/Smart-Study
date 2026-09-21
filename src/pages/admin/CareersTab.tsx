@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '../../components/Dialog';
-import { Archive, ArchiveRestore, Briefcase, CheckCircle, Clock, Edit2, FileText, Loader2, Mail, MapPin, Save, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Briefcase, CheckCircle, Clock, Edit2, FileText, Loader2, Mail, MapPin, Phone, Save, Trash2, UserPlus, X } from 'lucide-react';
 import CustomSelect, { Option } from '../../components/CustomSelect';
 import { useToast } from '../../context/ToastContext';
 import { careersAPI } from '../../services/api';
@@ -561,7 +561,7 @@ const CareersTab: React.FC = () => {
                                 </p>
                                 {application.applicant_phone && (
                                   <p className="text-xs sm:text-sm text-zinc-500 flex items-center gap-1.5">
-                                    <span className="text-zinc-400">📞</span>
+                                    <Phone size={12} className="text-zinc-400" />
                                     {application.applicant_phone}
                                   </p>
                                 )}

@@ -610,7 +610,7 @@ IMPORTANT: This is a grammar/punctuation question. Apply standard English gramma
     // message — swallowing them here would show a misleading generic error.
     if (error instanceof AIQuotaExceededError) throw error;
     console.error('Gemini AI Error:', error);
-    return `## 🤖 AI Tutor Temporarily Unavailable
+    return `## AI Tutor Temporarily Unavailable
 
 I'm currently unable to connect to the AI service. This might be because:
 

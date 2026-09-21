@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Dialog from '../components/Dialog';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle, Loader2 } from 'lucide-react';
+import { Check, X, ShieldCheck, Crown, Calendar, CreditCard, Copy, MessageCircle, Loader2, Gift } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscriptionAPI } from '../services/api';
@@ -254,7 +254,7 @@ const Subscription: React.FC = () => {
           href="#refer-friends"
           className="inline-flex items-center gap-1.5 mt-3 px-3.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-100/80 border border-amber-200 rounded-full hover:brightness-95 transition-all"
         >
-          <span aria-hidden="true">🎁</span> Get Pro free — invite 5 friends
+          <span aria-hidden="true" className="inline-flex"><Gift size={13} /></span> Get Pro free — invite 5 friends
         </a>
       </div>
 

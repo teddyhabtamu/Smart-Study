@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Gift, Copy, Send, Check, Loader2 } from 'lucide-react';
+import { Gift, Copy, Send, Check, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscriptionAPI } from '../services/api';
@@ -74,7 +74,7 @@ const ReferralCard: React.FC<{ id?: string }> = ({ id }) => {
             {state.qualifiedCount} of {state.required} verified
           </span>
           {state.pendingReward ? (
-            <span className="text-amber-700">Under review 🎉</span>
+            <span className="text-amber-700 inline-flex items-center gap-1"><Clock size={12} /> Under review</span>
           ) : state.latestReward?.status === 'approved' ? (
             <span className="text-emerald-600">Reward granted — invite {state.required} more!</span>
           ) : null}
