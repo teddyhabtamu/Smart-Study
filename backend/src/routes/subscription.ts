@@ -152,7 +152,9 @@ router.get('/referrals/mine', authenticateToken, async (req: express.Request, re
       console.error('Referral progress read failed (non-fatal, table may predate migration):', (progErr as any)?.message || progErr);
     }
 
-    const qualified = progress.filter((p) => p.qualified_at && p.status !== 'Banned').length;
+    // Banned and deactivated referees don't count toward the bar (mirrors
+    // the reward trigger — deactivating a fake must visibly undo progress).
+    const qualified = progress.filter((p) => p.qualified_at && p.status !== 'Banned' && p.status !== 'Inactive').length;
     res.json({
       success: true,
       data: {

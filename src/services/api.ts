@@ -1415,7 +1415,7 @@ export const adminAPI = {
   }> =>
     apiRequest('/admin/engagement'),
 
-  getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
+  getUsers: (params: { limit?: number; offset?: number; search?: string; plan?: 'all' | 'free' | 'premium'; status?: 'all' | 'Active' | 'Banned' | 'Inactive'; role?: 'STUDENT' | 'MODERATOR' } = {}): Promise<{
     users: User[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {

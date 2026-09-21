@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '../../components/Dialog';
-import { Search, CheckCircle, Crown, Ban, Loader2, X } from 'lucide-react';
+import { Search, CheckCircle, Crown, Ban, Loader2, X, Trash2 } from 'lucide-react';
 import CustomSelect, { Option } from '../../components/CustomSelect';
 import { useToast } from '../../context/ToastContext';
 import { User } from '../../types';
@@ -26,7 +26,7 @@ const StudentsTab: React.FC = () => {
     return () => clearTimeout(t);
   }, [searchTerm]);
   const [planFilter, setPlanFilter] = useState<'all' | 'free' | 'premium'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Banned'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Banned' | 'Inactive'>('all');
   const [claims, setClaims] = useState<any[] | null>(null);
   const [isDecidingClaim, setIsDecidingClaim] = useState<string | null>(null);
   // Referral rewards queue — same approve/reject shape as payment claims,
@@ -45,7 +45,7 @@ const StudentsTab: React.FC = () => {
 
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
-    type: 'upgrade' | 'downgrade' | 'activate' | 'ban' | null;
+    type: 'upgrade' | 'downgrade' | 'activate' | 'ban' | 'deactivate' | null;
     studentId: string | null;
     studentName: string | null;
     currentStatus?: string;
@@ -65,8 +65,24 @@ const StudentsTab: React.FC = () => {
   const statusOptions: Option[] = [
     { label: 'All Statuses', value: 'all' },
     { label: 'Active', value: 'Active' },
-    { label: 'Banned', value: 'Banned' }
+    { label: 'Banned', value: 'Banned' },
+    { label: 'Inactive', value: 'Inactive' }
   ];
+
+  // Three-state badge tone: Active (emerald) / Banned (red) / Inactive (zinc).
+  // Legacy NULL status reads as Active everywhere (mirrors the backend).
+  const statusTone = (status?: string): 'active' | 'banned' | 'inactive' =>
+    status === 'Banned' ? 'banned' : status === 'Inactive' ? 'inactive' : 'active';
+  const badgeClasses: Record<'active' | 'banned' | 'inactive', string> = {
+    active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    banned: 'bg-red-50 text-red-700 border-red-100',
+    inactive: 'bg-zinc-100 text-zinc-500 border-zinc-200',
+  };
+  const dotClasses: Record<'active' | 'banned' | 'inactive', string> = {
+    active: 'bg-emerald-500',
+    banned: 'bg-red-500',
+    inactive: 'bg-zinc-400',
+  };
 
   const fetchStudents = useCallback(async (opts?: { offset?: number }) => {
     try {
@@ -175,6 +191,8 @@ const StudentsTab: React.FC = () => {
   };
 
   const openStatusConfirmation = (student: any) => {
+    // Inactive accounts reactivate via the same toggle (Activate sets
+    // Active from any non-active state); deactivation has its own button.
     const currentStatus = student.status || 'Active';
     const isActive = currentStatus === 'Active';
     setConfirmationModal({
@@ -183,6 +201,16 @@ const StudentsTab: React.FC = () => {
       studentId: student.id,
       studentName: student.name,
       currentStatus: currentStatus
+    });
+  };
+
+  const openDeactivateConfirmation = (student: any) => {
+    setConfirmationModal({
+      isOpen: true,
+      type: 'deactivate',
+      studentId: student.id,
+      studentName: student.name,
+      currentStatus: student.status || 'Active'
     });
   };
 
@@ -220,6 +248,12 @@ const StudentsTab: React.FC = () => {
           `User marked as ${newStatus}`,
           newStatus === 'Active' ? 'success' : 'warning'
         );
+      } else if (confirmationModal.type === 'deactivate') {
+        // Soft delete (status → Inactive): login blocked everywhere,
+        // reversible via Activate. Used for test-account cleanup.
+        await adminAPI.deleteUser(confirmationModal.studentId);
+        await fetchStudents({ offset: pagination.offset });
+        addToast('User deactivated', 'success');
       }
 
       // Close modal
@@ -394,23 +428,33 @@ const StudentsTab: React.FC = () => {
                          <h4 className="font-medium text-ink truncate">{student.name}</h4>
                          <p className="text-xs text-zinc-500 truncate">{student.email}</p>
                        </div>
-                       <button 
-                         onClick={() => openStatusConfirmation(student)}
-                         className={`ml-2 p-2 rounded-lg transition-colors ${
-                           (student.status === 'Active' || !student.status) ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
-                         }`}
-                       >
-                         {(student.status === 'Active' || !student.status) ? <Ban size={16} /> : <CheckCircle size={16} />}
-                       </button>
+                        <div className="flex ml-2 gap-1">
+                        <button 
+                          onClick={() => openStatusConfirmation(student)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            (student.status === 'Active' || !student.status) ? 'text-zinc-400 hover:text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                          title={(student.status === 'Active' || !student.status) ? 'Ban User' : 'Activate User'}
+                        >
+                          {(student.status === 'Active' || !student.status) ? <Ban size={16} /> : <CheckCircle size={16} />}
+                        </button>
+                        {student.status !== 'Inactive' && (
+                          <button
+                            onClick={() => openDeactivateConfirmation(student)}
+                            className="p-2 rounded-lg transition-colors text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                            title="Deactivate User"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        </div>
                      </div>
                      <div className="flex items-center justify-between gap-2 text-xs">
                        <div className="flex items-center gap-2">
-                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium border text-[10px] ${
-                           (student.status === 'Active' || !student.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
-                         }`}>
-                           <span className={`w-1 h-1 rounded-full ${(student.status === 'Active' || !student.status) ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                           {student.status || 'Active'}
-                         </span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium border text-[10px] ${badgeClasses[statusTone(student.status)]}`}>
+                            <span className={`w-1 h-1 rounded-full ${dotClasses[statusTone(student.status)]}`}></span>
+                            {student.status || 'Active'}
+                          </span>
                          {student.isPremium ? (
                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1">
                              <Crown size={10} /> PRO
@@ -461,12 +505,10 @@ const StudentsTab: React.FC = () => {
                            </div>
                         </td>
                         <td className="px-6 py-4">
-                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                             (student.status === 'Active' || !student.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'
-                           }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${(student.status === 'Active' || !student.status) ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                              {student.status || 'Active'}
-                           </span>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeClasses[statusTone(student.status)]}`}>
+                               <span className={`w-1.5 h-1.5 rounded-full ${dotClasses[statusTone(student.status)]}`}></span>
+                               {student.status || 'Active'}
+                            </span>
                         </td>
                         <td className="px-6 py-4">
                            {student.isPremium ? (
@@ -498,6 +540,18 @@ const StudentsTab: React.FC = () => {
                               >
                                 {(student.status === 'Active' || !student.status) ? <Ban size={16} /> : <CheckCircle size={16} />}
                               </button>
+                              {student.status !== 'Inactive' && (
+                                <>
+                                  <div className="h-4 w-px bg-zinc-200"></div>
+                                  <button
+                                    onClick={() => openDeactivateConfirmation(student)}
+                                    className="p-1.5 rounded-lg transition-colors text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                                    title="Deactivate User"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              )}
                            </div>
                         </td>
                       </tr>
@@ -547,6 +601,7 @@ const StudentsTab: React.FC = () => {
           confirmationModal.type === 'upgrade' ? 'Upgrade to Premium?' :
           confirmationModal.type === 'downgrade' ? 'Downgrade to Free Plan?' :
           confirmationModal.type === 'ban' ? 'Ban User?' :
+          confirmationModal.type === 'deactivate' ? 'Deactivate User?' :
           confirmationModal.type === 'activate' ? 'Activate User?' : 'Confirm action'
         }
       >
@@ -563,6 +618,7 @@ const StudentsTab: React.FC = () => {
                 }`}>
                   {confirmationModal.type === 'ban' && <Ban size={24} />}
                   {confirmationModal.type === 'activate' && <CheckCircle size={24} />}
+                  {confirmationModal.type === 'deactivate' && <Trash2 size={24} />}
                   {confirmationModal.type === 'upgrade' && <Crown size={24} />}
                   {confirmationModal.type === 'downgrade' && <X size={24} />}
                 </div>
@@ -571,6 +627,7 @@ const StudentsTab: React.FC = () => {
                     {confirmationModal.type === 'upgrade' && 'Upgrade to Premium?'}
                     {confirmationModal.type === 'downgrade' && 'Downgrade to Free Plan?'}
                     {confirmationModal.type === 'ban' && 'Ban User?'}
+                    {confirmationModal.type === 'deactivate' && 'Deactivate User?'}
                     {confirmationModal.type === 'activate' && 'Activate User?'}
                   </h3>
                   <p className="text-sm text-inksoft">
@@ -582,6 +639,9 @@ const StudentsTab: React.FC = () => {
                     )}
                     {confirmationModal.type === 'ban' && (
                       <>Are you sure you want to ban <strong>{confirmationModal.studentName}</strong>? They will not be able to access the platform.</>
+                    )}
+                    {confirmationModal.type === 'deactivate' && (
+                      <>Are you sure you want to deactivate <strong>{confirmationModal.studentName}</strong>? They won't be able to log in. Use this for test accounts and cleanup — you can reactivate them anytime with Activate.</>
                     )}
                     {confirmationModal.type === 'activate' && (
                       <>Are you sure you want to activate <strong>{confirmationModal.studentName}</strong>? They will regain access to the platform.</>
@@ -615,6 +675,7 @@ const StudentsTab: React.FC = () => {
                       {confirmationModal.type === 'upgrade' && 'Upgrading...'}
                       {confirmationModal.type === 'downgrade' && 'Downgrading...'}
                       {confirmationModal.type === 'ban' && 'Banning...'}
+                      {confirmationModal.type === 'deactivate' && 'Deactivating...'}
                       {confirmationModal.type === 'activate' && 'Activating...'}
                     </>
                   ) : (
@@ -622,6 +683,7 @@ const StudentsTab: React.FC = () => {
                       {confirmationModal.type === 'upgrade' && 'Upgrade'}
                       {confirmationModal.type === 'downgrade' && 'Downgrade'}
                       {confirmationModal.type === 'ban' && 'Ban User'}
+                      {confirmationModal.type === 'deactivate' && 'Deactivate'}
                       {confirmationModal.type === 'activate' && 'Activate'}
                     </>
                   )}

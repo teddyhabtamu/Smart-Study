@@ -355,7 +355,7 @@ router.get('/users', requireRole(['ADMIN']), [
   query('offset').optional().isInt({ min: 0 }).toInt(),
   query('search').optional().isString(),
   query('plan').optional().isIn(['all', 'free', 'premium']).withMessage('Plan must be all, free, or premium'),
-  query('status').optional().isIn(['all', 'Active', 'Banned']).withMessage('Status must be all, Active, or Banned'),
+  query('status').optional().isIn(['all', 'Active', 'Banned', 'Inactive']).withMessage('Status must be all, Active, Banned, or Inactive'),
   query('role').optional().isIn(['STUDENT', 'MODERATOR']).withMessage('Role must be STUDENT or MODERATOR')
 ], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
@@ -387,11 +387,13 @@ router.get('/users', requireRole(['ADMIN']), [
       userConditions.push(`is_premium IS NOT TRUE`);
     }
     // Status filter: legacy rows may carry NULL, which the UI treats as
-    // Active — mirror that here so "Active" + "Banned" partition the table.
+    // Active — mirror that here so Active/Banned/Inactive partition the table.
     if (status === 'Active') {
       userConditions.push(`(status = 'Active' OR status IS NULL)`);
     } else if (status === 'Banned') {
       userConditions.push(`status = 'Banned'`);
+    } else if (status === 'Inactive') {
+      userConditions.push(`status = 'Inactive'`);
     }
     const userWhere = `WHERE ${userConditions.join(' AND ')}`;
     const SAFE_USER_COLS = 'id, name, email, role, status, is_premium, xp, level, streak, grade, premium_since, created_at, updated_at';
@@ -865,6 +867,17 @@ router.delete('/users/:userId', requireRole(['ADMIN']), async (req: express.Requ
     }
 
     const before = { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, is_premium: user.is_premium };
+
+    // Never deactivate yourself (mirrors the self-ban guard on status
+    // changes): a self-deactivate locks the actor out with no one to undo it.
+    if (targetUserId === req.user!.id) {
+      res.status(403).json({
+        success: false,
+        code: 'SELF_ACTION',
+        message: 'You cannot deactivate your own account — ask another admin'
+      } as ApiResponse);
+      return;
+    }
 
     // Idempotent: deactivating an already-inactive account is a no-op, not
     // a second audit event.

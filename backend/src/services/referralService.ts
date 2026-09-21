@@ -65,6 +65,8 @@ export const maybeCreateReferralReward = async (referrerId: string): Promise<str
   );
   if (pending.rows.length > 0) return null;
 
+  // Banned AND deactivated referees never count (a deactivated test/fake
+  // account must stop contributing the moment an admin removes it).
   const earned = await dbQuery(
     `SELECT r.id FROM referrals r
      JOIN users u ON u.id = r.referee_id
@@ -73,6 +75,7 @@ export const maybeCreateReferralReward = async (referrerId: string): Promise<str
        AND r.reward_id IS NULL
        AND u.email_verified IS TRUE
        AND u.status IS DISTINCT FROM 'Banned'
+       AND u.status IS DISTINCT FROM 'Inactive'
      ORDER BY r.qualified_at ASC
      LIMIT $2`,
     [referrerId, REFERRALS_REQUIRED]
