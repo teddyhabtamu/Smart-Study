@@ -244,9 +244,25 @@ const Subscription: React.FC = () => {
   // RENDER: Upgrade View (For Free Users)
   return (
     <div className="max-w-4xl mx-auto py-8 sm:py-12 animate-fade-in relative px-4 sm:px-6">
-      <div className="text-center mb-8 sm:mb-12">
+      <div className="text-center mb-8 sm:mb-10">
         <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight mb-3">Simple, transparent pricing</h1>
         <p className="text-zinc-500 text-sm sm:text-base">Invest in your education with our premium resources.</p>
+        {/* Free-path hook: the full invite card used to sit below the
+            pricing grid (below the fold) where nobody saw it. This pill
+            catches the eye up top and jumps to the card. */}
+        <a
+          href="#refer-friends"
+          className="inline-flex items-center gap-1.5 mt-3 px-3.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-100/80 border border-amber-200 rounded-full hover:brightness-95 transition-all"
+        >
+          <span aria-hidden="true">🎁</span> Get Pro free — invite 5 friends
+        </a>
+      </div>
+
+      {/* Free path to Pro first: refer 5 verified friends, admin approves.
+          Above the pricing grid (was below the fold) so the free option is
+          seen before the paid one. */}
+      <div className="mb-8 sm:mb-10">
+        <ReferralCard id="refer-friends" />
       </div>
 
       {/* Persistent pending state: the modal-only waiting room used to
@@ -320,12 +336,9 @@ const Subscription: React.FC = () => {
               Upgrade via Telebirr
             </button>
          </div>
-       </div>
+        </div>
 
-       {/* Free path to Pro: refer 5 verified friends, admin approves. */}
-       <ReferralCard />
-
-       {/* Payment Modal using Portal */}
+        {/* Payment Modal using Portal */}
       {/* Payment dialog: focus-trapped, Esc-dismissible, focus-returning
           (shared Dialog). Backdrop click closes via the default dismissible
           path — same as the old overlay, which closed on backdrop click. */}

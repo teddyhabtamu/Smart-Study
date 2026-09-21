@@ -18,7 +18,8 @@ interface ReferralState {
 // "Refer 5 friends, earn Pro" card for the Subscription page (rendered in
 // both the upgrade and member views — current Pro members are the best
 // recruiters). Server truth: code, qualified progress, reward state.
-const ReferralCard: React.FC = () => {
+// `id` lets the upgrade view deep-link it (anchor pill under the header).
+const ReferralCard: React.FC<{ id?: string }> = ({ id }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [state, setState] = useState<ReferralState | null>(null);
@@ -53,7 +54,7 @@ const ReferralCard: React.FC = () => {
   };
 
   return (
-    <div className="max-w-xl mx-auto mt-6 sm:mt-8 bg-surface rounded-2xl border border-zinc-200 shadow-sm p-6 sm:p-8">
+    <div id={id} className="max-w-xl mx-auto mt-6 sm:mt-8 scroll-mt-4 bg-surface rounded-2xl border border-zinc-200 shadow-sm p-6 sm:p-8">
       <div className="flex items-center gap-3 mb-2">
         <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
           <Gift size={20} />
