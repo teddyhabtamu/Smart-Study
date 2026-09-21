@@ -26,6 +26,23 @@ export const mintUniqueReferralCode = async (): Promise<string> => {
   throw new Error('Could not mint a unique referral code');
 };
 
+/**
+ * Resolve a raw ?ref= value (register body, OAuth state) to a referrer id.
+ * Never throws and never blocks signup: blank/unknown codes and DB errors
+ * all resolve to null (the registration proceeds unattributed).
+ */
+export const resolveReferrerId = async (raw: unknown): Promise<string | null> => {
+  const code = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  if (!code) return null;
+  try {
+    const ref = await dbQuery('SELECT id FROM users WHERE referral_code = $1', [code]);
+    if (ref.rows.length > 0) return String(ref.rows[0].id);
+  } catch (err) {
+    console.error('Referral lookup failed (non-fatal):', (err as any)?.message || err);
+  }
+  return null;
+};
+
 /** Mask a referee email for the referrer's own progress list (privacy:
  * the referrer recruited them, but full emails belong to admin eyes only). */
 export const maskEmail = (email: string): string => {

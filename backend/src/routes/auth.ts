@@ -11,7 +11,7 @@ import passport from '../middleware/googleAuth';
 import { loginLimiter } from '../middleware/rateLimit';
 import { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, User } from '../types';
 import { NotificationService } from '../services/notificationService';
-import { mintUniqueReferralCode, maybeCreateReferralReward } from '../services/referralService';
+import { mintUniqueReferralCode, maybeCreateReferralReward, resolveReferrerId } from '../services/referralService';
 import { EmailService, isNewLoginFingerprint } from '../services/emailService';
 
 const router = express.Router();
@@ -61,16 +61,8 @@ router.post('/register', [
     // Referral capture: ?ref=CODE on the signup page. Unknown codes are
     // ignored (never fail registration over a referral), and the referrer
     // can't be the new account itself (it doesn't exist yet — guaranteed).
-    let referrerId: string | null = null;
-    const rawCode = typeof req.body.referralCode === 'string' ? req.body.referralCode.trim().toUpperCase() : '';
-    if (rawCode) {
-      try {
-        const ref = await query('SELECT id FROM users WHERE referral_code = $1', [rawCode]);
-        if (ref.rows.length > 0) referrerId = String(ref.rows[0].id);
-      } catch (refErr) {
-        console.error('Referral lookup failed (non-fatal):', (refErr as any)?.message || refErr);
-      }
-    }
+    // Shared with the Google-OAuth path (see /google + googleAuth.ts).
+    const referrerId = await resolveReferrerId(req.body.referralCode);
 
     // Create user (email_verified will be false by default)
     const myCode = await mintUniqueReferralCode();
@@ -454,9 +446,19 @@ router.post('/logout', (req: express.Request, res: express.Response): void => {
 });
 
 // Google OAuth routes
-router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
+// Referral carry-through: /google?ref=CODE (appended by the signup page
+// when the visitor arrived on an invite link) rides the OAuth round-trip
+// inside the `state` parameter — Google echoes it back untouched, and the
+// strategy (googleAuth.ts) reads req.query.state. Format-guarded so junk
+// never reaches Google; unknown codes are ignored downstream, never fatal.
+router.get('/google', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const raw = String(req.query.ref || '').trim().toUpperCase();
+  const ref = /^[A-Z0-9]{4,16}$/.test(raw) ? raw : undefined;
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    ...(ref ? { state: ref } : {}),
+  })(req, res, next);
+});
 
 router.get('/google/callback', (req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Custom passport callback (not failureRedirect): the strategy reports

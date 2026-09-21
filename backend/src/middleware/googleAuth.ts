@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { config } from '../config';
 import { supabase } from '../database/config';
 import { EmailService, isNewLoginFingerprint } from '../services/emailService';
+import { resolveReferrerId, mintUniqueReferralCode, maybeCreateReferralReward } from '../services/referralService';
 import { eatTodayStr } from '../utils/dates';
 
 // OAuth accounts have no password: password_hash is NOT NULL in the schema,
@@ -67,6 +68,26 @@ passport.use(new GoogleStrategy({
       // Note: google_id column should exist in schema, but handle gracefully if not
       userData.google_id = id;
 
+      // Referral carry-through: the signup page appends ?ref=CODE to
+      // /google, which rides the OAuth round-trip as `state` (see
+      // routes/auth.ts). A new account can't be its own referrer (it
+      // doesn't exist yet — guaranteed, same as email register). The
+      // newcomer also gets their own public code now (email register mints
+      // at signup; OAuth used to wait for the Subscription page).
+      // Best-effort: referral bookkeeping must never fail authentication.
+      let oauthReferrerId: string | null = null;
+      try {
+        oauthReferrerId = await resolveReferrerId((req as any)?.query?.state);
+      } catch {
+        oauthReferrerId = null;
+      }
+      if (oauthReferrerId) userData.referred_by = oauthReferrerId;
+      try {
+        userData.referral_code = await mintUniqueReferralCode();
+      } catch (mintErr) {
+        console.error('OAuth referral-code mint failed (non-fatal):', (mintErr as any)?.message || mintErr);
+      }
+
       let { data: newUser, error: createError } = await supabase
         .from('users')
         .insert(userData)
@@ -90,6 +111,25 @@ passport.use(new GoogleStrategy({
 
       user = newUser;
       user.bookmarks = [];
+
+      // Google proves inbox control, so a verified address QUALIFIES the
+      // referral immediately (same verified-email-only rule the email-verify
+      // hook enforces — no second step exists for OAuth). Unverified
+      // addresses stay pending like email signups. Non-fatal either way.
+      if (oauthReferrerId) {
+        try {
+          await supabase
+            .from('referrals')
+            .insert({
+              referrer_id: oauthReferrerId,
+              referee_id: user.id,
+              ...(googleVerifiedEmail ? { qualified_at: new Date().toISOString() } : {}),
+            });
+          if (googleVerifiedEmail) await maybeCreateReferralReward(oauthReferrerId);
+        } catch (linkErr) {
+          console.error('OAuth referral link failed (non-fatal):', (linkErr as any)?.message || linkErr);
+        }
+      }
 
       // Create welcome notification
       try {
@@ -136,6 +176,26 @@ passport.use(new GoogleStrategy({
         if (!verifyError) user.email_verified = true;
         // Non-fatal on failure: login still proceeds; the password gate
         // keeps working off the stored flag as before.
+        //
+        // Referral heal: this account signed up with a code (email path)
+        // but never verified, so its referrals row is still pending.
+        // Google just proved inbox control — qualify it now, exactly as
+        // the verify-email hook would have.
+        if (!verifyError) {
+          try {
+            const { data: healed } = await supabase
+              .from('referrals')
+              .update({ qualified_at: new Date().toISOString() })
+              .eq('referee_id', user.id)
+              .is('qualified_at', null)
+              .select('referrer_id');
+            for (const row of healed || []) {
+              await maybeCreateReferralReward(String((row as any).referrer_id));
+            }
+          } catch (healErr) {
+            console.error('OAuth referral heal failed (non-fatal):', (healErr as any)?.message || healErr);
+          }
+        }
       }
       
       // Send login success email for existing users logging in via OAuth (non-blocking)

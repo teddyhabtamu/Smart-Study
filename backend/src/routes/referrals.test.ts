@@ -265,3 +265,50 @@ describe('admin referral rewards', () => {
     expect((await request(adminApp).post('/api/admin/referral-rewards/rw-1/reject').set(auth)).status).toBe(403);
   });
 });
+
+describe('resolveReferrerId (shared email + OAuth lookup)', () => {
+  it('resolves a known code case-insensitively', async () => {
+    const { resolveReferrerId } = await import('../services/referralService');
+    await expect(resolveReferrerId('friend1')).resolves.toBe('referrer-9');
+    await expect(resolveReferrerId(' FRIEND1 ')).resolves.toBe('referrer-9');
+  });
+
+  it('returns null for unknown/blank codes without failing', async () => {
+    const { resolveReferrerId } = await import('../services/referralService');
+    await expect(resolveReferrerId('NOPE1234')).resolves.toBeNull();
+    await expect(resolveReferrerId('')).resolves.toBeNull();
+    await expect(resolveReferrerId(undefined)).resolves.toBeNull();
+    await expect(resolveReferrerId(null)).resolves.toBeNull();
+  });
+
+  it('returns null (never throws) when the database is down', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('db down'));
+    const { resolveReferrerId } = await import('../services/referralService');
+    await expect(resolveReferrerId('FRIEND1')).resolves.toBeNull();
+  });
+});
+
+describe('Google OAuth referral carry-through', () => {
+  it('echoes a valid ?ref=CODE as OAuth state for the callback', async () => {
+    const { authApp } = await loadApps();
+    const res = await request(authApp).get('/api/auth/google').query({ ref: 'friend1' });
+    expect(res.status).toBe(302);
+    const loc = String(res.headers.location || '');
+    expect(loc).toContain('accounts.google.com');
+    expect(loc).toContain('state=FRIEND1');
+  });
+
+  it('drops junk ref instead of sending it to Google', async () => {
+    const { authApp } = await loadApps();
+    const res = await request(authApp).get('/api/auth/google').query({ ref: '<script>alert(1)</script>' });
+    expect(res.status).toBe(302);
+    expect(String(res.headers.location || '')).not.toContain('state=');
+  });
+
+  it('redirects cleanly with no ref', async () => {
+    const { authApp } = await loadApps();
+    const res = await request(authApp).get('/api/auth/google');
+    expect(res.status).toBe(302);
+    expect(String(res.headers.location || '')).not.toContain('state=');
+  });
+});

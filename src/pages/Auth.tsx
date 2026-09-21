@@ -38,8 +38,9 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
   // Referral capture: /register?ref=CODE from a friend's invite link.
   // Format-guarded (8 alphanumerics) so junk params never reach the API;
   // an unknown-but-valid code is ignored server-side, never blocking signup.
-  // NOTE: Google-OAuth signup can't carry the code through the OAuth
-  // round-trip — email signup is the referral path for v1.
+  // Email signup sends it in the register body; Google signup carries it as
+  // ?ref= on the /google redirect, which the backend rides through the
+  // OAuth round-trip as `state` (Google echoes it back to the callback).
   const inviteCode = (() => {
     const raw = (searchParams.get('ref') || '').trim().toUpperCase();
     return /^[A-Z0-9]{4,16}$/.test(raw) ? raw : null;
@@ -234,8 +235,11 @@ const Auth: React.FC<AuthProps> = ({ type: initialType }) => {
     }
     setIsGoogleLoading(true);
     try {
-      // Redirect to Google OAuth
-      window.location.href = `${apiUrl}/auth/google`;
+      // Redirect to Google OAuth — carry the invite code so referred
+      // Google signups credit the referrer (backend echoes it via state).
+      window.location.href = inviteCode
+        ? `${apiUrl}/auth/google?ref=${inviteCode}`
+        : `${apiUrl}/auth/google`;
     } catch (error) {
       console.error('Google login error:', error);
       addToast("Failed to initiate Google login. Please try again.", "error");
