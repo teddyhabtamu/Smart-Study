@@ -1164,6 +1164,115 @@ router.post('/videos', requireRole(['ADMIN', 'MODERATOR']), [
   }
 });
 
+// Forum review queue: pending posts oldest-first (longest waiting gets
+// reviewed first). Newest-first would let the queue rot from the bottom.
+router.get('/forum/pending', requireRole(['ADMIN', 'MODERATOR']), async (_req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    let rows: any[] = [];
+    try {
+      const r = await dbQuery(
+        `SELECT p.id, p.title, p.content, p.subject, p.grade, p.tags, p.created_at,
+                p.author_id, u.name as author, u.email as author_email
+         FROM forum_posts p LEFT JOIN users u ON u.id = p.author_id
+         WHERE p.status = 'pending'
+         ORDER BY p.created_at ASC
+         LIMIT 50`
+      );
+      rows = r.rows;
+    } catch (qErr) {
+      console.error('Pending forum queue failed (non-fatal, table may predate migration):', (qErr as any)?.message || qErr);
+    }
+    res.json({ success: true, data: rows } as ApiResponse);
+  } catch (error) {
+    console.error('Get pending forum posts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get pending posts'
+    } as ApiResponse);
+  }
+});
+
+// Approve one pending post: it goes live silently (the author's next fetch
+// shows it with no badge). The author's trust is earned implicitly — their
+// next posts skip the queue via the approved-post check.
+router.post('/forum/posts/:id/approve', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const r = await dbQuery(
+      `UPDATE forum_posts SET status = 'approved', reviewed_by = $1, reviewed_at = NOW(), decision_reason = NULL
+       WHERE id = $2 AND status = 'pending' RETURNING id, author_id, title`,
+      [req.user!.id, id]
+    );
+    if ((r.rowCount ?? 0) === 0) {
+      res.status(404).json({ success: false, message: 'Pending post not found' } as ApiResponse);
+      return;
+    }
+    logAdminActivity(req, {
+      action: 'forum.post.approve',
+      target_type: 'forum_post',
+      target_id: String(id),
+      summary: `Approved post "${r.rows[0]?.title || id}"`,
+      after: { id, status: 'approved' }
+    }).catch(() => {});
+    res.json({ success: true, data: { approved: true } } as ApiResponse);
+  } catch (error) {
+    console.error('Approve forum post error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve post'
+    } as ApiResponse);
+  }
+});
+
+// Reject one pending post: the author is notified with the reason (when
+// given) plus the Telegram contact — same rejection-transparency contract
+// as payment claims. Editing the post re-queues it for a second look.
+router.post('/forum/posts/:id/reject', requireRole(['ADMIN', 'MODERATOR']), [
+  body('reason').optional().isString().trim().isLength({ max: 500 }).withMessage('Reason must be at most 500 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const reason = typeof req.body.reason === 'string' && req.body.reason.trim()
+      ? req.body.reason.trim().slice(0, 500)
+      : null;
+    const r = await dbQuery(
+      `UPDATE forum_posts SET status = 'rejected', reviewed_by = $1, reviewed_at = NOW(), decision_reason = $2
+       WHERE id = $3 AND status = 'pending' RETURNING id, author_id, title`,
+      [req.user!.id, reason, id]
+    );
+    if ((r.rowCount ?? 0) === 0) {
+      res.status(404).json({ success: false, message: 'Pending post not found' } as ApiResponse);
+      return;
+    }
+    try {
+      await NotificationService.create({
+        user_id: String(r.rows[0].author_id),
+        title: 'Community post needs changes',
+        message: reason
+          ? `Your post "${r.rows[0]?.title || 'untitled'}" wasn't approved: ${reason} Edit it and it will be reviewed again — or contact us on Telegram.`
+          : `Your post "${r.rows[0]?.title || 'untitled'}" wasn't approved. Edit it and it will be reviewed again — or contact us on Telegram.`,
+        type: 'WARNING',
+      });
+    } catch (nErr) {
+      console.error('Forum rejection notification failed (non-fatal):', (nErr as any)?.message || nErr);
+    }
+    logAdminActivity(req, {
+      action: 'forum.post.reject',
+      target_type: 'forum_post',
+      target_id: String(id),
+      summary: `Rejected post "${r.rows[0]?.title || id}"${reason ? `: ${reason}` : ''}`,
+      after: { id, status: 'rejected', decision_reason: reason }
+    }).catch(() => {});
+    res.json({ success: true, data: { rejected: true, reason } } as ApiResponse);
+  } catch (error) {
+    console.error('Reject forum post error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject post'
+    } as ApiResponse);
+  }
+});
+
 // Moderate forum content
 router.delete('/forum/posts/:postId', requireRole(['ADMIN', 'MODERATOR']), async (req: express.Request, res: express.Response): Promise<void> => {
   try {

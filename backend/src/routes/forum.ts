@@ -33,6 +33,47 @@ export const voteTransition = (
   };
 };
 
+// --- Post moderation (earned trust) -----------------------------------------
+// A post is public only when approved. Staff and authors with ≥1 approved
+// post skip the queue; everyone else lands in pending for review. Edits
+// re-check trust (closes the "post homework, edit in spam links" bypass;
+// edits on rejected posts always re-queue). All helpers fail OPEN on a
+// missing moderation column (code 42703): a pre-migration database keeps
+// the old behavior (everything live) instead of 500ing the community.
+const isStaffRole = (role?: string): boolean =>
+  role === 'ADMIN' || role === 'MODERATOR';
+
+const isMissingModerationColumn = (err: any): boolean =>
+  (err as any)?.code === '42703' ||
+  String((err as any)?.message || '').includes('decision_reason') ||
+  (String((err as any)?.message || '').includes('status') &&
+    String((err as any)?.message || '').includes('forum_posts'));
+
+// Exported for unit tests.
+export const isTrustedPoster = async (userId: string, role?: string): Promise<boolean> => {
+  if (isStaffRole(role)) return true;
+  try {
+    const r = await query(
+      `SELECT 1 FROM forum_posts WHERE author_id = $1 AND status = 'approved' LIMIT 1`,
+      [userId]
+    );
+    return (r.rows?.length ?? 0) > 0;
+  } catch {
+    return true;
+  }
+};
+
+// Visibility: approved (or pre-migration rows with no status) → everyone;
+// anything else → author + staff only. Callers answer 404 on false — never
+// 403, so strangers can't probe for hidden posts.
+const canSeePost = (post: any, req: express.Request): boolean => {
+  if (!post) return false;
+  if (post.status === 'approved' || !post.status) return true;
+  const uid = req.user?.id;
+  if (uid && String(post.author_id) === String(uid)) return true;
+  return isStaffRole(req.user?.role);
+};
+
 // Test route
 router.get('/test', (req: express.Request, res: express.Response): void => {
   res.json({ success: true, message: 'Forum API is working' });
@@ -106,26 +147,69 @@ router.get('/posts', optionalAuth, async (req: express.Request, res: express.Res
       paramCount++;
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // Moderation visibility: the public only sees approved posts. The
+    // author sees their own pending/rejected rows (badged client-side);
+    // staff see everything (the review queue is a separate endpoint, but
+    // moderators browsing the community shouldn't hit 404s either).
+    // The status predicate is appended LAST so the legacy fallback below
+    // can reuse the same base conditions with identical $ numbering.
+    const baseWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const baseParams = [...params];
+    let whereClause = baseWhere;
+    if (!isStaffRole(req.user?.role)) {
+      const viewerId = req.user?.id;
+      const glue = baseWhere ? `${baseWhere} AND ` : 'WHERE ';
+      if (viewerId) {
+        whereClause = `${glue}(p.status = 'approved' OR (p.author_id = $${paramCount} AND p.status IN ('pending', 'rejected')))`;
+        params.push(viewerId);
+      } else {
+        whereClause = `${glue}p.status = 'approved'`;
+      }
+    }
 
-    const countResult = await query(
-      `SELECT COUNT(*) as total FROM forum_posts p LEFT JOIN users u ON u.id = p.author_id ${whereClause}`,
-      params
-    );
+    const modernSelect = `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
+            p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at, p.updated_at,
+            p.author_id, p.status, p.decision_reason,
+            u.name as author, u.role as author_role, u.avatar as author_avatar,
+            (SELECT COUNT(*) FROM forum_comments c WHERE c.post_id = p.id) as comment_count
+     FROM forum_posts p
+     LEFT JOIN users u ON u.id = p.author_id`;
+    // Pre-migration shape: no status anywhere (old behavior — everything
+    // listed, everything implicitly live).
+    const legacySelect = `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
+            p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at, p.updated_at,
+            u.name as author, u.role as author_role, u.avatar as author_avatar,
+            (SELECT COUNT(*) FROM forum_comments c WHERE c.post_id = p.id) as comment_count
+     FROM forum_posts p
+     LEFT JOIN users u ON u.id = p.author_id`;
+
+    let countResult: any;
+    let postsResult: any;
+    try {
+      [countResult, postsResult] = await Promise.all([
+        query(`SELECT COUNT(*) as total FROM forum_posts p LEFT JOIN users u ON u.id = p.author_id ${whereClause}`, params),
+        query(
+          `${modernSelect}
+           ${whereClause}
+           ORDER BY p.created_at DESC
+           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+          [...params, limitNum, startIndex]
+        ),
+      ]);
+    } catch (listErr) {
+      if (!isMissingModerationColumn(listErr)) throw listErr;
+      [countResult, postsResult] = await Promise.all([
+        query(`SELECT COUNT(*) as total FROM forum_posts p LEFT JOIN users u ON u.id = p.author_id ${baseWhere}`, baseParams),
+        query(
+          `${legacySelect}
+           ${baseWhere}
+           ORDER BY p.created_at DESC
+           LIMIT $${baseParams.length + 1} OFFSET $${baseParams.length + 2}`,
+          [...baseParams, limitNum, startIndex]
+        ),
+      ]);
+    }
     const total = parseInt(countResult.rows[0]?.total || '0', 10);
-
-    const postsResult = await query(
-      `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
-              p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at, p.updated_at,
-              u.name as author, u.role as author_role, u.avatar as author_avatar,
-              (SELECT COUNT(*) FROM forum_comments c WHERE c.post_id = p.id) as comment_count
-       FROM forum_posts p
-       LEFT JOIN users u ON u.id = p.author_id
-       ${whereClause}
-       ORDER BY p.created_at DESC
-       LIMIT $${paramCount++} OFFSET $${paramCount++}`,
-      [...params, limitNum, startIndex]
-    );
 
     const enrichedPosts = postsResult.rows.map((post: any) => ({
       id: post.id,
@@ -138,6 +222,13 @@ router.get('/posts', optionalAuth, async (req: express.Request, res: express.Res
       tags: post.tags || [],
       is_solved: post.is_solved || false,
       is_edited: post.is_edited || false,
+      // Moderation state (legacy rows arrive without it → implicitly live).
+      // author_id lets the client badge its own pending/rejected rows without
+      // fragile name matching; decision_reason only ever reaches viewers who
+      // passed canSeePost (author + staff for non-approved).
+      status: post.status || 'approved',
+      author_id: post.author_id || null,
+      decision_reason: post.decision_reason || null,
       // The list UI never renders AI answers — they ride along only as a
       // 20-per-page payload tax and a paywall hole. Non-entitled readers get
       // null; entitled readers keep the full text for shape stability.
@@ -183,17 +274,45 @@ router.get('/posts/:id', optionalAuth, async (req: express.Request, res: express
     // Single indexed query: post + author. Never SELECT users.* here — the
     // old code fetched ALL users (password hashes included) on every post
     // view just to find one name. Only the display columns are selected.
-    const postRows = await query(
-      `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
-              p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at,
-              p.updated_at, p.author_id,
-              u.name as author, u.role as author_role, u.avatar as author_avatar
-       FROM forum_posts p
-       LEFT JOIN users u ON p.author_id = u.id
-       WHERE p.id = $1`,
-      [id]
-    );
-    const post = postRows.rows[0];
+    // Moderation columns ride along for the visibility gate below; the
+    // legacy retry drops them (pre-migration rows are implicitly live).
+    let post: any;
+    try {
+      const postRows = await query(
+        `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
+                p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at,
+                p.updated_at, p.author_id, p.status, p.decision_reason,
+                u.name as author, u.role as author_role, u.avatar as author_avatar
+         FROM forum_posts p
+         LEFT JOIN users u ON p.author_id = u.id
+         WHERE p.id = $1`,
+        [id]
+      );
+      post = postRows.rows[0];
+    } catch (detailErr) {
+      if (!isMissingModerationColumn(detailErr)) throw detailErr;
+      const postRows = await query(
+        `SELECT p.id, p.title, p.content, p.subject, p.grade, p.votes, p.views,
+                p.tags, p.is_solved, p.is_edited, p.ai_answer, p.created_at,
+                p.updated_at, p.author_id,
+                u.name as author, u.role as author_role, u.avatar as author_avatar
+         FROM forum_posts p
+         LEFT JOIN users u ON p.author_id = u.id
+         WHERE p.id = $1`,
+        [id]
+      );
+      post = postRows.rows[0];
+    }
+
+    // Non-approved posts are invisible to strangers (404, not 403 — no
+    // existence leak); the author and staff see them with their state.
+    if (!canSeePost(post, req)) {
+      res.status(404).json({
+        success: false,
+        message: 'Forum post not found'
+      } as ApiResponse);
+      return;
+    }
 
     if (!post) {
       res.status(404).json({
@@ -329,6 +448,10 @@ router.get('/posts/:id', optionalAuth, async (req: express.Request, res: express
       author_id: post.author_id,
       author_role: post.author_role,
       author_avatar: post.author_avatar,
+      // Moderation state for the author's own badges (only author + staff
+      // ever receive non-approved rows — see the gate above).
+      status: post.status || 'approved',
+      decision_reason: post.decision_reason || null,
       userVote: userPostVote, // Add user's vote on this post
       userCommentVotes: userCommentVotes // Add user's votes on comments
     };
@@ -392,15 +515,27 @@ router.post('/posts', [
       votes: 0,
       views: 0,
       is_solved: false,
-      is_edited: false
+      is_edited: false,
+      // Earned trust: staff and authors with a live post skip review.
+      status: (await isTrustedPoster(author_id, req.user!.role)) ? 'approved' : 'pending'
     };
 
-    const inserted = await dbAdmin.insert('forum_posts', postData);
+    let inserted: any;
+    try {
+      inserted = await dbAdmin.insert('forum_posts', postData);
+    } catch (insErr) {
+      // Pre-migration database: retry the legacy shape (implicitly live,
+      // exactly the old behavior) instead of 500ing every new post.
+      if (!isMissingModerationColumn(insErr)) throw insErr;
+      const { status: _dropped, ...legacyData } = postData;
+      inserted = await dbAdmin.insert('forum_posts', legacyData);
+    }
 
+    const liveNow = (inserted as any)?.status !== 'pending';
     res.status(201).json({
       success: true,
       data: inserted,
-      message: 'Forum post created successfully'
+      message: liveNow ? 'Forum post created successfully' : 'Submitted for review — visible to everyone after approval'
     } as ApiResponse<ForumPost>);
   } catch (error) {
     console.error('Create forum post error:', error);
@@ -424,8 +559,17 @@ router.put('/posts/:id', [
     const userId = req.user!.id;
 
     // Indexed lookup (was a full-table fetch + in-memory filter).
-    const postRows = await query('SELECT id, author_id FROM forum_posts WHERE id = $1', [id]);
-    const postCheck = postRows.rows[0];
+    // Pre-migration fallback: without the status column this is just the
+    // old authorship check (no status to re-evaluate).
+    let postCheck: any;
+    try {
+      const postRows = await query('SELECT id, author_id, status FROM forum_posts WHERE id = $1', [id]);
+      postCheck = postRows.rows[0];
+    } catch (lookupErr) {
+      if (!isMissingModerationColumn(lookupErr)) throw lookupErr;
+      const postRows = await query('SELECT id, author_id FROM forum_posts WHERE id = $1', [id]);
+      postCheck = postRows.rows[0];
+    }
 
     if (!postCheck) {
       res.status(404).json({
@@ -449,12 +593,45 @@ router.put('/posts/:id', [
     // revision accepted votes/isSolved/aiAnswer here, letting any author rig
     // ranking (votes: 99999), self-award solved, or forge a fake AI answer
     // with one request. Those keys are now ignored, not stored.
+    //
+    // Moderation re-check on content edits: rejected posts always re-queue
+    // (the rejection may have targeted exactly this text); otherwise the
+    // author's current trust decides. Tags-only edits can't smuggle a new
+    // payload, so they leave visibility untouched. A stale rejection reason
+    // is cleared whenever the post re-queues; the decision audit log keeps
+    // the history.
     const updates: any = { is_edited: true };
     if (title !== undefined) updates.title = title;
     if (content !== undefined) updates.content = content;
     if (tags !== undefined) updates.tags = tags;
+    if (title !== undefined || content !== undefined) {
+      try {
+        const stillTrusted = postCheck.status === 'rejected'
+          ? false
+          : await isTrustedPoster(userId, req.user!.role);
+        updates.status = stillTrusted ? 'approved' : 'pending';
+        if (updates.status === 'pending') {
+          updates.reviewed_by = null;
+          updates.reviewed_at = null;
+          updates.decision_reason = null;
+        }
+      } catch {
+        // Fail open (missing column): leave status untouched.
+        delete updates.status;
+      }
+    }
 
-    const result = await dbAdmin.update('forum_posts', id, updates);
+    const result = await (async () => {
+      try {
+        return await dbAdmin.update('forum_posts', id, updates);
+      } catch (updErr) {
+        // Pre-migration database: drop the moderation keys and apply the
+        // content edit the legacy way.
+        if (!isMissingModerationColumn(updErr)) throw updErr;
+        const { status: _s, reviewed_by: _b, reviewed_at: _a, decision_reason: _r, ...legacyUpdates } = updates;
+        return await dbAdmin.update('forum_posts', id, legacyUpdates);
+      }
+    })();
 
     if (!result) {
       res.status(404).json({
@@ -496,8 +673,9 @@ router.post('/posts/:id/vote', authenticateToken, async (req: express.Request, r
 
     // Indexed existence check (dbAdmin.findOne fetches the whole table —
     // the facade filters client-side, so it must never back a hot path).
-    const postRows = await query('SELECT id FROM forum_posts WHERE id = $1', [id]);
-    if (postRows.rows.length === 0) {
+    // Non-approved posts are invisible to strangers (404, not 403).
+    const postRows = await query('SELECT id, author_id, status FROM forum_posts WHERE id = $1', [id]);
+    if (postRows.rows.length === 0 || !canSeePost(postRows.rows[0], req)) {
       res.status(404).json({
         success: false,
         message: 'Post not found'
@@ -576,9 +754,10 @@ router.put('/posts/:id/solved', [
 
     // Indexed lookup (the old dbAdmin.get fetched every post to find one).
     // Team members may also resolve threads — consistent with comment delete,
-    // where admins/moderators can act on others' content.
-    const postRows = await query('SELECT id, author_id FROM forum_posts WHERE id = $1', [id]);
-    if (postRows.rows.length === 0) {
+    // where admins/moderators can act on others' content. Non-approved posts
+    // are invisible to strangers (404, not 403).
+    const postRows = await query('SELECT id, author_id, status FROM forum_posts WHERE id = $1', [id]);
+    if (postRows.rows.length === 0 || !canSeePost(postRows.rows[0], req)) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'
@@ -641,12 +820,13 @@ router.post('/posts/:id/generate-ai-answer', authenticateToken, async (req: expr
     }
 
     // Indexed lookup (was a full-table fetch + in-memory find).
+    // Non-approved posts are invisible to strangers (404, not 403).
     const postRows = await query(
-      'SELECT id, title, content, subject, grade FROM forum_posts WHERE id = $1', [id]
+      'SELECT id, author_id, status, title, content, subject, grade FROM forum_posts WHERE id = $1', [id]
     );
     const post = postRows.rows[0];
 
-    if (!post) {
+    if (!post || !canSeePost(post, req)) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'
@@ -769,11 +949,13 @@ router.post('/posts/:postId/comments', [
     const author_id = req.user!.id;
 
     // Indexed existence check (was a full-table fetch + in-memory find).
+    // Comments can't be smuggled onto invisible posts: non-approved posts
+    // 404 for everyone but the author and staff.
     const postRows = await query(
-      'SELECT id, author_id, title FROM forum_posts WHERE id = $1', [postId]
+      'SELECT id, author_id, status, title FROM forum_posts WHERE id = $1', [postId]
     );
     const post = postRows.rows[0];
-    if (!post) {
+    if (!post || !canSeePost(post, req)) {
       res.status(404).json({
         success: false,
         message: 'Forum post not found'

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Dialog from '../../components/Dialog';
-import { AlertTriangle, Trash2, Search } from 'lucide-react';
+import { AlertTriangle, Trash2, Search, CheckCircle } from 'lucide-react';
 import CustomSelect, { Option } from '../../components/CustomSelect';
 import { useToast } from '../../context/ToastContext';
-import { forumAPI } from '../../services/api';
+import { forumAPI, adminAPI } from '../../services/api';
 import { SUBJECTS } from '../../constants';
 import { CommunityPostsSkeleton } from './skeletons';
 
@@ -78,6 +78,48 @@ const CommunityTab: React.FC = () => {
   });
   const [isDeletingPost, setIsDeletingPost] = useState(false);
 
+  // Review queue: first-timer posts waiting for approve/reject. Oldest
+  // first (matches the server order) so nothing rots at the bottom.
+  // Silent-fail to hidden (pre-migration DBs have no queue).
+  const [pendingPosts, setPendingPosts] = useState<any[] | null>(null);
+  const [isDecidingPost, setIsDecidingPost] = useState<string | null>(null);
+  const [rejectingPostId, setRejectingPostId] = useState<string | null>(null);
+  const [postRejectReason, setPostRejectReason] = useState('');
+
+  const fetchPendingPosts = useCallback(async () => {
+    try {
+      const rows = await adminAPI.getPendingForumPosts();
+      setPendingPosts(rows);
+    } catch {
+      setPendingPosts(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingPosts();
+  }, [fetchPendingPosts]);
+
+  const decidePost = async (post: any, approve: boolean) => {
+    try {
+      setIsDecidingPost(post.id);
+      if (approve) {
+        await adminAPI.approveForumPost(post.id);
+        addToast('Post approved — now live', 'success');
+      } else {
+        const reason = postRejectReason.trim().slice(0, 500);
+        await adminAPI.rejectForumPost(post.id, reason || undefined);
+        addToast(reason ? 'Post rejected with reason' : 'Post rejected', 'success');
+        setRejectingPostId(null);
+        setPostRejectReason('');
+      }
+      await Promise.all([fetchPendingPosts(), fetchPosts({ offset: pagination.offset })]);
+    } catch (error: any) {
+      addToast(error?.message || 'Failed to review post', 'error');
+    } finally {
+      setIsDecidingPost(null);
+    }
+  };
+
   const handleDeletePost = (id: string, title: string) => {
     setDeletePostConfirmation({
       isOpen: true,
@@ -140,6 +182,82 @@ const CommunityTab: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Review queue: first-timer posts awaiting approve/reject.
+                Approve goes live silently; reject notifies the author with
+                the reason. Empty queue (or pre-migration DB) hides itself. */}
+            {pendingPosts !== null && pendingPosts.length > 0 && (
+              <div className="bg-surface rounded-xl border border-amber-200 shadow-sm p-4 sm:p-5">
+                <h3 className="font-bold text-ink text-sm sm:text-base mb-1">
+                  Awaiting review <span className="text-xs font-medium text-zinc-500">({pendingPosts.length} waiting)</span>
+                </h3>
+                <p className="text-xs text-zinc-500 mb-3">First posts from new members — approve to publish, or reject with a reason the author will see.</p>
+                <div className="space-y-2">
+                  {pendingPosts.map((p: any) => (
+                    <React.Fragment key={p.id}>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-ink truncate">{p.title}</p>
+                          <p className="text-xs text-inksoft line-clamp-2 mt-0.5">{p.content}</p>
+                          <p className="text-[11px] text-zinc-500 truncate mt-1">
+                            {p.author}{p.author_email ? ` · ${p.author_email}` : ''}
+                            {' · '}{p.created_at ? new Date(p.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => decidePost(p, true)}
+                            disabled={isDecidingPost === p.id}
+                            className="flex-1 sm:flex-none px-3 py-1.5 bg-zinc-900 text-onink text-xs font-medium rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-1"
+                          >
+                            <CheckCircle size={13} /> {isDecidingPost === p.id ? 'Working…' : 'Approve'}
+                          </button>
+                          {rejectingPostId === p.id ? (
+                            <button
+                              onClick={() => { setRejectingPostId(null); setPostRejectReason(''); }}
+                              disabled={isDecidingPost === p.id}
+                              className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { setRejectingPostId(p.id); setPostRejectReason(''); }}
+                              disabled={isDecidingPost === p.id}
+                              className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {rejectingPostId === p.id && (
+                        <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg space-y-2">
+                          <label className="block text-[11px] font-semibold text-zinc-500">
+                            Reason <span className="font-normal">(shown to {p.author} — optional)</span>
+                          </label>
+                          <textarea
+                            value={postRejectReason}
+                            onChange={(e) => setPostRejectReason(e.target.value)}
+                            rows={2}
+                            maxLength={500}
+                            placeholder="e.g. Please ask one clear question with what you tried so far"
+                            className="w-full px-3 py-2 bg-surface border border-zinc-200 rounded-lg text-xs text-ink placeholder-zinc-400 focus:outline-none focus:border-zinc-400 resize-vertical"
+                          />
+                          <button
+                            onClick={() => decidePost(p, false)}
+                            disabled={isDecidingPost === p.id}
+                            className="w-full sm:w-auto px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                          >
+                            {isDecidingPost === p.id ? 'Rejecting…' : 'Confirm reject'}
+                          </button>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {postsLoading ? (
               <CommunityPostsSkeleton />

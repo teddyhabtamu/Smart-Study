@@ -482,6 +482,19 @@ const CommunityPost: React.FC = () => {
             <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
             <span>{post.grade === 0 ? 'General' : `Grade ${post.grade}`}</span>
           </p>
+          {/* Moderation state for the author's own non-live post (only the
+              author and staff ever receive these rows). */}
+          {(post as any).status === 'pending' && user && String((post as any).author_id) === String(user.id) && (
+            <p className="mt-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 inline-flex items-center gap-1.5">
+              IN REVIEW — visible to everyone after approval.
+            </p>
+          )}
+          {(post as any).status === 'rejected' && user && String((post as any).author_id) === String(user.id) && (
+            <p className="mt-2 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">
+              <strong>Needs changes{(post as any).decision_reason ? ':' : '.'}</strong>{' '}
+              {(post as any).decision_reason ? `${(post as any).decision_reason} ` : ''}Edit to resubmit for review.
+            </p>
+          )}
         </div>
         <div className="ml-auto flex gap-1 sm:gap-2 relative">
            {/* Mobile: Single menu button */}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Dialog from '../components/Dialog';
-import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Trophy, Loader2, ChevronDown, SlidersHorizontal, Crown } from 'lucide-react';
+import { MessageSquare, ThumbsUp, Eye, Search, Plus, CheckCircle, X, Filter, Trophy, Loader2, ChevronDown, SlidersHorizontal, Crown, Clock } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { SUBJECTS, GRADES } from '../constants';
 import { ForumPost, UserRole } from '../types';
@@ -114,7 +114,7 @@ const Community: React.FC = () => {
     setIsCreatingPost(true);
     setFreeLimitHit(false);
     try {
-      await createForumPost({
+      const created = await createForumPost({
         title: newTitle,
         content: newContent,
         subject: newSubject,
@@ -127,6 +127,13 @@ const Community: React.FC = () => {
       setNewContent('');
       setNewSubject('Mathematics');
       setNewGrade('9');
+
+      // Trusted posters go live instantly; first-timers land in review.
+      // Say which happened — otherwise a pending post looks broken
+      // ("I posted but it's not there").
+      if ((created as any)?.status === 'pending') {
+        addToast('Submitted for review — visible to everyone after approval.', 'info');
+      }
 
       // Refresh the posts list to show the new post
       fetchForumPosts();
@@ -612,6 +619,21 @@ const Community: React.FC = () => {
                         <CheckCircle size={8} className="sm:w-2.5 sm:h-2.5" /> SOLVED
                       </span>
                     )}
+                    {/* Moderation state: only the author ever receives
+                        non-approved rows here, so no stranger sees these. */}
+                    {(post as any).status === 'pending' && (post as any).author_id && user && String((post as any).author_id) === String(user.id) && (
+                      <span className="text-[10px] sm:text-[11px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded flex items-center gap-1 border border-amber-200">
+                        <Clock size={8} className="sm:w-2.5 sm:h-2.5" /> IN REVIEW
+                      </span>
+                    )}
+                    {(post as any).status === 'rejected' && (post as any).author_id && user && String((post as any).author_id) === String(user.id) && (
+                      <span
+                        className="text-[10px] sm:text-[11px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded flex items-center gap-1 border border-red-200"
+                        title={(post as any).decision_reason ? `Reason: ${(post as any).decision_reason}` : 'Not approved — edit to resubmit'}
+                      >
+                        <X size={8} className="sm:w-2.5 sm:h-2.5" /> NEEDS CHANGES
+                      </span>
+                    )}
                     <span className="text-xs text-zinc-500 ml-auto flex items-center gap-1">
                       <Eye size={10} className="sm:w-3 sm:h-3" /> {post.views}
                     </span>
@@ -629,6 +651,14 @@ const Community: React.FC = () => {
                   {/* Excerpt hidden when it merely repeats the title */}
                   {hasExcerpt && (
                     <p className="text-inksoft text-sm mb-3 sm:mb-4 line-clamp-2">{post.content}</p>
+                  )}
+
+                  {/* Reviewer note on own rejected posts: visible reason +
+                      the fix path (edit resubmits for review). */}
+                  {(post as any).status === 'rejected' && (post as any).author_id && user && String((post as any).author_id) === String(user.id) && (post as any).decision_reason && (
+                    <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5 mb-3">
+                      Reviewer note: {(post as any).decision_reason} Edit your post to resubmit it for review.
+                    </p>
                   )}
 
                   <div className={`flex items-center justify-between gap-2 ${hasExcerpt ? 'border-t border-zinc-50 pt-3 sm:pt-4' : 'pt-1'}`}>

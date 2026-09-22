@@ -768,7 +768,7 @@ export const videosAPI = {
 // Forum API
 export const forumAPI = {
   getPosts: (params: { subject?: string; grade?: number; search?: string; limit?: number; offset?: number } = {}): Promise<{
-    posts: (ForumPost & { author: string; author_role: string; author_avatar?: string; comment_count: number })[];
+    posts: (ForumPost & { author: string; author_role: string; author_avatar?: string; comment_count: number; author_id: string | null; status: string; decision_reason: string | null })[];
     pagination: { total: number; limit: number; offset: number; hasMore: boolean };
   }> => {
     const queryParams = new URLSearchParams();
@@ -780,10 +780,10 @@ export const forumAPI = {
     return apiRequest(`/forum/posts?${queryParams}`);
   },
 
-  getPost: (id: string): Promise<ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[] }> =>
+  getPost: (id: string): Promise<ForumPost & { author: string; author_role: string; author_avatar?: string; comments: ForumComment[]; author_id: string | null; status: string; decision_reason: string | null }> =>
     apiRequest(`/forum/posts/${id}`),
 
-  createPost: (post: { title: string; content: string; subject: string; grade: number; tags?: string[] }): Promise<ForumPost> =>
+  createPost: (post: { title: string; content: string; subject: string; grade: number; tags?: string[] }): Promise<ForumPost & { status?: string }> =>
     apiRequest('/forum/posts', {
       method: 'POST',
       body: JSON.stringify(post),
@@ -1433,6 +1433,23 @@ export const adminAPI = {
 
   rejectReferralReward: (id: string): Promise<{ rejected: boolean }> =>
     apiRequest(`/admin/referral-rewards/${id}/reject`, { method: 'POST' }),
+
+  // Community review queue: pending posts oldest-first. Approve goes live
+  // silently; reject carries an optional reason the author sees.
+  getPendingForumPosts: (): Promise<Array<{
+    id: string; title: string; content: string; subject: string; grade: number;
+    tags: string[]; created_at: string; author_id: string; author: string; author_email: string;
+  }>> =>
+    apiRequest('/admin/forum/pending'),
+
+  approveForumPost: (id: string): Promise<{ approved: boolean }> =>
+    apiRequest(`/admin/forum/posts/${id}/approve`, { method: 'POST' }),
+
+  rejectForumPost: (id: string, reason?: string): Promise<{ rejected: boolean; reason: string | null }> =>
+    apiRequest(`/admin/forum/posts/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(reason?.trim() ? { reason: reason.trim() } : {}),
+    }),
 
   // Engagement (Overview): DAU/WAU/MAU, 30-day active series, 7-day
   // feature split. Best-effort: callers hide the card on failure.
