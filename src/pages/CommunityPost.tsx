@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle, MoreVertical, Lock } from 'lucide-react';
 import { UserRole, ForumComment } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import MarkdownComposer from '../components/MarkdownComposer';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -48,6 +49,8 @@ const CommunityPost: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  // Discard-guard: cancelling a dirty edit asks first (a rewrite is work).
+  const [confirmDiscardEdit, setConfirmDiscardEdit] = useState(false);
 
   // Edit State (Comment)
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -369,7 +372,7 @@ const CommunityPost: React.FC = () => {
 
     setIsSavingPost(true);
     try {
-      await updateForumPost(post.id, {
+      const updated = await updateForumPost(post.id, {
         title: editTitle,
         content: editContent,
         isEdited: true
@@ -386,7 +389,13 @@ const CommunityPost: React.FC = () => {
       }
 
       setIsEditing(false);
-      addToast("Discussion updated successfully", "success");
+      // A rejected post that was just edited re-queued for review — say so
+      // instead of implying it went live.
+      if ((updated as any)?.status === 'pending') {
+        addToast("Changes saved — resubmitted for review", "info");
+      } else {
+        addToast("Discussion updated successfully", "success");
+      }
     } catch (error) {
       console.error('Failed to update post:', error);
       addToast("Failed to update discussion. Please try again.", "error");
@@ -395,7 +404,12 @@ const CommunityPost: React.FC = () => {
     }
   };
 
+  const isEditDirty = editTitle !== post.title || editContent !== post.content;
   const handleCancelEdit = () => {
+    if (isEditDirty) {
+      setConfirmDiscardEdit(true);
+      return;
+    }
     setEditTitle(post.title);
     setEditContent(post.content);
     setIsEditing(false);
@@ -664,15 +678,14 @@ const CommunityPost: React.FC = () => {
                            </div>
                          </div>
 
-                         {isEditing ? (
-                           <textarea
-                             value={editContent}
-                             onChange={(e) => setEditContent(e.target.value)}
-                             rows={12}
-                             className="w-full p-4 bg-surface text-ink border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400 resize-y shadow-sm mb-4"
-                             placeholder="Type your content here..."
-                           />
-                         ) : (
+                          {isEditing ? (
+                            <MarkdownComposer
+                              value={editContent}
+                              onChange={setEditContent}
+                              rows={10}
+                              placeholder="Type your content here... math works too, try $x^2$"
+                            />
+                          ) : (
                            <div className="prose prose-zinc max-w-none text-ink mb-8">
                               <MarkdownRenderer content={post.content} />
                            </div>
@@ -810,14 +823,14 @@ const CommunityPost: React.FC = () => {
                             </div>
                          </div>
 
-                         {editingCommentId === comment.id ? (
-                           <div className="mb-4">
-                             <textarea 
-                               value={editCommentContent}
-                               onChange={(e) => setEditCommentContent(e.target.value)}
-                               className="w-full p-3 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:border-zinc-400 mb-2"
-                               rows={4}
-                             />
+                          {editingCommentId === comment.id ? (
+                            <div className="mb-4">
+                              <MarkdownComposer
+                                value={editCommentContent}
+                                onChange={setEditCommentContent}
+                                rows={4}
+                                placeholder="Edit your comment..."
+                              />
                              <div className="flex gap-2">
                                <button
                                  onClick={() => handleSaveCommentEdit(comment.id)}
@@ -899,14 +912,14 @@ const CommunityPost: React.FC = () => {
                        </button>
                      </div>
                    ) : (
-                   <form onSubmit={handleSubmitReply}>
-                      <textarea
-                        value={replyContent}
-                        onChange={(e) => setReplyContent(e.target.value)}
-                        placeholder="Type your answer here... Markdown supported."
-                        className="w-full p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-400 resize-none text-sm sm:text-base transition-all mb-3 sm:mb-4"
-                        rows={3}
-                      ></textarea>
+                    <form onSubmit={handleSubmitReply}>
+                       <MarkdownComposer
+                         value={replyContent}
+                         onChange={setReplyContent}
+                         rows={4}
+                         placeholder="Type your answer here..."
+                         className="mb-3 sm:mb-4"
+                       />
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
                          <p className="text-xs text-zinc-500">Helpful answers earn XP when upvoted.</p>
                          <button
@@ -1017,7 +1030,11 @@ const CommunityPost: React.FC = () => {
                 <Trash2 size={24} />
               </div>
               <h3 className="text-lg font-bold text-ink mb-2">Delete {deleteTarget?.type === 'post' ? 'Discussion' : 'Comment'}?</h3>
-              <p className="text-sm text-zinc-500 mb-6">Are you sure you want to delete this? This action cannot be undone.</p>
+              <p className="text-sm text-zinc-500 mb-6">
+                {deleteTarget?.type === 'post'
+                  ? `Are you sure you want to delete this discussion${postComments.length > 0 ? ` and its ${postComments.length} ${postComments.length === 1 ? 'answer' : 'answers'}` : ''}? This action cannot be undone.`
+                  : 'Are you sure you want to delete this? This action cannot be undone.'}
+              </p>
               
               <div className="flex gap-3">
                 <button 
@@ -1031,6 +1048,38 @@ const CommunityPost: React.FC = () => {
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm"
                 >
                   Delete
+                </button>
+              </div>
+            </div>
+      </Dialog>
+
+      {/* Discard-guard: only reachable with unsaved edit changes. */}
+      <Dialog
+        open={confirmDiscardEdit}
+        onClose={() => setConfirmDiscardEdit(false)}
+        label="Discard changes?"
+        size="sm"
+      >
+            <div className="p-6 text-center">
+              <h3 className="text-lg font-bold text-ink mb-2">Discard changes?</h3>
+              <p className="text-sm text-zinc-500 mb-6">You have unsaved edits. Discarding will lose them.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmDiscardEdit(false)}
+                  className="flex-1 px-4 py-2.5 bg-zinc-900 text-onink font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm"
+                >
+                  Keep editing
+                </button>
+                <button
+                  onClick={() => {
+                    setConfirmDiscardEdit(false);
+                    setEditTitle(post.title);
+                    setEditContent(post.content);
+                    setIsEditing(false);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-zinc-200 text-inksoft font-medium rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                >
+                  Discard
                 </button>
               </div>
             </div>

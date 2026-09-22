@@ -11,6 +11,7 @@ import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
 import { usersAPI, forumAPI } from '../services/api';
 import { ForumPostSkeleton, LeaderboardItemSkeleton } from '../components/Skeletons';
+import MarkdownComposer from '../components/MarkdownComposer';
 import { formatRelativeTime } from '../utils/dateUtils';
 import { sameText } from '../utils/textUtils';
 import { useSEO, pageSEO } from '../utils/seoUtils';
@@ -782,13 +783,12 @@ const Community: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-inksoft mb-1.5">Details</label>
-                  <textarea
-                    required
-                    rows={5}
-                    className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 resize-none transition-shadow shadow-sm"
-                    placeholder="Describe your problem in detail..."
+                  <MarkdownComposer
                     value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
+                    onChange={setNewContent}
+                    rows={6}
+                    required
+                    placeholder="Describe your problem in detail... math works too, try $x^2$"
                   />
                 </div>
 
