@@ -47,7 +47,7 @@ const Subscription: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   // Server-side claim (identity-linked receipt queue). Survives modal
   // closes and devices — unlike the old local-only waiting room.
-  const [myClaim, setMyClaim] = useState<{ id: string; status: string; transaction_ref: string | null; created_at: string } | null>(null);
+  const [myClaim, setMyClaim] = useState<{ id: string; status: string; transaction_ref: string | null; created_at: string; decision_reason?: string | null } | null>(null);
   const [txRef, setTxRef] = useState('');
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
@@ -278,6 +278,24 @@ const Subscription: React.FC = () => {
           >
             View ticket
           </button>
+        </div>
+      )}
+
+      {/* Rejected with a reason: show WHY (admin's note) plus the Telegram
+          contact, so the student can fix and refile instead of churning. */}
+      {myClaim?.status === 'rejected' && (
+        <div className="max-w-xl mx-auto mb-6 sm:mb-8 bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
+          <p className="text-sm text-red-900">
+            <strong>Payment not verified.</strong>{' '}
+            {myClaim.decision_reason
+              ? `Reason: ${myClaim.decision_reason}`
+              : 'We could not match your receipt.'}{' '}
+            Message us on Telegram{' '}
+            <a href={PRO_PLAN.telegramUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-red-950">
+              {PRO_PLAN.telegramHandle}
+            </a>{' '}
+            and we'll sort it out — then send again below.
+          </p>
         </div>
       )}
 

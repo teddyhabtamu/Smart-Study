@@ -127,7 +127,11 @@ const StudentsTab: React.FC = () => {
   }, [fetchClaims]);
 
   // Approve = the existing premium toggle (auto-settles the claim
-  // server-side). Reject = explicit no. Both refresh the queue + list.
+  // server-side). Reject carries an optional reason the student sees on
+  // the Subscription page next to the Telegram contact — a rejection must
+  // be a next step, never a dead end. Both refresh the queue + list.
+  const [rejectingClaimId, setRejectingClaimId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
   const decideClaim = async (claim: any, approve: boolean) => {
     try {
       setIsDecidingClaim(claim.id);
@@ -135,8 +139,11 @@ const StudentsTab: React.FC = () => {
         await adminAPI.updateUserPremium(claim.user_id, true);
         addToast(`${claim.name} upgraded to Pro`, 'success');
       } else {
-        await adminAPI.rejectPaymentClaim(claim.id);
-        addToast('Claim rejected', 'success');
+        const reason = rejectReason.trim().slice(0, 500);
+        await adminAPI.rejectPaymentClaim(claim.id, reason || undefined);
+        addToast(reason ? 'Claim rejected with reason' : 'Claim rejected', 'success');
+        setRejectingClaimId(null);
+        setRejectReason('');
       }
       await Promise.all([fetchClaims(), fetchStudents()]);
     } catch (error: any) {
@@ -323,7 +330,8 @@ const StudentsTab: React.FC = () => {
                 <p className="text-xs text-zinc-500 mb-3">Verify the Telebirr receipt, then approve — the upgrade settles the ticket automatically.</p>
                 <div className="space-y-2">
                   {claims.filter((c: any) => c.status === 'pending').map((c: any) => (
-                    <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+                    <React.Fragment key={c.id}>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-ink truncate">{c.name}</p>
                         <p className="text-[11px] text-zinc-500 truncate">
@@ -340,15 +348,48 @@ const StudentsTab: React.FC = () => {
                         >
                           {isDecidingClaim === c.id ? 'Working…' : 'Approve'}
                         </button>
+                        {rejectingClaimId === c.id ? (
+                          <button
+                            onClick={() => { setRejectingClaimId(null); setRejectReason(''); }}
+                            disabled={isDecidingClaim === c.id}
+                            className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { setRejectingClaimId(c.id); setRejectReason(''); }}
+                            disabled={isDecidingClaim === c.id}
+                            className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {rejectingClaimId === c.id && (
+                      <div className="mt-2 p-3 bg-red-50/50 border border-red-100 rounded-lg space-y-2">
+                        <label className="block text-[11px] font-semibold text-zinc-500">
+                          Reason <span className="font-normal">(shown to {c.name} on their Subscription page — optional)</span>
+                        </label>
+                        <textarea
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          rows={2}
+                          maxLength={500}
+                          placeholder="e.g. Receipt unreadable — resend a full screenshot with the transaction ID visible"
+                          className="w-full px-3 py-2 bg-surface border border-zinc-200 rounded-lg text-xs text-ink placeholder-zinc-400 focus:outline-none focus:border-zinc-400 resize-vertical"
+                        />
                         <button
                           onClick={() => decideClaim(c, false)}
                           disabled={isDecidingClaim === c.id}
-                          className="flex-1 sm:flex-none px-3 py-1.5 bg-surface border border-zinc-200 text-zinc-500 text-xs font-medium rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                          className="w-full sm:w-auto px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                         >
-                          Reject
+                          {isDecidingClaim === c.id ? 'Rejecting…' : 'Confirm reject'}
                         </button>
                       </div>
-                    </div>
+                    )}
+                    </React.Fragment>
                   ))}
                 </div>
               </div>

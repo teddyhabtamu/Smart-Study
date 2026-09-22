@@ -1408,12 +1408,16 @@ export const adminAPI = {
   // through updateUserPremium, which auto-settles pending claims.
   getPaymentClaims: (): Promise<Array<{
     id: string; status: string; transaction_ref: string | null; created_at: string; decided_at: string | null;
+    decision_reason: string | null;
     user_id: string; name: string; email: string; is_premium: boolean;
   }>> =>
     apiRequest('/admin/payment-claims'),
 
-  rejectPaymentClaim: (id: string): Promise<{ rejected: boolean }> =>
-    apiRequest(`/admin/payment-claims/${id}/reject`, { method: 'POST' }),
+  rejectPaymentClaim: (id: string, reason?: string): Promise<{ rejected: boolean; reason: string | null }> =>
+    apiRequest(`/admin/payment-claims/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(reason?.trim() ? { reason: reason.trim() } : {}),
+    }),
 
   // Referral rewards queue (pending first). Approvals grant +1 Pro month
   // server-side; rejects release the referees back to unrewarded.
@@ -1761,6 +1765,7 @@ export const subscriptionAPI = {
   // Latest claim (any status) or null — drives the persistent pending state.
   getMyClaim: (): Promise<{
     id: string; status: string; transaction_ref: string | null; created_at: string; decided_at: string | null;
+    decision_reason: string | null;
   } | null> =>
     apiRequest('/subscription/claim/mine'),
 

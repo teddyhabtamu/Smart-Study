@@ -89,12 +89,26 @@ router.post('/claim', authenticateToken, [
 // pending state on the Subscription page across sessions and devices.
 router.get('/claim/mine', authenticateToken, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
-    const r = await dbQuery(
-      `SELECT id, status, transaction_ref, created_at, decided_at FROM payment_claims
-       WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [req.user!.id]
-    );
-    res.json({ success: true, data: r.rows[0] || null } as ApiResponse);
+    let rows: any[] = [];
+    try {
+      const r = await dbQuery(
+        `SELECT id, status, transaction_ref, created_at, decided_at, decision_reason FROM payment_claims
+         WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [req.user!.id]
+      );
+      rows = r.rows;
+    } catch (colErr) {
+      // Pre-migration DBs lack decision_reason — fall back to the legacy
+      // projection instead of 500ing the whole Subscription page.
+      if (!String((colErr as any)?.message || '').includes('decision_reason')) throw colErr;
+      const r = await dbQuery(
+        `SELECT id, status, transaction_ref, created_at, decided_at FROM payment_claims
+         WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [req.user!.id]
+      );
+      rows = r.rows;
+    }
+    res.json({ success: true, data: rows[0] || null } as ApiResponse);
   } catch (error) {
     console.error('Get my payment claim error:', error);
     res.status(500).json({

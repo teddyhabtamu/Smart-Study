@@ -46,6 +46,10 @@ beforeEach(() => {
   mockDbAdmin.insert.mockResolvedValue({ id: 'n-1' });
   mockQuery.mockImplementation(async (text: string) => {
     if (text.includes('LEFT JOIN bookmarks')) return { rows: [userRow()], rowCount: 1 };
+    // Reject flow: lookup of the single pending claim by id.
+    if (text.includes('FROM payment_claims WHERE id = $1')) {
+      return { rows: [{ id: 'c-1', user_id: 'u-9' }], rowCount: 1 };
+    }
     if (text.includes('FROM payment_claims') && text.includes("status = 'pending'") && text.includes('user_id')) {
       return { rows: [], rowCount: 0 };
     }
@@ -194,6 +198,88 @@ describe('admin payment claims', () => {
       .set('Authorization', `Bearer ${tokenFor('admin-1')}`)
       .send({});
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ rejected: true });
+    expect(res.body.data).toMatchObject({ rejected: true, reason: null });
+  });
+});
+
+describe('claim rejection with reason', () => {
+  it('stores the trimmed reason and notifies the claimant with it', async () => {
+    currentRole = 'ADMIN';
+    const { adminApp } = await loadApps();
+    const res = await request(adminApp)
+      .post('/api/admin/payment-claims/c-1/reject')
+      .set('Authorization', `Bearer ${tokenFor('admin-1')}`)
+      .send({ reason: '  Receipt unreadable — resend a full screenshot  ' });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ rejected: true, reason: 'Receipt unreadable — resend a full screenshot' });
+    const update = mockQuery.mock.calls.find(([sql]: any[]) =>
+      String(sql).includes('decision_reason'));
+    expect(update).toBeDefined();
+    expect(update[1]).toEqual(expect.arrayContaining(['u-1', 'Receipt unreadable — resend a full screenshot', 'c-1']));
+    const ping = mockDbAdmin.insert.mock.calls.find((c: any[]) =>
+      c[0] === 'notifications' && String(c[1]?.user_id) === 'u-9');
+    expect(ping).toBeDefined();
+    expect(String(ping[1]?.message)).toContain('Receipt unreadable');
+    expect(String(ping[1]?.message)).toContain('Telegram');
+  });
+
+  it('rejects without a reason using the generic contact line', async () => {
+    currentRole = 'ADMIN';
+    const { adminApp } = await loadApps();
+    const res = await request(adminApp)
+      .post('/api/admin/payment-claims/c-1/reject')
+      .set('Authorization', `Bearer ${tokenFor('admin-1')}`)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ rejected: true, reason: null });
+    const ping = mockDbAdmin.insert.mock.calls.find((c: any[]) =>
+      c[0] === 'notifications' && String(c[1]?.user_id) === 'u-9');
+    expect(ping).toBeDefined();
+    expect(String(ping[1]?.message)).toContain('Telegram');
+  });
+
+  it('404s when nothing pending matches', async () => {
+    mockQuery.mockImplementation(async (text: string) => {
+      if (text.includes('LEFT JOIN bookmarks')) return { rows: [userRow({ id: 'admin-1', role: 'ADMIN' })], rowCount: 1 };
+      if (text.includes('FROM payment_claims WHERE id = $1')) return { rows: [], rowCount: 0 };
+      throw new Error(`unexpected query in test: ${String(text).slice(0, 100)}`);
+    });
+    currentRole = 'ADMIN';
+    const { adminApp } = await loadApps();
+    const res = await request(adminApp)
+      .post('/api/admin/payment-claims/c-gone/reject')
+      .set('Authorization', `Bearer ${tokenFor('admin-1')}`)
+      .send({ reason: 'nope' });
+    expect(res.status).toBe(404);
+    expect(mockDbAdmin.insert).not.toHaveBeenCalled();
+  });
+
+  it('400s an over-long reason', async () => {
+    currentRole = 'ADMIN';
+    const { adminApp } = await loadApps();
+    const res = await request(adminApp)
+      .post('/api/admin/payment-claims/c-1/reject')
+      .set('Authorization', `Bearer ${tokenFor('admin-1')}`)
+      .send({ reason: 'x'.repeat(501) });
+    expect(res.status).toBe(400);
+  });
+
+  it('claim/mine surfaces the reason to the student', async () => {
+    mockQuery.mockImplementation(async (text: string) => {
+      if (text.includes('LEFT JOIN bookmarks')) return { rows: [userRow()], rowCount: 1 };
+      if (text.includes('FROM payment_claims')) {
+        return {
+          rows: [{ id: 'c-1', status: 'rejected', transaction_ref: null, created_at: new Date(), decided_at: new Date(), decision_reason: 'Amount mismatch' }],
+          rowCount: 1,
+        };
+      }
+      throw new Error(`unexpected query in test: ${String(text).slice(0, 100)}`);
+    });
+    const { subApp } = await loadApps();
+    const res = await request(subApp)
+      .get('/api/subscription/claim/mine')
+      .set('Authorization', `Bearer ${tokenFor()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.decision_reason).toBe('Amount mismatch');
   });
 });

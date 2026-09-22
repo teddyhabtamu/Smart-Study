@@ -557,7 +557,7 @@ router.get('/payment-claims', requireRole(['ADMIN']), async (_req: express.Reque
     let rows: any[] = [];
     try {
       const r = await dbQuery(
-        `SELECT c.id, c.status, c.transaction_ref, c.created_at, c.decided_at,
+        `SELECT c.id, c.status, c.transaction_ref, c.created_at, c.decided_at, c.decision_reason,
                 u.id AS user_id, u.name, u.email, u.is_premium
          FROM payment_claims c JOIN users u ON u.id = c.user_id
          ORDER BY (c.status = 'pending') DESC, c.created_at DESC
@@ -578,20 +578,57 @@ router.get('/payment-claims', requireRole(['ADMIN']), async (_req: express.Reque
 });
 
 // Reject one pending claim (approvals flow through the premium toggle,
-// which auto-approves — this endpoint only says no).
-router.post('/payment-claims/:id/reject', requireRole(['ADMIN']), async (req: express.Request, res: express.Response): Promise<void> => {
+// which auto-approves — this endpoint only says no). An optional reason
+// (max 500 chars, same bound as ban reasons) is stored and shown to the
+// student on the Subscription page next to the Telegram contact, and the
+// student gets an in-app notification — a rejection must be a next step,
+// never a dead end.
+router.post('/payment-claims/:id/reject', requireRole(['ADMIN']), [
+  body('reason').optional().isString().trim().isLength({ max: 500 }).withMessage('Reason must be at most 500 characters')
+], validateRequest, async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     if (!id || typeof id !== 'string') {
       res.status(400).json({ success: false, message: 'Claim id required' } as ApiResponse);
       return;
     }
-    const r = await dbQuery(
-      `UPDATE payment_claims SET status = 'rejected', decided_at = NOW(), decided_by = $1
-       WHERE id = $2 AND status = 'pending'`,
-      [req.user!.id, id]
+    const reason = typeof req.body.reason === 'string' && req.body.reason.trim()
+      ? req.body.reason.trim().slice(0, 500)
+      : null;
+    const found = await dbQuery(
+      `SELECT id, user_id FROM payment_claims WHERE id = $1 AND status = 'pending'`,
+      [id]
     );
-    res.json({ success: true, data: { rejected: (r.rowCount ?? 0) > 0 } } as ApiResponse);
+    if (found.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Pending claim not found' } as ApiResponse);
+      return;
+    }
+    const claimUserId = String(found.rows[0].user_id);
+    await dbQuery(
+      `UPDATE payment_claims SET status = 'rejected', decided_at = NOW(), decided_by = $1, decision_reason = $2
+       WHERE id = $3`,
+      [req.user!.id, reason, id]
+    );
+    try {
+      await NotificationService.create({
+        user_id: claimUserId,
+        title: 'Payment claim not verified',
+        message: reason
+          ? `We could not verify your payment: ${reason} Reply on Telegram and we will sort it out together.`
+          : 'We could not verify your payment. Contact us on Telegram and we will sort it out together.',
+        type: 'WARNING',
+      });
+    } catch (nErr) {
+      console.error('Claim rejection notification failed (non-fatal):', (nErr as any)?.message || nErr);
+    }
+    logAdminActivity(req, {
+      action: 'payment_claim.reject',
+      target_type: 'payment_claim',
+      target_id: String(id),
+      summary: `Rejected payment claim ${String(id).slice(0, 8)}${reason ? `: ${reason}` : ''}`,
+      after: { id, user_id: claimUserId, status: 'rejected', decision_reason: reason }
+    }).catch(() => {});
+    res.json({ success: true, data: { rejected: true, reason } } as ApiResponse);
   } catch (error) {
     console.error('Reject payment claim error:', error);
     res.status(500).json({
