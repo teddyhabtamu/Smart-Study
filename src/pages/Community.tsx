@@ -14,6 +14,7 @@ import { ForumPostSkeleton, LeaderboardItemSkeleton } from '../components/Skelet
 import MarkdownComposer from '../components/MarkdownComposer';
 import { formatRelativeTime } from '../utils/dateUtils';
 import { sameText } from '../utils/textUtils';
+import { loadAskDraft, saveAskDraft, clearAskDraft } from '../utils/communityDraft';
 import { useSEO, pageSEO } from '../utils/seoUtils';
 
 const Community: React.FC = () => {
@@ -38,13 +39,22 @@ const Community: React.FC = () => {
   // True when a free user hits the daily question limit: the modal swaps to
   // an upgrade panel, draft preserved behind it.
   const [freeLimitHit, setFreeLimitHit] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [newSubject, setNewSubject] = useState('Mathematics');
-  const [newGrade, setNewGrade] = useState('9');
+  const [newTitle, setNewTitle] = useState(() => loadAskDraft()?.title ?? '');
+  const [newContent, setNewContent] = useState(() => loadAskDraft()?.content ?? '');
+  // Neutral defaults (no pre-selected subject/grade): a forgotten dropdown
+  // used to silently misfile posts as Grade 9 Mathematics.
+  const [newSubject, setNewSubject] = useState(() => loadAskDraft()?.subject ?? '');
+  const [newGrade, setNewGrade] = useState(() => loadAskDraft()?.grade ?? '');
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [votingPosts, setVotingPosts] = useState<Set<string>>(new Set()); // Track which posts are being voted on
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  // Persist the ask draft as they type: an accidental modal close or
+  // navigation no longer vaporizes a half-written question. Cleared only
+  // on successful submit (empty text clears the stored draft too).
+  useEffect(() => {
+    saveAskDraft({ title: newTitle, content: newContent, subject: newSubject, grade: newGrade });
+  }, [newTitle, newContent, newSubject, newGrade]);
 
   useEffect(() => {
     setMounted(true);
@@ -111,6 +121,16 @@ const Community: React.FC = () => {
       navigate('/login');
       return;
     }
+    // Neutral defaults mean the author must choose: fail loudly here
+    // instead of misfiling as Mathematics/Grade 9.
+    if (!newSubject) {
+      addToast('Please choose a subject for your question.', 'error');
+      return;
+    }
+    if (!newGrade) {
+      addToast('Please choose a grade level.', 'error');
+      return;
+    }
 
     setIsCreatingPost(true);
     setFreeLimitHit(false);
@@ -124,10 +144,11 @@ const Community: React.FC = () => {
       });
 
       setIsModalOpen(false);
+      clearAskDraft();
       setNewTitle('');
       setNewContent('');
-      setNewSubject('Mathematics');
-      setNewGrade('9');
+      setNewSubject('');
+      setNewGrade('');
 
       // Trusted posters go live instantly; first-timers land in review.
       // Say which happened — otherwise a pending post looks broken
@@ -759,10 +780,17 @@ const Community: React.FC = () => {
               ) : (
               <form onSubmit={handleCreatePost} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
                 <div>
-                  <label className="block text-xs font-semibold text-inksoft mb-1.5">Question Title</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-inksoft">Question Title</label>
+                    <span className={`text-[11px] font-medium ${newTitle.trim().length < 5 ? 'text-amber-600 font-bold' : 'text-zinc-400'}`}>
+                      {newTitle.trim().length < 5 ? `${5 - newTitle.trim().length} more` : `${newTitle.length}/500`}
+                    </span>
+                  </div>
                   <input
                     type="text"
                     required
+                    minLength={5}
+                    maxLength={500}
                     className="w-full px-3 py-2 bg-surface border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-500 transition-shadow shadow-sm"
                     placeholder="What's your question?"
                     value={newTitle}
@@ -773,11 +801,11 @@ const Community: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-inksoft mb-1.5">Subject</label>
-                    <CustomSelect options={postSubjectOptions} value={newSubject} onChange={setNewSubject} />
+                    <CustomSelect options={postSubjectOptions} value={newSubject} onChange={setNewSubject} placeholder="Select subject" />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-inksoft mb-1.5">Grade Level</label>
-                    <CustomSelect options={gradeOptions} value={newGrade} onChange={setNewGrade} />
+                    <CustomSelect options={gradeOptions} value={newGrade} onChange={setNewGrade} placeholder="Select grade" />
                   </div>
                 </div>
 
@@ -788,6 +816,7 @@ const Community: React.FC = () => {
                     onChange={setNewContent}
                     rows={6}
                     required
+                    minLength={10}
                     placeholder="Describe your problem in detail... math works too, try $x^2$"
                   />
                 </div>

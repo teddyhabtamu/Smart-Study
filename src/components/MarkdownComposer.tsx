@@ -9,6 +9,8 @@ interface MarkdownComposerProps {
   placeholder?: string;
   rows?: number;
   required?: boolean;
+  /** Minimum meaningful length: shows a live "N more" counter until met. */
+  minLength?: number;
   /** Extra classes for the textarea (the preview box mirrors the shell). */
   className?: string;
   textareaClassName?: string;
@@ -25,11 +27,14 @@ const MarkdownComposer: React.FC<MarkdownComposerProps> = ({
   placeholder,
   rows = 5,
   required = false,
+  minLength,
   className = '',
   textareaClassName = '',
 }) => {
   const [mode, setMode] = useState<'write' | 'preview'>('write');
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const trimmedLen = value.trim().length;
+  const needMore = minLength !== undefined && trimmedLen < minLength;
 
   const apply = (result: EditResult) => {
     onChange(result.text);
@@ -112,8 +117,15 @@ const MarkdownComposer: React.FC<MarkdownComposerProps> = ({
           )}
         </div>
       )}
-      <p className="px-3 py-1.5 bg-zinc-50 border-t border-zinc-200 text-[11px] text-zinc-500">
-        Markdown + math supported — <code className="font-mono bg-zinc-200/60 px-1 rounded">$x^2$</code> for inline, <code className="font-mono bg-zinc-200/60 px-1 rounded">$$…$$</code> for display equations.
+      <p className="px-3 py-1.5 bg-zinc-50 border-t border-zinc-200 text-[11px] text-zinc-500 flex items-center justify-between gap-2">
+        <span>
+          Markdown + math supported — <code className="font-mono bg-zinc-200/60 px-1 rounded">$x^2$</code> for inline, <code className="font-mono bg-zinc-200/60 px-1 rounded">$$…$$</code> for display equations.
+        </span>
+        {minLength !== undefined && (
+          <span className={`flex-shrink-0 font-bold ${needMore ? 'text-amber-600' : 'text-zinc-400'}`}>
+            {needMore ? `${minLength - trimmedLen} more` : `${trimmedLen}`}
+          </span>
+        )}
       </p>
     </div>
   );

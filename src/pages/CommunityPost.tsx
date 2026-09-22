@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Dialog from '../components/Dialog';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ThumbsUp, MessageSquare, Share2, CheckCircle, Send, Info, BookOpen, User as UserIcon, Check, Trash2, Edit2, X, Save, Sparkles, ArrowRight, Bot, Loader2, HelpCircle, MoreVertical, Lock } from 'lucide-react';
@@ -14,6 +14,8 @@ import { requestInstallPrompt, usePwaInstall } from '../components/PwaInstall';
 import { ForumPost } from '../types';
 import { CommunityPostDetailSkeleton } from '../components/Skeletons';
 import { formatRelativeTime } from '../utils/dateUtils';
+import { stripForSpeech } from '../utils/textUtils';
+import { loadReplyDraft, saveReplyDraft, clearReplyDraft } from '../utils/communityDraft';
 import { useSEO, communityPostSEO } from '../utils/seoUtils';
 
 const CommunityPost: React.FC = () => {
@@ -43,7 +45,20 @@ const CommunityPost: React.FC = () => {
   const { installed: pwaInstalled } = usePwaInstall();
 
   // Local interaction state
-  const [replyContent, setReplyContent] = useState('');
+  // Reply drafts persist per post (same accidental-loss protection as the
+  // ask modal); cleared only when the reply actually posts. The ref guards
+  // post-to-post navigation: without it the old text would be saved under
+  // the NEW post's key before the new draft loads.
+  const [replyContent, setReplyContent] = useState<string>(() => (id ? loadReplyDraft(id) : ''));
+  const replyPostRef = useRef(id);
+  useEffect(() => {
+    if (id !== replyPostRef.current) {
+      replyPostRef.current = id;
+      if (id) setReplyContent(loadReplyDraft(id));
+      return;
+    }
+    if (id) saveReplyDraft(id, replyContent);
+  }, [replyContent, id]);
 
   // Edit State (Post)
   const [isEditing, setIsEditing] = useState(false);
@@ -459,6 +474,7 @@ const CommunityPost: React.FC = () => {
       setFullPost(refreshedPost);
 
       setReplyContent('');
+      if (id) clearReplyDraft(id);
       addToast("Reply posted successfully", "success");
     } catch (error) {
       console.error('Failed to post reply:', error);
@@ -481,13 +497,19 @@ const CommunityPost: React.FC = () => {
         </Link>
         <div className="min-w-0 flex-1">
           {isEditing ? (
+            <div className="flex-1 min-w-0">
             <input
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
+              maxLength={500}
               className="w-full text-base sm:text-lg font-bold text-ink bg-surface border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
               placeholder="Question Title"
             />
+            <p className={`text-[11px] mt-1 text-right font-medium ${editTitle.trim().length < 5 ? 'text-amber-600' : 'text-zinc-400'}`}>
+              {editTitle.trim().length < 5 ? `${5 - editTitle.trim().length} more` : `${editTitle.length}/500`}
+            </p>
+            </div>
           ) : (
             <h1 className="text-base sm:text-lg font-bold text-ink leading-snug mb-1 line-clamp-2">{post.title}</h1>
           )}
@@ -674,7 +696,7 @@ const CommunityPost: React.FC = () => {
                                  <CheckCircle size={12} className="sm:w-3.5 sm:h-3.5" /> SOLVED
                                </span>
                              )}
-                             {!isEditing && <TTSButton text={post.content} size={14} className="sm:w-4 sm:h-4" />}
+                             {!isEditing && <TTSButton text={stripForSpeech(post.content)} size={14} className="sm:w-4 sm:h-4" />}
                            </div>
                          </div>
 
@@ -683,6 +705,7 @@ const CommunityPost: React.FC = () => {
                               value={editContent}
                               onChange={setEditContent}
                               rows={10}
+                              minLength={10}
                               placeholder="Type your content here... math works too, try $x^2$"
                             />
                           ) : (
@@ -756,7 +779,7 @@ const CommunityPost: React.FC = () => {
                             <MarkdownRenderer content={post.aiAnswer} />
                          </div>
                          <div className="flex justify-end pt-2 border-t border-zinc-200/50">
-                            <TTSButton text={post.aiAnswer} size={16} quality="high" className="text-zinc-400 hover:text-ink bg-surface shadow-sm" />
+                            <TTSButton text={stripForSpeech(post.aiAnswer)} size={16} quality="high" className="text-zinc-400 hover:text-ink bg-surface shadow-sm" />
                          </div>
                       </div>
                       )
@@ -814,7 +837,7 @@ const CommunityPost: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <TTSButton text={comment.content} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-ink" />
+                              <TTSButton text={stripForSpeech(comment.content)} size={12} className="sm:w-3.5 sm:h-3.5 text-zinc-400 hover:text-ink" />
                               {commentIsAccepted && (
                                 <span className="flex items-center gap-1 text-[10px] sm:text-[11px] bg-emerald-50 text-emerald-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold border border-emerald-200">
                                   <Check size={10} className="sm:w-3 sm:h-3" /> Solution
