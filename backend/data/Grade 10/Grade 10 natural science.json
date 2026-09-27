@@ -64,5 +64,89 @@
       "Good Citizenship",
       "The Blue Nile"
     ]
+  },
+  {
+    "grade": 10,
+    "subject": "History",
+    "topics": [
+      "Menelik II Expansion",
+      "Battle of Adwa 1896",
+      "Italian Occupation of Ethiopia",
+      "Resistance Movements",
+      "Derg Regime 1974",
+      "Contemporary Ethiopia"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Geography",
+    "topics": [
+      "Agriculture in Ethiopia",
+      "Industry in Ethiopia",
+      "Trade and Transport",
+      "Water Resources of Ethiopia",
+      "Urbanization",
+      "Environment and Conservation"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Civics",
+    "topics": [
+      "Human Rights",
+      "Ethiopian Constitution 1995",
+      "Elections and Voting",
+      "Good Governance",
+      "Conflict Resolution",
+      "National Unity"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "ICT",
+    "topics": [
+      "MS Excel Basics",
+      "PowerPoint Presentations",
+      "File Management",
+      "Computer Networks",
+      "Email and Communication",
+      "Computer Security Basics"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Amharic",
+    "topics": [
+      "Amharic Grammar Basics",
+      "Amharic Sentence Structure",
+      "Essay Writing in Amharic",
+      "Amharic Literature",
+      "Amharic Proverbs",
+      "Reading Comprehension in Amharic"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Afaan Oromoo",
+    "topics": [
+      "Afaan Oromo Grammar Basics",
+      "Afaan Oromo Sentence Structure",
+      "Essay Writing in Afaan Oromo",
+      "Afaan Oromo Literature",
+      "Afaan Oromo Proverbs",
+      "Reading Comprehension in Afaan Oromo"
+    ]
+  },
+  {
+    "grade": 10,
+    "subject": "Tigrigna",
+    "topics": [
+      "Tigrinya Grammar Basics",
+      "Tigrinya Sentence Structure",
+      "Essay Writing in Tigrinya",
+      "Tigrinya Literature",
+      "Tigrinya Proverbs",
+      "Reading Comprehension in Tigrinya"
+    ]
   }
 ]

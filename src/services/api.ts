@@ -1469,6 +1469,12 @@ export const adminAPI = {
       body: JSON.stringify({ grade }),
     }),
 
+  bulkRegradeVideos: (fixes: Array<{ id: string; grade: number }>): Promise<{ updated: number; requested: number }> =>
+    apiRequest('/admin/youtube/videos/regrade-bulk', {
+      method: 'PATCH',
+      body: JSON.stringify({ fixes }),
+    }),
+
   // Engagement (Overview): DAU/WAU/MAU, 30-day active series, 7-day
   // feature split. Best-effort: callers hide the card on failure.
   getEngagement: (): Promise<{
@@ -1624,13 +1630,13 @@ export const adminAPI = {
   // partial counts (stoppedEarly) plus quotaExceeded. 429 = daily API quota
   // gone — the thrown Error carries the backend's user-facing message.
   youtube: {
-    sync: (grade: number, subject: string): Promise<{ added: number }> =>
+    sync: (grade: number, subject: string): Promise<{ added: number; rejected: number; rejectReasons: Record<string, number> }> =>
       apiRequest('/admin/youtube/sync', {
         method: 'POST',
         body: JSON.stringify({ grade, subject }),
       }),
 
-    syncAll: (): Promise<{ added: number; errors: number; stoppedEarly: boolean; quotaExceeded: boolean }> =>
+    syncAll: (): Promise<{ added: number; errors: number; rejected: number; rejectReasons: Record<string, number>; stoppedEarly: boolean; quotaExceeded: boolean }> =>
       apiRequest('/admin/youtube/sync-all', {
         method: 'POST',
       }),

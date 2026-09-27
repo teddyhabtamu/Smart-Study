@@ -66,5 +66,89 @@
       "Chemical Bonding",
       "Chemical Reaction and Stoichiometry"
     ]
+  },
+  {
+    "grade": 9,
+    "subject": "History",
+    "topics": [
+      "Ancient Aksumite Kingdom",
+      "Zagwe Dynasty",
+      "Gondarine Period",
+      "Oromo Population Movement",
+      "Ahmad ibn Ibrahim Wars",
+      "Harar Sultanates"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Geography",
+    "topics": [
+      "Solar System and Earth",
+      "Maps and Globes",
+      "Climate of Ethiopia",
+      "Population of Ethiopia",
+      "Natural Vegetation",
+      "Soils of Ethiopia"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Civics",
+    "topics": [
+      "Constitution Basics",
+      "Citizens Rights and Duties",
+      "Democracy Principles",
+      "Federalism in Ethiopia",
+      "Rule of Law",
+      "Civic Participation"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "ICT",
+    "topics": [
+      "Introduction to Computers",
+      "Computer Hardware",
+      "Computer Software",
+      "Operating Systems Basics",
+      "MS Word Basics",
+      "Internet Basics"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Amharic",
+    "topics": [
+      "Amharic Grammar Basics",
+      "Amharic Sentence Structure",
+      "Essay Writing in Amharic",
+      "Amharic Literature",
+      "Amharic Proverbs",
+      "Reading Comprehension in Amharic"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Afaan Oromoo",
+    "topics": [
+      "Afaan Oromo Grammar Basics",
+      "Afaan Oromo Sentence Structure",
+      "Essay Writing in Afaan Oromo",
+      "Afaan Oromo Literature",
+      "Afaan Oromo Proverbs",
+      "Reading Comprehension in Afaan Oromo"
+    ]
+  },
+  {
+    "grade": 9,
+    "subject": "Tigrigna",
+    "topics": [
+      "Tigrinya Grammar Basics",
+      "Tigrinya Sentence Structure",
+      "Essay Writing in Tigrinya",
+      "Tigrinya Literature",
+      "Tigrinya Proverbs",
+      "Reading Comprehension in Tigrinya"
+    ]
   }
 ]

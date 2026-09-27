@@ -62,5 +62,120 @@
       "Indigenous Conflict Resolution",
       "Artificial Intelligence"
     ]
+  },
+  {
+    "grade": 11,
+    "subject": "History",
+    "topics": [
+      "Ancient Egypt",
+      "Mesopotamia Civilization",
+      "Greek Civilization",
+      "Roman Empire",
+      "Medieval Europe",
+      "Renaissance and Reformation"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Geography",
+    "topics": [
+      "Landforms and Rocks",
+      "Weather and Climate",
+      "Hydrology Basics",
+      "Biogeography",
+      "Map Projections",
+      "GIS Basics"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Civics",
+    "topics": [
+      "State and Government",
+      "Sovereignty",
+      "Political Systems",
+      "Ethics and Integrity",
+      "Volunteerism",
+      "Global Citizenship"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Economics",
+    "topics": [
+      "Introduction to Economics",
+      "Theory of Demand",
+      "Theory of Supply",
+      "Market Equilibrium",
+      "Production and Costs"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Business",
+    "topics": [
+      "Introduction to Business",
+      "Entrepreneurship",
+      "Business Ownership Types",
+      "Marketing Basics",
+      "Business Environment"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "ICT",
+    "topics": [
+      "Programming Introduction",
+      "Algorithms and Flowcharts",
+      "Python Basics",
+      "Database Concepts"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Amharic",
+    "topics": [
+      "Amharic Advanced Grammar",
+      "Amharic Poetry Analysis",
+      "Argumentative Essays in Amharic",
+      "Amharic Novels and Drama",
+      "Amharic Oral Literature",
+      "Summary Writing in Amharic"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Afaan Oromoo",
+    "topics": [
+      "Afaan Oromo Advanced Grammar",
+      "Afaan Oromo Poetry Analysis",
+      "Argumentative Essays in Afaan Oromo",
+      "Afaan Oromo Novels and Drama",
+      "Afaan Oromo Oral Literature",
+      "Summary Writing in Afaan Oromo"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Tigrigna",
+    "topics": [
+      "Tigrinya Advanced Grammar",
+      "Tigrinya Poetry Analysis",
+      "Argumentative Essays in Tigrinya",
+      "Tigrinya Novels and Drama",
+      "Tigrinya Oral Literature",
+      "Summary Writing in Tigrinya"
+    ]
+  },
+  {
+    "grade": 11,
+    "subject": "Aptitude",
+    "topics": [
+      "Number Series",
+      "Analogies",
+      "Critical Reasoning",
+      "Spatial Reasoning",
+      "Coding and Decoding"
+    ]
   }
 ]

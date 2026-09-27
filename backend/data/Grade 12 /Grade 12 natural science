@@ -59,5 +59,122 @@
       "Introduction to Linear Programming",
       "Mathematical Applications in Business"
     ]
+  },
+  {
+    "grade": 12,
+    "subject": "History",
+    "topics": [
+      "World War I",
+      "World War II",
+      "Cold War",
+      "African Independence Movements",
+      "Globalization",
+      "Contemporary World Issues"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Geography",
+    "topics": [
+      "World Population",
+      "Economic Activities",
+      "Regional Geography of Africa",
+      "Development and Environment",
+      "Ethiopia in the World Economy",
+      "Fieldwork Techniques"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Civics",
+    "topics": [
+      "Constitutionalism",
+      "Foreign Policy of Ethiopia",
+      "International Organizations",
+      "Peace and Security",
+      "Development Ethics",
+      "Civic Responsibility"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Economics",
+    "topics": [
+      "Inflation",
+      "Unemployment",
+      "Poverty and Development",
+      "Ethiopian Economy",
+      "Money and Banking",
+      "International Trade"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Business",
+    "topics": [
+      "Business Planning",
+      "Accounting Basics",
+      "Finance for Business",
+      "Human Resource Management",
+      "Business Ethics"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "ICT",
+    "topics": [
+      "Web Design Basics",
+      "HTML Fundamentals",
+      "Data and Databases",
+      "Emerging Technologies",
+      "ICT and Society"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Amharic",
+    "topics": [
+      "Amharic Advanced Grammar",
+      "Amharic Poetry Analysis",
+      "Argumentative Essays in Amharic",
+      "Amharic Novels and Drama",
+      "Amharic Oral Literature",
+      "Summary Writing in Amharic"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Afaan Oromoo",
+    "topics": [
+      "Afaan Oromo Advanced Grammar",
+      "Afaan Oromo Poetry Analysis",
+      "Argumentative Essays in Afaan Oromo",
+      "Afaan Oromo Novels and Drama",
+      "Afaan Oromo Oral Literature",
+      "Summary Writing in Afaan Oromo"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Tigrigna",
+    "topics": [
+      "Tigrinya Advanced Grammar",
+      "Tigrinya Poetry Analysis",
+      "Argumentative Essays in Tigrinya",
+      "Tigrinya Novels and Drama",
+      "Tigrinya Oral Literature",
+      "Summary Writing in Tigrinya"
+    ]
+  },
+  {
+    "grade": 12,
+    "subject": "Aptitude",
+    "topics": [
+      "University Entrance Exam Prep",
+      "Reading Comprehension",
+      "Logical Reasoning",
+      "Data Interpretation",
+      "Time Distance Problems"
+    ]
   }
 ]

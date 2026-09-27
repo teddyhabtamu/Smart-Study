@@ -265,6 +265,17 @@ const countEmojis = (text: string): number =>
 // rejects, never vouches.
 const REJECT_CATEGORIES = new Set(['1', '10', '17', '19', '20', '23']);
 
+// Subjects taught IN a local language: their videos legitimately carry no
+// English (Afaan Oromoo lessons are in Oromo). Every other subject is
+// taught in English, so its videos must read as English or Ge'ez.
+const LANGUAGE_SUBJECTS = new Set(['amharic', 'afaan oromoo', 'tigrigna', 'english']);
+
+// Lesson-English markers: genuine tutorials (any country) use these words;
+// "Waa Maxay ICT?" (Somali) uses none. Checked only when nothing else
+// anchors the video (no topic match, no Ge'ez script) — a terse but
+// on-topic title never reaches this gate.
+const LESSON_ENGLISH = /\b(the|and|for|with|lesson|tutorial|class|grade|course|school|teacher|learn|learning|basics|introduction|intro|chapter|part|unit|explained|explanation|questions|revision|notes|full|complete|video|exam)\b/i;
+
 export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     const reasons: string[] = [];
     let score = 0;
@@ -284,6 +295,9 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     }
     if (s.embeddable === false) return reject('not-embeddable');
     if (/answer\s*key|exam\s*leak|leaked\s*(exam|paper)/i.test(blob)) return reject('answer-key-or-leak');
+    // Exam Q&A dumps ("Entrance exam questions and answers part 1") wear
+    // the subject as camouflage; real lessons teach, they don't recite.
+    if (/questions?\s*(and|&)\s*answers?/i.test(blob)) return reject('exam-qa-dump');
     if (/trivia|quiz\s*(game|time|show)|#quizgame|\biq\s*test|brain\s*test/i.test(lowerTitle)) return reject('trivia-gameshow');
     const letters = title.replace(/[^A-Za-z]/g, '');
     if (letters.length > 10 && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.7) {
@@ -293,13 +307,16 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     if (/[!?]{3,}/.test(title)) return reject('clickbait-punctuation');
 
     // Topic: the curriculum term must actually appear (half credit for partial).
+    // The ratio doubles as the language-gate bypass below: a strong topic
+    // match proves curriculum relevance in any wording.
+    let topicRatio = 0;
     if (s.topic && s.topic.trim()) {
         const topicTokens = tokenize(s.topic);
         const blobTokens = new Set(tokenize(blob));
         const hits = topicTokens.filter((t) => blobTokens.has(t)).length;
-        const ratio = topicTokens.length > 0 ? hits / topicTokens.length : 0;
-        if (ratio >= 1) { score += 3; reasons.push(`topic ${hits}/${topicTokens.length}`); }
-        else if (ratio >= 0.5) { score += 1; reasons.push(`topic-partial ${hits}/${topicTokens.length}`); }
+        topicRatio = topicTokens.length > 0 ? hits / topicTokens.length : 0;
+        if (topicRatio >= 1) { score += 3; reasons.push(`topic ${hits}/${topicTokens.length}`); }
+        else if (topicRatio >= 0.5) { score += 1; reasons.push(`topic-partial ${hits}/${topicTokens.length}`); }
     }
     // Subject (with synonyms: "Maths" counts for Mathematics).
     const blobLower = blob.toLowerCase();
@@ -324,6 +341,17 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     if (gradeCheck.status === 'match') {
         score += 1;
         reasons.push('grade');
+    }
+    // Language gate (last hard check before soft bonuses): non-language
+    // subjects are taught in English, so a video with no topic match, no
+    // Ge'ez script, and no English lesson-words is a wrong-language import
+    // (observed: Somali "Waa Maxay ICT?" filed as Grade 10 ICT). Language
+    // subjects (Amharic, Afaan Oromoo, Tigrigna) are exempt — their lessons
+    // legitimately carry no English.
+    if (!LANGUAGE_SUBJECTS.has(s.subject.toLowerCase()) && topicRatio < 0.5 &&
+        !ETHIOPIC_SCRIPT.test(`${title}\n${s.description || ''}\n${s.channelTitle || ''}`) &&
+        !LESSON_ENGLISH.test(blob)) {
+        return reject('language-mismatch');
     }
     // Duration sweet spot for a lesson; shorts already rejected above.
     if (s.durationSecs !== null && s.durationSecs >= 480 && s.durationSecs <= 1800) {
@@ -371,6 +399,15 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
         return { accept: false, score, reasons: [...reasons, `below-bar-${score}`] };
     }
     return { accept: true, score, reasons };
+};
+
+// Collapse verdict reason tails into stable counters for sync reports
+// ('grade-mismatch-claims-10' → 'grade-mismatch', 'below-bar-1' →
+// 'below-bar'). The admin sees WHY a thin sync rejected, instead of
+// reading "0 new videos" as a failure.
+export const rejectCode = (verdict: VideoVerdict): string => {
+    const tail = verdict.reasons[verdict.reasons.length - 1] || 'unknown';
+    return tail.replace(/-claims-.*$/, '-claims').replace(/below-bar-.*$/, 'below-bar');
 };
 
 // Row mapper: videos.views/likes are IN-APP counters (start at 0, owned by
@@ -467,14 +504,16 @@ export class YouTubeService {
      *   time limit, so cron callers pass one and get honest partial counts
      *   instead of a killed run that looks like a failure.
      */
-    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; stoppedEarly: boolean; quotaExceeded: boolean }> {
+    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; rejected: number; rejectReasons: Record<string, number>; stoppedEarly: boolean; quotaExceeded: boolean }> {
         if (!process.env.YOUTUBE_API_KEY) {
             console.log('YouTube sync skipped: YOUTUBE_API_KEY not configured');
-            return { added: 0, errors: 0, stoppedEarly: false, quotaExceeded: false };
+            return { added: 0, errors: 0, rejected: 0, rejectReasons: {}, stoppedEarly: false, quotaExceeded: false };
         }
 
         let totalAdded = 0;
         let totalErrors = 0;
+        let totalRejected = 0;
+        const totalReasons: Record<string, number> = {};
         let stoppedEarly = false;
         let quotaExceeded = false;
 
@@ -490,6 +529,11 @@ export class YouTubeService {
                     // id ('system', a random user) would violate the UUID FK.
                     const result = await this.syncVideosForGradeAndSubject(grade, subject, adminUserId);
                     totalAdded += result.added;
+                    totalRejected += result.rejected;
+                    for (const [code, n] of Object.entries(result.rejectReasons || {})) {
+                        totalReasons[code] = (totalReasons[code] || 0) + n;
+                    }
+                    totalRejected += result.rejected;
                 } catch (error) {
                     // Quota gone: every remaining subject would fail identically.
                     // Stop now and say so honestly instead of burning the whole
@@ -507,13 +551,13 @@ export class YouTubeService {
             if (stoppedEarly) break;
         }
 
-        return { added: totalAdded, errors: totalErrors, stoppedEarly, quotaExceeded };
+        return { added: totalAdded, errors: totalErrors, rejected: totalRejected, rejectReasons: totalReasons, stoppedEarly, quotaExceeded };
     }
 
     /**
      * Search and sync videos for a specific grade and subject, using Topics if available.
      */
-    static async syncVideosForGradeAndSubject(grade: number, subject: string, adminUserId: string | null): Promise<{ added: number }> {
+    static async syncVideosForGradeAndSubject(grade: number, subject: string, adminUserId: string | null): Promise<{ added: number; rejected: number; rejectReasons: Record<string, number> }> {
         const apiKey = this.getApiKey();
         const topics = this.getTopicsForGradeAndSubject(grade, subject);
 
@@ -532,6 +576,12 @@ export class YouTubeService {
         }
 
         let totalAddedForSubject = 0;
+        let totalRejectedForSubject = 0;
+        const rejectReasons: Record<string, number> = {};
+        const tallyReject = (verdict: VideoVerdict): void => {
+            const code = rejectCode(verdict);
+            rejectReasons[code] = (rejectReasons[code] || 0) + 1;
+        };
 
         for (let index = 0; index < searchQueries.length; index++) {
             const searchQuery = searchQueries[index];
@@ -615,6 +665,7 @@ export class YouTubeService {
                     });
                     if (!verdict.accept) {
                         rejected++;
+                        tallyReject(verdict);
                         continue;
                     }
                     scored.push({
@@ -637,10 +688,19 @@ export class YouTubeService {
                 scored.sort((a, b) => b.score - a.score);
                 const winners = scored.slice(0, ACCEPT_TOP_N);
                 const top = winners[0];
+                const topRejects = Object.entries(rejectReasons)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([code, n]) => `${code}×${n}`)
+                    .join(', ');
                 console.log(
                     `YouTube gate Grade ${grade} ${subject}: ${winners.length} accepted, ${rejected} rejected` +
+                    (topRejects ? ` [${topRejects}]` : '') +
                     (top ? ` (top: "${top.c.title.slice(0, 60)}" +${top.score} [${top.reasons.join(', ')}])` : '')
                 );
+                // Count rejects even when nothing was accepted (a fully
+                // rejected query is the most informative outcome of all).
+                totalRejectedForSubject += rejected;
                 if (winners.length === 0) continue;
                 const candidates = winners.map((w) => w.c);
 
@@ -682,6 +742,6 @@ export class YouTubeService {
             }
         }
 
-        return { added: totalAddedForSubject };
+        return { added: totalAddedForSubject, rejected: totalRejectedForSubject, rejectReasons };
     }
 }

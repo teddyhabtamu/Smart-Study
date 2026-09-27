@@ -41,11 +41,17 @@ router.post('/sync', authenticateToken, requireRole(['ADMIN', 'MODERATOR']), asy
 
     try {
         const result = await YouTubeService.syncVideosForGradeAndSubject(numericGrade, subject as string, adminUserId);
+        const topRejects = Object.entries(result.rejectReasons || {})
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([code, n]) => `${code}×${n}`)
+            .join(', ');
+        const detail = result.rejected > 0 ? ` Rejected ${result.rejected}${topRejects ? ` (${topRejects})` : ''}.` : '';
         res.json({
             success: true,
             message: result.added === 0
-                ? `No new videos for Grade ${numericGrade} ${subject} — library already has these results.`
-                : `Successfully synced ${result.added} new videos for Grade ${numericGrade} ${subject}.`,
+                ? `No new videos for Grade ${numericGrade} ${subject} — library already has these results.${detail}`
+                : `Successfully synced ${result.added} new videos for Grade ${numericGrade} ${subject}.${detail}`,
             data: result
         });
     } catch (error) {
@@ -132,6 +138,43 @@ router.get('/grade-audit', authenticateToken, requireRole(['ADMIN', 'MODERATOR']
     } catch (error) {
         console.error('Grade audit error:', error);
         res.status(500).json({ success: false, message: 'Failed to audit video grades' });
+    }
+});
+
+/**
+ * Bulk regrade (the audit panel's "Fix all"): one request moves many rows.
+ * NOTE: defined BEFORE /videos/:id/grade — Express matches in order and
+ * :id would otherwise swallow "regrade-bulk" as an id.
+ */
+router.patch('/videos/regrade-bulk', authenticateToken, requireRole(['ADMIN', 'MODERATOR']), [
+    body('fixes').isArray({ min: 1, max: 200 }).withMessage('fixes must be an array of 1-200 {id, grade} pairs'),
+    body('fixes.*.id').isString().trim().isLength({ min: 1, max: 64 }).withMessage('Each fix needs a video id'),
+    body('fixes.*.grade').isInt({ min: 9, max: 12 }).withMessage('Each grade must be 9, 10, 11 or 12'),
+], validateRequest, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const seen = new Map<string, number>();
+        for (const f of req.body.fixes as Array<{ id: string; grade: number }>) {
+            seen.set(String(f.id).trim(), Number(f.grade));
+        }
+        let updated = 0;
+        for (const [id, grade] of seen) {
+            const r = await dbQuery(
+                `UPDATE videos SET grade = $1, updated_at = NOW() WHERE id = $2`,
+                [grade, id]
+            );
+            if ((r.rowCount ?? 0) > 0) updated++;
+        }
+        logAdminActivity(req, {
+            action: 'video.bulk_regrade',
+            target_type: 'video',
+            target_id: `${updated}/${seen.size}`,
+            summary: `Bulk-regraded ${updated} of ${seen.size} videos`,
+            after: { fixes: [...seen.entries()].map(([id, grade]) => ({ id, grade })), updated, requested: seen.size }
+        }).catch(() => {});
+        res.json({ success: true, data: { updated, requested: seen.size } });
+    } catch (error) {
+        console.error('Bulk regrade videos error:', error);
+        res.status(500).json({ success: false, message: 'Failed to bulk-regrade videos' });
     }
 });
 

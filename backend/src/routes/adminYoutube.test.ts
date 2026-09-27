@@ -124,3 +124,37 @@ describe('PATCH /api/admin/youtube/videos/:id/grade', () => {
     expect((await request(app).patch('/api/admin/youtube/videos/v-bad/grade').set(auth()).send({ grade: 10 })).status).toBe(403);
   });
 });
+
+describe('PATCH /api/admin/youtube/videos/regrade-bulk', () => {
+  it('moves many rows in one request with an audit trail', async () => {
+    const { default: router } = await import('./admin-youtube');
+    const express = (await import('express')).default;
+    const request = (await import('supertest')).default;
+    const jwt = (await import('jsonwebtoken')).default;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/admin/youtube', router);
+    const token = jwt.sign({ userId: 'admin-1', email: 'a@e.com' }, 'test-secret');
+    const res = await request(app)
+      .patch('/api/admin/youtube/videos/regrade-bulk')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fixes: [{ id: 'v-1', grade: 10 }, { id: 'v-2', grade: 11 }, { id: 'v-1', grade: 10 }] });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ updated: 2, requested: 2 }); // dupes collapse
+  });
+
+  it('validates fixes and role', async () => {
+    const { default: router } = await import('./admin-youtube');
+    const express = (await import('express')).default;
+    const request = (await import('supertest')).default;
+    const jwt = (await import('jsonwebtoken')).default;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/admin/youtube', router);
+    const adminTok = jwt.sign({ userId: 'admin-1', email: 'a@e.com' }, 'test-secret');
+    expect((await request(app).patch('/api/admin/youtube/videos/regrade-bulk').set('Authorization', `Bearer ${adminTok}`).send({ fixes: [] })).status).toBe(400);
+    expect((await request(app).patch('/api/admin/youtube/videos/regrade-bulk').set(auth()).send({ fixes: [{ id: 'v-1', grade: 7 }] })).status).toBe(400);
+    currentRole = 'STUDENT';
+    expect((await request(app).patch('/api/admin/youtube/videos/regrade-bulk').set(auth()).send({ fixes: [{ id: 'v-1', grade: 10 }] })).status).toBe(403);
+  });
+});

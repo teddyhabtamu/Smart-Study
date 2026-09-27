@@ -383,3 +383,90 @@ describe('rotationIndex (deterministic weekly rotation)', () => {
     expect(rotationIndex(0)).toBe(0);
   });
 });
+
+describe('scoreCandidateVideo (language gate)', () => {
+  const somali = {
+    title: 'Waa Maxay ICT?',
+    description: '',
+    channelTitle: 'Somali Tech',
+    subject: 'ICT',
+    topic: 'MS Excel Basics',
+    grade: 10,
+    durationSecs: 900,
+    categoryId: '27',
+    embeddable: true,
+    viewCount: 50,
+    likeCount: 0,
+  };
+  it('rejects wrong-language imports on unanchored videos', () => {
+    const v = scoreCandidateVideo(base(somali));
+    expect(v.accept).toBe(false);
+    expect(v.reasons.join(' ')).toContain('language-mismatch');
+  });
+
+  it('passes Ge’ez-script titles without English lesson words', () => {
+    const v = scoreCandidateVideo(
+      base({
+        ...somali,
+        title: 'ሪሚዲያል ባይሎጂ ምዕራፍ 1',
+        description: '',
+        channelTitle: 'Tilet Academy',
+        subject: 'Biology',
+      })
+    );
+    expect(v.accept).toBe(true);
+    expect(v.reasons.join(' ')).not.toContain('language-mismatch');
+  });
+
+  it('exempts language subjects (Oromo lessons carry no English)', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'Afaan Oromo grammar lesson part 1',
+        description: 'caasluuga',
+        channelTitle: 'Oromo Academy',
+        subject: 'Afaan Oromoo',
+        topic: null,
+        durationSecs: 900,
+      })
+    );
+    expect(v.accept).toBe(true);
+    expect(v.reasons.join(' ')).not.toContain('language-mismatch');
+  });
+
+  it('never gates a strong topic match on language', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'Photosynthesis',
+        description: ' contracted',
+        channelTitle: 'Bio',
+        subject: 'Biology',
+        topic: 'photosynthesis',
+      })
+    );
+    // Topic ratio 1.0 skips the gate; acceptance decided on merit.
+    expect(v.reasons.join(' ')).not.toContain('language-mismatch');
+  });
+});
+
+describe('scoreCandidateVideo (exam Q&A dumps)', () => {
+  it('rejects "questions and answers" entrance dumps', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'Ethiopian Physics Entrance exam 2014 questions and answers part 1',
+        description: 'all questions with answers',
+        topic: 'motion',
+      })
+    );
+    expect(v.accept).toBe(false);
+    expect(v.reasons.join(' ')).toContain('exam-qa-dump');
+  });
+});
+
+describe('rejectCode (sync report counters)', () => {
+  it('collapses claim details and below-bar scores', async () => {
+    const { rejectCode } = await import('./youtubeService');
+    expect(rejectCode({ accept: false, score: -100, reasons: ['x', 'grade-mismatch-claims-10'] })).toBe('grade-mismatch-claims');
+    expect(rejectCode({ accept: false, score: 1, reasons: ['subject', 'below-bar-1'] })).toBe('below-bar');
+    expect(rejectCode({ accept: false, score: 0, reasons: [] })).toBe('unknown');
+  });
+});

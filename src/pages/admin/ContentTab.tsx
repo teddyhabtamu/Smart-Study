@@ -122,6 +122,44 @@ const ContentTab: React.FC = () => {
       setIsRegrading(null);
     }
   };
+
+  // Bulk audit actions: fix-all moves every UNAMBIGUOUS row (exactly one
+  // claimed grade) in one request; ambiguous rows (ranges, multi-claims)
+  // stay for human judgment. Delete-all reuses the bulk-delete confirm
+  // flow by loading the listed ids into the selection.
+  const [isBulkFixing, setIsBulkFixing] = useState(false);
+  const unambiguousFixes = (gradeAudit?.mismatches || [])
+    .filter((m) => m.claimedGrades.length === 1)
+    .map((m) => ({ id: m.id, grade: m.claimedGrades[0] as number }));
+
+  const fixAllSuggested = async () => {
+    if (unambiguousFixes.length === 0 || isBulkFixing) return;
+    setIsBulkFixing(true);
+    try {
+      const result = await adminAPI.bulkRegradeVideos(unambiguousFixes);
+      addToast(
+        result.updated === result.requested
+          ? `${result.updated} videos moved to their claimed grades`
+          : `Moved ${result.updated} of ${result.requested} (the rest were already gone)`,
+        'success'
+      );
+      await Promise.all([runGradeAudit(), fetchVideos()]);
+    } catch (error: any) {
+      addToast(error?.message || 'Bulk fix failed', 'error');
+    } finally {
+      setIsBulkFixing(false);
+    }
+  };
+
+  const deleteAllListed = () => {
+    if (!gradeAudit || gradeAudit.mismatches.length === 0) return;
+    setSelectedIds(gradeAudit.mismatches.map((m) => String(m.id)));
+    setRefreshAuditAfterBulk(true);
+    setBulkDeleteOpen(true);
+  };
+  // Set by deleteAllListed: the generic bulk-delete handler refreshes the
+  // audit afterwards so the panel reflects the deletions.
+  const [refreshAuditAfterBulk, setRefreshAuditAfterBulk] = useState(false);
   const isDocCategory = contentCategory !== 'videos';
   // Switching tabs changes the item pool — a stale selection would act on
   // invisible rows, so it resets. Search keeps the selection (standard).
@@ -152,6 +190,10 @@ const ContentTab: React.FC = () => {
         : await deleteVideos(selectedIds);
       if (editingId && selectedSet.has(String(editingId))) resetForm();
       clearSelection();
+      if (refreshAuditAfterBulk) {
+        setRefreshAuditAfterBulk(false);
+        await runGradeAudit();
+      }
       addToast(
         result.deleted === result.requested
           ? `${result.deleted} item${result.deleted === 1 ? '' : 's'} deleted permanently`
@@ -508,15 +550,28 @@ const ContentTab: React.FC = () => {
     setDeleteConfirmation({ isOpen: false, id: null, title: null, type: null });
   };
 
+  // Human-readable reject breakdown ("rejected 18: grade-mismatch×9,
+  // trivia×5") so a thin sync reads as the gate working, not failing.
+  const rejectSummary = (rejected: number, reasons?: Record<string, number>): string => {
+    if (!rejected) return '';
+    const top = Object.entries(reasons || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([code, n]) => `${code}×${n}`)
+      .join(', ');
+    return ` Rejected ${rejected}${top ? ` (${top})` : ''}.`;
+  };
+
   const handleSingleSync = async () => {
     setIsSyncingSingle(true);
     setSyncFeedback(null);
     try {
       const gradeNum = syncGrade === 'General' ? 0 : parseInt(syncGrade, 10);
       const result = await adminAPI.youtube.sync(gradeNum, syncSubject);
+      const detail = rejectSummary(result.rejected, result.rejectReasons);
       const msg = result.added === 0
-        ? `No new videos for Grade ${syncGrade} ${syncSubject} — library already has these results.`
-        : `Added ${result.added} new video${result.added === 1 ? '' : 's'} for Grade ${syncGrade} ${syncSubject}.`;
+        ? `No new videos for Grade ${syncGrade} ${syncSubject} — library already has these results.${detail}`
+        : `Added ${result.added} new video${result.added === 1 ? '' : 's'} for Grade ${syncGrade} ${syncSubject}.${detail}`;
       setSyncFeedback({ kind: 'success', text: msg });
       addToast(msg, 'success');
       await fetchVideos();
@@ -535,7 +590,7 @@ const ContentTab: React.FC = () => {
     setSyncFeedback(null);
     try {
       const result = await adminAPI.youtube.syncAll();
-      let text = `Global sync added ${result.added} new video${result.added === 1 ? '' : 's'} (${result.errors} error${result.errors === 1 ? '' : 's'}).`;
+      let text = `Global sync added ${result.added} new video${result.added === 1 ? '' : 's'} (${result.errors} error${result.errors === 1 ? '' : 's'}).${rejectSummary(result.rejected, result.rejectReasons)}`;
       if (result.quotaExceeded) {
         text += ' YouTube API quota exhausted — rerun after the daily reset.';
       } else if (result.stoppedEarly) {
@@ -918,24 +973,46 @@ const ContentTab: React.FC = () => {
                  </div>
               </div>
 
-              {/* Grade-audit results: one row per mismatch with an inline
-                  regrade (applies + refreshes) or delete (existing flow). */}
+              {/* Grade-audit results: Fix-all moves every unambiguous row
+                  (one claimed grade) in a single request; ambiguous rows
+                  stay for judgment. Delete-all reuses the bulk-delete
+                  confirm flow. Surfaces adapt to the theme (no fixed
+                  light fills). */}
               {gradeAudit && gradeAudit.mismatches.length > 0 && (
-                <div className="mx-3 sm:mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4">
-                  <p className="text-xs font-bold text-amber-800 mb-1">
-                    {gradeAudit.mismatched} of {gradeAudit.checked} videos claim another grade in their title
-                    {gradeAudit.truncated ? ' (showing first 200)' : ''}
-                  </p>
-                  <p className="text-[11px] text-amber-700 mb-3">Move each to the grade its title claims, or delete it. New syncs verify this automatically.</p>
+                <div className="mx-3 sm:mx-4 mt-3 rounded-xl border border-amber-200/70 bg-surface p-3 sm:p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <p className="text-xs font-bold text-ink flex-1 min-w-[200px]">
+                      {gradeAudit.mismatched} of {gradeAudit.checked} videos claim another grade in their title
+                      {gradeAudit.truncated ? ' (showing first 200)' : ''}
+                    </p>
+                    <button
+                      onClick={fixAllSuggested}
+                      disabled={isBulkFixing || unambiguousFixes.length === 0}
+                      title={unambiguousFixes.length === 0 ? 'No unambiguous rows — every mismatch claims several grades' : `Move ${unambiguousFixes.length} videos to their claimed grades`}
+                      className="px-2.5 py-1.5 text-[11px] font-bold bg-zinc-900 text-onink rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                    >
+                      {isBulkFixing ? 'Fixing…' : `Fix all (${unambiguousFixes.length})`}
+                    </button>
+                    <button
+                      onClick={deleteAllListed}
+                      className="px-2.5 py-1.5 text-[11px] font-bold bg-surface border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      Delete all ({gradeAudit.mismatches.length})
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mb-3">Fix-all moves rows with a single claimed grade; ranges stay below for judgment. New syncs verify this automatically.</p>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {gradeAudit.mismatches.map((m) => (
-                      <div key={m.id} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-surface border border-amber-200 rounded-lg">
+                      <div key={m.id} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-zinc-50 border border-zinc-200 rounded-lg">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-ink truncate">{m.title}</p>
                           <p className="text-[11px] text-zinc-500 mt-0.5">
                             Stored: <strong>Grade {m.storedGrade}</strong>
-                            {' · '}Claims: <strong>Grade {m.claimedGrades.join(', ')}</strong>
+                            {' · '}Claims: <strong className="text-amber-700">Grade {m.claimedGrades.join(', ')}</strong>
                             {' · '}{m.subject}
+                            {m.claimedGrades.length > 1 && (
+                              <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-zinc-400">needs judgment</span>
+                            )}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
