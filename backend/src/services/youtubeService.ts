@@ -402,12 +402,17 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
 };
 
 // Collapse verdict reason tails into stable counters for sync reports
-// ('grade-mismatch-claims-10' → 'grade-mismatch', 'below-bar-1' →
-// 'below-bar'). The admin sees WHY a thin sync rejected, instead of
+// ('grade-mismatch-claims-10' → 'grade-mismatch-claims', 'below-bar-1' →
+// 'below-bar', 'too-short-212s' → 'too-short'). Per-second/per-grade tails
+// would fragment the report into noise (observed: 9 distinct too-short
+// codes in one run). The admin sees WHY a thin sync rejected, instead of
 // reading "0 new videos" as a failure.
 export const rejectCode = (verdict: VideoVerdict): string => {
     const tail = verdict.reasons[verdict.reasons.length - 1] || 'unknown';
-    return tail.replace(/-claims-.*$/, '-claims').replace(/below-bar-.*$/, 'below-bar');
+    return tail
+        .replace(/-claims-.*$/, '-claims')
+        .replace(/below-bar-.*$/, 'below-bar')
+        .replace(/^too-short-.*$/, 'too-short');
 };
 
 // Row mapper: videos.views/likes are IN-APP counters (start at 0, owned by
@@ -504,15 +509,16 @@ export class YouTubeService {
      *   time limit, so cron callers pass one and get honest partial counts
      *   instead of a killed run that looks like a failure.
      */
-    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; rejected: number; rejectReasons: Record<string, number>; stoppedEarly: boolean; quotaExceeded: boolean }> {
+    static async syncAllGradesAndSubjects(adminUserId: string | null, opts?: { deadline?: number }): Promise<{ added: number; errors: number; rejected: number; rejectReasons: Record<string, number>; skippedNoTopics: number; stoppedEarly: boolean; quotaExceeded: boolean }> {
         if (!process.env.YOUTUBE_API_KEY) {
             console.log('YouTube sync skipped: YOUTUBE_API_KEY not configured');
-            return { added: 0, errors: 0, rejected: 0, rejectReasons: {}, stoppedEarly: false, quotaExceeded: false };
+            return { added: 0, errors: 0, rejected: 0, rejectReasons: {}, skippedNoTopics: 0, stoppedEarly: false, quotaExceeded: false };
         }
 
         let totalAdded = 0;
         let totalErrors = 0;
         let totalRejected = 0;
+        let skippedNoTopics = 0;
         const totalReasons: Record<string, number> = {};
         let stoppedEarly = false;
         let quotaExceeded = false;
@@ -522,6 +528,15 @@ export class YouTubeService {
                 if (opts?.deadline && Date.now() > opts.deadline) {
                     stoppedEarly = true;
                     break;
+                }
+                // Curriculum-void combos (e.g. Grade 9 Business — not taught
+                // at that level) have no topic anchor, so a search would be
+                // broad soup the gate rejects wholesale. Skip BEFORE spending
+                // ~100 quota units to learn that. Explicit single-syncs still
+                // run on admin intent; this skips only the blind bulk loop.
+                if (this.getTopicsForGradeAndSubject(grade, subject).length === 0) {
+                    skippedNoTopics++;
+                    continue;
                 }
                 try {
                     console.log(`Syncing YouTube for Grade ${grade} ${subject}...`);
@@ -533,7 +548,6 @@ export class YouTubeService {
                     for (const [code, n] of Object.entries(result.rejectReasons || {})) {
                         totalReasons[code] = (totalReasons[code] || 0) + n;
                     }
-                    totalRejected += result.rejected;
                 } catch (error) {
                     // Quota gone: every remaining subject would fail identically.
                     // Stop now and say so honestly instead of burning the whole
@@ -551,7 +565,7 @@ export class YouTubeService {
             if (stoppedEarly) break;
         }
 
-        return { added: totalAdded, errors: totalErrors, rejected: totalRejected, rejectReasons: totalReasons, stoppedEarly, quotaExceeded };
+        return { added: totalAdded, errors: totalErrors, rejected: totalRejected, rejectReasons: totalReasons, skippedNoTopics, stoppedEarly, quotaExceeded };
     }
 
     /**

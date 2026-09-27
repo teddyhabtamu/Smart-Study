@@ -80,9 +80,12 @@ router.post('/sync-all', authenticateToken, requireRole(['ADMIN', 'MODERATOR']),
             : result.stoppedEarly
                 ? ' Stopped early on time budget — rerun to cover more combinations (existing videos are skipped, but each search costs API quota).'
                 : '';
+        const skipped = result.skippedNoTopics > 0
+            ? ` Skipped ${result.skippedNoTopics} combos with no curriculum topics (not taught at that level — no quota spent).`
+            : '';
         res.json({
             success: true,
-            message: `Global sync completed. Added ${result.added} new videos. Encountered ${result.errors} errors.${suffix}`,
+            message: `Global sync completed. Added ${result.added} new videos. Encountered ${result.errors} errors.${skipped}${suffix}`,
             data: result
         });
     } catch (error) {

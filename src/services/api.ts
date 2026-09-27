@@ -1636,7 +1636,7 @@ export const adminAPI = {
         body: JSON.stringify({ grade, subject }),
       }),
 
-    syncAll: (): Promise<{ added: number; errors: number; rejected: number; rejectReasons: Record<string, number>; stoppedEarly: boolean; quotaExceeded: boolean }> =>
+    syncAll: (): Promise<{ added: number; errors: number; rejected: number; rejectReasons: Record<string, number>; skippedNoTopics: number; stoppedEarly: boolean; quotaExceeded: boolean }> =>
       apiRequest('/admin/youtube/sync-all', {
         method: 'POST',
       }),

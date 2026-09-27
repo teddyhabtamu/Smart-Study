@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   buildSearchQuery,
   parseDurationSecs,
@@ -468,5 +468,32 @@ describe('rejectCode (sync report counters)', () => {
     expect(rejectCode({ accept: false, score: -100, reasons: ['x', 'grade-mismatch-claims-10'] })).toBe('grade-mismatch-claims');
     expect(rejectCode({ accept: false, score: 1, reasons: ['subject', 'below-bar-1'] })).toBe('below-bar');
     expect(rejectCode({ accept: false, score: 0, reasons: [] })).toBe('unknown');
+  });
+});
+
+describe('rejectCode (counter hygiene)', () => {
+  it('collapses per-second too-short tails', async () => {
+    const { rejectCode } = await import('./youtubeService');
+    expect(rejectCode({ accept: false, score: -100, reasons: ['too-short-212s'] })).toBe('too-short');
+    expect(rejectCode({ accept: false, score: -100, reasons: ['too-short-6s'] })).toBe('too-short');
+  });
+});
+
+describe('syncAllGradesAndSubjects (quota discipline)', () => {
+  it('skips curriculum-void combos before spending quota', async () => {
+    const { YouTubeService, GRADES, SUBJECTS } = await import('./youtubeService');
+    const spy = vi
+      .spyOn(YouTubeService, 'getTopicsForGradeAndSubject')
+      .mockReturnValue([]);
+    process.env.YOUTUBE_API_KEY = 'test-key';
+    try {
+      const r = await YouTubeService.syncAllGradesAndSubjects(null);
+      expect(r.skippedNoTopics).toBe(GRADES.length * SUBJECTS.length);
+      expect(r.added).toBe(0);
+      expect(r.errors).toBe(0);
+    } finally {
+      spy.mockRestore();
+      delete process.env.YOUTUBE_API_KEY;
+    }
   });
 });

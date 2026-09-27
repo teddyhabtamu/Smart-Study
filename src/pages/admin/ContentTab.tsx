@@ -591,6 +591,9 @@ const ContentTab: React.FC = () => {
     try {
       const result = await adminAPI.youtube.syncAll();
       let text = `Global sync added ${result.added} new video${result.added === 1 ? '' : 's'} (${result.errors} error${result.errors === 1 ? '' : 's'}).${rejectSummary(result.rejected, result.rejectReasons)}`;
+      if (result.skippedNoTopics > 0) {
+        text += ` Skipped ${result.skippedNoTopics} combos with no curriculum topics (no quota spent).`;
+      }
       if (result.quotaExceeded) {
         text += ' YouTube API quota exhausted — rerun after the daily reset.';
       } else if (result.stoppedEarly) {
