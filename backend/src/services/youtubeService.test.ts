@@ -6,6 +6,10 @@ import {
   MIN_ACCEPT_SCORE,
   isQuotaExceededError,
   toVideoRow,
+  extractGradeClaims,
+  verifyVideoGrade,
+  rotationIndex,
+  isoWeekNumber,
   type VideoSignals,
 } from './youtubeService';
 
@@ -271,5 +275,111 @@ describe('toVideoRow (counter-separation contract)', () => {
       is_premium: false,
       uploaded_by: 'admin-1',
     });
+  });
+});
+
+describe('extractGradeClaims (grade verification source of truth)', () => {
+  it('reads grade/class/ordinal claims', () => {
+    expect(extractGradeClaims('Grade 10 Biology full lesson')).toEqual([10]);
+    expect(extractGradeClaims('grade-12 physics revision')).toEqual([12]);
+    expect(extractGradeClaims('Class 10 Maths polynomials')).toEqual([10]);
+    expect(extractGradeClaims('10th grade chemistry')).toEqual([10]);
+  });
+
+  it('expands ranges and conjunctions', () => {
+    expect(extractGradeClaims('Physics grades 9-12 complete course')).toEqual([9, 10, 11, 12]);
+    expect(extractGradeClaims('Grade 10 & 11 revision')).toEqual([10, 11]);
+    expect(extractGradeClaims('for class 9 to 12 students')).toEqual([9, 10, 11, 12]);
+  });
+
+  it('maps East-African Forms to grades', () => {
+    expect(extractGradeClaims('Form 2 Biology: cells')).toEqual([10]);
+    expect(extractGradeClaims('Form 1-4 mathematics papers')).toEqual([9, 10, 11, 12]);
+  });
+
+  it('never fires on bare numbers, top-10s, or uniform-like words', () => {
+    expect(extractGradeClaims('10 toughest questions solved')).toEqual([]);
+    expect(extractGradeClaims('Top 10 exam tips')).toEqual([]);
+    expect(extractGradeClaims('Uniform circular motion')).toEqual([]);
+    expect(extractGradeClaims('Quadratic Equations - Full Chapter')).toEqual([]);
+  });
+});
+
+describe('verifyVideoGrade (match/mismatch/silent)', () => {
+  it('matches claimed and range-covered grades', () => {
+    expect(verifyVideoGrade(10, 'Grade 10 Biology', '').status).toBe('match');
+    expect(verifyVideoGrade(12, 'Physics grades 9-12', '').status).toBe('match');
+    expect(verifyVideoGrade(10, 'Form 2 lesson', '').status).toBe('match');
+  });
+
+  it('flags explicit mismatches with the claimed grades', () => {
+    const r = verifyVideoGrade(12, 'Grade 10 Biology full lesson', '');
+    expect(r.status).toBe('mismatch');
+    expect(r.claimed).toEqual([10]);
+  });
+
+  it('stays silent on claim-free titles (Khan-style)', () => {
+    expect(verifyVideoGrade(10, 'Quadratic Equations - Full Chapter', '').status).toBe('silent');
+  });
+});
+
+describe('scoreCandidateVideo (grade-mismatch gate)', () => {
+  it('rejects the reported symptom: "Grade 10" title in a Grade-12 sync', () => {
+    const v = scoreCandidateVideo(
+      base({
+        title: 'Grade 10 Biology: cells full lesson in Amharic',
+        description: 'Grade 10 cells explained',
+        channelTitle: 'Tilet Academy',
+        subject: 'Biology',
+        topic: 'cells',
+        grade: 12,
+        durationSecs: 900,
+        viewCount: 50000,
+        likeCount: 2000,
+      })
+    );
+    expect(v.accept).toBe(false);
+    expect(v.reasons.join(' ')).toMatch(/grade-mismatch-claims-10/);
+  });
+
+  it('still bonuses a matching grade claim', () => {
+    const v = scoreCandidateVideo(
+      base({ title: 'Grade 10 Math: polynomial functions', topic: 'polynomial functions' })
+    );
+    expect(v.accept).toBe(true);
+    expect(v.reasons.join(' ')).toContain('grade');
+  });
+
+  it('rejects subject-missing videos on topic-less searches', () => {
+    const v = scoreCandidateVideo(
+      base({ title: 'Amazing science experiments compilation', description: 'fun videos', topic: null })
+    );
+    expect(v.accept).toBe(false);
+    expect(v.reasons.join(' ')).toContain('subject-missing');
+  });
+
+  it('keeps topic-anchored scoring when the subject word is absent', () => {
+    // Topic terms are subject-specific: "quadratic equations" needs no
+    // literal "Mathematics" to prove its subject.
+    const v = scoreCandidateVideo(base({ title: 'Quadratic equations trick', description: 'solve fast' }));
+    expect(v.accept).toBe(true);
+  });
+});
+
+describe('rotationIndex (deterministic weekly rotation)', () => {
+  it('is stable within a week and cycles without state', () => {
+    const monday = new Date(Date.UTC(2026, 8, 21)); // a Monday
+    const sunday = new Date(Date.UTC(2026, 8, 27)); // same week Sunday
+    expect(isoWeekNumber(monday)).toBe(isoWeekNumber(sunday));
+    expect(rotationIndex(7, monday)).toBe(rotationIndex(7, sunday));
+    const seen = new Set<number>();
+    for (let w = 0; w < 7; w++) {
+      seen.add(rotationIndex(7, new Date(Date.UTC(2026, 8, 21 + w * 7))));
+    }
+    expect(seen.size).toBe(7); // full coverage, no repeats until cycled
+  });
+
+  it('guards empty topic lists', () => {
+    expect(rotationIndex(0)).toBe(0);
   });
 });

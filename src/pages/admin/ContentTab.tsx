@@ -76,12 +76,59 @@ const ContentTab: React.FC = () => {
   const [isBulkWorking, setIsBulkWorking] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const selectedSet = new Set(selectedIds.map(String));
+
+  // Grade audit (videos only): rows whose stored grade contradicts the
+  // grades their own title/description claims — the legacy of the old
+  // stamp-the-loop-grade sync. Zero quota to run; fix per row below.
+  const [gradeAudit, setGradeAudit] = useState<{
+    checked: number; mismatched: number; silent: number; truncated: boolean;
+    mismatches: Array<{ id: string; title: string; subject: string; storedGrade: number; claimedGrades: number[]; video_url: string }>;
+  } | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [regradeChoice, setRegradeChoice] = useState<Record<string, string>>({});
+  const [isRegrading, setIsRegrading] = useState<string | null>(null);
+
+  const runGradeAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const result = await adminAPI.getVideoGradeAudit();
+      setGradeAudit(result);
+      if (result.mismatched === 0) {
+        addToast(`Checked ${result.checked} videos — grades all match their titles`, 'success');
+      }
+    } catch (error: any) {
+      addToast(error?.message || 'Grade audit failed', 'error');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const applyRegrade = async (id: string) => {
+    const grade = parseInt(regradeChoice[id] || '', 10);
+    if (![9, 10, 11, 12].includes(grade) || isRegrading) return;
+    setIsRegrading(id);
+    try {
+      await adminAPI.regradeVideo(id, grade);
+      addToast(`Video moved to Grade ${grade}`, 'success');
+      setRegradeChoice((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      await Promise.all([runGradeAudit(), fetchVideos()]);
+    } catch (error: any) {
+      addToast(error?.message || 'Regrade failed', 'error');
+    } finally {
+      setIsRegrading(null);
+    }
+  };
   const isDocCategory = contentCategory !== 'videos';
   // Switching tabs changes the item pool — a stale selection would act on
   // invisible rows, so it resets. Search keeps the selection (standard).
   useEffect(() => {
     setSelectedIds([]);
     setBulkDeleteOpen(false);
+    setGradeAudit(null);
   }, [contentCategory]);
   const toggleSelect = (id: string) => {
     const key = String(id);
@@ -838,6 +885,18 @@ const ContentTab: React.FC = () => {
                    <span className="sm:hidden">{contentCategory === 'documents' ? 'Documents' : contentCategory === 'past-exams' ? 'Past Exams' : 'Videos'}</span>
                  </h3>
                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                 {/* Grade audit (videos only): legacy rows were stamped with
+                     the sync loop's grade, so titles often claim another one. */}
+                 {contentCategory === 'videos' && (
+                   <button
+                     onClick={runGradeAudit}
+                     disabled={auditLoading}
+                     title="Check stored grades against grades claimed in titles"
+                     className="text-[11px] font-bold text-amber-700 hover:text-amber-800 whitespace-nowrap px-2 py-1.5 disabled:opacity-50"
+                   >
+                     {auditLoading ? 'Auditing…' : gradeAudit ? 'Re-audit grades' : 'Audit grades'}
+                   </button>
+                 )}
                  {filteredItems.length > 0 && (
                    <button
                      onClick={toggleSelectAllFiltered}
@@ -857,8 +916,60 @@ const ContentTab: React.FC = () => {
                    />
                 </div>
                  </div>
-             </div>
-             
+              </div>
+
+              {/* Grade-audit results: one row per mismatch with an inline
+                  regrade (applies + refreshes) or delete (existing flow). */}
+              {gradeAudit && gradeAudit.mismatches.length > 0 && (
+                <div className="mx-3 sm:mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4">
+                  <p className="text-xs font-bold text-amber-800 mb-1">
+                    {gradeAudit.mismatched} of {gradeAudit.checked} videos claim another grade in their title
+                    {gradeAudit.truncated ? ' (showing first 200)' : ''}
+                  </p>
+                  <p className="text-[11px] text-amber-700 mb-3">Move each to the grade its title claims, or delete it. New syncs verify this automatically.</p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {gradeAudit.mismatches.map((m) => (
+                      <div key={m.id} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-surface border border-amber-200 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-ink truncate">{m.title}</p>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">
+                            Stored: <strong>Grade {m.storedGrade}</strong>
+                            {' · '}Claims: <strong>Grade {m.claimedGrades.join(', ')}</strong>
+                            {' · '}{m.subject}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <select
+                            value={regradeChoice[m.id] ?? String(m.claimedGrades[0] ?? m.storedGrade)}
+                            onChange={(e) => setRegradeChoice((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                            aria-label={`Correct grade for ${m.title}`}
+                            className="text-xs border border-zinc-300 rounded-lg px-2 py-1.5 bg-surface text-ink focus:outline-none focus:border-zinc-500"
+                          >
+                            {[9, 10, 11, 12].map((g) => (
+                              <option key={g} value={g}>Grade {g}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => applyRegrade(m.id)}
+                            disabled={isRegrading === m.id}
+                            className="px-2.5 py-1.5 text-[11px] font-bold bg-zinc-900 text-onink rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                          >
+                            {isRegrading === m.id ? 'Moving…' : 'Apply'}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(m.id)}
+                            title={`Delete "${m.title}"`}
+                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {loading.documents || loading.videos ? (
                 <ContentTableSkeleton />
               ) : (

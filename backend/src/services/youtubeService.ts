@@ -59,6 +59,125 @@ export const isQuotaExceededError = (err: any): boolean => {
     }
 };
 
+// --- Grade-claim extraction (single source of truth) ------------------------
+// Reads the grades a video CLAIMS (title + description) so the sync gate can
+// reject explicit mismatches and the library audit can flag old rows. The
+// sync loop's grade is an assumption; this is the verification.
+// Covered forms: "grade 10", "grade-10", "class 10", "10th (grade)",
+// ranges ("grades 9-12", "grade 9 to 12"), and East-African Forms
+// (Form 1-4 ≈ Grades 9-12 — Kenyan/Tanzanian creators teach the same
+// syllabus and routinely show up in "Ethiopia"-biased searches).
+// Deliberately NOT covered: bare numbers ("10" alone is usually a count),
+// "top 10" (no ordinal), SS1-SS3 (West-African system, out of scope).
+const FORM_TO_GRADE: Record<number, number> = { 1: 9, 2: 10, 3: 11, 4: 12 };
+
+export const extractGradeClaims = (text: string): number[] => {
+    const claimed = new Set<number>();
+    const blob = String(text || '');
+    const grab = (s: string, re: RegExp): void => {
+        let m: RegExpExecArray | null;
+        re.lastIndex = 0;
+        while ((m = re.exec(s)) !== null) {
+            const n = parseInt(m[1] ?? '', 10);
+            if (Number.isFinite(n)) claimed.add(n);
+            // Guard against zero-length-match loops on global regexes.
+            if (m[0].length === 0) re.lastIndex++;
+        }
+    };
+    // grade 10 / grade-10 / grade: 10
+    grab(blob, /\bgrades?\s*[:\-]?\s*0?(\d{1,2})\b/gi);
+    // "grade 10 & 11", "grade 10 and 11", "class 9, 10" — lists after one keyword.
+    const lists = (s: string, re: RegExp): void => {
+        let m: RegExpExecArray | null;
+        re.lastIndex = 0;
+        while ((m = re.exec(s)) !== null) {
+            for (const num of (m[1] || '').match(/0?\d{1,2}/g) || []) {
+                const n = parseInt(num, 10);
+                if (Number.isFinite(n)) claimed.add(n);
+            }
+            if (m[0].length === 0) re.lastIndex++;
+        }
+    };
+    lists(blob, /\bgrades?\s*((?:0?\d{1,2})\s*(?:[,/&]|\band\b)\s*0?\d{1,2}(?:\s*(?:[,/&]|\band\b)\s*0?\d{1,2})*)/gi);
+    lists(blob, /\bclass\s*((?:0?\d{1,2})\s*(?:[,/&]|\band\b)\s*0?\d{1,2}(?:\s*(?:[,/&]|\band\b)\s*0?\d{1,2})*)/gi);
+    // class 10 (Indian/Pakistani creators' equivalent)
+    grab(blob, /\bclass\s*0?(\d{1,2})\b/gi);
+    // 10th (grade) — ordinal; "top 10" has no suffix so it never matches.
+    grab(blob, /\b0?(\d{1,2})(?:st|nd|rd|th)\b/gi);
+    // form 2 / form-2 (East Africa) → mapped to grades.
+    const forms = new Set<number>();
+    grab(blob, /\bforms?\s*[:\-]?\s*0?(\d)\b/gi);
+    // NOTE: grab() above added raw form numbers 1-4 to `claimed`; move them
+    // through the mapping instead (a bare "2" must never read as Grade 2).
+    for (const n of [...claimed]) {
+        if (n >= 1 && n <= 4 && /\bforms?\s*[:\-]?\s*0?\d\b/i.test(blob)) {
+            claimed.delete(n);
+            forms.add(n);
+        }
+    }
+    for (const f of forms) {
+        if (FORM_TO_GRADE[f] !== undefined) claimed.add(FORM_TO_GRADE[f]);
+    }
+    // Ranges expand: "grades 9-12", "grade 9 to 12", "class 9–12".
+    const range = (s: string, re: RegExp): void => {
+        let m: RegExpExecArray | null;
+        re.lastIndex = 0;
+        while ((m = re.exec(s)) !== null) {
+            const a = parseInt(m[1] ?? '', 10);
+            const b = parseInt(m[2] ?? '', 10);
+            if (Number.isFinite(a) && Number.isFinite(b)) {
+                const [lo, hi] = a <= b ? [a, b] : [b, a];
+                for (let g = lo; g <= hi; g++) claimed.add(g);
+            }
+            if (m[0].length === 0) re.lastIndex++;
+        }
+    };
+    range(blob, /\bgrades?\s*0?(\d{1,2})\s*(?:-|–|—|to)\s*0?(\d{1,2})\b/gi);
+    range(blob, /\bclass\s*0?(\d{1,2})\s*(?:-|–|—|to)\s*0?(\d{1,2})\b/gi);
+    range(blob, /\bforms?\s*0?(\d)\s*(?:-|–|—|to)\s*0?(\d)\b/gi);
+    // Form ranges arrive as raw 1-4 above; remap any stragglers.
+    for (const n of [...claimed]) {
+        if (n >= 1 && n <= 4 && /\bforms?\s*0?\d\s*(?:-|–|—|to)\s*0?\d\b/i.test(blob)) {
+            claimed.delete(n);
+            for (let f = n; f <= 4; f++) {
+                const g = FORM_TO_GRADE[f];
+                if (g !== undefined) claimed.add(g);
+            }
+        }
+    }
+    return [...claimed].filter((g) => g >= 1 && g <= 12).sort((a, b) => a - b);
+};
+
+// Verdict of a stored grade against claimed grades: 'match' (target claimed
+// or covered by a claimed range), 'mismatch' (other grades claimed, target
+// absent), or 'silent' (no claim at all — Khan-style titles).
+export const verifyVideoGrade = (storedGrade: number, title: string, description?: string | null): { status: 'match' | 'mismatch' | 'silent'; claimed: number[] } => {
+    const claimed = extractGradeClaims(`${title || ''}\n${description || ''}`);
+    if (claimed.length === 0) return { status: 'silent', claimed };
+    if (claimed.includes(storedGrade)) return { status: 'match', claimed };
+    return { status: 'mismatch', claimed };
+};
+// Deterministic topic rotation: ISO-week % topics.length. The old
+// Math.random() pick re-searched repeats (wasting quota on duplicates the
+// dedupe then discarded) while some topics waited months. Week rotation
+// covers every topic evenly with zero state and zero extra quota — the same
+// week always syncs the same topic, the next week moves on. Exported pure
+// for unit tests (pass `now` to freeze time).
+export const isoWeekNumber = (now: Date = new Date()): number => {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const day = (d.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+    d.setUTCDate(d.getUTCDate() - day + 3); // Thursday of this week
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const firstDay = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDay + 3);
+    return 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 24 * 3600 * 1000));
+};
+
+export const rotationIndex = (length: number, now: Date = new Date()): number => {
+    if (length <= 0) return 0;
+    return isoWeekNumber(now) % length;
+};
+
 // --- Import quality gate (pure, unit-tested) -------------------------------
 // Why this exists: the old query (`"Ethiopia" "grade 9" "Physics" ...` with
 // every term quoted) SELECTED FOR keyword-stuffers — genuine educators never
@@ -184,14 +303,25 @@ export const scoreCandidateVideo = (s: VideoSignals): VideoVerdict => {
     }
     // Subject (with synonyms: "Maths" counts for Mathematics).
     const blobLower = blob.toLowerCase();
-    if (subjectTokens(s.subject).some((t) => blobLower.includes(t))) {
+    const hasSubject = subjectTokens(s.subject).some((t) => blobLower.includes(t));
+    if (hasSubject) {
         score += 2;
         reasons.push('subject');
+    } else if (!s.topic || !s.topic.trim()) {
+        // Topic-less (subject-only) searches have no other anchor: a video
+        // that never names the subject is a mistarget, not a find.
+        return reject('subject-missing');
     }
-    // Grade mention is a bonus, never a gate: great educators (Khan Academy
-    // et al) don't write "grade 9" in titles, and gating on it would repeat
-    // the old query's mistake of selecting for keyword-stuffers.
-    if (new RegExp(`\\bgrade\\s*0?${s.grade}\\b|\\bclass\\s*0?${s.grade}\\b|\\b${s.grade}th\\b`, 'i').test(blob)) {
+    // Grade verification (not a bonus anymore): the sync loop's grade used
+    // to be stamped blindly, so a "Grade 10" video sailed into Grade 12 on
+    // topic+subject points alone. An explicit claim of another grade now
+    // rejects; a matching claim (or covering range) keeps the +1; silence
+    // stays neutral (Khan-style titles carry no grade and still pass).
+    const gradeCheck = verifyVideoGrade(s.grade, title, s.description);
+    if (gradeCheck.status === 'mismatch') {
+        return reject(`grade-mismatch-claims-${gradeCheck.claimed.join('+')}`);
+    }
+    if (gradeCheck.status === 'match') {
         score += 1;
         reasons.push('grade');
     }
@@ -387,15 +517,15 @@ export class YouTubeService {
         const apiKey = this.getApiKey();
         const topics = this.getTopicsForGradeAndSubject(grade, subject);
 
-        // If we have topics mapped, randomly pick exactly ONE topic per scheduled sync to protect the 10,000 API quota
-        // Over successive weeks, the library will organically populate without hitting quota walls.
-        let searchQueries: string[] = [];
-        let chosenTopics: (string | null)[] = [];
-
+        // One topic per scheduled sync to protect the 10,000-unit quota.
+        // Deterministic weekly rotation (not random): even coverage over
+        // successive weeks, no quota burned re-searching repeats.
+        const searchQueries: string[] = [];
+        const chosenTopics: (string | null)[] = [];
         if (topics.length > 0) {
-            const randomTopic = topics[Math.floor(Math.random() * topics.length)] as string;
-            searchQueries.push(buildSearchQuery(subject, randomTopic));
-            chosenTopics.push(randomTopic);
+            const weeklyTopic = topics[rotationIndex(topics.length)] as string;
+            searchQueries.push(buildSearchQuery(subject, weeklyTopic));
+            chosenTopics.push(weeklyTopic);
         } else {
             searchQueries.push(buildSearchQuery(subject, null));
             chosenTopics.push(null);

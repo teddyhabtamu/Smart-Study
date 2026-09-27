@@ -1451,6 +1451,24 @@ export const adminAPI = {
       body: JSON.stringify(reason?.trim() ? { reason: reason.trim() } : {}),
     }),
 
+  // YouTube grade audit: rows whose stored grade contradicts the grades
+  // their own title/description claims (same rule the sync gate enforces).
+  // Zero API quota — pure text analysis over owned rows.
+  getVideoGradeAudit: (): Promise<{
+    checked: number; mismatched: number; silent: number; truncated: boolean;
+    mismatches: Array<{
+      id: string; title: string; subject: string; storedGrade: number;
+      claimedGrades: number[]; video_url: string;
+    }>;
+  }> =>
+    apiRequest('/admin/youtube/grade-audit'),
+
+  regradeVideo: (id: string, grade: number): Promise<{ id: string; title: string; subject: string; grade: number }> =>
+    apiRequest(`/admin/youtube/videos/${id}/grade`, {
+      method: 'PATCH',
+      body: JSON.stringify({ grade }),
+    }),
+
   // Engagement (Overview): DAU/WAU/MAU, 30-day active series, 7-day
   // feature split. Best-effort: callers hide the card on failure.
   getEngagement: (): Promise<{

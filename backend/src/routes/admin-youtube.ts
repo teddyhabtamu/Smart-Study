@@ -1,6 +1,9 @@
 import express, { Request, Response } from 'express';
-import { authenticateToken, requireRole } from '../middleware/auth';
-import { YouTubeService, GRADES, SUBJECTS, isQuotaExceededError } from '../services/youtubeService';
+import { body } from 'express-validator';
+import { authenticateToken, requireRole, validateRequest } from '../middleware/auth';
+import { query as dbQuery } from '../database/config';
+import { logAdminActivity } from '../services/adminAuditLog';
+import { YouTubeService, GRADES, SUBJECTS, isQuotaExceededError, verifyVideoGrade } from '../services/youtubeService';
 
 const router = express.Router();
 
@@ -79,6 +82,91 @@ router.post('/sync-all', authenticateToken, requireRole(['ADMIN', 'MODERATOR']),
     } catch (error) {
         console.error('Sync all error:', error);
         res.status(500).json({ success: false, message: 'An error occurred during global sync' });
+    }
+});
+
+/**
+ * Grade audit: re-verify every library video's stored grade against the
+ * grades its own title/description claims (same extractor the sync gate
+ * uses — one rule everywhere). Costs zero YouTube quota: pure text
+ * analysis over rows we already own. Silent videos (no claim, e.g. Khan
+ * Academy) are counted, never flagged.
+ */
+router.get('/grade-audit', authenticateToken, requireRole(['ADMIN', 'MODERATOR']), async (_req: Request, res: Response): Promise<void> => {
+    try {
+        const r = await dbQuery(
+            `SELECT id, title, description, subject, grade, video_url, channel_id
+             FROM videos ORDER BY created_at DESC LIMIT 2000`
+        );
+        const mismatches: Array<{
+            id: string; title: string; subject: string; storedGrade: number;
+            claimedGrades: number[]; video_url: string;
+        }> = [];
+        let silent = 0;
+        for (const v of r.rows || []) {
+            const check = verifyVideoGrade(Number(v.grade), String(v.title || ''), v.description);
+            if (check.status === 'mismatch') {
+                mismatches.push({
+                    id: String(v.id),
+                    title: String(v.title || ''),
+                    subject: String(v.subject || ''),
+                    storedGrade: Number(v.grade),
+                    claimedGrades: check.claimed,
+                    video_url: String(v.video_url || ''),
+                });
+            } else if (check.status === 'silent') {
+                silent++;
+            }
+            if (mismatches.length >= 200) break;
+        }
+        res.json({
+            success: true,
+            data: {
+                checked: (r.rows || []).length,
+                mismatched: mismatches.length,
+                silent,
+                truncated: mismatches.length >= 200,
+                mismatches,
+            },
+        });
+    } catch (error) {
+        console.error('Grade audit error:', error);
+        res.status(500).json({ success: false, message: 'Failed to audit video grades' });
+    }
+});
+
+/**
+ * Regrade one video (audit fix or reviewer judgment call). Audit-logged;
+ * the row keeps its history — use delete for actual removals.
+ */
+router.patch('/videos/:id/grade', authenticateToken, requireRole(['ADMIN', 'MODERATOR']), [
+    body('grade').isInt({ min: 9, max: 12 }).withMessage('grade must be 9, 10, 11 or 12'),
+], validateRequest, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const grade = Number(req.body.grade);
+        const before = await dbQuery(`SELECT id, title, subject, grade FROM videos WHERE id = $1`, [id]);
+        if (before.rows.length === 0) {
+            res.status(404).json({ success: false, message: 'Video not found' });
+            return;
+        }
+        const r = await dbQuery(
+            `UPDATE videos SET grade = $1, updated_at = NOW() WHERE id = $2
+             RETURNING id, title, subject, grade`,
+            [grade, id]
+        );
+        logAdminActivity(req, {
+            action: 'video.regrade',
+            target_type: 'video',
+            target_id: String(id),
+            summary: `Regraded "${String(before.rows[0]?.title || id).slice(0, 60)}" grade ${before.rows[0]?.grade} → ${grade}`,
+            before: before.rows[0],
+            after: r.rows[0],
+        }).catch(() => {});
+        res.json({ success: true, data: r.rows[0] });
+    } catch (error) {
+        console.error('Regrade video error:', error);
+        res.status(500).json({ success: false, message: 'Failed to regrade video' });
     }
 });
 
